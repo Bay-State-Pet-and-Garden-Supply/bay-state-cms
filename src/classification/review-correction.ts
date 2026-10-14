@@ -1,6 +1,7 @@
 import type { ClassificationProposal } from '../shared/types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { getProductTypeIdFromValue } from './assignment-projection';
+import { isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 
 export interface ReviewCorrection {
   hasRevisedValue: boolean;
@@ -11,6 +12,17 @@ export interface ReviewCorrection {
 
 /** Shared HTTP/CLI frozen-membership guard. Historical rows remain readable, not correctable without their authority. */
 export function validateFrozenReviewCorrection(proposal: ClassificationProposal, correction: ReviewCorrection, snapshot: RuntimeClassificationSnapshot | null): ReviewCorrection {
+  // ADR 0041 / issue #349: a revised target or historical Brand proposal can
+  // never authorize a protected write. Accepted (or corrected) decisions on
+  // protected targets refuse attributably instead of applying or silently
+  // rerouting. Rejections/deferrals carry no write authority and pass.
+  if (proposal.proposalType === 'field_assignment' && (correction.hasRevisedValue || correction.hasRevisedTargetId)) {
+    const effectiveTarget = correction.hasRevisedTargetId ? correction.revisedTargetId : proposal.targetId;
+    const originalProtected = isProtectedTargetId(proposal.targetId);
+    if (originalProtected || isProtectedTargetId(effectiveTarget)) {
+      throw new Error(protectedTargetRefusal(effectiveTarget ?? proposal.targetId).reason);
+    }
+  }
   if (!correction.hasRevisedValue && !correction.hasRevisedTargetId) return correction;
   if (!snapshot) throw new Error('Frozen runtime snapshot is required to validate a correction.');
   if (proposal.proposalType === 'field_assignment' && correction.hasRevisedTargetId && correction.revisedTargetId === null) {

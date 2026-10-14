@@ -102,8 +102,8 @@ describe('grouped page target processing', () => {
   });
 });
 
-describe('supplied brand provenance', () => {
-  it('preserves the supplied brand and shows opposing extraction without sending it to a model', async () => {
+describe('supplied brand provenance (issue #349: Brand is input context, never a classifier output)', () => {
+  it('emits no Brand proposal — supplied Brand stays readable as evidence but is never produced', async () => {
     const evidence = [
       { id: 'web-brand', source: 'official_product_page', sourceField: 'brand', value: 'Other', snippet: 'Other' },
       { id: 'input-brand', source: 'spreadsheet', sourceField: 'brand', value: 'Acme', snippet: 'Acme' },
@@ -111,10 +111,7 @@ describe('supplied brand provenance', () => {
     const brandTarget = { config: { id: 'brand-target', kind: 'product_field', label: 'Brand', attributeId: 'brand', catalogField: 'ProductField16', selectionMode: 'single' },
       attribute: { id: 'brand', name: 'Brand', valueMode: 'freeText', valueAliases: [] }, options: [] };
     const result = await processProductFieldTarget(brandTarget as any, { ...input, evidence: evidence as any }, context);
-    expect(result.proposals[0].proposedValue).toBe('Acme');
-    expect(result.proposals[0].derivation).toEqual({ kind: 'evidence_match' });
-    expect(result.proposals[0].supportingEvidenceIds).toContain('input-brand');
-    expect(result.proposals[0].contradictingEvidenceIds).toContain('web-brand');
+    expect(result.proposals).toEqual([]);
     expect(mocks.perItem).not.toHaveBeenCalled();
   });
 });

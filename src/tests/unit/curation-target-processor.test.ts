@@ -359,7 +359,9 @@ describe('processPageTarget (LLM-first)', () => {
   });
 });
 
-// ─── Brand shortcut (issue #17 pass 5b) ───────────────────────────────────────
+// ─── Brand ownership (ADR 0041 / issue #349) ────────────────────────────────────
+// The classifier Brand shortcut is removed, not flagged: Brand targets never
+// produce proposals through the shared composition.
 
 const brandTarget = (): ResolvedTarget => ({
   config: {
@@ -411,60 +413,36 @@ const brandEvidence = (id: string, overrides: Partial<ClassificationEvidence>): 
   ...overrides,
 });
 
-describe('brand shortcut (issue #17 pass 5b)', () => {
+describe('brand ownership (issue #349: no Brand proposals)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(llmRankOptions).mockResolvedValue({
-      values: ['Blue Buffalo'],
-      confidence: 0.9,
-      modelCallIds: [],
-    });
   });
 
-  it('shortcuts only when EVERY reviewed brand assertion (incl. ordinary scalar brand records) agrees on the exact canonical identity', async () => {
+  it('emits no proposal even when every brand assertion agrees', async () => {
     const resolved = brandEvidence('ev-resolved', {
       sourceField: 'resolved_brand',
       value: { brandId: 'blue-buffalo', brandName: 'Blue Buffalo', confidence: 0.95, matchedBy: 'catalog' },
     });
     const scalar = brandEvidence('ev-scalar', { value: 'Blue Buffalo' });
     const result = await processProductFieldTarget(brandTarget(), makeInput({ evidence: [resolved, scalar] }), makeContext());
-    expect(result.proposals).toHaveLength(1);
-    expect(result.proposals[0].proposedValue).toBe('Blue Buffalo');
-    expect(result.proposals[0].supportingEvidenceIds?.sort()).toEqual(['ev-resolved', 'ev-scalar'].sort());
+    expect(result.proposals).toEqual([]);
     expect(llmRankOptions).not.toHaveBeenCalled();
   });
 
-  it('does NOT shortcut when a scalar official-page brand disagrees with the resolved brand — conflict is visible, never first-wins', async () => {
+  it('emits no proposal when brand assertions disagree', async () => {
     const resolved = brandEvidence('ev-resolved', {
       sourceField: 'resolved_brand',
       value: { brandId: 'blue-buffalo', brandName: 'Blue Buffalo', confidence: 0.95, matchedBy: 'catalog' },
     });
     const official = brandEvidence('ev-official', { value: 'Dr. Marty' });
     const result = await processProductFieldTarget(brandTarget(), makeInput({ evidence: [resolved, official] }), makeContext());
-    // Falls through to the normal matching path; the disagreeing assertions
-    // are visible contradicting evidence and the proposal is forced to review.
-    expect(result.proposals).toHaveLength(1);
-    expect(result.proposals[0].isBulkAcceptable).toBe(false);
-    expect(result.proposals[0].contradictingEvidenceIds?.sort()).toEqual(['ev-official', 'ev-resolved'].sort());
+    expect(result.proposals).toEqual([]);
   });
 
-  it('treats case-different brand values as DISTINCT identities — no case folding shortcut', async () => {
+  it('emits no proposal for case-different brand values', async () => {
     const one = brandEvidence('ev-one', { value: 'Blue Buffalo' });
     const two = brandEvidence('ev-two', { value: 'BLUE BUFFALO' });
     const result = await processProductFieldTarget(brandTarget(), makeInput({ evidence: [one, two] }), makeContext());
-    expect(result.proposals).toHaveLength(1);
-    // Both disagreeing assertions are visible contradicting evidence and the
-    // role sets are pairwise DISJOINT: the selected assertion cannot be both
-    // supporting and contradicting (issue #17 pass 5c — the pipeline linkage
-    // rolls back on overlap, so disjointness is required for a reviewable
-    // proposal).
-    expect(result.proposals[0].contradictingEvidenceIds?.sort()).toEqual(['ev-one', 'ev-two'].sort());
-    expect(result.proposals[0].supportingEvidenceIds ?? []).toEqual([]);
-    const support = new Set(result.proposals[0].supportingEvidenceIds ?? []);
-    const conflict = new Set(result.proposals[0].contradictingEvidenceIds ?? []);
-    for (const id of conflict) {
-      expect(support.has(id)).toBe(false);
-    }
-    expect(result.proposals[0].isBulkAcceptable).toBe(false);
+    expect(result.proposals).toEqual([]);
   });
 });

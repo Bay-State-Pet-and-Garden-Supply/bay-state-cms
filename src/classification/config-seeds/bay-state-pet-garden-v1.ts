@@ -720,7 +720,15 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       required: true,
       sortOrder: 0,
     },
-    { id: 'brand-target', kind: 'product_field', label: 'Brand', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'brand', catalogField: 'ProductField16', optionSource: 'configured', required: false, sortOrder: 10 },
+    // ADR 0041 / issue #349: the Brand curation target is DISABLED — Brand is
+    // never a classifier-owned output. The target row is retained (disabled)
+    // so existing snapshots stay readable, but the shared composition refuses
+    // Brand targets at proposal production even when enabled, so no path can
+    // emit a Brand proposal from this seed. The brand-mapping row stays: it
+    // identifies the Brand identity slot for ownership checks and
+    // non-classification supplied-identity handling — never a classifier
+    // write path. Full mapping retirement belongs to #350+ taxonomy work.
+    { id: 'brand-target', kind: 'product_field', label: 'Brand', enabled: false, mandatory: false, selectionMode: 'single', attributeId: 'brand', catalogField: 'ProductField16', optionSource: 'configured', required: false, sortOrder: 10 },
     { id: 'species-target', kind: 'product_field', label: 'Animal Species', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'species', catalogField: 'ProductField17', optionSource: 'configured', required: false, sortOrder: 11 },
     { id: 'life-stage-target', kind: 'product_field', label: 'Life Stage', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'life-stage', catalogField: 'ProductField18', optionSource: 'configured', required: false, sortOrder: 12 },
     { id: 'breed-size-target', kind: 'product_field', label: 'Breed Size', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'breed-size', catalogField: 'ProductField19', optionSource: 'configured', required: false, sortOrder: 13 },

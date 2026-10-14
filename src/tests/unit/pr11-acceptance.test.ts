@@ -559,14 +559,16 @@ const CONFLICTING_PROMOTABLE = {
   '100000000003': promotableExtraction('100000000003', { _name: 'Purina Pro Plan Dry Dog Food Salmon 5 lb', _brandHint: 'Woof', title: 'Purina Pro Plan Dry Dog Food Salmon 5 lb' }),
 };
 
-/** Bay State seed with the UNIVERSAL `brand` attribute switched to controlled
- *  with allowedValues ['Acme'] — the member pipeline then deterministically
- *  emits a brand field_assignment proposal (which must carry NO dependency). */
-const BRAND_CONTROLLED_SEED: typeof BayStatePetGardenSeed = {
+/** Bay State seed with a UNIVERSAL classifier-owned attribute under test:
+ *  `flavor` is temporarily universal + controlled (['Chicken']) so the member
+ *  pipeline deterministically emits a flavor field_assignment proposal (which
+ *  must carry NO dependency). Brand can no longer serve this role: it is
+ *  never a classifier-owned output (ADR 0041 / issue #349). */
+const UNIVERSAL_FLAVOR_SEED: typeof BayStatePetGardenSeed = {
   ...BayStatePetGardenSeed,
   attributes: BayStatePetGardenSeed.attributes.map(attribute =>
-    attribute.id === 'brand'
-      ? { ...attribute, valueMode: 'controlled' as const, allowedValues: ['Acme'] }
+    attribute.id === 'flavor'
+      ? { ...attribute, isUniversal: true as const, valueMode: 'controlled' as const, allowedValues: ['Chicken'] }
       : attribute,
   ),
 };
@@ -1083,19 +1085,19 @@ describe('PR11 C4 — stale proposals: an accepted type dependency whose target 
 
   it('a universal-attribute proposal (NO dependency row) is never stale and promotes', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE, BRAND_CONTROLLED_SEED);
+    const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE, UNIVERSAL_FLAVOR_SEED);
     const run = await freezeActiveCohort(workspaceId, wsPath);
     expect(run.executionProductTypeId).toBe('dog-food-dry');
     const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
-    // The controlled `brand` attribute deterministically emits a field
-    // assignment proposal carrying NO product-type dependency (PR9 C4).
+    // The controlled universal `flavor` attribute deterministically emits a
+    // field assignment proposal carrying NO product-type dependency (PR9 C4).
     const memberOne = findItemById(prepared.items[0].id)!;
     const assignments = fieldAssignmentsByTarget(memberOne.curationData!);
-    const brand = assignments.get('brand');
-    expect(brand).toBeDefined();
-    expect(listDependenciesForProposal(brand!.id)).toHaveLength(0);
+    const flavor = assignments.get('flavor');
+    expect(flavor).toBeDefined();
+    expect(listDependenciesForProposal(flavor!.id)).toHaveLength(0);
 
     for (const item of prepared.items) decideAllProposals(findItemById(item.id)!);
     placeInPromotion(prepared.items.map(item => findItemById(item.id)!));

@@ -2,11 +2,21 @@
 
 Bay State CMS manages store product data as local product drafts that can be reviewed, approved, and published to a ShopSite store.
 
+The classification vocabulary records the confirmed domain contract in [ADR 0041](docs/adr/0041-single-product-classification-contract.md); its runtime migration is not implemented by this documentation update.
+
 ## Language
 
 **Category Page**:
 An existing customer-facing store page that a product can be assigned to for browsing.
 _Avoid_: Category, taxonomy page, page category
+
+**Taxonomy Category Page**:
+An existing Category Page grouping products by Product Classification or permitted Classification Attributes, rather than Brand identity.
+_Avoid_: Brand Page, Category field, invented page
+
+**Brand Page**:
+A store browsing page grouping products by established Brand identity, outside the Classification Engine's assignment and removal scope.
+_Avoid_: Taxonomy Category Page, classifier-inferred Brand
 
 **Category Page Identity**:
 The stable live-store identity used to validate a Category Page assignment.
@@ -24,13 +34,29 @@ _Avoid_: Auto-created page, missing category
 An accepted Category Page assignment whose page no longer exists or is ambiguous at product draft creation.
 _Avoid_: Deleted assignment, broken page
 
-**Product Type**:
-A reusable classification for products that share the same merchandising expectations.
-_Avoid_: Category, template, department
+**Category**:
+A store-configured customer-facing classification group, distinct from a Category Page. Together with Product Type it forms a Product Classification.
+_Avoid_: Category Page, inferred page hierarchy
 
-**Primary Product Type**:
-The Product Type that selects a product's Attribute Profile when known.
-_Avoid_: Secondary type, category, facet
+**Product Type**:
+The store-facing kind of product, such as Food or Toys, used with Category to form a Product Classification.
+_Avoid_: Internal Product Type, Primary Product Type, template, delivery mode
+
+**Product Classification**:
+The single canonical Category and Product Type combination for a Product SKU. Its configured Attribute Profile determines the relevant Classification Attributes; there is no separately inferred internal type.
+_Avoid_: Parallel website/internal types, hidden type, duplicate type decision
+
+**Classification Engine**:
+The product-level capability that proposes Product Classifications, permitted Classification Attributes, and Taxonomy Category Page changes from the SKU's supplied evidence.
+_Avoid_: Listing generator, identity resolver, source-discovery engine
+
+**Brand**:
+A supplied product identity fact that is optional context for classification, never a classifier-owned assignment or removal.
+_Avoid_: Classification Attribute, inferred classifier output
+
+**Protected Product Data**:
+Product information outside classifier ownership, including Brand, other identity information, listing content, pricing, inventory, and operational status.
+_Avoid_: Arbitrary classification target, generic field enrichment
 
 **Grooming**:
 The Product Type for pet skin and coat care, including medicated shampoos, lotions, and anti-itch sprays. Products explicitly intended for flea or tick control belong to Flea & Tick Treatment.
@@ -38,21 +64,29 @@ The Product Type for pet skin and coat care, including medicated shampoos, lotio
 **Insect & Pest Control**:
 The Product Type for insect and pest control products, including mosquito repellents, electronic or heated repellent devices, and their dedicated repellent consumables.
 
-**Unknown Primary Product Type**:
-The reviewed absence of a Primary Product Type for a product.
-_Avoid_: Product failure, forced type
+**Unresolved Product Classification**:
+A Product Classification whose Category or Product Type is missing, conflicting, or unsupported by the supplied evidence or approved configuration.
+_Avoid_: Forced type, successful classification, guessed fallback
+
+**Classification Readiness**:
+A reviewed Product Classification with its configured Attribute Profile and applicable required values resolved. An unresolved required classification or profile requirement is not ready for product draft creation.
+_Avoid_: Run completed, model confidence, hidden internal-type gate
 
 **Assistant**:
-A bounded, schema-validated LLM capability that fills or proposes pipeline outputs by selecting from constrained options (configured enums, existing page identities) and abstaining with a coded reason when it cannot comply. Assistants execute inside frozen cohort windows with audited provenance. _Avoid_: Agent, specialist, bot, autonomous pipeline
+A bounded, schema-validated capability that proposes constrained outputs or explicitly abstains.
+_Avoid_: Agent, specialist, autonomous catalog writer
 
 **Catalog Adjudication Assistant**:
-The Curation-stage Assistant that selects Primary Product Type and Category Page assignments from currently-configured store values only, abstaining to blank-plus-reason when constraints cannot be satisfied. _Avoid_: Classifier agent, auto-classifier, AI curator
+A bounded Assistant that proposes configured Product Classifications, Classification Attributes, and verified Taxonomy Category Page changes for a Product SKU.
+_Avoid_: Independent type classifier, automatic classification authority
 
 **Assistant Authority Gate**:
-The measured condition (Wilson lower-bound precision over operator-reviewed history) an Assistant must satisfy before its output may advance items without per-item review. Until met, Assistant output is propose-only and every item passes the Review drawer. _Avoid_: Trust score, autopilot mode, confidence auto-advance
+A qualification condition for permitted Assistant automation outside classification review; it never replaces a Proposal Decision for a Classification Proposal.
+_Avoid_: Classification review bypass, confidence auto-approval
 
 **Coded Abstention**:
-An Assistant declining to produce a value, recorded as an empty field plus a machine-readable reason surfaced in the review drawer. _Avoid_: Silent skip, low-confidence guess, fallback value
+An explicit unresolved result with a reason, not a successful assignment or a forced guess.
+_Avoid_: Silent skip, forced value, successful assignment
 
 **Product SKU**:
 A store-facing product identifier used as the onboarding key.
@@ -70,21 +104,25 @@ _Avoid_: New category, auto-created type
 A store-configured merchandisable fact about a product, such as flavor, color, size, material, or life stage.
 _Avoid_: Field, custom field, classifier result
 
+**Classification Attribute**:
+A Product Attribute explicitly permitted as a classifier output by Classification Configuration. Brand and other Protected Product Data remain excluded even when represented by mapped product fields.
+_Avoid_: Every Catalog Field, identity enrichment, arbitrary product field
+
 **Attribute Group**:
 An optional manager-facing grouping for Product Attributes.
 _Avoid_: Product Type, classification rule, inheritance
 
 **Attribute Group Layout**:
-A Product Type-specific display ordering or override for Attribute Groups.
+A Product Classification-specific display ordering or override for Attribute Groups.
 _Avoid_: Classification rule, attribute applicability
 
 **Unmapped Product Attribute**:
 A Product Attribute without a live Catalog Field target.
 _Avoid_: Planned field, final assignment
 
-**Universal Product Attribute**:
-A Product Attribute that is universally PROPOSABLE from evidence, with requiredness and applicability still enforced by the Attribute Profile.
-_Avoid_: Global field, common metadata
+**Universal Classification Attribute**:
+A permitted Classification Attribute whose applicability does not depend on a resolved Product Classification, while configured requiredness and applicability rules still apply.
+_Avoid_: Global field, common metadata, universally writable product data
 
 **Product Claim**:
 A Product Attribute that states a marketing or compliance-sensitive claim about a product.
@@ -103,15 +141,15 @@ A Product Attribute that records ingredient, nutrient, active ingredient, allerg
 _Avoid_: Generic attribute, generated summary
 
 **Attribute Profile**:
-The set of Product Attributes expected for a Product Type.
+The configured set of Classification Attributes and their rules for a Product Classification; a profile may be shared by multiple classifications.
 _Avoid_: Field set, schema, template
 
 **Attribute Constraint**:
-A Product Type-specific limit on how a Product Attribute may be assigned.
+A Product Classification-specific limit on how a Classification Attribute may be assigned.
 _Avoid_: Validation rule, configuration option
 
 **Attribute Applicability Condition**:
-A deterministic Attribute Profile rule that decides whether a Product Attribute applies to a product.
+A deterministic Attribute Profile rule that decides whether a Classification Attribute applies to a product.
 _Avoid_: Free-form guidance, hidden classifier rule
 
 **Applicability Preview**:
@@ -127,7 +165,7 @@ A reviewer decision that treats a Non-Applicable Product Attribute as applicable
 _Avoid_: Attribute Profile change, silent applicability change
 
 **Attribute Cardinality**:
-Whether a Product Attribute accepts one value or multiple values for a Product Type.
+Whether a Classification Attribute accepts one value or multiple values for a Product Classification.
 _Avoid_: Array field, multi-select flag
 
 **Unmapped Attribute Value**:
@@ -151,19 +189,23 @@ A configured synonym that supports mapping evidence text to a controlled Product
 _Avoid_: Replacement value, hidden rewrite
 
 **Ambiguous Attribute Value Alias**:
-An Attribute Value Alias that could map to different values in different Product Types or contexts.
+An Attribute Value Alias that could map to different values in different Product Classifications or contexts.
 _Avoid_: Bad alias, automatic match
 
 **Canonical Controlled Value**:
 A controlled Product Attribute value whose stored string IS its identity: NFC-normalized and trimmed, with label equal to the ID (v2 policy). Config validation rejects empty/control-character/non-NFC/non-trimmed values, exact duplicates, normalized/case-fold collision pairs, and aliases whose target is not an exact allowed value. Evidence-text matching is case-tolerant, but the emitted value is always the exact canonical ID — the runtime never guesses an ID from a display label. See `src/classification/controlled-value-identity.ts` and ADR 0012.
 _Avoid_: Display string as ID, case-variant values, silent rewrite
 
+**ShopSite Delivery Mode**:
+The ShopSite product's fulfillment form, such as Tangible or Download, unrelated to its Product Classification.
+_Avoid_: Product Type classification, merchandising type
+
 **ShopSite Built-in Output Field**:
-A DTD-level ShopSite product element governed by the immutable adapter-owned output policy (Name, FileName, Price, SaleAmount, ProductDescription, MinimumQuantity, ProductType, Weight, Graphic, MoreInformationText, MoreInformationGraphic, SearchKeywords, MoreInfoImage1–20). The policy fixes each field's omission/default/encoding/cardinality rule; it is not workspace-configurable, and `ProductField*` values are never built-ins. See `src/shopsite/built-in-output-policy.ts` and ADR 0011.
+A native ShopSite product field with fixed output-format and default rules, distinct from store-specific Catalog Fields. Its fulfillment type is ShopSite Delivery Mode, not the business Product Type.
 _Avoid_: Store-specific config for DTD behavior
 
 **Catalog Field**:
-A store-specific product field present in the live ShopSite XML pulled from the store.
+A store-specific product field present in a live ShopSite export. Its semantic purpose requires verified settings or template evidence, not merely an observed tag or example value.
 _Avoid_: Database column, classifier slot, planned field
 
 **Catalog Field Serialization**:
@@ -171,7 +213,7 @@ The store-specific format used when writing one or more Product Attribute values
 _Avoid_: String formatting, display text
 
 **Attribute Mapping**:
-A workspace-specific link from a Product Attribute to its primary Catalog Field.
+An approved workspace-specific link from a Product Attribute to a Catalog Field whose semantic purpose is established.
 _Avoid_: Store-specific taxonomy, hardcoded field map
 
 **Stale Attribute Mapping**:
@@ -187,8 +229,16 @@ A reviewed value for a store-specific product attribute.
 _Avoid_: Metadata, tag, enrichment
 
 **Classification Proposal**:
-A reviewable suggested Product Type, Category Page, or Field Assignment for a product.
+A reviewable suggestion for a Product Classification, Classification Attribute value, Taxonomy Category Page assignment, or Classification Removal.
 _Avoid_: Automatic classification, final assignment
+
+**Classification Removal**:
+A reviewed clearing of an incompatible existing classification value or Taxonomy Category Page assignment, never Protected Product Data.
+_Avoid_: Silent cleanup, automatic deletion, identity correction
+
+**Classification Removal Proposal**:
+A reviewable suggestion to clear an incompatible existing classification value or Taxonomy Category Page assignment.
+_Avoid_: Applied removal, automatic overwrite, Brand removal
 
 **Proposal Confidence**:
 A confidence level for a Classification Proposal that influences review preselection.
@@ -215,12 +265,12 @@ Bulk Proposal Acceptance across multiple Product SKUs in one onboarding batch.
 _Avoid_: Blind batch approval, automatic batch classification
 
 **Product Draft Projection**:
-A preview of product draft fields and Category Page assignments derived from accepted Proposal Decisions.
+A preview of product draft classification values and taxonomy-page assignments, including clears and removals, derived from accepted Proposal Decisions.
 _Avoid_: Final product draft, persisted field values
 
 **Skipped Draft Assignment**:
 An accepted proposal that is not written during product draft creation because it is stale or blocked by configuration.
-_Avoid_: Product blocker, silent omission
+_Avoid_: Silent omission, successful required assignment
 
 **Classification History**:
 The retained local CMS operational record of Classification Proposals, Classification Evidence, and Proposal Decisions for a product.
@@ -259,15 +309,15 @@ A manager choice to exclude a Product SKU from a queued Classification Refresh.
 _Avoid_: Invalid partial refresh, skipped required stage
 
 **Stale Classification Proposal**:
-A Classification Proposal that should be reconsidered because a dependent proposal changed.
+A Classification Proposal requiring reconsideration because its classification, evidence, configuration, or dependent decision changed.
 _Avoid_: Invalid field, deleted suggestion
 
 **Classification Evidence**:
-A product fact that supports a Classification Proposal.
+A supplied product fact or image observation belonging to the Product SKU and supporting a Classification Proposal.
 _Avoid_: Model output, AI reasoning
 
 **Evidence Source**:
-The origin of Classification Evidence, such as product text, visual observation, inferred context, spreadsheet hint, brand history, or prior approved products.
+The origin of a SKU's supplied Classification Evidence, such as its Name, descriptive text, image observation, imported product facts, or operator-attested details.
 _Avoid_: Model reasoning, prompt output
 
 **Third-Party Evidence**:
@@ -278,12 +328,12 @@ _Avoid_: Official evidence, claim evidence
 An `html_scraper` connector family that extracts distributor catalog data from web storefronts via authenticated sessions (orgill, pet_food_experts, phillips_storefront, bradley, central_pet). Distributor Scrapers are Distributor Connections whose transport is web scraping rather than a provider API or catalog feed (ADR 0014 Amendment B).
 _Avoid_: Crawler, bot, legacy adapter
 
-**Page Context Evidence**:
-Low-reliability Classification Evidence derived from existing or proposed Category Page names, paths, or hierarchy.
-_Avoid_: Direct product evidence, claim evidence
+**Page Assignment Context**:
+The SKU's existing page assignments and configured page hierarchy used to compare proposed placements and removals, not to establish product facts.
+_Avoid_: Page Context Evidence, inherited classification, direct product evidence
 
 **Evidence Conflict**:
-A disagreement between Classification Evidence that prevents a confident proposal.
+A disagreement between supplied product facts that leaves affected classification results unresolved. Uncertain product or variant identity prevents combining the conflicting sources.
 _Avoid_: Model error, bad data
 
 **Evidence Reliability**:
@@ -291,11 +341,11 @@ The trustworthiness of an Evidence Source for preselecting a Classification Prop
 _Avoid_: Truth, priority rule
 
 **Approved Product Example**:
-An existing reviewed product used as store-local evidence for a Classification Proposal.
+An existing reviewed product used to inform Classification Configuration, not to supply facts or inherited assignments for another Product SKU.
 _Avoid_: Training data, global example
 
 **Configuration Suggestion**:
-A reviewable proposed Product Type, Product Attribute, Attribute Constraint, or allowed value derived from store-local evidence.
+A reviewable proposed Category, Product Type, Product Classification, Classification Attribute, constraint, or allowed value derived from store-local configuration evidence.
 _Avoid_: Auto-generated configuration, inferred schema
 
 **Configuration Review**:
@@ -303,15 +353,15 @@ A workspace-level review of Configuration Suggestions and Configuration Changes.
 _Avoid_: Product review, inline product decision
 
 **Starter Preset**:
-An optional predefined set of Product Types, Product Attributes, Attribute Constraints, and allowed values that a store may adapt.
+An optional predefined set of Categories, Product Types, Product Classifications, Classification Attributes, constraints, and allowed values that a store may adapt.
 _Avoid_: Default configuration, global taxonomy
 
 **Batch Classification Hint**:
-A temporary cue used to interpret products in one onboarding batch.
+Temporary operator guidance for interpreting supplied evidence in one onboarding batch, not a substitute for each SKU's own product facts.
 _Avoid_: Workspace configuration, permanent mapping
 
 **Baseline Classification**:
-The automatic classification work that can run before durable Classification Configuration exists.
+Evidence interpretation and configuration-gap detection available before approved Classification Configuration exists, not permission to invent catalog assignments.
 _Avoid_: Full classification, configured attribute proposal
 
 **Configured Classification**:
@@ -319,7 +369,7 @@ Classification work that depends on active Classification Configuration.
 _Avoid_: Baseline classification, always-on classification
 
 **Classification Configuration**:
-The durable workspace-specific setup for Product Types, Product Attributes, Attribute Profiles, Attribute Mappings, and allowed values.
+The approved workspace-specific Categories, Product Types, valid Product Classifications, Classification Attributes, Attribute Profiles, Attribute Mappings, and allowed values.
 _Avoid_: Runtime cache, batch hint, model prompt
 
 **Catalog Manager Guidance**:
@@ -351,19 +401,19 @@ A bounded retained copy of Structured Product Evidence as it existed when it sup
 _Avoid_: Raw page archive, full image copy
 
 **Evidence Retention Policy**:
-The workspace default and type-specific override rules that control how long Evidence Snapshots are retained.
+The workspace default and classification-specific override rules that control how long Evidence Snapshots are retained.
 _Avoid_: Immediate purge, raw archive policy
 
 **Visual Product Evidence**:
-Structured Product Evidence extracted from a product image.
+Structured Product Evidence obtained by interpreting a supplied image for that SKU; artwork is not proof of flavor, ingredients, or health claims.
 _Avoid_: Final visual classification, image guess
 
 **Visual Evidence Eligibility**:
-Whether a Product Attribute may use Visual Product Evidence for proposals.
+Whether a Classification Attribute may use Visual Product Evidence for proposals.
 _Avoid_: Image-based guessing, universal vision support
 
 **Evidence Extraction Stage**:
-A Classification Stage that turns Untrusted Product Evidence into Structured Product Evidence.
+A Classification Stage that interprets supplied Untrusted Product Evidence into Structured Product Evidence without discovering new sources or rewriting input product data.
 _Avoid_: Proposal stage, raw prompt passthrough
 
 **Guidance Precedence**:
@@ -383,8 +433,8 @@ A reviewed update to Classification Configuration.
 _Avoid_: Instant setting, runtime tweak
 
 **Configuration Gap**:
-A missing, stale, or unmapped part of Classification Configuration that prevents a proposal from becoming a final Field Assignment.
-_Avoid_: Product blocker, validation error
+A missing, stale, or unmapped part of Classification Configuration that prevents a supported classification or value from becoming an assignment. A gap affecting the profile or required classification keeps the product in Review.
+_Avoid_: Model guess, automatic configuration change
 
 **Classification Stage**:
 A focused step that turns available product information into either Classification Evidence or Classification Proposals.
@@ -440,35 +490,39 @@ _Avoid_: Hidden ordering, implicit prerequisite
 
 ## Relationships
 
-- A **Product Type** defines which **Product Attributes** are relevant for a product.
-- A **Product SKU** may have one **Primary Product Type** or an **Unknown Primary Product Type** during review.
-- A **Primary Product Type** gates Product Attribute classification except for **Universal Product Attributes**, which are universally PROPOSABLE from evidence while the **Attribute Profile** continues to enforce requiredness and applicability.
-- An **Unknown Primary Product Type** pauses type-gated Product Attribute proposals and Category Page proposals but does not block product draft creation.
-- A **Product Type** remains local CMS classification unless represented by a mapped **Product Attribute**.
-- Changing a **Product Type** may make type-specific **Classification Proposals** stale.
-- Changing the **Primary Product Type** is a **Proposal Decision Revision** with downstream effects.
-- Changing the **Primary Product Type** triggers a **Classification Refresh** for dependent Attribute Applicability, Attribute Proposal, Category Page Proposal, and Product Draft Projection stages.
-- An **Unmapped Product Type** requires review before it can become a **Product Type**.
-- An **Attribute Profile** belongs to exactly one **Product Type**.
+- A **Product Classification** consists of the website **Category** and **Product Type** for one **Product SKU**.
+- **Category** and **Product Type** are canonical business values, not parallel website and internal classifications.
+- Each configured **Product Classification** selects its **Attribute Profile**; profiles and identifiers are not additional types to predict or review.
+- A provisional **Product Classification** may drive dependent attribute and taxonomy-page proposals in one pass without making them catalog truth.
+- **Universal Classification Attributes** may be proposed from the SKU's own evidence under explicit configuration, without establishing **Classification Readiness**.
+- An **Unresolved Product Classification** is an explicit incomplete result, never a forced label or successful completed assignment.
+- Changing **Category** or **Product Type** is a **Proposal Decision Revision** that invalidates dependent proposals, applicability, page placement, and readiness before application.
+- Missing required **Category**, **Product Type**, profile configuration, or applicable required values keeps the product in **Review** before draft creation.
+- An **Unmapped Product Type** or unsupported classification combination requires **Configuration Review**, not an invented assignment.
+- An **Attribute Profile** may be shared by multiple **Product Classifications**.
+- **Brand** is optional input context and never a classification assignment, replacement, removal, or brand-page proposal.
+- **Protected Product Data** cannot become a classifier target through an Attribute Mapping, profile, model output, or reviewed target revision.
+- Runtime enforcement lives in `src/classification/classification-ownership.ts` (shared allowlist/refusal contract consumed at proposal production, review validation, projection, and application).
 - An **Attribute Profile** may define **Attribute Constraints** for each included **Product Attribute**.
 - An **Attribute Profile** may define **Attribute Applicability Conditions** for each included **Product Attribute**.
 - An **Attribute Applicability Condition** may use unreviewed proposals only for **Applicability Previews**.
 - Accepted or reviewed values are required before an **Attribute Applicability Condition** can affect final Field Assignments or required-field validation.
 - Required-field validation applies only to Product Attributes whose **Attribute Applicability Conditions** are satisfied by accepted or reviewed values.
 - A **Non-Applicable Product Attribute** does not affect final Field Assignments or required-field validation.
-- Product review focuses on applicable Product Attributes while allowing Non-Applicable Product Attributes to be inspected for configuration debugging.
+- Product review includes applicable attribute proposals and incompatible existing values requiring reviewed removal; other Non-Applicable Product Attributes remain available for configuration inspection.
 - An **Applicability Override** may allow a Non-Applicable Product Attribute to receive a Proposal Decision for one product.
+- An **Applicability Override** cannot authorize a classification output affecting **Protected Product Data**.
 - An **Applicability Override** is not eligible for bulk actions.
 - An **Applicability Override** may produce a **Configuration Suggestion** when it indicates the Attribute Profile may be wrong.
 - An **Attribute Profile** may define **Attribute Cardinality** for each included **Product Attribute**.
-- An **Attribute Profile** may define Product Type-specific **Attribute Value Aliases**.
+- An **Attribute Profile** may define classification-specific **Attribute Value Aliases**.
 - An **Attribute Profile** may define confidence thresholds for its **Classification Proposals**.
 - An **Unmapped Attribute Value** requires review before it can become a **Field Assignment**.
 - An **Unmapped Category Page** requires review before it can become a **Category Page**.
 - A **Product Attribute** may appear in many **Attribute Profiles**.
 - A **Product Attribute** may belong to one **Attribute Group** for review and configuration organization.
 - **Classification Configuration** may define workspace-global **Attribute Groups**.
-- A **Product Type** may define an **Attribute Group Layout** for manager-facing display.
+- A **Product Classification** may define an **Attribute Group Layout** for manager-facing display.
 - An **Attribute Group** does not determine whether a Product Attribute applies to a product.
 - A **Product Attribute** may have one **Attribute Mapping**.
 - An **Unmapped Product Attribute** cannot produce a final **Field Assignment**.
@@ -476,7 +530,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A **Stale Attribute Mapping** cannot produce a final **Field Assignment** until remapped.
 - A **Catalog Field** must come from the live ShopSite XML pulled from the store.
 - A **Product Attribute** has exactly one **Attribute Value Mode**.
-- A **Product Claim** requires **Direct Claim Evidence**.
+- A **Product Claim** requires **Direct Claim Evidence**; flavor, ingredients, and health claims require explicit product wording or facts rather than package artwork.
 - An **Absence-Based Claim** cannot become a **Classification Proposal**.
 - A **Product Composition Attribute** requires strict evidence and provenance.
 - A measured **Product Attribute** stores **Measured Attribute Values** before field serialization.
@@ -486,20 +540,22 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A **Field Assignment** applies to the **Catalog Field** identified by its **Attribute Mapping**.
 - A **Field Assignment** uses **Catalog Field Serialization** when writing values into a **Catalog Field**.
 - A product may belong to zero or more **Category Pages**.
-- **Category Page** assignment requires a known **Primary Product Type**.
-- **Category Page** assignment may depend on **Product Type**, **Product Attributes**, and direct product evidence.
-- **Category Page** assignment follows the configured **Category Page Assignment Scope**.
-- **Category Page Assignment Scope** may be defined by Product Type with a workspace default fallback.
-- Without configuration or store-local evidence, Category Page assignment prefers the most specific matching Category Page.
-- A **Category Page** may provide **Page Context Evidence**.
-- **Page Context Evidence** may use the full existing Category Page hierarchy when available.
-- **Page Context Evidence** cannot support Product Claims or Product Composition Attributes.
+- The **Classification Engine** proposes only existing verified **Taxonomy Category Pages**, not **Brand Pages** or newly created pages.
+- A provisional **Product Classification**, applicable Classification Attributes, and the SKU's own evidence may support pending page proposals.
+- Page placement follows the configured **Category Page Assignment Scope** for the Product Classification.
+- **Category Page Assignment Scope** may have classification-specific rules with a workspace default.
+- Without an explicit broader scope, page placement prefers the most specific matching verified taxonomy pages.
+- **Page Assignment Context** supports comparison and reviewed removals, not proof of Category, Product Type, attributes, claims, or composition.
+- Existing page membership does not establish a product fact or authorize inherited classification.
+- Taxonomy-page proposals are separate from the **Category** field.
 - A product can only be assigned to existing **Category Pages**.
 - A **Category Page** has one **Category Page Identity**.
 - An accepted Category Page assignment is validated by **Category Page Identity** before product draft creation.
 - An **Unavailable Category Page Assignment** becomes a **Skipped Draft Assignment**.
 - A product may have zero or more **Field Assignments**.
 - A **Field Assignment** records the value of one **Product Attribute** for one product.
+- A **Classification Removal Proposal** requires an explicit **Proposal Decision** before clearing an existing classification value or taxonomy-page assignment.
+- Correcting a classification does not silently clear existing values; **Brand** and other **Protected Product Data** remain outside removal scope.
 - A **Classification Run** is composed of one or more **Classification Stages**.
 - A **Classification Stage** declares its **Stage Dependencies**.
 - A **Classification Stage** produces **Classification Evidence**, **Classification Proposals**, or a **Stage Abstention**.
@@ -515,7 +571,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A **Stage Failure** is recorded in **Classification History** without failing the whole **Classification Run**.
 - A required **Stage Dependency** can make a dependent **Classification Stage** unavailable.
 - An optional **Stage Dependency** can lower proposal confidence without stopping a dependent **Classification Stage**.
-- A **Classification Proposal** is supported by one or more pieces of **Classification Evidence**.
+- Value and placement proposals require the SKU's own **Classification Evidence**; removals also require the observed existing assignment and configured classification/applicability justification.
 - A **Classification Proposal** has exactly one **Proposal Confidence**.
 - **Proposal Confidence** may preselect but never bypass a **Proposal Decision**.
 - **Classification Evidence** has exactly one **Evidence Source**.
@@ -534,8 +590,8 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - **Third-Party Evidence** cannot support Product Claims or Product Composition Attributes unless explicitly configured.
 - **Evidence Reliability** influences proposal preselection.
 - **Evidence Reliability** may vary by Product Attribute and workspace.
-- An **Evidence Conflict** requires review before preselection.
-- An **Approved Product Example** may provide **Classification Evidence**.
+- An **Evidence Conflict** withholds affected proposals while independently supported results may continue.
+- An **Approved Product Example** may inform configuration, never supply inherited facts for another Product SKU.
 - An **Approved Product Example** may produce **Configuration Suggestions**.
 - A **Starter Preset** may produce **Configuration Suggestions**.
 - A **Legacy Field Map** may produce **Configuration Suggestions**.
@@ -546,7 +602,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - **Baseline Classification** may run without active **Classification Configuration**.
 - **Configured Classification** requires active **Classification Configuration**.
 - Missing Classification Configuration produces **Configuration Suggestions** rather than Product Type or Product Attribute proposals.
-- **Classification Configuration** contains the durable Product Types, Product Attributes, Attribute Profiles, Attribute Mappings, allowed values, Catalog Manager Guidance, Stage Model Policies, Classification Model Presets, and Model Data Sharing Policies for a workspace.
+- **Classification Configuration** contains approved Category/Product Type combinations, Classification Attributes, Attribute Profiles, Attribute Mappings, allowed values, guidance, model policies, and data-sharing policies.
 - A Catalog Manager Guidance edit is a **Configuration Change**.
 - A **Classification Configuration Snapshot** includes the active **Catalog Manager Guidance** for that run.
 - **Catalog Manager Guidance** may be **Structured Catalog Manager Guidance** or **Free-Form Catalog Manager Guidance**.
@@ -558,9 +614,11 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - **Classification Safety Rules** include live Catalog Field matching, review before final assignment, and direct-evidence requirements for Product Claims.
 - A **Classification Run** uses exactly one **Classification Configuration Snapshot**.
 - A **Classification Run** produces **Classification Proposals** for one **Product SKU**.
+- Batch scheduling and frozen evidence do not authorize sharing classification evidence or inferred assignments across Product SKUs.
+- The classifier interprets only supplied SKU facts and images; source discovery and input-data enrichment belong elsewhere.
 - A **Classification Refresh** may make dependent **Classification Proposals** stale.
 - A **Classification Refresh** has a **Refresh Scope**.
-- Primary Product Type changes determine Refresh Scope through dependent stages.
+- Changes to the canonical **Product Classification** determine Refresh Scope through dependent proposals.
 - A **Classification Refresh** may have a **Refresh Preview** before it is queued.
 - A **Refresh Preview** may allow **Refresh Deferrals** for Product SKUs.
 - A **Refresh Deferral** cannot alter required stages for included Product SKUs.
@@ -569,7 +627,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A **Configuration-Driven Classification Refresh** reruns affected stages when dependencies are known and falls back to a full Classification Run when impact is unclear.
 - A **Configuration Suggestion** becomes active only through a **Configuration Change**.
 - A **Configuration Change** is reviewed before it updates **Classification Configuration**.
-- A **Configuration Gap** blocks affected **Field Assignments** but does not block product draft creation.
+- A **Configuration Gap** blocks affected assignments and keeps the product in **Review** when the profile or a required classification value cannot be resolved.
 - A **Classification Proposal** has its own **Proposal Decision**.
 - A **Proposal Decision** may have **Proposal Decision Revisions**.
 - A **Proposal Decision Revision** preserves earlier decisions in **Classification History**.
@@ -589,9 +647,9 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A **Stale Classification Proposal** requires a new **Proposal Decision** before becoming a **Field Assignment** or **Category Page** assignment.
 - A **Product Draft Projection** previews accepted **Proposal Decisions** before product draft creation.
 - **Configuration Snapshot Drift** makes affected accepted proposals stale before product draft creation.
-- A **Skipped Draft Assignment** does not block product draft creation.
+- A skipped required classification assignment prevents **Classification Readiness** and draft creation; an unsupported optional value may remain unset.
 - A **Classification Proposal** applies to one **Product SKU**.
-- A **Classification Proposal** becomes a **Field Assignment** or **Category Page** assignment only during product draft creation.
+- Classification assignments and removals are applied only from reviewed decisions through a separate CMS draft application step, never by the classifier itself.
 
 ## Example dialogue
 
@@ -636,10 +694,10 @@ Missing product information that prevents a usable listing after collected evide
 _Avoid_: Incomplete individual source, missing official domain, source identity conflict
 
 **Discovery** (v2 canonical `find_product_page` / Find product page — owner-approved 2026-09-08):
-The pipeline stage that finds the official product page URL on brand sites via web search.
+The pipeline stage that finds the official product page URL on a brand's approved official domains through the local URL index and sitemap lookup (ADR 0032; never external web search).
 
 **Extraction** (v2 canonical `collect_details` / Collect details — owner-approved 2026-09-08):
-The pipeline stage that scrapes raw product details (titles, descriptions, images, prices) from confirmed URLs. **Source-dispatched (Amendment A + Amendment B):** official-page items keep the URL/profile/page-scrape path; `distributor_record` items bypass scraping entirely and are materialized **merchandising-depth** (identity fields plus description, features, category, dimensions, case pack, unit of measure, ingredients, and display-only image candidates) with a null URL, zero fetch/profile/OCR/model/image calls, and a dedicated `distributorRecordProvenance` (generation, evidence hash, sorted accepted attempt/provider ids, projection version, per-field merchandising provenance). Price, inventory, and commerce images stay absent. See `docs/runbooks/sourcing-engine-rollout.md`.
+The pipeline stage that scrapes raw product details (titles, descriptions, images, prices) from Confirmed Official Pages and revalidates page identity against the same name/variant evidence before persisting. **Source-dispatched (Amendment A + Amendment B):** official-page items keep the URL/profile/page-scrape path; `distributor_record` items bypass scraping entirely and are materialized **merchandising-depth** (identity fields plus description, features, category, dimensions, case pack, unit of measure, ingredients, and display-only image candidates) with a null URL, zero fetch/profile/OCR/model/image calls, and a dedicated `distributorRecordProvenance` (generation, evidence hash, sorted accepted attempt/provider ids, projection version, per-field merchandising provenance). Price, inventory, and commerce images stay absent.
 
 **Domain Extractor Profile**:
 A reviewed extraction contract for one product-page structure on a domain that identifies the structures trusted during Extraction.
@@ -722,8 +780,32 @@ A product page used to test whether a Domain Extractor Profile extracts the expe
 _Avoid_: Training data, random URL, product approval
 
 **Confirmed Profile Sample**:
-A Profile Validation Sample whose source URL has been reviewed as the correct product page for its product.
+A Profile Validation Sample whose source URL has been reviewed as the correct product page for its product, with durable manager-approved title/description/image/variant observations bound to the draft version being tested.
 _Avoid_: Sitemap guess, search result, unreviewed candidate
+
+**Register Name**:
+The abbreviated product name from the imported spreadsheet row, used as the identity reference for official-page matching after conservative abbreviation/unit normalization.
+_Avoid_: Consolidated name, curated title, page title
+
+**Official Product Page**:
+The brand's own product-detail page for one imported product and package variant; distinct from a ShopSite Category Page and never a retailer, listing, or blog page.
+_Avoid_: Retailer page, category page, search result
+
+**Page Candidate**:
+An offered official-page URL (index, sitemap, import, operator, historical, or legacy) that has not yet passed guarded page-identity verification.
+_Avoid_: Confirmed URL, selected source, approved page
+
+**Confirmed Official Page**:
+An Official Product Page whose visible name and exact size/flavor variant were verified against the Register Name under the frozen official-domain authority and recorded in an append-only decision with its evidence.
+_Avoid_: Pasted URL, high-confidence match, reachable page
+
+**Page Identity**:
+The deterministic decision that a fetched product page is the same product and exact variant as the register item; ambiguities abstain and contradictions reject rather than scoring similarity.
+_Avoid_: Title similarity, confidence score, UPC-on-page requirement
+
+**Operator Attestation**:
+An explicit manager confirmation of product and variant for a Needs Attention page whose evidence is plausible but not uniquely provable; recorded as evidence, never inferred.
+_Avoid_: Auto-approval, implicit confirmation, silent exception
 
 **Blind Profile Holdout**:
 A Profile Validation Sample withheld from Browser Investigation and proposal tuning, reserved for independently testing the proposed extraction policy rather than establishing statistical generalization. A sample disclosed during investigation or tuning is no longer a holdout for that proposal.
@@ -738,7 +820,7 @@ The deferred Browser Investigation runtime behind Tier 0: a render-required inve
 _Avoid_: Unrestricted browser, direct-egress rendering, implied proxy
 
 **Curation** (v2 canonical `prepare_listing` / Prepare listing — owner-approved 2026-09-08):
-The pipeline stage that synthesizes final clean store-ready titles (integrating spreadsheet hints, web scraped details, and local packaging OCR) and classifies products into internal product types and existing category pages.
+The listing-preparation stage combining clean store-ready content with separate per-SKU Product Classification, attribute, and taxonomy-page proposals. Content and identity preparation are not Classification Engine outputs.
 
 **Review** (v2 canonical `review_listings` / Review listings — owner-approved 2026-09-08):
 The human quality-assurance stage for curated product listings. Recording a product as reviewed is distinct from approving its release and from creating its CMS draft.
@@ -834,13 +916,13 @@ _Avoid_: Table view, item list, batch detail view
 - "batch" was used as a lifecycle controller — resolved: batches are grouping/import containers with no lifecycle control.
 - "advance" was conflated with automated progression — resolved: happy-path progression is automation-owned (`sweepAutoAdvance` + `sweepDomainReleases`); manual advancement is reserved for explicit human decisions (approval, export, source-conflict resolution, URL/profile exception resolution).
 - "review" was both a pipeline stage name and a UI drawer action — resolved: **Review** is the stage; the drawer is the **Review Drawer** within it.
-- "category" was used to mean both **Category Page** placement and **Product Type** classification — resolved: these are distinct concepts.
-- Customer-facing page names or hierarchy could be treated as direct product facts — resolved: they are **Page Context Evidence** and low-reliability.
-- "new product type" can mean either a configured **Product Type** or a suggested **Unmapped Product Type** — resolved: classifiers may suggest but not create Product Types.
-- **Product Type** could be confused with an exported ShopSite field — resolved: keep it local unless represented by a mapped **Product Attribute**.
-- Unknown Primary Product Type could still lead to page assignment proposals — resolved: pause Category Page proposals until Primary Product Type is known.
+- **Category**, **Product Type**, and **Category Page** are distinct: the first two form one canonical **Product Classification**; the third is a browsing placement.
+- Existing page membership is **Page Assignment Context**, not product-fact evidence.
+- An unconfigured classification or value requires **Configuration Review**; classifiers do not create configuration or substitute a nearby allowed value.
+- A profile-selector identifier is not an independent internal Product Type or another review gate.
+- Provisional canonical classification may support pending taxonomy-page proposals; review remains required before application.
 - Product Type structure could depend on each store's merchandising preferences — resolved: capture manager preferences as **Catalog Manager Guidance** and Classification Configuration rather than assuming one universal hierarchy.
-- Product Type-specific attribute grouping could be mistaken for classification behavior — resolved: use **Attribute Group Layout** only for manager-facing display.
+- Classification-specific attribute grouping is **Attribute Group Layout**, a display concern rather than classification or applicability authority.
 - Manager instructions could become unbounded prompts — resolved: prefer **Structured Catalog Manager Guidance** and limit **Free-Form Catalog Manager Guidance** with Classification Safety Rules.
 - Manager guidance can make review stricter but not looser — resolved: use **Manual Review Requirements** to require individual review without weakening safety rules.
 - Free-form guidance could be mixed with product evidence or safety rules — resolved: maintain **Guidance Boundaries** for Model-Backed Classification Stages.
@@ -855,10 +937,10 @@ _Avoid_: Table view, item list, batch detail view
 - Image sharing could be treated the same as text sharing — resolved: use a stricter **Image Data Sharing Policy** and keep raw product images local unless explicitly enabled.
 - Overlapping manager guidance could be silently merged — resolved: use **Guidance Precedence**, with safety rules first and the narrowest applicable scope winning.
 - Deterministically resolved guidance conflicts could still surprise managers — resolved: surface them as **Guidance Override Warnings** rather than blocking configuration review.
-- Products could appear to have multiple types — resolved: use at most one **Primary Product Type** for classification and use Category Pages or Product Attributes for secondary merchandising facets.
-- Product review could force a Product Type when evidence is ambiguous — resolved: allow **Unknown Primary Product Type** and pause type-gated proposals including Category Page proposals without blocking product draft creation.
-- Correcting Primary Product Type could look like a special decision type — resolved: treat it as a **Proposal Decision Revision** that triggers a Classification Refresh for dependent stages while preserving prior decisions.
-- Product families or variants could imply inherited classification — resolved: classify each **Product SKU** independently until the domain has an explicit product-family concept.
+- There is one canonical **Product Classification**, not independently inferred internal and website types.
+- Ambiguous Category/Product Type results remain **Unresolved Product Classifications**; required gaps keep the product in **Review**, never force a type or silently permit draft creation.
+- Correcting Category or Product Type is a **Proposal Decision Revision** that invalidates dependent proposals while retaining review history.
+- Product-family batching never authorizes inherited product facts or classification assignments; each **Product SKU** uses its own supplied evidence.
 - "variant data" could mean full family modeling or source-page option selection — resolved: use **Source-Page Variant** only for selecting the correct source-page option state for one imported **Product SKU**.
 - Variant selection could rely on LLM guessing during automated Extraction — resolved: use a reviewed deterministic **Variant Selection Strategy** and fail closed on ambiguity.
 - SKU could be confused with the stable local product identity — resolved: use **Product SKU** for the store-facing onboarding key and **Product Identity** after product draft creation.
@@ -866,10 +948,10 @@ _Avoid_: Table view, item list, batch detail view
 - Attribute grouping could be mistaken for classification semantics — resolved: use **Attribute Groups** only for manager-facing organization and duplicate-label context.
 - Product Attribute applicability could be hidden in free-form guidance — resolved: express it as structured **Attribute Applicability Conditions** in Attribute Profiles.
 - Unreviewed proposals could make irrelevant attributes appear required — resolved: use them only for **Applicability Previews** until values are accepted or reviewed.
-- Required attributes could be interpreted as every attribute in a Product Type profile — resolved: required-field validation only applies when **Attribute Applicability Conditions** are satisfied.
-- Non-applicable attributes could clutter product review — resolved: treat them as **Non-Applicable Product Attributes** that are hidden from the main review but available for configuration debugging.
+- Required attributes are not every attribute in a profile; required-field validation applies only under the configured **Attribute Applicability Conditions**.
+- Non-applicable attributes without existing values may be hidden from ordinary review; incompatible existing values require visible **Classification Removal Proposals** rather than silent omission.
 - Manual review could silently override applicability rules — resolved: record an **Applicability Override** for the product and offer a Configuration Suggestion if the profile may be wrong.
-- Applicability Overrides could be applied too broadly — resolved: keep them per-product and route broad corrections through Configuration Review or Product Type correction.
+- Applicability Overrides remain per-product; broad corrections require **Configuration Review** or correction of the canonical **Product Classification**.
 - Product marketing claims could be treated as creative inference — resolved: call them **Product Claims** and require **Direct Claim Evidence**.
 - Free-from or allergen claims could be inferred from absence — resolved: call these **Absence-Based Claims** and do not propose them.
 - Ingredients and nutrients could be treated as generic merchandisable fields — resolved: call them **Product Composition Attributes** and require strict evidence and provenance.
@@ -917,6 +999,8 @@ _Avoid_: Table view, item list, batch detail view
 
 Catalog Product Classification extends the classification pipeline to existing ShopSite products (not just onboarding pipeline items).
 
+The domain terms above and ADR 0041 govern the desired single-classification contract. The architecture and operational details below describe the pre-cutover implementation, not a second business Product Type or an exception to reviewed removals.
+
 ### Key Concepts
 
 **Catalog Classification Run**: A classification run executed against an existing catalog product, identified by `source_kind = 'catalog_product'` and `onboarding_item_id IS NULL`.
@@ -925,7 +1009,7 @@ Catalog Product Classification extends the classification pipeline to existing S
 
 **Source Product Hash**: A deterministic SHA-256 hash of the classification-relevant product fields (name, description, weight, customFields, media) used for drift detection at apply time.
 
-### Architecture
+### Architecture (pre-ADR-0041 implementation snapshot)
 
 **Evidence Extraction**: The catalog adapter (`catalog-product-source.ts`) maps Product fields into a `NormalizedEvidenceInput` and feeds it to the shared evidence extractor (`product-evidence-extractor.ts`). This avoids dependency on the `onboarding_items` table.
 
@@ -939,19 +1023,19 @@ Catalog Product Classification extends the classification pipeline to existing S
 
 **Catalog Evidence Source**: The `'catalog_product'` value in the `classification_evidence.source` CHECK constraint, indicating evidence derived directly from catalog product data.
 
-**Primary Product Type (Catalog)**: Remains local to classification operational state — never written to ShopSite or the canonical product.
-
-**Existing Page Context**: A catalog product's current `product_pages` assignments are surfaced as `'page_context'` evidence during classification so page proposals can be additive only (classification never removes existing assignments).
+**Existing Page Context** (implementation snapshot): Existing catalog page assignments provide comparison context; the agreed contract permits reviewed taxonomy-page removals rather than an additive-only policy.
 
 ### Constraints
 
 - At most one running catalog classification run per product SKU per workspace.
 - Applying accepted proposals always creates a change-set draft; never a direct write.
 - Older catalog-run proposals are marked stale (`stale` status) when a newer run completes.
-- Catalog runs cannot rename products or write Primary Product Type to ShopSite.
+- Under the agreed contract, catalog classification cannot rename products, assign/remove Brand, or alter other Protected Product Data; canonical Category/Product Type and permitted classification changes require review.
 - Refresh queue defers catalog classification to the Product Detail Rerun action; auto-refresh for catalog products is deferred to a future release.
 
 ## Operational state (2026-08-09, issue #17 D2/C2)
+
+This dated snapshot records historical implementation and does not override the Product Classification contract in ADR 0041.
 
 - **Active Classification Configuration**: the Bay State workspace's v2 bundle is
   activated through the config store (CAS, catalog-evidence verifier, verified
@@ -996,7 +1080,7 @@ The set of Onboarding Items requiring a human decision or correction before thei
 _Avoid_: Failed products only, processing queue, all waiting products
 
 **Preparation Details**:
-Product-specific evidence and results from preparing a listing, including packaging OCR, family readiness, naming, product type, and field classification. Preparation Details are distinct from final human review and release approval.
+Product-specific evidence and results from preparing a listing, including packaging OCR, family readiness, naming, canonical Product Classification, and attribute/page proposals. Preparation Details are distinct from final human review and release approval.
 _Avoid_: Five preparation stages, batch completion checklist, approved listing
 
 **Operator Work-State**:

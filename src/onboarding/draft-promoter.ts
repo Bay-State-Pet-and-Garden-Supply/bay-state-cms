@@ -83,6 +83,7 @@ import {
   serializeAttributeValue,
 } from '../classification/assignment-projection';
 import type { Product } from '../shared/types';
+import { isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
 
 /**
  * Spec #136 ticket #142: promotion slot resolution through active
@@ -1722,7 +1723,9 @@ export async function prepareDraftPromotion(
       // ProductOnPages, but they do not block the rest of the draft.
       const skippedPageRefs: Array<{ proposalId: string; pageName: string }> = [];
       // story: e04s02 — stale/missing field mappings are visible and non-blocking: field is dropped, history records skippedFields
-      const skippedFieldRefs: Array<{ proposalId: string; attributeId: string; reason: 'stale_mapping' | 'missing_mapping' | 'empty_catalog_field' }> = [];
+      const skippedFieldRefs: Array<{ proposalId: string; attributeId: string; reason: 'stale_mapping' | 'missing_mapping' | 'empty_catalog_field' | 'protected_target_refused' }> = [];
+      // ADR 0041 / issue #349: attributable refusals for protected targets.
+      const classificationRefusals: Array<{ proposalId: string; code: string; reason: string }> = [];
       let acceptedProductType: string | null = null;
 
       // ── PR11 Promotion gate (semantic / parent-currentness / stale) ────
@@ -1765,6 +1768,16 @@ export async function prepareDraftPromotion(
           // Effective reviewed target/value win over the immutable prediction.
           const targetId = getEffectiveProposalTargetId(proposal);
           if (proposal.proposalType === 'field_assignment' && targetId) {
+            // ADR 0041 / issue #349: classification never writes Brand or
+            // other Protected Product Data — including via revised targets.
+            // A revised/historical Brand proposal cannot authorize a
+            // protected write; refuse attributably instead of applying it.
+            if (isProtectedTargetId(targetId, mappings) || isProtectedTargetId(proposal.targetId, mappings)) {
+              const refusal = protectedTargetRefusal(targetId ?? proposal.targetId);
+              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'protected_target_refused' });
+              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
+              continue;
+            }
             const mapping = mappings.find(m => m.attributeId === targetId);
             if (!mapping) {
               skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'missing_mapping' });
@@ -1860,30 +1873,29 @@ export async function prepareDraftPromotion(
         mergedCustomFields[arrivalDateCatalogField] = `new${mm}${dd}${yy}`;
       }
 
-      // ── Brand resolution ─────────────────────────────────────────────
-      // Brand is set from brandHint or title fallback via deterministic
-      // brand resolution against cached workspace catalog brands. The target
-      // slot resolves through the active `brand` attribute mapping (#142);
-      // ProductField16 is fallback-only.
+      // ── Supplied Brand passthrough ───────────────────────────────────
+      // ADR 0041 / issue #349: classification-coupled Brand inference from
+      // product-title prefixes is removed. Only the supplied brandHint (or
+      // an already-approved catalog value) carries Brand into a new
+      // listing — a product with no supplied Brand never acquires one from
+      // its title. Any listing-identity requirement stays an explicit
+      // separate gap owned outside classification.
       if (!mergedCustomFields[brandCatalogField]?.trim()) {
-        const brandInput = item.brandHint || coreProduct.name || item.name;
-        if (brandInput) {
+        const brandHint = item.brandHint?.trim() ? item.brandHint.trim() : null;
+        if (brandHint) {
           try {
             const workspace = findWorkspace();
             if (workspace) {
               const brands = getCachedBrands(workspace.id);
-              const resolved = resolveBrand(brandInput, brands);
-              if (resolved?.brandName) {
-                mergedCustomFields[brandCatalogField] = resolved.brandName;
-              } else if (item.brandHint) {
-                mergedCustomFields[brandCatalogField] = item.brandHint;
-              }
-            } else if (item.brandHint) {
-              mergedCustomFields[brandCatalogField] = item.brandHint;
+              const resolved = resolveBrand(brandHint, brands);
+              mergedCustomFields[brandCatalogField] = resolved?.brandName ?? brandHint;
+            } else {
+              mergedCustomFields[brandCatalogField] = brandHint;
             }
-          } catch (err: any) {
-            console.warn(`[DraftPromoter] Brand resolution failed for ${item.upc}: ${err.message}`);
-            if (item.brandHint) mergedCustomFields[brandCatalogField] = item.brandHint;
+          } catch (err: unknown) {
+            const detail = err instanceof Error ? err.message : String(err);
+            console.warn(`[DraftPromoter] Brand resolution failed for ${item.upc}: ${detail}`);
+            mergedCustomFields[brandCatalogField] = brandHint;
           }
         }
       }
@@ -2045,6 +2057,7 @@ export async function prepareDraftPromotion(
           appliedPages: classificationPageNames,
           skippedPages: skippedPageRefs.map(s => s.pageName),
           skippedFields: skippedFieldRefs.map(s => `${s.attributeId}:${s.reason}`),
+          refusedProtected: classificationRefusals.map(s => `${s.proposalId}:${s.code}`),
         } as Record<string, unknown>);
       } catch {
         // Non-blocking

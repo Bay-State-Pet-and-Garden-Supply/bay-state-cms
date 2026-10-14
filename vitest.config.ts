@@ -78,7 +78,8 @@ export default defineConfig({
       'src/tests/unit/review-media-resolution.test.ts',
       'src/tests/unit/durable-approval-promote.test.ts',
       'src/tests/unit/draft-promoter.test.ts',
-      'src/tests/unit/naming-promotion-filenames.test.ts',
+      // Issue #349 Brand ownership workflow seam — bun:sqlite/bun:test, run under bun test (test:db).
+      'src/tests/unit/brand-ownership-workflow-seam.test.ts',
       'src/tests/unit/filename-review.test.ts',
       'src/tests/unit/naming-ownership-snapshot.test.ts',
       'src/tests/unit/naming-promotion-gate.test.ts',
@@ -141,6 +142,24 @@ export default defineConfig({
       // P1-T1 structured OCR attempt results — transitively imports bun:sqlite
       // repositories (run under bun test via test:db)
       'src/tests/unit/packaging-ocr-attempt.test.ts',
+      // A1 OCR image disposition + local-only gate — transitively imports
+      // bun:sqlite repositories (run under bun test via test:db)
+      'src/tests/unit/ocr-image-disposition.test.ts',
+      // Backfill remediation (M1/M2A/M3): bun:test suites with bun:sqlite —
+      // run under bun test via test:db, excluded from Vitest.
+      'src/tests/integration/change-set-approval-scope.test.ts',
+      'src/tests/integration/milestone1-backfill-dryrun.test.ts',
+      'src/tests/integration/milestone2a-image-trust-exit.test.ts',
+      'src/tests/integration/p18-catalog-review-ui.test.ts',
+      'src/tests/unit/change-set-bulk-discard.test.ts',
+      'src/tests/unit/classification-operations.test.ts',
+      'src/tests/unit/drift-expected-push.test.ts',
+      'src/tests/unit/export-missing-images.test.ts',
+      'src/tests/unit/ocr-image-selection.test.ts',
+      'src/tests/unit/p19-idempotent-catalog-runs.test.ts',
+      'src/tests/unit/product-page-joins.test.ts',
+      'src/tests/unit/sku-quarantine.test.ts',
+      'src/tests/unit/type-dependent-refresh.test.ts',
       // P3-T1/T2 packaging-OCR eval harness + repetition mitigation — bun:sqlite
       // transitive imports (run under bun test via test:db)
       'src/tests/unit/ocr-eval-harness.test.ts',
@@ -382,6 +401,8 @@ export default defineConfig({
       'src/tests/unit/hash-stability-characterization.test.ts',
       'src/tests/unit/m2-challenger-stress.test.ts',
       'src/tests/unit/page-verifier.test.ts',
+      // Extraction identity revalidation — bun:sqlite via worker/decision repos; run under bun test via test:db.
+      'src/tests/unit/extraction-identity-worker.test.ts',
       'src/tests/unit/review-queue-adversarial.test.ts',
       'src/tests/unit/review-queue-schema.test.ts',
       // Manual-evidence foundation DB suite (ticket #102, parent #101) —
@@ -418,7 +439,9 @@ export default defineConfig({
       // Version image-attestation + complete-config activation suite
       // (fixes 1+2) — bun:sqlite; run under bun test via test:db.
       'src/tests/unit/profile-attestation-activation.test.ts',
-      // Slice 1 v2 stage-read suites — bun:test/bun:sqlite (one imports the
+      // D3 production-matrix binding suite — bun:sqlite via the repository
+      // layer + real Hono app; run under bun test via test:db.
+      'src/tests/unit/profile-matrix-binding.test.ts',
       // route layer + real Hono app); run under bun test via test:db.
       // The schema suite is pure (no DB) but its chain (./onboarding →
       // ./classification) uses zod named imports, which vite-node cannot

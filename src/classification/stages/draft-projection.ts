@@ -1,7 +1,8 @@
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { getCachedAttributeMappings } from '../../db/repositories/classification-config-repo';
-import { getEffectiveProposalValue, serializeAttributeValue } from '../assignment-projection';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from '../assignment-projection';
 import { getPageDisplayName } from '../../shared/proposal-display';
+import { isProtectedTargetId } from '../classification-ownership';
 
 /**
  * Product Draft Projection Stage
@@ -90,6 +91,9 @@ export const productDraftProjectionStage: StageDefinition = {
     // Process accepted proposals
     for (const proposal of accepted) {
       if (proposal.proposalType !== 'field_assignment' || !proposal.targetId) continue;
+      // ADR 0041 / issue #349: the accepted preview and the resulting draft
+      // agree — protected targets never project, even via revised targets.
+      if (isProtectedTargetId(getEffectiveProposalTargetId(proposal)) || isProtectedTargetId(proposal.targetId)) continue;
       const mapping = mappings.find(m => m.attributeId === proposal.targetId);
       if (!mapping || mapping.isStale) continue;
       fieldAssignments[mapping.catalogField] = applyMapping(proposal, mapping);
@@ -103,6 +107,7 @@ export const productDraftProjectionStage: StageDefinition = {
         acceptedTargetIds.has(proposal.targetId)
       ) continue;
       if (proposal.status !== 'pending' || proposal.isStale) continue;
+      if (isProtectedTargetId(getEffectiveProposalTargetId(proposal)) || isProtectedTargetId(proposal.targetId)) continue;
 
       const mapping = mappings.find(m => m.attributeId === proposal.targetId);
       if (!mapping || mapping.isStale) continue;

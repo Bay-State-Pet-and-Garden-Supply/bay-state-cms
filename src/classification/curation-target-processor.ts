@@ -7,7 +7,7 @@
  * of matching, ranking, or proposal construction logic.
  */
 import type { StageContext, StageInput, CoordinatedPageMemberValue } from './types';
-import { type ClassificationProposal, CanonicalBrandEvidenceValueSchema } from '../shared/schemas/classification';
+import type { ClassificationProposal } from '../shared/schemas/classification';
 import { CohortPageOutputSchema } from '../shared/schemas/cohorts';
 import { loadClassificationConfig } from './config-loader';
 import {
@@ -15,14 +15,12 @@ import {
   type ResolvedTarget,
 } from './curation-target-resolver';
 import {
-  matchKeywordOptions,
   matchAttributeOptions,
 } from './curation-target-matcher';
 import {
   buildEvidenceTargetPacket,
   buildPageEvidencePacket,
   evidenceMatchesTarget,
-  resolveCanonicalAssertion,
   tokenGroundingSupport,
   type EvidenceTargetPacket,
 } from './evidence-targeting';
@@ -31,6 +29,7 @@ import { llmRankOptions } from './curation-target-ranker';
 import { isCalibratedBulkAcceptable } from './proposal-safety';
 import type { CalibratedThresholds } from './confidence-calibrator';
 import { buildModelCallContext } from './runtime-snapshot';
+import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
 import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
 import {
@@ -45,10 +44,8 @@ import {
   type PageAssignmentResult,
 } from './page-assignment-llm';
 import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
-
+import { isProtectedTargetId } from './classification-ownership';
 // ─── Shared Target Constants ──────────────────────────────────────────────────
-
-const KEYWORD_MATCH_MIN_CONFIDENCE = 0.7;
 
 /**
  * Reviewed page-context source fields (issue #17 H): the Page stage uses only
@@ -117,7 +114,9 @@ async function isSystemOneAttributeRoute(modelPolicy: ReturnType<typeof modelPol
               (c) => c.id === p || (p === 'typesafe' && (c.id === 'typesafe-jev' || c.transport === 'systemone')),
             );
           if (conn && conn.credential) return { provider: p, apiKey: conn.credential, baseUrl: conn.baseUrl, model: null };
-        } catch {}
+        } catch {
+          // Credential lookup is best-effort; absence falls through to null below.
+        }
         return null;
       },
       defaultBaseUrls: {
@@ -139,25 +138,6 @@ async function isSystemOneAttributeRoute(modelPolicy: ReturnType<typeof modelPol
   }
 }
 
-/**
- * Parse one brand assertion to its canonical identity (mirrors
- * `resolveBrandRecordName` in `attribute-decision.ts` — local helper because
- * the SystemOne decision core is not a natural home for brand parsing).
- * Returns null when the assertion carries no canonical brand.
- */
-function parseBrandRecordName(
-  recordValue: unknown,
-  aliases: Array<{ alias: string; mapsTo: string }> | undefined,
-): string | null {
-  const parsed = CanonicalBrandEvidenceValueSchema.safeParse(recordValue);
-  let name: unknown = parsed.success
-    ? parsed.data.brandName
-    : ((recordValue as any)?.brandName ?? (recordValue as any)?.name);
-  if (typeof name !== 'string' && typeof recordValue === 'string') {
-    name = recordValue;
-  }
-  return resolveCanonicalAssertion(name, aliases ?? []);
-}
 
 /** Match detail-enrichment candidates for one attribute (local helper). */
 function resolveEnrichmentFieldValues(input: {
@@ -209,6 +189,7 @@ export async function processProductTypeTarget(
   const modelPolicy = modelPolicyViewFromSnapshot(context.snapshot);
 
   const { resolveProductTypeDecision } = await import('./product-type-decision');
+  const vetoTypeNodes = buildVetoTypeNodes(context.snapshot?.productTypes);
   const decision = await resolveProductTypeDecision({
     target,
     evidence: input.evidence,
@@ -217,6 +198,7 @@ export async function processProductTypeTarget(
     snapshot: context.snapshot,
     modelPolicy,
     assertHeld: context.assertHeld,
+    vetoTypeNodes,
   });
 
   if (decision.status === 'abstained' || !decision.productTypeId) {
@@ -370,78 +352,6 @@ async function processFreeTextMeasuredTarget(input: {
   return proposeMeasuredValue({ context, stageInput, targetConfig, groundedValue, fieldPacket, snapshotHash });
 }
 
-function isBrandFieldTarget(targetConfig: ResolvedTarget['config']): boolean {
-  const label = targetConfig.label.toLowerCase();
-  const id = (targetConfig.attributeId ?? targetConfig.id).toLowerCase();
-  return label.includes('brand') || id.includes('brand');
-}
-
-function collectBrandEvidence(input: StageInput, brandAttributeId: string) {
-  return input.evidence.filter(
-    e =>
-      e.sourceField === 'resolved_brand'
-      || e.sourceField === 'brand'
-      || e.attributeId === brandAttributeId
-      || e.attributeId === 'brand',
-  );
-}
-
-function parseBrandAssertions(
-  brandEvidence: ReturnType<typeof collectBrandEvidence>,
-  aliases: Array<{ alias: string; mapsTo: string }> | undefined,
-): Array<{ id: string; brandName: string }> {
-  const parsedBrands: Array<{ id: string; brandName: string }> = [];
-  for (const record of brandEvidence) {
-    const canonicalName = parseBrandRecordName(record.value, aliases);
-    if (canonicalName !== null) {
-      parsedBrands.push({ id: record.id, brandName: canonicalName });
-    }
-  }
-  return parsedBrands;
-}
-
-// Brand shortcut: agreement → direct proposal; disagreement → conflict ids.
-function tryBrandShortcut(input: {
-  target: ResolvedTarget;
-  input: StageInput;
-  context: StageContext;
-  options: ResolvedTarget['options'];
-  snapshotHash: string | null;
-}): { shortcut: TargetProcessResult | null; conflictIds: string[]; isBrandField: boolean } {
-  const { target, input: stageInput, context, options: options2, snapshotHash } = input;
-  const { config: targetConfig, attribute } = target;
-  const isBrandField = isBrandFieldTarget(targetConfig);
-  if (!isBrandField) return { shortcut: null, conflictIds: [], isBrandField: false };
-  const brandAttributeId = targetConfig.attributeId ?? targetConfig.id;
-  const brandEvidence = collectBrandEvidence(stageInput, brandAttributeId);
-  if (brandEvidence.length === 0) return { shortcut: null, conflictIds: [], isBrandField: true };
-  const parsedBrands = parseBrandAssertions(brandEvidence, attribute?.valueAliases ?? []);
-  if (parsedBrands.length === 0) return { shortcut: null, conflictIds: [], isBrandField: true };
-  const uniqueBrands = [...new Set(parsedBrands.map(p => p.brandName))];
-  const allBrandIds = parsedBrands.map(p => p.id).filter(Boolean);
-  if (uniqueBrands.length === 1) {
-    const brandName = uniqueBrands[0];
-    const matchedOption = options2.find(o =>
-      resolveCanonicalAssertion(o.label, attribute?.valueAliases ?? []) === brandName,
-    );
-    const value = matchedOption?.label ?? brandName;
-    const proposal = buildFieldAssignmentProposal({
-      runId: context.runId,
-      sku: stageInput.sku,
-      attributeId: brandAttributeId,
-      value,
-      confidence: 0.9,
-      evidenceIds: allBrandIds,
-      supportingEvidenceIds: allBrandIds,
-      derivation: { kind: 'evidence_match' },
-      isMultiple: false,
-      isBulkAcceptable: false,
-      snapshotHash,
-    });
-    return { shortcut: { proposals: [proposal], message: `Brand: "${brandName}" (resolved, 90%)` }, conflictIds: [], isBrandField: true };
-  }
-  return { shortcut: null, conflictIds: allBrandIds, isBrandField: true };
-}
 
 function buildControlledFieldPacket(input: {
   evidence: StageInput['evidence'];
@@ -463,10 +373,8 @@ function buildControlledFieldPacket(input: {
   });
 }
 
-function resolvePacketSourceFields(catalogField: string | null, isBrandField: boolean): string[] | null {
-  const brandSourceFields = isBrandField ? ['brand', 'resolved_brand'] : [];
-  if (catalogField) return [...new Set([catalogField, ...brandSourceFields])];
-  if (brandSourceFields.length) return brandSourceFields;
+function resolvePacketSourceFields(catalogField: string | null): string[] | null {
+  if (catalogField) return [catalogField];
   return null;
 }
 
@@ -565,22 +473,6 @@ async function rankFieldWithLlm(input: {
   return null;
 }
 
-function mergeBrandConflict(input: {
-  rolePacket: EvidenceTargetPacket;
-  brandConflictEvidenceIds: string[];
-}): { supporting: string[]; contradicting: string[]; hasConflict: boolean } {
-  const { rolePacket, brandConflictEvidenceIds } = input;
-  let supporting = rolePacket.supportingEvidenceIds;
-  let contradicting = rolePacket.contradictingEvidenceIds;
-  let hasConflict = rolePacket.hasConflict;
-  if (brandConflictEvidenceIds.length > 0) {
-    const conflictSet = new Set(brandConflictEvidenceIds);
-    supporting = supporting.filter(id => !conflictSet.has(id));
-    contradicting = [...new Set([...contradicting, ...brandConflictEvidenceIds])];
-    hasConflict = true;
-  }
-  return { supporting, contradicting, hasConflict };
-}
 
 // Fallback when deterministic matching yields nothing (SystemOne then LLM).
 async function resolveFallbackFieldValues(input: {
@@ -681,7 +573,6 @@ function finalizeControlledFieldProposal(input: {
   packetSourceFields: string[] | null;
   values: string[];
   confidence: number;
-  brandConflictEvidenceIds: string[];
   calibratedThresholds?: CalibratedThresholds | null;
   snapshotHash: string | null;
   llmModelCallIds?: string[];
@@ -696,7 +587,6 @@ function finalizeControlledFieldProposal(input: {
     aliases: target.attribute?.valueAliases ?? [],
     proposedValue: selectionMode === 'multiple' ? input.values : input.values[0],
   });
-  const merged = mergeBrandConflict({ rolePacket, brandConflictEvidenceIds: input.brandConflictEvidenceIds });
   return assembleFinalFieldProposal({
     context,
     inputEvidence: stageInput,
@@ -704,10 +594,10 @@ function finalizeControlledFieldProposal(input: {
     selectionMode,
     values: input.values,
     confidence: input.confidence,
-    supporting: merged.supporting,
-    contradicting: merged.contradicting,
+    supporting: rolePacket.supportingEvidenceIds,
+    contradicting: rolePacket.contradictingEvidenceIds,
     contextIds: rolePacket.context.map(r => r.id).filter(Boolean),
-    hasConflict: merged.hasConflict,
+    hasConflict: rolePacket.hasConflict,
     calibratedThresholds: input.calibratedThresholds,
     snapshotHash: input.snapshotHash,
     llmModelCallIds: input.llmModelCallIds,
@@ -779,22 +669,26 @@ export async function processProductFieldTarget(
   options: { cardinality?: 'single' | 'multiple'; calibratedThresholds?: CalibratedThresholds | null } = {},
 ): Promise<TargetProcessResult> {
   const { config: targetConfig, options: targetOptions } = target;
+  // ADR 0041 / issue #349: Brand is never a classifier-owned output. The
+  // shared composition refuses Brand targets here so neither catalog nor
+  // onboarding classification can emit a Brand proposal through any route
+  // (free-text, shortcut, provider output, profile entry, mapped field).
+  // Supplied Brand stays readable as input evidence — it is never produced.
+  if (isProtectedTargetId(targetConfig.attributeId ?? targetConfig.id) || isProtectedTargetId(targetConfig.catalogField)) {
+    return { proposals: [], message: `Brand is not a classifier-owned output; "${targetConfig.label}" is outside classification ownership.` };
+  }
   const options2 = targetOptions;
   const selectionMode = options.cardinality ?? (targetConfig.selectionMode ?? 'single') as 'single' | 'multiple';
   const snapshotHash = context.snapshot?.snapshotHash ?? null;
-
   const freeTextResult = await processFreeTextMeasuredTarget({ target, input, context, selectionMode, snapshotHash });
   if (freeTextResult) return freeTextResult;
   if (!options2 || options2.length === 0) {
     return { proposals: [], message: `No options available for "${targetConfig.label}".` };
   }
 
-  const brandShortcut = tryBrandShortcut({ target, input, context, options: options2, snapshotHash });
-  if (brandShortcut.shortcut) return brandShortcut.shortcut;
-
   const attrId = targetConfig.attributeId ?? targetConfig.id;
   const catalogField = targetConfig.catalogField ?? null;
-  const packetSourceFields = resolvePacketSourceFields(catalogField, brandShortcut.isBrandField);
+  const packetSourceFields = resolvePacketSourceFields(catalogField);
   const resolved = await resolveControlledFieldValues({
     target, input, context, selectionMode, options: options2, attrId, catalogField, packetSourceFields, snapshotHash,
   });
@@ -803,7 +697,6 @@ export async function processProductFieldTarget(
   return finalizeControlledFieldProposal({
     input, context, target, selectionMode, attrId, catalogField, packetSourceFields,
     values: resolved.values, confidence: resolved.confidence,
-    brandConflictEvidenceIds: brandShortcut.conflictIds,
     calibratedThresholds: options.calibratedThresholds,
     snapshotHash, llmModelCallIds: resolved.llmModelCallIds,
   });
@@ -869,8 +762,7 @@ function renderBatchDecisionMessage(
   targetLabel: string,
 ): string {
   if (decision.status === 'resolved' && (decision.value !== null || (Array.isArray(decision.values) && decision.values.length > 0))) {
-    const sourceLabel =
-      decision.source === 'jev' ? 'TypeSafe Jev' : decision.source === 'brand_resolved' ? 'resolved' : 'keyword';
+    const sourceLabel = decision.source === 'jev' ? 'TypeSafe Jev' : 'keyword';
     const displayVal = Array.isArray(decision.values) && decision.values.length > 0
       ? (decision.values as unknown[]).join(', ')
       : String(decision.value);
@@ -966,6 +858,59 @@ export async function processProductFieldTargetsBatch(
  * Page options carry page ID as value and page name as label.
  * Both are passed to the proposal for identity-based promotion.
  */
+
+/**
+ * P1 #7: normalize frozen release type nodes to veto metadata. Uses `in`
+ * narrowing (no unchecked casts) — nodes without scope/invariants degrade to
+ * id-heuristic form cues only.
+ */
+type VetoTypeNode = { id: string; scope?: { animalDomain?: string } | null; invariantAttributes?: Record<string, string | string[]> };
+
+/**
+ * P1 #7: normalize frozen release type nodes to veto metadata. Reads the
+ * release-generic node shape (v9/v10 identical per TaxonomyV10); nodes
+ * without scope/invariants degrade to id-heuristic form cues only.
+ */
+function buildVetoTypeNodes(
+  productTypes: RuntimeClassificationSnapshot['productTypes'] | undefined,
+): VetoTypeNode[] {
+  return (productTypes ?? []).map(pt => {
+    const node: VetoTypeNode = { id: pt.id };
+    if ('scope' in pt && pt.scope) node.scope = pt.scope;
+    if ('invariantAttributes' in pt && pt.invariantAttributes) node.invariantAttributes = pt.invariantAttributes;
+    return node;
+  });
+}
+/**
+ * P1 #15: build the backfill page filter from frozen snapshot + evidence.
+ * Verified IDs come from the frozen verified page snapshot; assigned names
+ * from the product's own page observations; brand pages are always off in
+ * catalog backfill (merchant decision #1). Returns null when there is no
+ * frozen verified snapshot — the filter then has no authority and legacy
+ * behavior holds exactly.
+ */
+function buildBackfillPageFilter(input: {
+  input: StageInput;
+  context: StageContext;
+}): import('./page-decision').BackfillPageFilter | null {
+  const { input: stageInput, context } = input;
+  if (context.snapshot?.pages.state !== 'verified') return null;
+  const verifiedPageIds = new Set(context.snapshot.pages.records.map(r => r.pageId));
+  const assignedPageNames = stageInput.evidence
+    .filter(e => e.source === 'page_context' && e.sourceField === 'page_name' && typeof e.value === 'string')
+    .map(e => String(e.value));
+  const brandRow = stageInput.evidence.find(e =>
+    (e.sourceField === 'resolved_brand' || e.sourceField === 'brand')
+    && typeof e.value === 'string' && e.value.trim().length > 0,
+  );
+  return {
+    verifiedPageIds,
+    assignedPageNames,
+    resolvedBrand: brandRow && typeof brandRow.value === 'string' ? brandRow.value : null,
+    backfillBrandPagesOff: true,
+  };
+}
+
 export async function processPageTarget(
   target: ResolvedTarget,
   input: StageInput,
@@ -1048,6 +993,7 @@ export async function processPageTarget(
 
   if (isSystemOne && !isMultiItemGroup) {
     const { resolvePageDecision, buildProposalsFromPageDecision } = await import('./page-decision');
+    const backfillPageFilter = buildBackfillPageFilter({ input, context });
     const decision = await resolvePageDecision({
       target,
       evidence: input.evidence,
@@ -1065,6 +1011,7 @@ export async function processPageTarget(
         ocrSummary: productContext.ocrSummary,
       },
       reviewedProductTypeId: productContext.productType,
+      backfillPageFilter,
     });
 
     if (decision.status === 'abstained' || decision.status === 'failed' || decision.pages.length === 0) {
@@ -1085,8 +1032,15 @@ export async function processPageTarget(
       input.sku,
       context.runId,
       snapshotHash,
+      backfillPageFilter,
     );
-    const pageNames = decision.pages.map(p => p.pageName);
+    const pageNames = proposals.map(p => String((p.proposedValue as { pageName?: unknown })?.pageName ?? p.targetId));
+    if (proposals.length === 0) {
+      return {
+        proposals,
+        message: 'All proposed pages filtered by the backfill verified-ID gate (assigned, unverified, wrong-brand, or brand pages).',
+      };
+    }
     return {
       proposals,
       message: `${pageNames.join(', ')} (TypeSafe Jev, ${((decision.selectedProbability ?? decision.pages[0].confidence) * 100).toFixed(0)}%)`,
@@ -1167,12 +1121,28 @@ export async function processPageTarget(
   // ── Build proposals from LLM results ───────────────────────────────────
   // Verified identity is stamped only for pageIds present in the frozen
   // verified snapshot (never inferred from a name or a mutable DB read).
+  // P1 #15: prune to verified, unassigned, non-brand identities before
+  // proposals exist. Null filter (no verified snapshot) skips — legacy.
+  const llmBackfillFilter = buildBackfillPageFilter({ input, context });
+  const { filterPageCandidatesForBackfill } = await import('./page-decision');
+  const llmKept = llmBackfillFilter ? filterPageCandidatesForBackfill(
+    llmResult.pages.map((p: { pageId: string; pageName: string }) => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
+    llmBackfillFilter,
+  ) : llmResult.pages.map((p: { pageId: string; pageName: string }) => ({ pageId: p.pageId, pageName: p.pageName }));
+  const llmKeptIds = new Set(llmKept.map(p => p.pageId));
+  const filteredLlmPages = llmResult.pages.filter((p: { pageId: string }) => llmKeptIds.has(p.pageId));
+  if (filteredLlmPages.length === 0) {
+    return {
+      proposals: [],
+      message: `All ${assignmentSource} pages filtered by the backfill verified-ID gate (assigned, unverified, wrong-brand, or brand pages).`,
+    };
+  }
   const verifiedPageIdSet = new Set(
     context.snapshot?.pages.state === 'verified'
       ? context.snapshot.pages.records.map(r => r.pageId)
       : [],
   );
-  const proposals = llmResult.pages.map((p: any) =>
+  const proposals = filteredLlmPages.map((p: any) =>
     buildCategoryPageProposal({
       runId: context.runId,
       sku: input.sku,
@@ -1191,10 +1161,10 @@ export async function processPageTarget(
     }),
   );
 
-  const pageNames = llmResult.pages.map(p => p.pageName);
+  const pageNames = filteredLlmPages.map((p: { pageName: string }) => p.pageName);
   return {
     proposals,
-    message: `${pageNames.join(', ')} (${assignmentSource}, ${(llmResult.pages[0].confidence * 100).toFixed(0)}%)`,
+    message: `${pageNames.join(', ')} (${assignmentSource}, ${(filteredLlmPages[0].confidence * 100).toFixed(0)}%)`,
   };
 }
 
@@ -1328,131 +1298,6 @@ export async function materializeCoordinatedPages(
   };
 }
 
-// ─── Internal Generic Processor ───────────────────────────────────────────────
-
-interface TargetProposalBuilder {
-  kind: string;
-  buildProposal: (
-    value: string,
-    confidence: number,
-    evidence: {
-      evidenceIds: string[];
-      supportingEvidenceIds?: string[];
-      contradictingEvidenceIds?: string[];
-    },
-    modelCallIds?: string[],
-  ) => ClassificationProposal;
-  /** LLM task name for routing, or undefined to use 'category_classification' fallback */
-  task?: string;
-}
-
-/**
- * Generic target processing pipeline shared by product type and page targets.
- * Product field targets use a separate path because they need alias matching.
- */
-async function processTargetInternal(
-  target: ResolvedTarget,
-  input: StageInput,
-  context: StageContext,
-  builder: TargetProposalBuilder,
-): Promise<TargetProcessResult> {
-  const { config: targetConfig, options } = target;
-
-  if (!options || options.length === 0) {
-    return { proposals: [], message: `No options available for "${targetConfig.label}".` };
-  }
-
-  const selectionMode = (targetConfig.selectionMode ?? 'single') as 'single' | 'multiple';
-
-  // Bounded target packet. General title/description evidence is context
-  // unless the deterministic grounding rule links it to the selected value.
-  const buildPacket = (proposedValue?: unknown): EvidenceTargetPacket =>
-    buildEvidenceTargetPacket(input.evidence, {
-      attributeId: targetConfig.attributeId ?? null,
-      sourceField: targetConfig.catalogField ?? null,
-      selectionMode,
-      proposedValue,
-      isGroundingSupport: tokenGroundingSupport,
-      includeProductTypeContext: builder.kind === 'product_type',
-    });
-  const matchingPacket = buildPacket();
-  const text = matchingPacket.promptText;
-  if (!text || text.length < 3) {
-    return { proposals: [], message: `Insufficient evidence text for "${targetConfig.label}".` };
-  }
-
-  // Try deterministic keyword/token matching first
-  const keywordMatches = matchKeywordOptions({
-    options,
-    text,
-    selectionMode,
-  });
-
-  if (keywordMatches.length > 0 && keywordMatches[0].confidence >= KEYWORD_MATCH_MIN_CONFIDENCE) {
-    const proposals = keywordMatches.map(m => {
-      const singlePacket = buildPacket(m.value);
-      return builder.buildProposal(m.value, m.confidence, {
-        evidenceIds: singlePacket.evidenceIds,
-        supportingEvidenceIds: singlePacket.supportingEvidenceIds,
-        contradictingEvidenceIds: singlePacket.contradictingEvidenceIds,
-      });
-    });
-    const values = keywordMatches.map(m => m.label);
-    return {
-      proposals,
-      message: `${values.join(', ')} (keyword, ${(keywordMatches[0].confidence * 100).toFixed(0)}%)`,
-    };
-  }
-
-  // Fall back to LLM ranker
-  const llmResult = await llmRankOptions({
-    targetLabel: targetConfig.label,
-    options,
-    selectionMode,
-    evidenceText: text,
-    task: builder.task,
-    modelPolicy: context.snapshot
-      ? modelPolicyViewFromConfig(
-          context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
-          context.snapshot.snapshotHash,
-        )
-      : null,
-    protectedOperation: builder.task === 'category_page_assignment' ? 'page_assignment' : 'product_type_ranking',
-    ...(context.snapshot
-      ? {
-          modelCall: buildModelCallContext(
-            context.snapshot,
-            context.runId,
-            builder.task === 'category_page_assignment' ? 'page_assignment' : 'product_type_ranking',
-            1,
-          ),
-          snapshot: context.snapshot,
-        }
-      : {}),
-  });
-
-  if (!llmResult || llmResult.values.length === 0) {
-    return { proposals: [], message: `No match found for "${targetConfig.label}".` };
-  }
-
-  const proposals = llmResult.values.map(v => {
-    const opt = options.find(
-      o => o.label.toLowerCase() === v.toLowerCase() || o.value.toLowerCase() === v.toLowerCase(),
-    );
-    const proposalValue = targetConfig.kind === 'product_type' ? (opt?.value ?? v) : v;
-    const singlePacket = buildPacket(proposalValue);
-    return builder.buildProposal(proposalValue, llmResult.confidence, {
-      evidenceIds: singlePacket.evidenceIds,
-      supportingEvidenceIds: singlePacket.supportingEvidenceIds,
-      contradictingEvidenceIds: singlePacket.contradictingEvidenceIds,
-    }, llmResult.modelCallIds);
-  });
-
-  return {
-    proposals,
-    message: `${llmResult.values.join(', ')} (LLM, ${(llmResult.confidence * 100).toFixed(0)}%)`,
-  };
-}
 
 // ─── Convenience: Check if Product Type is an enabled target ──────────────────
 

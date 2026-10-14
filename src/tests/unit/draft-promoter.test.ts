@@ -1481,7 +1481,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(result.failures[0].error).toContain('Invalid classification run pointer');
   });
 
-  it('resolves brand from product title when brandHint is missing', async () => {
+  it('never invents Brand from the product title when brandHint is missing (issue #349)', async () => {
     const db = getDb();
     const now = new Date().toISOString();
 
@@ -1527,17 +1527,13 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 
     seedAcceptedCategoryProposal(db, item.upc, 'Cat Treats');
 
-        seedApproved(item.id, batch.id);
-const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
-    expect(result.failures).toHaveLength(0);
-    expect(result.count).toBe(1);
-
-    const changeSetItem = db.query(
-      `SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1`,
-    ).get(item.upc) as { draft_json: string };
-
-    const draft = JSON.parse(changeSetItem.draft_json);
-    expect(draft.customFields.ProductField16).toBe('Greenies');
+    seedApproved(item.id, batch.id);
+    const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    // Missing Brand stays a separate listing-identity gap: the item blocks
+    // on Brand instead of acquiring one from its title.
+    expect(result.count).toBe(0);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0].error).toContain('Brand');
   });
 
   it('applies nothing when an active run has only deferred proposals', async () => {

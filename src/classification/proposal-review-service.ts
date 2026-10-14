@@ -7,6 +7,7 @@ import { getEffectivePrimaryProductTypeId } from './assignment-projection';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
 import { validateFrozenReviewCorrection } from './review-correction';
+import { isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 
 export interface ProposalReviewInput {
   workspaceId: string;
@@ -225,6 +226,25 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
   const proposalTypeById = new Map(proposalRows.map(row => [row.id, row.proposal_type]));
   const reviewSnapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
   const originalProposals = getProposalsByRun(input.runId);
+  // ADR 0041 / issue #349: a historical Brand proposal remains attributable
+  // but can never gain review authority. Refuse accepted decisions on
+  // protected targets — including protected revised targets — with an
+  // attributable code instead of applying or silently rerouting them.
+  // Rejections/deferrals carry no write authority and pass through.
+  for (const decision of input.decisions) {
+    if (decision.decision !== 'accepted') continue;
+    const original = originalProposals.find(proposal => proposal.id === decision.proposalId);
+    if (!original || original.proposalType !== 'field_assignment') continue;
+    const revisedTarget = hasOwn(decision, 'revisedTargetId')
+      ? (decision.revisedTargetId ?? null)
+      : hasOwn(decision, 'targetId')
+        ? (decision.targetId ?? null)
+        : original.targetId;
+    if (isProtectedTargetId(original.targetId) || isProtectedTargetId(revisedTarget)) {
+      const refusal = protectedTargetRefusal(revisedTarget ?? original.targetId);
+      return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+    }
+  }
 
   // Issue #17 I: validate evidence citations BEFORE any decision or history
   // row is written. A cited evidence id must exist, belong to the same

@@ -8,7 +8,6 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { saveClassificationConfig, loadClassificationConfig } from '../../classification/config-loader';
 import { syncConfigToCache } from '../../db/repositories/classification-config-repo';
-import { createRun } from '../../db/repositories/classification-run-repo';
 import { runPipeline } from '../../classification/pipeline-runner';
 import { evidenceExtractionStage } from '../../classification';
 import { processProductFieldTarget } from '../../classification/curation-target-processor';
@@ -180,7 +179,7 @@ describe('Brand Integration', () => {
     getDb().run('DELETE FROM onboarding_batches WHERE id = ?', [batchId]);
   });
 
-  it('processProductFieldTarget skips keyword matching for brand fields with resolved evidence', async () => {
+  it('processProductFieldTarget emits no Brand proposal even with resolved evidence (issue #349)', async () => {
     const resolvedEvidence: ClassificationEvidence = {
       id: randomUUID(),
       runId,
@@ -196,7 +195,6 @@ describe('Brand Integration', () => {
       metadata: { matchedBy: 'exact', confidence: 1.0 },
       capturedAt: new Date().toISOString(),
     };
-
     const target: ResolvedTarget = {
       config: {
         id: 'brand-field',
@@ -204,7 +202,7 @@ describe('Brand Integration', () => {
         label: 'Brand',
         enabled: true,
         selectionMode: 'single',
-        attributeId: 'brand-attr',
+        attributeId: 'brand',
         catalogField: 'ProductField16',
         optionSource: 'configured',
         required: false,
@@ -215,37 +213,25 @@ describe('Brand Integration', () => {
         { value: 'Dr. Marty', label: 'Dr. Marty' },
       ],
       attribute: {
-        id: 'brand-attr',
+        id: 'brand',
         name: 'Brand',
         description: null,
-        valueMode: 'controlled',
+        valueMode: 'freeText',
         canonicalUnit: null,
-        allowedValues: ['Blue Buffalo', 'Dr. Marty'],
+        allowedValues: [],
         valueAliases: [],
         visualEvidenceEligibility: 'eligible',
         isClaim: false,
         isCompositionAttribute: false,
-        group: 'Curation',
+        group: 'Identity',
       },
     };
-
     const result = await processProductFieldTarget(
       target,
-      {
-        sku: 'BRAND-TEST-BF',
-        evidence: [resolvedEvidence],
-        acceptedProposals: [],
-        allProposals: [],
-      },
+      { sku: 'BRAND-TEST-BF', evidence: [resolvedEvidence], acceptedProposals: [], allProposals: [] },
       context,
     );
-
-    expect(result.proposals.length).toBe(1);
-    expect(result.proposals[0].proposalType).toBe('field_assignment');
-    expect(result.proposals[0].targetId).toBe('brand-attr');
-    expect(result.proposals[0].proposedValue).toBe('Blue Buffalo');
-    expect(result.message).toContain('Blue Buffalo');
-    expect(result.message).toContain('resolved');
+    expect(result.proposals).toEqual([]);
   });
 
   it('processProductFieldTarget falls through to normal matching for non-brand fields', async () => {

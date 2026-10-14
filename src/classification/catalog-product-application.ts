@@ -11,7 +11,58 @@ import { getActiveVerifiedPageIds } from '../shopsite/page-import-service';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from './assignment-projection';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import { computeProductHash } from './catalog-product-source';
+import { digestLoadedImageBytes } from '../onboarding/packaging-ocr';
+import { findConnection } from '../db/repositories/connection-repo';
+import { resolveProductImageUrl } from '../shopsite/url-utils';
 import type { Product } from '../shared/types';
+import { isSilentNarrowing } from './attribute-grounding-guards';
+import { isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+
+/**
+ * A2: re-hash the image bytes behind the run's recorded OCR image refs and
+ * fail when any recorded digest no longer matches. Recorded digests come
+ * from the run's evidence_extraction stage metadata (persisted by the
+ * pipeline runner); refs resolve exactly as the OCR attempt resolved them.
+ * Changed/absent bytes block that SKU; text-only runs (no recorded digests)
+ * pass through untouched.
+ */
+export async function verifyRunImageBytesUnchanged(
+  workspacePath: string,
+  _workspaceId: string,
+  _sku: string,
+  runId: string,
+  product: Product,
+): Promise<void> {
+  const db = getDb();
+  const rows = db.query(
+    `SELECT output_json FROM classification_stage_results WHERE run_id = ? AND stage_name = 'evidence_extraction' ORDER BY started_at DESC LIMIT 1`,
+  ).all(runId) as Array<{ output_json: string | null }>;
+  if (rows.length === 0) return;
+  let recorded: Array<{ imageBytesDigest?: string | null }>;
+  try {
+    const parsed = JSON.parse(rows[0].output_json ?? '{}') as {
+      metadata?: { ocrSummary?: { images?: Array<{ imageBytesDigest?: string | null }> } };
+    };
+    recorded = parsed.metadata?.ocrSummary?.images ?? [];
+  } catch {
+    return;
+  }
+  const digests = recorded.map(entry => entry.imageBytesDigest).filter((digest): digest is string => !!digest);
+  if (digests.length === 0) return;
+  const cgiBaseUrl = (() => { try { return findConnection(_workspaceId)?.cgiBaseUrl; } catch { return undefined; } })();
+  const refs = [product.core.media?.primary, ...(product.core.media?.additional ?? [])].filter((ref): ref is string => !!ref).slice(0, 2);
+  const current = new Set<string>();
+  for (const ref of refs) {
+    const resolved = cgiBaseUrl ? resolveProductImageUrl(ref, cgiBaseUrl) : ref;
+    const digest = await digestLoadedImageBytes(resolved ?? ref, workspacePath).catch(() => null);
+    if (digest) current.add(digest);
+  }
+  for (const digest of digests) {
+    if (!current.has(digest)) {
+      throw new Error('Product images changed since classification (byte digest mismatch). Please provide a better image or re-run classification.');
+    }
+  }
+}
 
 const now = () => new Date().toISOString();
 
@@ -53,8 +104,29 @@ export async function applyCatalogClassification(
   if (run.status !== 'completed' && run.status !== 'completed_with_abstentions') {
     throw new Error(`Run status is "${run.status}". Cannot apply.`);
   }
+  // A3: refuse pre-change visual runs at apply. Runs frozen before the
+  // grounded-merge evidence contract carry an older evidence_extraction rule
+  // version — reclassify instead of reinterpreting their frozen snapshots.
+  // Text-only runs (no visual evidence) are unaffected.
+  const visualCount = db.query(
+    `SELECT COUNT(*) AS cnt FROM classification_evidence WHERE run_id = ? AND source = 'visual_product_evidence'`,
+  ).get(runId) as { cnt: number };
+  if ((visualCount?.cnt ?? 0) > 0) {
+    const snapshotRow = run.config_snapshot_hash
+      ? db.query(`SELECT snapshot_json FROM runtime_snapshots WHERE snapshot_hash = ?`).get(String(run.config_snapshot_hash)) as { snapshot_json: string | null } | undefined
+      : undefined;
+    let ruleVersion: string | null;
+    try {
+      const snapshot = snapshotRow?.snapshot_json ? JSON.parse(snapshotRow.snapshot_json) as { runtimeRuleVersions?: { evidence_extraction?: string } } : null;
+      ruleVersion = snapshot?.runtimeRuleVersions?.evidence_extraction ?? null;
+    } catch {
+      ruleVersion = null;
+    }
+    if (ruleVersion !== 'evidence-extraction-rules-v3-grounded-merge') {
+      throw new Error('Run uses a pre-A3 visual evidence contract; reclassify instead of reinterpreting its frozen snapshot.');
+    }
+  }
 
-  // Read current product
   const product = readProductFile(workspacePath, sku);
   if (!product) throw new Error(`Product not found for SKU: ${sku}`);
 
@@ -90,6 +162,13 @@ export async function applyCatalogClassification(
     throw new Error('No accepted proposals to apply.');
   }
 
+  // A2: re-verify image byte identity for image-backed runs. The run's
+  // evidence_extraction stage metadata carries per-image byte digests; the
+  // current bytes behind the same refs are re-hashed and any change/absence
+  // blocks the SKU (fresh run/review required). Title-only grounded values
+  // proceed unaffected.
+  await verifyRunImageBytesUnchanged(workspacePath, workspaceId, sku, runId, product);
+
   const mappings = getCachedAttributeMappings(workspaceId);
   const appliedFields: string[] = [];
   const appliedPages: string[] = [];
@@ -102,6 +181,15 @@ export async function applyCatalogClassification(
     // Effective reviewed target/value win over the immutable prediction.
     const targetId = getEffectiveProposalTargetId(proposal);
     if (!targetId) continue;
+    // ADR 0041 / issue #349: classification application preserves existing
+    // identity — protected targets (including protected revised targets)
+    // never write. A revised/historical Brand proposal cannot authorize a
+    // protected write; refuse attributably instead of applying it.
+    if (isProtectedTargetId(targetId, mappings) || isProtectedTargetId(proposal.targetId, mappings)) {
+      const refusal = protectedTargetRefusal(targetId ?? proposal.targetId);
+      skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
+      continue;
+    }
 
     const mapping = mappings.find(m => m.attributeId === targetId);
     if (!mapping) {
@@ -119,12 +207,19 @@ export async function applyCatalogClassification(
 
     const effectiveValue = getEffectiveProposalValue(proposal);
     const value = serializeAttributeValue(effectiveValue, mapping.serialization);
+    // P1 #9 apply-time no-narrowing: a revised single value can never
+    // bypass the guard — silently replacing an existing multi-value slot
+    // (e.g. Salmon|Venison|Lamb → Salmon) is skipped visibly; intentional
+    // reduction needs a separate explicit catalog edit.
+    if (isSilentNarrowing(product.customFields?.[mapping.catalogField] ?? null, value)) {
+      skipped.push({ proposalId: proposal.id, reason: 'No-narrowing guard: existing multi-value slot survives; intentional reduction needs a separate explicit edit' });
+      continue;
+    }
     if (value || (proposal.hasRevisedValue && effectiveValue === null)) {
       mergedCustomFields[mapping.catalogField] = value;
       appliedFields.push(mapping.catalogField);
     }
   }
-
   // Apply page assignments (additive only) — the identity of every accepted
   // page MUST be verified in the currently active import. Name-only or
   // out-of-import identities are skipped visibly and never serialized into
@@ -212,6 +307,7 @@ export async function applyCatalogClassification(
     draftJson: draftJsonStr,
     baseJson: baseJsonStr,
     draftHash,
+    classificationRunId: runId,
   });
 
   // Track applied page names for the result (page data is embedded in the
