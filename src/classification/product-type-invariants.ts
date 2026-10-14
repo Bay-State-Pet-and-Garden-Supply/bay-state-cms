@@ -27,7 +27,7 @@ export interface GatedProductFieldTarget {
 
 export interface ResolveInvariantsInput {
   effectiveTypeId: string | null;
-  effectiveTypeSource: 'reviewed' | 'none';
+  effectiveTypeSource: 'reviewed' | 'provisional' | 'none';
   gatedTargets: GatedProductFieldTarget[];
   productTypes: ProductTypeConfig[];
   evidence: ClassificationEvidence[];

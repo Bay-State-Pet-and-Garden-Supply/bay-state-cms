@@ -412,7 +412,7 @@ describe('PR5 effective type — product attribute proposals stage', () => {
 
     expect(output.proposals.length).toBe(0);
     expect(output.message).toBe(
-      'No reviewed Primary Product Type; type-gated attribute proposals are withheld until the type is accepted.',
+      'No Product Classification (reviewed or provisional); type-gated attribute proposals are withheld until the pair is proposed.',
     );
     expect(output.metadata.effectiveTypeId).toBeNull();
     expect(output.metadata.effectiveTypeSource).toBe('none');
