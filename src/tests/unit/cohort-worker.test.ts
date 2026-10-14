@@ -31,7 +31,6 @@ import {
   cancelFreezingRun,
   reclaimExpiredCohortRuns,
   getCohortSnapshotByHash,
-  writeExecutionProductType,
   listDependenciesForProposal,
   COHORT_LEASE_TTL_MS,
 } from '../../db/repositories/classification-cohort-run-repo';

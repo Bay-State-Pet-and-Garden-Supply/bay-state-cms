@@ -311,9 +311,9 @@ describe('matchMemberDeterministically', () => {
   });
 });
 
-// ─── C3b: resolveCohortProductType ───────────────────────────────────────────
-
-// REMOVED (issue #351): aggregation/family-invariant block deleted with the resolver aggregation.
+// ─── C3b: aggregation REMOVED (issue #351 SKU-local evidence) ─────────────────
+//
+// REMOVED: cross-member aggregation/family-invariant block deleted with the resolver aggregation.
 
 
 describe('Milestone E — distributor_record evidence (source labeling + identity-only)', () => {

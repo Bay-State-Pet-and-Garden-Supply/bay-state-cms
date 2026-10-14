@@ -440,14 +440,13 @@ export function matchMemberDeterministically(
 }
 
 // ─── C3b: aggregation REMOVED (issue #351 SKU-local evidence) ─────────────────
-// `resolveCohortProductType` + reviewed-coherence aggregation +
-// `REVIEWED_CONTRIBUTION_CONFIDENCE` lived here. Cross-member aggregation
-// to a cohort/family Product Type conclusion is removed as factual
-// authority — each SKU is classified from its own evidence. Per-member
-// deterministic matching (`matchMemberDeterministically`, `scoreTypeMatch`)
-// stays above for SKU-local reuse; label mapping stays below. Sibling
-// divergence remains a read-only advisory (consistency-validator), never a
-// freeze failure or readiness veto.
+// Cross-member aggregation to a cohort/family Product Type conclusion lived
+// here and is removed as factual authority — each SKU is classified from
+// its own evidence. Per-member deterministic matching
+// (`matchMemberDeterministically`, `scoreTypeMatch`) stays above for
+// SKU-local reuse; label mapping stays below. Sibling divergence remains a
+// read-only advisory (consistency-validator), never a freeze failure or
+// readiness veto.
 
 export function mapRankedLabelToOptionExactlyOne(
   label: string,
