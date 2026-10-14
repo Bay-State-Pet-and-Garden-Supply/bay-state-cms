@@ -547,11 +547,35 @@ export function validateClassificationConfigBundle(
   addDuplicateLabelWarnings(findings, config.attributeProfiles, '$.attributeProfiles');
 
   const productTypes = new Map(config.productTypes.map((entry, index) => [entry.id, { entry, index }]));
+  const categories = new Map(config.categories.map((entry, index) => [entry.id, { entry, index }]));
   const attributes = new Map(config.attributes.map((entry, index) => [entry.id, { entry, index }]));
   const profiles = new Map(config.attributeProfiles.map((entry, index) => [entry.id, { entry, index }]));
 
+  // Issue #350: every product type needs an approved Category mapping.
+  // Unmapped types and unknown categories are explicit owner decisions —
+  // the engine never invents a category or combination.
+  addDuplicateFindings(findings, config.categories, '$.categories');
   config.productTypes.forEach((type, index) => {
-    let profileEntry = type.attributeProfileId ? profiles.get(type.attributeProfileId) : undefined;
+    const categoryId = type.categoryId ?? null;
+    if (!categoryId) {
+      findings.push({
+        severity: 'error',
+        code: 'unmapped_product_type_category',
+        path: `$.productTypes[${index}].categoryId`,
+        message: `Product Type "${type.id}" has no approved Category mapping; assign its canonical Category explicitly.`,
+      });
+    } else if (!categories.has(categoryId)) {
+      findings.push({
+        severity: 'error',
+        code: 'unknown_product_type_category',
+        path: `$.productTypes[${index}].categoryId`,
+        message: `Product Type "${type.id}" maps to unknown Category "${categoryId}".`,
+      });
+    }
+  });
+
+  config.productTypes.forEach((type, index) => {
+    const profileEntry = type.attributeProfileId ? profiles.get(type.attributeProfileId) : undefined;
     if (type.attributeProfileId) {
       if (!profileEntry) {
         findings.push({

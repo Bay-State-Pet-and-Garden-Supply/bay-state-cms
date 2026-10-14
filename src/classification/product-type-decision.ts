@@ -124,7 +124,8 @@ export interface ProductTypeDecisionResult {
     | 'candidate_limit_exceeded'
     | 'service_failure'
     | 'policy_denied'
-    | 'no_confident_match';
+    | 'no_confident_match'
+    | 'configuration_gap';
   abstentionReason?: string | null;
   derivation: ProposalDerivation;
   modelCallIds: string[];
@@ -134,7 +135,51 @@ export interface ProductTypeDecisionResult {
   error?: unknown;
 }
 
-// ─── Bounded State Builder ───────────────────────────────────────────────────
+export type ClassificationDecisionStatus = 'resolved' | 'abstained' | 'failed';
+
+export interface ClassificationDecisionResult {
+  status: ClassificationDecisionStatus;
+  categoryId: string | null;
+  productTypeId: string | null;
+  confidence: number;
+  selectedProbability: number | null;
+  vendorConfidence: number | null;
+  probabilityBasis: string | null;
+  source: 'keyword' | 'llm' | 'jev';
+  abstentionCode?:
+    | 'no_match'
+    | 'insufficient_evidence'
+    | 'low_probability'
+    | 'candidate_limit_exceeded'
+    | 'service_failure'
+    | 'policy_denied'
+    | 'no_confident_match'
+    | 'configuration_gap';
+  abstentionReason?: string | null;
+  derivation: ProposalDerivation;
+  modelCallIds: string[];
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+  error?: unknown;
+}
+
+export interface ClassificationDecisionParams {
+  target: ResolvedTarget;
+  evidence: ClassificationEvidence[];
+  sku: string;
+  runId: string;
+  snapshot?: RuntimeClassificationSnapshot | null;
+  modelPolicy?: ModelPolicyView | null;
+  confidenceFloor?: number;
+  assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
+  deterministicMatch?: {
+    productTypeId: string | null;
+    confidence: number | null;
+    source: 'keyword' | null;
+  } | null;
+}
 
 interface BoundedProductTypeState {
   sku: string;
@@ -1182,4 +1227,58 @@ export async function resolveProductTypeDecision(
     supportingEvidenceIds,
     contradictingEvidenceIds,
   });
+}
+
+/**
+ * Resolve the canonical Category + Product Type pair (issue #350).
+ *
+ * Delegates the type decision to the unchanged `resolveProductTypeDecision`
+ * (keyword → Jev/LLM → veto ordering preserved), then resolves the decided
+ * type's Category through the approved mapping in the frozen snapshot. A
+ * decided type with no approved mapping is an explicit `configuration_gap`
+ * abstention — never a silent type-only success. Unresolved/failed type
+ * decisions pass through with a null category.
+ */
+export async function resolveClassificationDecision(
+  params: ClassificationDecisionParams,
+): Promise<ClassificationDecisionResult> {
+  const decision = await resolveProductTypeDecision({
+    target: params.target,
+    evidence: params.evidence,
+    sku: params.sku,
+    runId: params.runId,
+    snapshot: params.snapshot,
+    modelPolicy: params.modelPolicy,
+    confidenceFloor: params.confidenceFloor,
+    assertHeld: params.assertHeld,
+    dispatchGuard: params.dispatchGuard,
+    deterministicMatch: params.deterministicMatch,
+  });
+  if (decision.status !== 'resolved' || !decision.productTypeId) {
+    return { ...decision, categoryId: null };
+  }
+  const productTypes = params.snapshot?.productTypes ?? [];
+  const type = productTypes.find(candidate => candidate.id === decision.productTypeId) as { categoryId?: unknown } | undefined;
+  const rawCategoryId = type?.categoryId;
+  const categoryId = typeof rawCategoryId === 'string' && rawCategoryId.length > 0 ? rawCategoryId : null;
+  if (!categoryId) {
+    return {
+      status: 'abstained',
+      categoryId: null,
+      productTypeId: null,
+      confidence: 0,
+      selectedProbability: null,
+      vendorConfidence: null,
+      probabilityBasis: null,
+      source: decision.source,
+      abstentionCode: 'configuration_gap',
+      abstentionReason: `Product Type "${decision.productTypeId}" has no approved Category mapping; assign its canonical Category explicitly.`,
+      derivation: decision.derivation,
+      modelCallIds: decision.modelCallIds,
+      evidenceIds: decision.evidenceIds,
+      supportingEvidenceIds: decision.supportingEvidenceIds,
+      contradictingEvidenceIds: decision.contradictingEvidenceIds,
+    };
+  }
+  return { ...decision, categoryId };
 }

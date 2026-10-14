@@ -3,24 +3,26 @@
  *
  * Selection is split into two distinct contracts:
  *
- * 1. ACCEPTED selection (`selectAcceptedPrimaryProductType`) — the reviewed
- *    Primary Product Type. This is the ONLY authority that may unlock
- *    type-gated attribute and Page proposals. Pending guesses never unlock
+ * 1. ACCEPTED selection (`selectAcceptedClassification`) — the reviewed
+ *    canonical Category + Product Type pair (new `product_classification`
+ *    kind first, then the legacy `primary_product_type` kind, which the
+ *    historical-interpretation path reads as a pair via the frozen snapshot
+ *    mapping). This is the ONLY authority that may unlock pair-gated
+ *    attribute and Page proposals. Pending guesses never unlock
  *    decision-eligible proposals.
- * 2. PREVIEW selection (`selectPrimaryProductTypeProposal`) — the "best
- *    available" proposal (accepted first, then highest-confidence pending)
- *    used ONLY for UI/draft preview. It never authorizes type-gated
+ * 2. PREVIEW selection (`selectClassificationProposal`) — the "best
+ *    available" pair (accepted first, then highest-confidence pending)
+ *    used ONLY for UI/draft preview. It never authorizes pair-gated
  *    proposals and never mutates proposal status.
  *
  * Reviewed facts carried from prior runs (via the immutable runtime snapshot)
- * are also a legitimate source for the accepted type: a fact is accepted,
+ * are also a legitimate source for the accepted pair: a fact is accepted,
  * non-superseded, and provenance-compatible by construction of the snapshot.
  */
 import type { StageInput } from './types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
-import type { ReviewedFact } from './reviewed-facts';
 import type { ClassificationProposal } from '../shared/schemas/classification';
-import { getProductTypeIdFromValue } from './assignment-projection';
+import { getCategoryIdFromValue, getEffectivePrimaryProductTypeId, getProductTypeIdFromValue } from './assignment-projection';
 
 export interface ProposalSelection {
   /** The selected proposal, or null if none available */
@@ -30,73 +32,84 @@ export interface ProposalSelection {
 }
 
 /**
- * Select the reviewed (accepted) Primary Product Type proposal from the run
- * input. Pending/deferred guesses are never accepted selections.
+ * Select the reviewed (accepted) canonical pair proposal: the new
+ * `product_classification` kind first, then the legacy
+ * `primary_product_type` kind, which the historical-interpretation path
+ * reads as a pair through the frozen snapshot mapping.
+ * Pending/deferred guesses are never accepted selections.
  */
 function selectAcceptedPrimaryProductType(input: StageInput): ProposalSelection {
-  const accepted = input.acceptedProposals.find(
+  const pair = input.acceptedProposals.find(
+    p => p.proposalType === 'product_classification' && p.status === 'accepted',
+  );
+  if (pair) return { proposal: pair, source: 'accepted' };
+  const legacy = input.acceptedProposals.find(
     p => p.proposalType === 'primary_product_type' && p.status === 'accepted',
   );
-  if (accepted) {
-    return { proposal: accepted, source: 'accepted' };
-  }
+  if (legacy) return { proposal: legacy, source: 'accepted' };
   return { proposal: null, source: null };
 }
 
-/**
- * Select the best available Primary Product Type proposal for UI/draft preview
- * only. Selection order: an accepted proposal, then the highest-confidence
- * non-stale pending/deferred proposal. This never authorizes gating.
- */
-export function selectPrimaryProductTypeProposal(input: StageInput): ProposalSelection {
-  const accepted = selectAcceptedPrimaryProductType(input);
-  if (accepted.proposal) return accepted;
 
+/**
+ * Select the reviewed (accepted) canonical pair proposal: the new
+ * `product_classification` kind first, then the legacy
+ * `primary_product_type` kind for historical in-flight runs. Pending guesses
+ * are never accepted selections.
+ */
+export function selectAcceptedClassification(input: StageInput): ProposalSelection {
+  return selectAcceptedPrimaryProductType(input);
+}
+
+/**
+ * Best available canonical pair proposal for UI/draft preview only (issue
+ * #350): accepted pair, then accepted legacy type, then highest-confidence
+ * non-stale pending/deferred pair or legacy type. Never authorizes gating.
+ */
+export function selectClassificationProposal(input: StageInput): ProposalSelection {
+  const accepted = selectAcceptedClassification(input);
+  if (accepted.proposal) return accepted;
   const provisional = input.allProposals
     .filter(
       p =>
-        p.proposalType === 'primary_product_type' &&
+        (p.proposalType === 'product_classification' || p.proposalType === 'primary_product_type') &&
         !p.isStale &&
         (p.status === 'pending' || p.status === 'deferred'),
     )
     .sort((a, b) => b.confidence - a.confidence)[0] ?? null;
-
-  if (provisional) {
-    return { proposal: provisional, source: 'provisional' };
-  }
-
+  if (provisional) return { proposal: provisional, source: 'provisional' };
   return { proposal: null, source: null };
 }
 
 /**
- * Extract a Product Type ID from a carried reviewed fact. The accepted value
- * is either the proposed shape { productTypeId } or a plain string id.
+ * Resolve the one reviewed canonical pair for a run (issue #350): in-run
+ * accepted pair proposals first (new kind, then legacy type kind), then
+ * provenance-compatible reviewed facts. Returns null ids when no reviewed
+ * pair exists — pair-gated proposals must then be withheld (fail closed).
  */
-function getProductTypeIdFromFact(fact: ReviewedFact): string | null {
-  return getProductTypeIdFromValue(fact.value);
-}
-
-/**
- * Resolve the one reviewed (accepted) Primary Product Type identity for a run:
- * in-run accepted proposals first, then provenance-compatible reviewed facts
- * carried in the immutable snapshot. Returns null when no reviewed type exists
- * — type-gated proposals must then be withheld (fail closed).
- */
-export function getReviewedPrimaryProductTypeId(
+export function getReviewedClassification(
   input: StageInput,
   snapshot?: RuntimeClassificationSnapshot,
-): string | null {
-  const accepted = selectAcceptedPrimaryProductType(input);
+): { categoryId: string | null; productTypeId: string | null } {
+  const accepted = selectAcceptedClassification(input);
   if (accepted.proposal) {
-    const id = getProductTypeIdFromValue(accepted.proposal.proposedValue) ?? accepted.proposal.targetId;
-    if (id && id.length > 0) return id;
+    const typeId = getEffectivePrimaryProductTypeId(accepted.proposal);
+    const categoryId = getCategoryIdFromValue(
+      accepted.proposal.hasRevisedValue ? accepted.proposal.revisedValue : accepted.proposal.proposedValue,
+    );
+    if ((typeId && typeId.length > 0) || (categoryId && categoryId.length > 0)) {
+      return { categoryId: categoryId && categoryId.length > 0 ? categoryId : null, productTypeId: typeId && typeId.length > 0 ? typeId : null };
+    }
   }
   if (snapshot?.reviewedFacts?.length) {
     for (const fact of snapshot.reviewedFacts) {
-      if (fact.proposalType !== 'primary_product_type') continue;
-      const id = getProductTypeIdFromFact(fact);
-      if (id && id.length > 0) return id;
+      if (fact.proposalType !== 'product_classification' && fact.proposalType !== 'primary_product_type') continue;
+      const typeId = getProductTypeIdFromValue(fact.value);
+      const categoryId = getCategoryIdFromValue(fact.value);
+      if ((typeId && typeId.length > 0) || (categoryId && categoryId.length > 0)) {
+        return { categoryId: categoryId && categoryId.length > 0 ? categoryId : null, productTypeId: typeId && typeId.length > 0 ? typeId : null };
+      }
     }
   }
-  return null;
+  return { categoryId: null, productTypeId: null };
 }

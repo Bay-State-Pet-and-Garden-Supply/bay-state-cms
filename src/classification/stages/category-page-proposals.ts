@@ -20,7 +20,7 @@ import type { StageDefinition, StageContext, StageInput, StageResult } from '../
 import { loadClassificationConfig } from '../config-loader';
 import { resolveEnabledTargets, resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { processPageTarget, materializeCoordinatedPages } from '../curation-target-processor';
-import { getReviewedPrimaryProductTypeId } from '../proposal-selection';
+import { getReviewedClassification } from '../proposal-selection';
 
 export const categoryPageProposalsStage: StageDefinition = {
   name: 'category_page_proposals',
@@ -82,14 +82,15 @@ export const categoryPageProposalsStage: StageDefinition = {
       };
     }
 
-    // Page proposals require a reviewed Primary Product Type whenever the
-    // config makes Product Type a gating target. Pending guesses abstain.
+    // Page proposals require a reviewed canonical classification whenever the
+    // config makes classification a gating target. An incomplete pair (either
+    // member unresolved) abstains with a precise reason. Pending guesses abstain.
     if (resolved.productTypes.length > 0) {
-      const acceptedTypeId = getReviewedPrimaryProductTypeId(input, context.snapshot);
-      if (acceptedTypeId === null) {
+      const reviewed = getReviewedClassification(input, context.snapshot);
+      if (reviewed.productTypeId === null || reviewed.categoryId === null) {
         return {
           status: 'abstained',
-          reason: 'No reviewed Primary Product Type. Page assignment requires an accepted Product Type and a verified Page catalog.',
+          reason: 'No reviewed Product Classification. Page assignment requires an accepted Category + Product Type and a verified Page catalog.',
         };
       }
     }

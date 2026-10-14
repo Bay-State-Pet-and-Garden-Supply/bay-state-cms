@@ -317,6 +317,7 @@ export const ClassificationConfigV2SchemaVersion = 2 as const;
 
 export const ClassificationFocusedFileNames = [
   'product-types.json',
+  'categories.json',
   'attributes.json',
   'attribute-profiles.json',
   'mappings.json',
@@ -428,6 +429,20 @@ export const SerializationConfigV2Schema = z.discriminatedUnion('kind', [
 ]);
 export type SerializationConfigV2 = z.infer<typeof SerializationConfigV2Schema>;
 
+/**
+ * One canonical Category entry (issue #350). Categories are the store-facing
+ * customer classification groups; together with a Product Type they form one
+ * Product Classification (ADR 0041). Categories are owner-curated — the
+ * engine never invents a category or combination.
+ */
+export const CategoryConfigV2Schema = z.object({
+  id: ClassificationSlugSchema,
+  name: z.string().min(1),
+  description: z.string().nullable(),
+  oldIdAliases: z.array(ClassificationSlugSchema),
+}).strict();
+export type CategoryConfigV2 = z.infer<typeof CategoryConfigV2Schema>;
+
 export const ProductTypeConfigV2Schema = z.object({
   id: ClassificationSlugSchema,
   name: z.string().min(1),
@@ -436,6 +451,15 @@ export const ProductTypeConfigV2Schema = z.object({
   oldIdAliases: z.array(ClassificationSlugSchema),
   /** Department grouping (bay-state-v3 release). Optional for v2 workspace bundles. */
   departmentId: ClassificationSlugSchema.optional(),
+  /**
+   * Approved canonical Category for this Product Type (issue #350). A
+   * complete Product Classification is valid iff the pair matches this
+   * mapping; a type without a category is an ambiguous configuration gap
+   * requiring an explicit owner decision — never silent invention.
+   * Optional for backward compatibility: historical bundles predate the
+   * Category side and validate with an explicit gap finding instead.
+   */
+  categoryId: ClassificationSlugSchema.nullable().optional(),
   /** Invariant attribute values deterministically implied by this Product Type. */
   invariantAttributes: z
     .record(ClassificationSlugSchema, z.union([z.string(), z.array(z.string()).nonempty()]))
@@ -676,6 +700,7 @@ function policyEnvelopeV2<T extends z.ZodType>(policy: T) {
 }
 
 export const ProductTypesFileV2Schema = entriesEnvelopeV2(ProductTypeConfigV2Schema);
+export const CategoriesFileV2Schema = entriesEnvelopeV2(CategoryConfigV2Schema);
 export const AttributesFileV2Schema = entriesEnvelopeV2(ProductAttributeConfigV2Schema);
 export const AttributeProfilesFileV2Schema = entriesEnvelopeV2(AttributeProfileConfigV2Schema);
 export const AttributeMappingsFileV2Schema = entriesEnvelopeV2(AttributeMappingConfigV2Schema);
@@ -707,6 +732,8 @@ export const ClassificationConfigBundleV2Schema = z.object({
   /** Origin decoded from and required in every focused file envelope. */
   bundleOrigin: ClassificationBundleOriginV2Schema,
   productTypes: z.array(ProductTypeConfigV2Schema),
+  /** Canonical Categories (issue #350). Every product type maps to exactly one via its approved `categoryId`. */
+  categories: z.array(CategoryConfigV2Schema).default(() => []),
   attributes: z.array(ProductAttributeConfigV2Schema),
   attributeProfiles: z.array(AttributeProfileConfigV2Schema),
   attributeMappings: z.array(AttributeMappingConfigV2Schema),
@@ -788,6 +815,7 @@ export type EvidenceReliability = z.infer<typeof EvidenceReliabilityEnum>;
 
 export const ProposalTypeEnum = z.enum([
   'primary_product_type',
+  'product_classification',
   'category_page',
   'field_assignment',
   'configuration_gap',

@@ -39,6 +39,7 @@ import {
   ClassificationFocusedFileNames,
   ClassificationManifestV2Schema,
   CurationTargetsFileV2Schema,
+  CategoriesFileV2Schema,
   DataSharingFileV2Schema,
   GuidanceFileV2Schema,
   ModelPolicyFileV2Schema,
@@ -112,8 +113,12 @@ export interface BayStateSeed {
     id: string;
     name: string;
     description: string | null;
+    /** Approved canonical Category for this type (issue #350). */
+    categoryId?: string;
     oldIdAliases?: string[];
   }>;
+  /** Approved canonical Categories (issue #350). */
+  categories: Array<{ id: string; name: string; description: string | null; oldIdAliases?: string[] }>;
   attributes: BayStateSeedAttribute[];
   profileTemplates: BayStateSeedProfileTemplate[];
   mappings: BayStateSeedMapping[];
@@ -165,6 +170,7 @@ function defaultEvidencePolicy(attribute: BayStateSeedAttribute): AttributeEvide
 export function buildFocusedFiles(bundle: Omit<ClassificationConfigBundleV2, 'manifest'>): Record<ClassificationFocusedFileName, string> {
   return {
     'product-types.json': canonicalJsonFileString(ProductTypesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.productTypes })),
+    'categories.json': canonicalJsonFileString(CategoriesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.categories })),
     'attributes.json': canonicalJsonFileString(AttributesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributes })),
     'attribute-profiles.json': canonicalJsonFileString(AttributeProfilesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeProfiles })),
     'mappings.json': canonicalJsonFileString(AttributeMappingsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeMappings })),
@@ -299,9 +305,21 @@ export function generateCandidate(seed: BayStateSeed, evidence: CatalogEvidence)
       description: type.description,
       attributeProfileId: hasProfile ? `${type.id}-profile` : null,
       oldIdAliases: type.oldIdAliases ?? [],
+      // Issue #350: approved canonical Category per type. Absent here means
+      // the seed has no mapping — validation below reports the gap; the
+      // generator never invents a category.
+      categoryId: type.categoryId ?? null,
       invariantAttributes: (type as any).invariantAttributes ?? {},
     };
   });
+
+  // Categories: pass through verbatim (canonical identity, no inference).
+  const categories = (seed.categories ?? []).map(category => ({
+    id: category.id,
+    name: category.name,
+    description: category.description,
+    oldIdAliases: category.oldIdAliases ?? [],
+  }));
 
   // Mappings: verify attributes exist; serializer cardinality is validated
   // semantically on the complete bundle below.
@@ -340,6 +358,7 @@ export function generateCandidate(seed: BayStateSeed, evidence: CatalogEvidence)
   const withoutManifest = {
     bundleOrigin,
     productTypes,
+    categories,
     attributes,
     attributeProfiles: profiles,
     attributeMappings: mappings,

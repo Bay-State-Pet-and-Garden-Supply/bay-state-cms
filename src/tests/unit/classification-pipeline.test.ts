@@ -1065,12 +1065,13 @@ describe('Classification Pipeline Integration', () => {
   });
 
   it('defaults isBulkAcceptable to false on all proposals even with high confidence (Issue #10)', async () => {
-    const { buildCategoryPageProposal, buildFieldAssignmentProposal, buildProductTypeProposal } = await import('../../classification/curation-target-proposal');
+    const { buildCategoryPageProposal, buildFieldAssignmentProposal, buildClassificationProposal } = await import('../../classification/curation-target-proposal');
 
-    const typeProp = buildProductTypeProposal({
+    const typeProp = buildClassificationProposal({
       runId: randomUUID(),
       sku: '12345',
-      productTypeId: 'dog-food',
+      categoryId: 'dog-food',
+      productTypeId: 'dog-food-dry',
       confidence: 0.99,
       evidenceIds: [],
     });

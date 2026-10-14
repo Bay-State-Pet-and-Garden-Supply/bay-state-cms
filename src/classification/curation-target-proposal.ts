@@ -15,41 +15,40 @@ import type { ClassificationProposal, ProposalDerivation } from '../shared/schem
 
 const now = () => new Date().toISOString();
 
-export interface ProductTypeProposalParams {
+
+export interface ClassificationProposalParams {
   runId: string;
   sku: string;
+  categoryId: string;
   productTypeId: string;
   confidence: number;
   evidenceIds: string[];
-  /** Target-specific supporting evidence ids (issue #17 H). */
   supportingEvidenceIds?: string[];
-  /** Target-specific contradicting evidence ids (issue #17 H). */
   contradictingEvidenceIds?: string[];
   matchedWords?: string[];
-  /** First-class proposal derivation provenance (e.g. type invariant vs evidence match vs LLM vs Jev). */
   derivation?: ProposalDerivation;
-  /** Explicit override for bulk acceptance (Issue #10) */
   isBulkAcceptable?: boolean;
-  /** Immutable runtime snapshot hash this proposal was built under. */
   snapshotHash?: string | null;
-  /** Durable model-call IDs that produced this proposal (issue #17 E). */
   modelCallIds?: string[];
 }
 
 /**
- * Build a `primary_product_type` proposal.
- * Preserves the existing proposal shape for Review/Promotion compatibility.
+ * Build the ONE canonical `product_classification` pair proposal (issue
+ * #350): Category + Product Type on a single review card. The target is the
+ * product type id; the value carries both members. Only approved configured
+ * combinations should be built — validity is checked by the caller through
+ * `isApprovedClassificationPair` (never invented here).
  */
-export function buildProductTypeProposal(params: ProductTypeProposalParams): ClassificationProposal {
-  // Jev System One proposals require human decisions and remain non-bulk-acceptable
+export function buildClassificationProposal(params: ClassificationProposalParams): ClassificationProposal {
   const isBulk = params.derivation?.kind === 'systemone_judgment' ? false : (params.isBulkAcceptable ?? false);
   return {
     id: randomUUID(),
     runId: params.runId,
     productSku: params.sku,
-    proposalType: 'primary_product_type',
+    proposalType: 'product_classification',
     targetId: params.productTypeId,
     proposedValue: {
+      categoryId: params.categoryId,
       productTypeId: params.productTypeId,
       matchedWords: params.matchedWords ?? [],
     },

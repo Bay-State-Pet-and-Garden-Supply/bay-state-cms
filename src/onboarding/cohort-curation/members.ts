@@ -521,6 +521,7 @@ export async function executePreparedMembers(args: {
               };
             }),
           suggestedProductType: curationData.suggestedProductType,
+          suggestedCategory: (curationData as { suggestedCategory?: string | null }).suggestedCategory ?? null,
           durableTitleOutput: durableTitleOutputForSemantic,
           durablePageOutput: durablePageOutputForSemantic,
           pageOutputExpectedEmpty: coordinatedPages.size === 0,

@@ -395,6 +395,7 @@ export function exportBenchmark(
 /** Proposal types that are evaluation targets — never legal replay inputs. */
 const REPLAY_TARGET_PROPOSAL_TYPES = [
   'primary_product_type',
+  'product_classification',
   'category_page',
   'field_assignment',
 ] as const;
@@ -434,7 +435,7 @@ function isTargetLabelFact(
   const evaluateProductType = options.evaluateProductType ?? true;
   const evaluatePages = options.evaluatePages ?? true;
   const evaluateFieldTargetIds = options.evaluateFieldTargetIds ?? null;
-  if (fact.proposalType === 'primary_product_type') return evaluateProductType;
+  if (fact.proposalType === 'primary_product_type' || fact.proposalType === 'product_classification') return evaluateProductType;
   if (fact.proposalType === 'category_page') return evaluatePages;
   if (fact.proposalType === 'field_assignment') {
     if (evaluateFieldTargetIds === null) return true;

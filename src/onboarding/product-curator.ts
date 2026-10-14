@@ -50,7 +50,8 @@ import { valueGapAbstainStage } from '../classification/stages/value-gap-abstain
 import { getUniversalTierFlags } from '../classification/flags';
 import { modelPolicyViewFromConfig } from './model-policy-snapshot';
 import { redactTransportText, type ModelPolicyView } from '../classification/model-policy-gateway';
-import { selectPrimaryProductTypeProposal } from '../classification/proposal-selection';
+import { selectClassificationProposal } from '../classification/proposal-selection';
+import { getCategoryIdFromValue } from '../classification/assignment-projection';
 import { determineProductGroup } from './product-line-grouper';
 import { listDistinctProductPageNames } from '../db/repositories/page-repo';
 import { packagingOcrStage } from '../classification/stages/packaging-ocr-stage';
@@ -946,8 +947,9 @@ async function executeCurationPipeline(args: {
       }
     }
 
-    // Suggested product type from the best available proposal
-    const typeSelection = selectPrimaryProductTypeProposal({
+    // Suggested canonical classification from the best available pair
+    // proposal (new kind first, legacy type kind for historical runs).
+    const typeSelection = selectClassificationProposal({
       sku: item.upc,
       onboardingItemId: item.id,
       evidence: allEvidence,
@@ -955,6 +957,11 @@ async function executeCurationPipeline(args: {
       allProposals: allProposals,
     });
     const suggestedProductType = typeSelection.proposal?.targetId ?? null;
+    const suggestedCategory = getCategoryIdFromValue(
+      typeSelection.proposal
+        ? (typeSelection.proposal.hasRevisedValue ? typeSelection.proposal.revisedValue : typeSelection.proposal.proposedValue)
+        : null,
+    );
 
     // LEGACY fallback — active cohort mode skips this; kept for flag-OFF compatibility only.
     // Validated via category-page-correctness — unverified/incompatible pages abstain.
@@ -1118,6 +1125,7 @@ async function executeCurationPipeline(args: {
         : {}),
       suggestedPages,
       suggestedProductType,
+      suggestedCategory,
       curatedAt: new Date().toISOString(),
       curationMethod: 'auto',
       classificationRunId: run.id,
@@ -1158,7 +1166,7 @@ async function executeCurationPipeline(args: {
         // Gate reasons are encoded as abstention proposals; check proposals for reviewable_abstention target category_page_proposals
         const catAbstention = result.proposals.find(p => p.proposalType === 'reviewable_abstention' && String(p.targetId) === 'category_page_proposals');
         const reasonRaw = (catAbstention?.proposedValue as { reason?: string } | null)?.reason ?? null;
-        const needsReviewedType = reasonRaw ? reasonRaw.includes('No reviewed Primary Product Type') : false;
+        const needsReviewedType = reasonRaw ? (reasonRaw.includes('No reviewed Primary Product Type') || reasonRaw.includes('No reviewed Product Classification')) : false;
         const needsVerifiedPages = reasonRaw ? reasonRaw.includes('No verified store pages available') : false;
         return {
           needsReviewedType,

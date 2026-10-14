@@ -1046,6 +1046,7 @@ export const CurationDataSchema = z.object({
   /** e10s04: reviewer media selection (see ReviewedMediaSchema). Absent until first media save. */
   reviewedMedia: ReviewedMediaSchema.nullable().optional(),
   suggestedProductType: z.string().nullable().default(null),
+  suggestedCategory: z.string().nullable().optional(),
   curatedAt: z.string().nullable().default(null),
   curationMethod: z.enum(['auto', 'manual']).default('auto'),
 

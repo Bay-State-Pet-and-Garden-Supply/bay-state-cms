@@ -9,6 +9,7 @@ import {
   isManualFieldValueInherited,
 } from '../onboarding/manual-evidence-eligibility';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
+import { getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
 import { isUniversalAttribute } from './applicability-evaluator';
 import {
   CohortSemanticValidationSchema,
@@ -23,14 +24,15 @@ export type ReviewCompletionGateResult =
   | { ok: false; code: string; reason: string };
 
 /**
- * Fail-closed type-gating check shared by both gates.
+ * Fail-closed classification-gating check shared by both gates (issue #350).
  *
  * When a run is bound to a resolvable M4+ runtime snapshot that enables a
- * product_type curation target, review may only complete if a reviewed
- * (accepted) Primary Product Type exists — either as an accepted type decision
- * in the same run or as a compatible reviewed fact carried in the snapshot.
- * Type-gated field assignments (any non-universal attribute) must never pass
- * review without a reviewed type.
+ * classification curation target, review may only complete if a reviewed
+ * (accepted) canonical Category + Product Type pair exists — either as an
+ * accepted pair decision in the same run or as a compatible reviewed fact
+ * carried in the snapshot. An incomplete pair blocks with a precise code.
+ * Pair-gated field assignments (any non-universal attribute) must never pass
+ * review without a reviewed pair.
  *
  * Legacy runs (unresolvable or absent config snapshot) skip the check.
  */
@@ -42,7 +44,7 @@ function assertReviewedProductTypeForRun(options: {
 }): ReviewCompletionGateResult | null {
   const { runId, workspaceId, configSnapshotHash } = options;
 
-  // Snapshot is the only place that proves the config's type-gating intent.
+  // Snapshot is the only place that proves the config's gating intent.
   const snapshot = configSnapshotHash
     ? getRuntimeSnapshotByHash(workspaceId, configSnapshotHash)
     : null;
@@ -53,19 +55,49 @@ function assertReviewedProductTypeForRun(options: {
   );
   if (!typeTargetEnabled) return null;
 
-  // In-run accepted type decision.
-  const acceptedTypeDecision = getDb().query(
-    `SELECT 1 FROM classification_proposals p
+  // In-run accepted pair decision (new kind) or legacy accepted type.
+  const acceptedRow = getDb().query(
+    `SELECT p.proposal_type, p.target_id, p.proposed_value_json,
+            d.revised_value_json, d.revised_target_id, d.has_revised_target,
+            (d.revised_value_json IS NOT NULL) AS has_revised_value
+     FROM classification_proposals p
      JOIN classification_proposal_decisions d ON d.proposal_id = p.id AND d.superseded_at IS NULL
-     WHERE p.run_id = ? AND p.proposal_type = 'primary_product_type' AND d.decision = 'accepted'
+     WHERE p.run_id = ? AND p.proposal_type IN ('product_classification', 'primary_product_type') AND d.decision = 'accepted'
      LIMIT 1`,
-  ).get(runId);
-  const reviewedTypeFact = snapshot.reviewedFacts.some(
-    fact => fact.proposalType === 'primary_product_type',
+  ).get(runId) as {
+    proposal_type: string; target_id: string | null; proposed_value_json: string | null;
+    revised_value_json: string | null; revised_target_id: string | null;
+    has_revised_value: number | null; has_revised_target: number | null;
+  } | undefined;
+  const reviewedPairFact = snapshot.reviewedFacts.some(
+    fact => fact.proposalType === 'product_classification' || fact.proposalType === 'primary_product_type',
   );
-  if (acceptedTypeDecision || reviewedTypeFact) return null;
+  if (acceptedRow ?? reviewedPairFact) {
+    // Presence alone is not enough: the pair must be complete. A legacy
+    // type-only acceptance resolves its category through the snapshot
+    // mapping; an unmapped type stays an explicit gap.
+    if (reviewedPairFact && !acceptedRow) return null;
+    if (acceptedRow) {
+      let parsed: unknown;
+      try {
+        const raw = acceptedRow.has_revised_value ? acceptedRow.revised_value_json : acceptedRow.proposed_value_json;
+        parsed = raw ? JSON.parse(raw) : null;
+      } catch { parsed = null; }
+      const categoryId = getCategoryIdFromValue(parsed);
+      const typeId = acceptedRow.has_revised_target && acceptedRow.revised_target_id
+        ? acceptedRow.revised_target_id
+        : getProductTypeIdFromValue(parsed) ?? acceptedRow.target_id;
+      if (categoryId && typeId) return null;
+      return {
+        ok: false,
+        code: 'classification_incomplete',
+        reason: 'Review requires an accepted Category + Product Type pair; the current acceptance addresses only one member.',
+      };
+    }
+    return null;
+  }
 
-  // Any non-universal field assignment in this run is type-gated. Unknown
+  // Any non-universal field assignment in this run is pair-gated. Unknown
   // attributes fail closed.
   const gatedFieldProposal = options.reviewableProposals.some(proposal => {
     if (proposal.proposalType !== 'field_assignment') return false;
@@ -78,9 +110,10 @@ function assertReviewedProductTypeForRun(options: {
   return {
     ok: false,
     code: 'type_gated_without_reviewed_type',
-    reason: 'Type-gated attribute proposals cannot complete review without a reviewed (accepted) Primary Product Type.',
+    reason: 'Type-gated attribute proposals cannot complete review without a reviewed (accepted) Product Classification.',
   };
 }
+
 
 export interface ReviewCompletionGateInput {
   workspaceId: string;

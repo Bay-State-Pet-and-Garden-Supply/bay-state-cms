@@ -31,9 +31,9 @@ import type { ClassificationProposal } from '../shared/types';
 import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
 import type { CohortRun } from '../shared/schemas/cohorts';
 import { hashCanonicalJson } from '../shared/stable-id';
-import { getEffectivePrimaryProductTypeId } from './assignment-projection';
+import { getEffectiveClassificationPair } from './assignment-projection';
 import { getPageIdentityId } from '../shared/proposal-display';
-import { resolveEffectiveCurationType, getReviewedTypeFromSnapshot } from './effective-curation-type';
+import { getReviewedClassificationPair } from './effective-curation-type';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 
 export type PromotionGateResult =
@@ -157,18 +157,35 @@ export function resolvePromotionEffectiveTypeId(
   acceptedProposals: ClassificationProposal[],
   snapshot?: RuntimeClassificationSnapshot | null,
 ): string | null {
+  return resolvePromotionEffectiveClassification(parentRun, acceptedProposals, snapshot).productTypeId;
+}
+
+/**
+ * The item's CURRENT effective canonical pair (issue #350): reviewed-first
+ * pair authority with the same presence-vs-value semantics as the legacy
+ * type resolver. Accepts the new `product_classification` kind first, then
+ * legacy `primary_product_type` (category resolved through the snapshot
+ * mapping). An explicit clear of either member suppresses the frozen
+ * fallback for that member.
+ */
+export function resolvePromotionEffectiveClassification(
+  parentRun: CohortRun | null,
+  acceptedProposals: ClassificationProposal[],
+  snapshot?: RuntimeClassificationSnapshot | null,
+): { categoryId: string | null; productTypeId: string | null } {
   let inRunReviewedDecisionPresent = false;
-  let reviewedTypeId: string | null = null;
+  let reviewedPair: { categoryId: string | null; productTypeId: string | null } = { categoryId: null, productTypeId: null };
   for (const proposal of acceptedProposals) {
-    if (proposal.proposalType !== 'primary_product_type') continue;
+    if (proposal.proposalType !== 'product_classification' && proposal.proposalType !== 'primary_product_type') continue;
     inRunReviewedDecisionPresent = true;
-    reviewedTypeId = getEffectivePrimaryProductTypeId(proposal);
+    reviewedPair = getEffectiveClassificationPair(proposal);
     break;
   }
   if (!inRunReviewedDecisionPresent) {
-    reviewedTypeId = getReviewedTypeFromSnapshot(snapshot ?? undefined);
+    const reviewed = getReviewedClassificationPair(snapshot ?? undefined);
+    return { categoryId: reviewed.categoryId, productTypeId: reviewed.productTypeId };
   }
-  return resolveEffectiveCurationType(reviewedTypeId, null).effectiveTypeId;
+  return reviewedPair;
 }
 
 /**

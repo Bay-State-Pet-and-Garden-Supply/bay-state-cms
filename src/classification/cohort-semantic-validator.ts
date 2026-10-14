@@ -158,6 +158,8 @@ export interface MemberSemanticsInput {
   pageProposals?: Array<{ pageId: string | null; pageName: string }>;
   /** The member's suggested Primary Product Type (curationData.suggestedProductType). */
   suggestedProductType: string | null;
+  /** The member's suggested canonical Category (curationData.suggestedCategory, issue #350). */
+  suggestedCategory?: string | null;
   /**
    * The parent durable `curated_title` output for this SKU, or null. Only
    * multi-item group members have entries (singletons are never coordinated —

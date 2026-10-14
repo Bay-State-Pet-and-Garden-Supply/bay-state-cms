@@ -10,7 +10,7 @@
  */
 
 import { Database } from 'bun:sqlite';
-import type { TypeReviewDetail, ProductTypeConfigV2 } from '../shared/schemas/classification';
+import type { TypeReviewDetail } from '../shared/schemas/classification';
 import { loadAndValidateProductTypeCurrentness } from './classification-currentness';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { verifyProductTypeCandidate } from './product-type-verifier';
@@ -75,7 +75,7 @@ export function computeTypeReviewDetail(
       // ignore invalid json
     }
     const candidateId = topPrimaryProposal.target_id ?? (typeof parsed?.productTypeId === 'string' ? parsed.productTypeId : null);
-    const ptConfig = candidateId ? snapshot.productTypes.find((pt: ProductTypeConfigV2) => pt.id === candidateId) : null;
+    const ptConfig = candidateId ? snapshot.productTypes.find((pt) => pt.id === candidateId) : null;
     const label = ptConfig?.name ?? (typeof parsed?.productTypeName === 'string' ? parsed.productTypeName : null) ?? candidateId;
     executionPreview = {
       id: candidateId,
@@ -108,7 +108,7 @@ export function computeTypeReviewDetail(
 
   if (isCurrent) {
     reviewedId = currentness.effectiveTypeId!;
-    const ptConfig = snapshot.productTypes.find((pt: ProductTypeConfigV2) => pt.id === reviewedId);
+    const ptConfig = snapshot.productTypes.find((pt) => pt.id === reviewedId);
     reviewedLabel = ptConfig?.name ?? reviewedId;
     reviewedDecisionId = currentness.decisionId;
   } else if (liveDecision) {
@@ -121,7 +121,7 @@ export function computeTypeReviewDetail(
     }
     reviewedId = liveDecision.revised_target_id ?? (typeof revVal?.productTypeId === 'string' ? revVal.productTypeId : null) ?? liveDecision.target_id ?? null;
     if (reviewedId) {
-      const ptConfig = snapshot.productTypes.find((pt: ProductTypeConfigV2) => pt.id === reviewedId);
+      const ptConfig = snapshot.productTypes.find((pt) => pt.id === reviewedId);
       reviewedLabel = ptConfig?.name ?? reviewedId;
     }
   }
@@ -130,7 +130,7 @@ export function computeTypeReviewDetail(
   // ancestor chain (only departmentId + name), so the path is the honest
   // subset [departmentId?, name] — never a guessed taxonomy trail. If a future
   // release adds ancestor IDs, resolve them here and fall back explicitly.
-  const options: TypeReviewDetail['options'] = snapshot.productTypes.map((pt: ProductTypeConfigV2) => {
+  const options: TypeReviewDetail['options'] = snapshot.productTypes.map((pt: { id: string; name: string; departmentId?: string | null }) => {
     const hierarchyPath: string[] = [];
     if (pt.departmentId) {
       hierarchyPath.push(pt.departmentId);

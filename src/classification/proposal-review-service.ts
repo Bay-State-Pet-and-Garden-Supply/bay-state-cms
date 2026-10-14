@@ -2,8 +2,7 @@ import { getDb } from '../db/connection';
 import { DecisionConflictError, getProposalsByRun, getLiveDecisionsByRun, insertDecisionRow, recordHistoryEvent, assertProposalReviewLiveness } from '../db/repositories/classification-run-repo';
 import { enqueueRefreshItem } from '../db/repositories/classification-refresh-repo';
 import type { ClassificationProposalDecision } from '../shared/types';
-import { getProductTypeIdFromValue } from './assignment-projection';
-import { getEffectivePrimaryProductTypeId } from './assignment-projection';
+import { getCategoryIdFromValue, getEffectiveClassificationPair, getProductTypeIdFromValue } from './assignment-projection';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
 import { validateFrozenReviewCorrection } from './review-correction';
@@ -102,6 +101,40 @@ function resolveCorrection(
     }
   }
 
+  // Issue #350: the canonical pair corrects through the same validated
+  // model. Pair values carry {categoryId, productTypeId} and persist paired;
+  // a target-only correction keeps the proposal's own category. Combination
+  // validity is enforced downstream by validateClassificationCorrection
+  // against the frozen snapshot (never invented here).
+  if (proposalType === 'product_classification') {
+    if (!hasRevisedValue && !hasRevisedTargetId) {
+      return { ok: true, correction: { hasRevisedValue: false, hasRevisedTargetId: false } };
+    }
+    const categoryId = hasRevisedValue ? getCategoryIdFromValue(revisedValue) : null;
+    const valueTypeId = hasRevisedValue ? getProductTypeIdFromValue(revisedValue) : null;
+    if (hasRevisedValue && revisedValue !== null && (!categoryId || !valueTypeId)) {
+      return { ok: false, reason: `Decision ${decision.proposalId} has an invalid Product Classification value; a correction must address both Category and Product Type.` };
+    }
+    if (hasRevisedTargetId && revisedTargetId !== null && (typeof revisedTargetId !== 'string' || revisedTargetId.length === 0)) {
+      return { ok: false, reason: `Decision ${decision.proposalId} has an invalid Product Classification target.` };
+    }
+    const effectiveTypeId = hasRevisedTargetId ? revisedTargetId ?? null : valueTypeId;
+    if (hasRevisedValue && hasRevisedTargetId && valueTypeId !== effectiveTypeId) {
+      return { ok: false, reason: `Decision ${decision.proposalId} has conflicting Product Classification value and target IDs.` };
+    }
+    return {
+      ok: true,
+      correction: {
+        hasRevisedValue: hasRevisedValue || hasRevisedTargetId,
+        ...(hasRevisedValue || hasRevisedTargetId
+          ? { revisedValue: hasRevisedValue ? { categoryId, productTypeId: valueTypeId } : { categoryId: null, productTypeId: effectiveTypeId } }
+          : {}),
+        hasRevisedTargetId: true,
+        revisedTargetId: effectiveTypeId ?? null,
+      },
+    };
+  }
+
   if (proposalType !== 'primary_product_type' || (!hasRevisedValue && !hasRevisedTargetId)) {
     return {
       ok: true,
@@ -113,7 +146,6 @@ function resolveCorrection(
       },
     };
   }
-
   // Product Type is one semantic identity even though legacy proposals stored
   // it in both value and target. New decisions always persist a paired,
   // canonical correction; existing one-sided history remains readable through
@@ -333,7 +365,8 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           ...(d.evidenceIds && d.evidenceIds.length > 0 ? { evidenceIds: d.evidenceIds } : {}),
         };
         const priorProposal = getProposalsByRun(input.runId).find(proposal => proposal.id === d.proposalId);
-        const priorType = proposalTypeById.get(d.proposalId) === 'primary_product_type' ? priorProposal : null;
+        const priorKind = proposalTypeById.get(d.proposalId);
+        const priorType = priorKind === 'primary_product_type' || priorKind === 'product_classification' ? priorProposal : null;
         const priorDecision = priorType ? getLiveDecisionsByRun(input.runId).find(decision => decision.id === priorType.currentDecisionId) : null;
         const hadHumanReviewedType = priorType?.status === 'accepted' && priorDecision?.decision === 'accepted' && priorDecision.decisionOrigin === 'human_review';
         const { decision, inserted, decisionId } = insertDecisionRow(db, rowInput);
@@ -342,19 +375,23 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           throw new DecisionConflictError('Agent evaluation cannot replace an existing review decision.');
         }
         if (inserted && priorType) {
-          const previousTypeId = hadHumanReviewedType ? getEffectivePrimaryProductTypeId(priorType) : getProductTypeIdFromValue(priorType.proposedValue);
+          const previousPair = hadHumanReviewedType ? getEffectiveClassificationPair(priorType) : { categoryId: getCategoryIdFromValue(priorType.proposedValue), productTypeId: getProductTypeIdFromValue(priorType.proposedValue) };
+          const previousTypeId = previousPair.productTypeId;
+          const previousCategoryId = previousPair.categoryId;
           const nextType = getProposalsByRun(input.runId).find(proposal => proposal.id === priorType.id)!;
-          const nextTypeId = d.decision !== 'accepted' ? null : getEffectivePrimaryProductTypeId(nextType);
+          const nextPair = d.decision !== 'accepted' ? { categoryId: null, productTypeId: null } : getEffectiveClassificationPair(nextType);
+          const nextTypeId = nextPair.productTypeId;
+          const nextCategoryId = nextPair.categoryId;
           const snapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
           const currentProposals = listCurrentRunProposals(input.runId);
           const hasWithheldDependents = currentProposals.some(proposal => proposal.proposalType === 'reviewable_abstention'
             && ['product_attribute_proposals', 'category_page_proposals'].includes(proposal.targetId ?? '')
-            && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Primary Product Type'));
+            && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Product Classification'));
           const needsInitialDependents = !hadHumanReviewedType
             && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot)));
           refreshRequired = input.reviewOrigin !== 'agent_review' && nextTypeId !== null
-            && (nextTypeId !== previousTypeId || hasWithheldDependents || needsInitialDependents);
-          if (input.reviewOrigin !== 'agent_review' && nextTypeId !== previousTypeId) {
+            && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId || hasWithheldDependents || needsInitialDependents);
+          if (input.reviewOrigin !== 'agent_review' && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId)) {
             invalidateDependentTypeReview(input.runId, snapshot, input.onboardingItemId, nextTypeId === null ? 'product_type_cleared' : 'product_type_changed');
           }
         }
@@ -396,7 +433,10 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
       // proposals: queue a dependent refresh so the next run's snapshot cites
       // the accepted decision as a reviewed fact and re-evaluates gating.
       const typeDecisionInserted = insertedDecisions.find(
-        inserted => proposalTypeById.get(inserted.proposalId) === 'primary_product_type',
+        inserted => {
+          const kind = proposalTypeById.get(inserted.proposalId);
+          return kind === 'primary_product_type' || kind === 'product_classification';
+        },
       );
       if (typeDecisionInserted && refreshRequired) {
         enqueueRefreshItem({

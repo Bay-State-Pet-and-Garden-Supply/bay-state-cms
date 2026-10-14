@@ -33,7 +33,7 @@ import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
 import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
 import {
-  buildProductTypeProposal,
+  buildClassificationProposal,
   buildFieldAssignmentProposal,
   buildCategoryPageProposal,
 } from './curation-target-proposal';
@@ -188,9 +188,12 @@ export async function processProductTypeTarget(
 ): Promise<TargetProcessResult> {
   const modelPolicy = modelPolicyViewFromSnapshot(context.snapshot);
 
-  const { resolveProductTypeDecision } = await import('./product-type-decision');
-  const vetoTypeNodes = buildVetoTypeNodes(context.snapshot?.productTypes);
-  const decision = await resolveProductTypeDecision({
+  // Issue #350: the canonical pair decision resolves the type, then its
+  // approved Category through the frozen snapshot mapping. Only approved
+  // configured combinations produce a pair proposal — never an invented
+  // taxonomy label or combination.
+  const { resolveClassificationDecision } = await import('./product-type-decision');
+  const decision = await resolveClassificationDecision({
     target,
     evidence: input.evidence,
     sku: input.sku,
@@ -198,21 +201,21 @@ export async function processProductTypeTarget(
     snapshot: context.snapshot,
     modelPolicy,
     assertHeld: context.assertHeld,
-    vetoTypeNodes,
   });
 
-  if (decision.status === 'abstained' || !decision.productTypeId) {
+  if (decision.status === 'abstained' || !decision.productTypeId || !decision.categoryId) {
     return {
       proposals: [],
       message:
         decision.abstentionReason ??
-        `Abstained from proposing product type (${decision.abstentionCode ?? 'unresolved'}).`,
+        `Abstained from proposing classification (${decision.abstentionCode ?? 'unresolved'}).`,
     };
   }
 
-  const proposal = buildProductTypeProposal({
+  const proposal = buildClassificationProposal({
     runId: context.runId,
     sku: input.sku,
+    categoryId: decision.categoryId,
     productTypeId: decision.productTypeId,
     confidence: decision.confidence,
     evidenceIds: decision.evidenceIds,
@@ -233,7 +236,7 @@ export async function processProductTypeTarget(
     target.options.find(o => o.value === decision.productTypeId)?.label ?? decision.productTypeId;
   return {
     proposals: [proposal],
-    message: `${label} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`,
+    message: `${decision.categoryId} / ${label} (${sourceLabel}, ${(decision.confidence * 100).toFixed(0)}%)`,
   };
 }
 
@@ -859,28 +862,6 @@ export async function processProductFieldTargetsBatch(
  * Both are passed to the proposal for identity-based promotion.
  */
 
-/**
- * P1 #7: normalize frozen release type nodes to veto metadata. Uses `in`
- * narrowing (no unchecked casts) — nodes without scope/invariants degrade to
- * id-heuristic form cues only.
- */
-type VetoTypeNode = { id: string; scope?: { animalDomain?: string } | null; invariantAttributes?: Record<string, string | string[]> };
-
-/**
- * P1 #7: normalize frozen release type nodes to veto metadata. Reads the
- * release-generic node shape (v9/v10 identical per TaxonomyV10); nodes
- * without scope/invariants degrade to id-heuristic form cues only.
- */
-function buildVetoTypeNodes(
-  productTypes: RuntimeClassificationSnapshot['productTypes'] | undefined,
-): VetoTypeNode[] {
-  return (productTypes ?? []).map(pt => {
-    const node: VetoTypeNode = { id: pt.id };
-    if ('scope' in pt && pt.scope) node.scope = pt.scope;
-    if ('invariantAttributes' in pt && pt.invariantAttributes) node.invariantAttributes = pt.invariantAttributes;
-    return node;
-  });
-}
 /**
  * P1 #15: build the backfill page filter from frozen snapshot + evidence.
  * Verified IDs come from the frozen verified page snapshot; assigned names

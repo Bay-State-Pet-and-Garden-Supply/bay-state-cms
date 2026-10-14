@@ -302,7 +302,7 @@ function scoreReviewedOutcomeProposal(
   if (!decision || decision.decision !== 'accepted') return;
   const value = effectiveReviewedValue(decision, proposal);
   const effectiveTarget = effectiveReviewedTargetId(decision, proposal);
-  if (proposal.proposalType === 'primary_product_type') {
+  if (proposal.proposalType === 'primary_product_type' || proposal.proposalType === 'product_classification') {
     applyReviewedTypeProposal(acc, proposal, value);
   } else if (proposal.proposalType === 'category_page') {
     // Page labels use the display name from the effective value — never the

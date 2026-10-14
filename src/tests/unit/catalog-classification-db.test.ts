@@ -984,16 +984,18 @@ describe('proposal-review-service (catalog product)', () => {
     expect(gate.ok).toBe(false);
     if (!gate.ok) expect(gate.code).toBe('type_gated_without_reviewed_type');
 
-    // Accepting the type (in-run accepted decision) unblocks the gate.
+    // Accepting the pair (in-run accepted decision) unblocks the gate. A
+    // legacy type-only acceptance would also unblock iff its category
+    // resolved through the snapshot mapping — the pair path is canonical.
     getDb().run(
       `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', 'dry-dog-food', '{"productTypeId":"dry-dog-food"}', 0.9, 'accepted', ?)`,
+       VALUES (?, ?, ?, 'product_classification', 'dry-dog-food', '{"categoryId":"dog-food","productTypeId":"dry-dog-food"}', 0.9, 'accepted', ?)`,
       ['prop-type-accepted', run.id, 'SKU-GATED', new Date().toISOString()],
     );
     getDb().run(
       `INSERT INTO classification_proposal_decisions
        (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at)
-       VALUES (?, ?, 'accepted', '{"productTypeId":"dry-dog-food"}', 'dry-dog-food', ?, NULL)`,
+       VALUES (?, ?, 'accepted', '{"categoryId":"dog-food","productTypeId":"dry-dog-food"}', 'dry-dog-food', ?, NULL)`,
       ['dec-type-accepted', 'prop-type-accepted', new Date().toISOString()],
     );
     const gateAfter = validateCatalogReviewCompletionGate({ workspaceId, productSku: 'SKU-GATED', runId: run.id });
