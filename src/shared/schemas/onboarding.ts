@@ -286,7 +286,48 @@ export const OcrFailureReasonEnum = z.enum([
 ]);
 export type OcrFailureReason = z.infer<typeof OcrFailureReasonEnum>;
 
-export const OcrAttemptOutcomeStatusEnum = z.enum(['succeeded', 'failed', 'skipped', 'no_image', 'disabled']);
+/** A1: coded per-image OCR disposition — one row per attempted product image. */
+export const OcrImageDispositionStatusEnum = z.enum([
+  'succeeded',
+  'no_legible_text',
+  'failed',
+  'no_image',
+  'disabled',
+]);
+export type OcrImageDispositionStatus = z.infer<typeof OcrImageDispositionStatusEnum>;
+
+export const OcrImageDispositionSchema = z.object({
+  /** Zero-based position in the attempted image list. */
+  index: z.number().int().nonnegative(),
+  /** Coded disposition for this image (never a raw message). */
+  status: OcrImageDispositionStatusEnum,
+  /** Coded load/transport/parse failure reason when status is failed/no_image. */
+  reasonCode: OcrFailureReasonEnum.nullish(),
+  /** True when the VLM returned a parseable result with no usable content. */
+  emptyContent: z.boolean().optional(),
+  /** Transport attempts made for this image (>= 1 when an attempt ran). */
+  attempts: z.number().int().nonnegative().optional(),
+  /** SHA-256 of the actual loaded image bytes (contentHash from the OCR attempt). */
+  imageBytesDigest: z.string().regex(/^[0-9a-f]{64}$/).nullish(),
+  /** SHA-256 of the raw image source reference (never the raw ref). */
+  imageSourceDigest: z.string().nullable().optional(),
+  /** Bounded, credential/query-stripped image reference for debugging. */
+  imageRef: z.string().max(160).nullable().optional(),
+  /** Model identifier that served this image (from OCR metadata). */
+  model: z.string().max(160).nullable().optional(),
+  /** Durable model-call ID for this image when a started audit row exists. */
+  modelCallId: z.string().nullable().optional(),
+});
+export type OcrImageDisposition = z.infer<typeof OcrImageDispositionSchema>;
+
+/**
+ * A1: `no_legible_text` is a local/per-image-only value (text-free image:
+ * bytes loaded, VLM answered, no usable text). The OVERALL outcome status
+ * stays in the pre-A1 settled vocabulary (succeeded/failed/no_image/disabled)
+ * so shared onboarding consumers keep their behavior; the distinction lives
+ * on localStatus and the per-image rows.
+ */
+export const OcrAttemptOutcomeStatusEnum = z.enum(['succeeded', 'failed', 'skipped', 'no_image', 'disabled', 'no_legible_text']);
 export type OcrAttemptOutcomeStatus = z.infer<typeof OcrAttemptOutcomeStatusEnum>;
 
 export const OcrAttemptOutcomeSchema = z.object({
@@ -306,6 +347,10 @@ export const OcrAttemptOutcomeSchema = z.object({
   attempts: z.number().int().positive().optional(),
   /** P1-T3 (reserved): stored OCR data predates the current frozen plan digest. */
   stale: z.boolean().optional(),
+  /** A1: one coded disposition row per attempted image (additive, bounded by the attempted list). */
+  images: z.array(OcrImageDispositionSchema).max(8).optional(),
+  /** A1: true when the local-only image gate denied image transport (text-only run). */
+  imageGateDenied: z.boolean().optional(),
 });
 export type OcrAttemptOutcome = z.infer<typeof OcrAttemptOutcomeSchema>;
 
@@ -1065,7 +1110,7 @@ export const CurationDataSchema = z.object({
    */
   effectiveProductType: z.object({
     id: z.string().nullable(),
-    source: z.enum(['reviewed', 'none']),
+    source: z.enum(['reviewed', 'provisional', 'none']),
   }).nullable().optional(),
   /**
    * PR9 (issue #30, DECISION-A): the member's cohort semantic validation
@@ -1464,6 +1509,7 @@ export const LlmTaskEnum = z.enum([
   'attribute_value_classification',
   'product_field_refactor',
   'store_manager_assistant',
+  'one_shot_selector_generation',
 ]);
 export type LlmTask = z.infer<typeof LlmTaskEnum>;
 

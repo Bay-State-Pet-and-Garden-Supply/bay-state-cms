@@ -444,7 +444,36 @@ export async function executePreparedMembers(args: {
         // never pass it.
         hooks?.beforeSemanticValidation?.(curationData);
         const memberSkuForSemantic = memberSku;
-        const effectiveTypeIdForSemantic = resolvedEffectiveType.effectiveTypeId;
+        // Issue #352: the semantic check uses the member's OWN pipeline pair
+        // (reviewed first, then the provisional pair from this same pass) —
+        // mirroring the stages' effective-type resolution. The frozen
+        // snapshot's reviewed fact alone would miss the provisional pair and
+        // falsely block supported members.
+        const semanticPair = (() => {
+          for (const proposal of curationData.classificationProposals) {
+            if ((proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type') && proposal.status === 'accepted') {
+              const value = (proposal as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
+                ? (proposal as { revisedValue?: unknown }).revisedValue
+                : proposal.proposedValue;
+              const id = (value as { productTypeId?: unknown } | null)?.productTypeId;
+              if (typeof id === 'string' && id.length > 0) return id;
+              if (typeof proposal.targetId === 'string' && proposal.targetId.length > 0) return proposal.targetId;
+            }
+          }
+          const pending = [...curationData.classificationProposals]
+            .filter(proposal => (proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type') && !proposal.isStale && (proposal.status === 'pending' || proposal.status === 'deferred'))
+            .sort((a, b) => b.confidence - a.confidence)[0];
+          if (pending) {
+            const value = (pending as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
+              ? (pending as { revisedValue?: unknown }).revisedValue
+              : pending.proposedValue;
+            const id = (value as { productTypeId?: unknown } | null)?.productTypeId;
+            if (typeof id === 'string' && id.length > 0) return id;
+            if (typeof pending.targetId === 'string' && pending.targetId.length > 0) return pending.targetId;
+          }
+          return resolvedEffectiveType.effectiveTypeId;
+        })();
+        const effectiveTypeIdForSemantic = semanticPair;
         const effectiveProfileForSemantic = effectiveTypeIdForSemantic
           ? resolveEffectiveTypeProfile(
               effectiveTypeIdForSemantic,
