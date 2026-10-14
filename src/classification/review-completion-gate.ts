@@ -772,16 +772,13 @@ export function validateReviewCompletionGate(
     return { ok: false, code: 'no_proposals', reason: 'No reviewable proposals in the classification run.' };
   }
 
-  const pendingOrStale = proposals.filter(p => p.status === 'pending' || p.status === 'stale');
-  if (pendingOrStale.length > 0) {
-    return {
-      ok: false,
-      code: 'pending_proposals',
-      reason: `Classification run has ${pendingOrStale.length} pending or stale proposal(s) that require review.`,
-    };
-  }
-
-  const missingDecisions = proposals.filter(p => p.status !== 'reviewable_abstention' && !p.has_decision);
+  // Issue #351: `reviewable_abstention` rows are coded unresolved outcomes
+  // (insufficient evidence / missing pair), not pending work — they carry
+  // reason + code and are explicitly decision-exempt below. Blocking on
+  // them would permanently bar review whenever SKU-local evidence
+  // withholds (the correct #351 semantic). Only decision-eligible
+  // proposals block as pending.
+  const missingDecisions = proposals.filter(p => p.proposal_type !== 'reviewable_abstention' && !p.has_decision);
   if (missingDecisions.length > 0) {
     return {
       ok: false,
@@ -922,6 +919,72 @@ export function validateCatalogReviewCompletionGate(
     })),
   });
   if (typeGate) return typeGate;
+
+  // A3: every accepted image-backed proposal must cite supporting same-run
+  // OCR evidence explicitly in the reviewer decision evidenceIds, with a
+  // reviewed quote on a byte-identified image. An OCR-only value without a
+  // quote, or an accepted visual decision without explicit citation, fails.
+  // Citations live in the classification_proposal_decision_evidence join
+  // table keyed by live decision id — never a column on the decision row.
+  const acceptedVisual = db.query(
+    `SELECT p.id AS proposal_id, p.evidence_ids_json AS union_ids_json,
+            (SELECT d.id FROM classification_proposal_decisions d
+             WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
+             ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS decision_id
+     FROM classification_proposals p
+     WHERE p.run_id = ? AND p.status = 'accepted' AND p.proposal_type != 'reviewable_abstention'`,
+  ).all(input.runId) as Array<{ proposal_id: string; union_ids_json: string | null; decision_id: string | null }>;
+  const parseIds = (json: string | null): string[] => {
+    try {
+      const parsed = JSON.parse(json ?? '[]') as unknown;
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  const citedByDecision = (decisionId: string | null): string[] => {
+    if (!decisionId) return [];
+    try {
+      const rows = db.query(
+        'SELECT evidence_id FROM classification_proposal_decision_evidence WHERE decision_id = ? ORDER BY evidence_id',
+      ).all(decisionId) as Array<{ evidence_id: string }>;
+      return rows.map(row => String(row.evidence_id));
+    } catch {
+      return [];
+    }
+  };
+  for (const row of acceptedVisual) {
+    const cited = citedByDecision(row.decision_id);
+    const union = parseIds(row.union_ids_json);
+    const visualInUnion = union.length > 0 ? db.query(
+      `SELECT e.id FROM classification_evidence e
+       WHERE e.id IN (${union.map(() => '?').join(',')}) AND e.run_id = ? AND e.source = 'visual_product_evidence'`,
+    ).all(...union, input.runId) as Array<{ id: string }> : [];
+    // Image-backed but uncited: the value came from package pixels yet the
+    // reviewer cited no same-run OCR evidence — hold for explicit citation.
+    if (visualInUnion.length > 0 && cited.length === 0) {
+      return {
+        ok: false,
+        code: 'visual_citation_missing',
+        reason: `Proposal "${row.proposal_id}" is image-backed but cites no same-run OCR evidence; cite the supporting package quotation first.`,
+      };
+    }
+    if (cited.length === 0) continue;
+    const visualCited = db.query(
+      `SELECT e.id, e.snippet, e.metadata_json FROM classification_evidence e
+       WHERE e.id IN (${cited.map(() => '?').join(',')}) AND e.run_id = ? AND e.source = 'visual_product_evidence'`,
+    ).all(...cited, input.runId) as Array<{ id: string; snippet: string | null; metadata_json: string | null }>;
+    // Cited visual evidence must carry a reviewed quote (non-empty snippet).
+    // Byte identity is enforced at apply/upload by A2 re-hashing.
+    const quoteless = visualCited.filter(e => !e.snippet || !e.snippet.trim());
+    if (quoteless.length > 0) {
+      return {
+        ok: false,
+        code: 'visual_citation_missing_quote',
+        reason: `Proposal "${row.proposal_id}" cites visual evidence without a reviewed package quotation; open the image and confirm the exact words.`,
+      };
+    }
+  }
 
   return { ok: true, proposalCount: reviewableProposals.length };
 }

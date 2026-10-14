@@ -36,7 +36,6 @@ vi.mock('@/db/repositories/page-repo', () => ({
 
 // Import after mocks are set up
 import { callLlmForTask } from '../../onboarding/llm-client';
-import { listPages } from '../../db/repositories/page-repo';
 import {
   buildPageHierarchy,
   extractProductContext,

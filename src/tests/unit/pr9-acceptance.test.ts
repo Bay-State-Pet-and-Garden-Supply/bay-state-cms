@@ -45,7 +45,6 @@ import {
 } from '../../db/repositories/curation-cohort-repo';
 import {
   claimReadyCurationCohorts,
-  getCohortRunById,
   listDependenciesForProposal,
   COHORT_LEASE_TTL_MS,
 } from '../../db/repositories/classification-cohort-run-repo';

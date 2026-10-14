@@ -274,14 +274,14 @@ export interface CohortShadowObservation {
 /**
  * PR4 C5 shadow-mode observation (architecture-report §7, DECISION-E).
  *
- * Runs the DETERMINISTIC-ONLY cohort Execution Product Type resolver
- * (`evidenceFromProjection` + `matchMemberDeterministically` +
- * `resolveCohortProductType`, the C3 pure module) over every READY,
- * non-superseded cohort in the workspace, from the CURRENT world (members →
- * items → extraction sources → frozen evidence projections). Member runtime
- * snapshots are built IN-MEMORY (never persisted) purely to resolve the
- * product type options from the current config authority — the same evidence
- * the freeze-time active-mode resolution consumes, minus any model calls.
+ * Runs DETERMINISTIC-ONLY per-member SKU-local matching
+ * (`evidenceFromProjection` + `matchMemberDeterministically`) over every
+ * READY, non-superseded cohort in the workspace, from the CURRENT world
+ * (members → items → extraction sources → frozen evidence projections).
+ * No cross-member aggregation: each member is matched from its own frozen
+ * evidence only (issue #351). Member runtime snapshots are built
+ * IN-MEMORY (never persisted) purely to resolve the product type options
+ * from the current config authority, minus any model calls.
  *
  * Write NOTHING and invoke NO model calls:
  * - no `execution_product_type_id` / `product_type_confidence` /
@@ -399,7 +399,11 @@ export function observeCohortShadowTypeResolution(
       // current config authority's options; the observation records per-SKU
       // results without resolving a family conclusion.
       const perMember = memberInputs.map(input => {
-        const memberEvidence = evidenceFromProjection(input.projection);
+        // PR12 R1: stale persisted OCR (digest mismatch) is rejected
+        // read-only here — never re-run, never written.
+        const memberEvidence = evidenceFromProjection(input.projection, {
+          expectedOcrExecutionDigest: input.expectedOcrExecutionDigest,
+        });
         const options = resolveTargetsFromSnapshot(input.memberSnapshot).productTypes[0]?.options ?? [];
         const match = matchMemberDeterministically(memberEvidence, options);
         return {

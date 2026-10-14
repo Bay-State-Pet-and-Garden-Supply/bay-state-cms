@@ -40,12 +40,10 @@ import type {
   ExecutionEvidenceProjectionMemberV1,
   ExecutionEvidenceProjectionMemberV2,
 } from '../shared/schemas/cohorts';
-import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { matchKeywordOptions } from './curation-target-matcher';
 import { buildEvidenceTargetPacket } from './evidence-targeting';
 import { type ResolvedTargetOption } from './curation-target-resolver';
 import { packagingOcrDataToEvidence } from './ocr-evidence';
-import { collectTypeVetoSignals, titleTextFromEvidence, vetoMetaFromTypeNode, vetoTypeCandidate } from './product-type-veto';
 
 const now = () => new Date().toISOString();
 
@@ -423,31 +421,6 @@ function scoreTypeMatch(evidence: ClassificationEvidence[], options: ResolvedTar
     return { match: { productTypeId: top.value, confidence: top.confidence, source: 'keyword' }, packet };
   }
   return { match: { productTypeId: null, confidence: null, source: null }, packet };
-}
-/**
- * P1 #7: final candidate veto for one cohort member's raw inferred match.
- * Runs AFTER keyword/LLM selection: a contradicted winner abstains (null
- * match), never promotes the runner-up. Type nodes come from the member's
- * own frozen snapshot productTypes (generic v9/v10 node shapes).
- */
-export function vetoMemberTypeMatch(input: {
-  match: { productTypeId: string | null; confidence: number | null; source: 'keyword' | 'llm' | 'jev' | null };
-  memberEvidence: ClassificationEvidence[];
-  memberSnapshot: RuntimeClassificationSnapshot;
-}): { productTypeId: string | null; confidence: number | null; source: 'keyword' | 'llm' | 'jev' | null } {
-  const { match, memberEvidence, memberSnapshot } = input;
-  if (!match.productTypeId) return match;
-  const signals = collectTypeVetoSignals(titleTextFromEvidence(memberEvidence));
-  const nodes = (memberSnapshot.productTypes ?? []) as Array<{
-    id: string;
-    scope?: { animalDomain?: string } | null;
-    invariantAttributes?: Record<string, string | string[]>;
-  }>;
-  const node = nodes.find(n => n.id === match.productTypeId);
-  const meta = node ? vetoMetaFromTypeNode(node) : { id: match.productTypeId };
-  const veto = vetoTypeCandidate(meta, signals);
-  if (!veto.vetoed) return match;
-  return { productTypeId: null, confidence: null, source: null };
 }
 
 

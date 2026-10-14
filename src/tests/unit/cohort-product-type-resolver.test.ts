@@ -8,89 +8,12 @@ import {
 import type {
   ExecutionEvidenceProjectionMemberV1,
   ExecutionEvidenceProjectionMemberV2,
-  ExecutionEvidenceProjectionV1,
 } from '../../shared/schemas/cohorts';
-import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
-import type { BrandConfig } from '../../shared/schemas/classification';
-import type { ReviewedFact } from '../../classification/reviewed-facts';
 import { packagingOcrDataToEvidence } from '../../classification/ocr-evidence';
 
 // ─── Fixtures (pure — no DB) ──────────────────────────────────────────────────
 
-const TYPE_PRODUCT_TYPES = [
-  { id: 'dry-dog-food', name: 'Dry Dog Food' },
-  { id: 'dry-cat-food', name: 'Dry Cat Food' },
-];
 
-const PRODUCT_TYPE_TARGET = {
-  id: 'test-product-type',
-  kind: 'product_type' as const,
-  label: 'Test Product Type',
-  enabled: true,
-  selectionMode: 'single' as const,
-  attributeId: null,
-  catalogField: null,
-  optionSource: 'configured' as const,
-  required: false,
-  mandatory: false,
-  sortOrder: 0,
-};
-
-/**
- * Minimal immutable runtime snapshot fixture carrying the fields the pure
- * `resolveTargetsFromSnapshot` path reads (config curationTargets,
- * snapshot.curationTargets, productTypes). Cast: the snapshot type has many
- * unrelated required fields this pure test never touches.
- */
-function makeSnapshot(
-  productTypes: Array<{ id: string; name: string }>,
-  curationTargets: unknown[] = [PRODUCT_TYPE_TARGET],
-): RuntimeClassificationSnapshot {
-  const config = {
-    manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: '', updatedAt: '', fileVersions: {} },
-    productTypes,
-    attributes: [],
-    attributeProfiles: [],
-    attributeMappings: [],
-    curationTargets,
-    brands: [],
-    guidance: [],
-    modelPolicy: { defaultProvider: 'ollama', defaultModel: '', stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only' },
-    dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
-  };
-  return {
-    schemaVersion: 1,
-    snapshotHash: 's'.repeat(64),
-    createdAt: '2026-01-01T00:00:00.000Z',
-    workspaceId: 'ws-test',
-    workspacePath: '/tmp/ws-test',
-    productSku: 'SKU-1',
-    configAuthorityKind: 'v1',
-    sourceCatalogCommit: null,
-    config,
-    configSnapshotRef: { id: 'cfg', hash: 's'.repeat(64), sourceCommit: null, createdAt: '2026-01-01T00:00:00.000Z' },
-    focusedFileHashes: {},
-    catalogEvidenceHash: null,
-    productTypes,
-    attributes: [],
-    attributeProfiles: [],
-    attributeMappings: [],
-    guidance: [],
-    brands: [],
-    modelPolicy: config.modelPolicy,
-    dataSharing: config.dataSharing,
-    curationTargets,
-    fieldOptions: {},
-    reviewedFacts: [],
-    pages: { state: 'no_verified_page_catalog', nameOnlyRecords: [] },
-    sourceProductHash: null,
-    searchKeywords: null,
-    productPageNames: [],
-    pageImportId: null,
-    pageImportHash: null,
-    pageContextReliability: 'low',
-  } as unknown as RuntimeClassificationSnapshot;
-}
 
 /** Frozen `execution-evidence-v1` member with the frozen evidence-stage inputs. */
 function makeMemberProjection(opts: {
@@ -175,15 +98,6 @@ function withSettledOcr(
   };
 }
 
-function makeProjection(members: ExecutionEvidenceProjectionMemberV1[]): ExecutionEvidenceProjectionV1 {
-  return {
-    version: 'execution-evidence-v1',
-    cohortId: 'cohort-1',
-    batchId: 'batch-1',
-    groupingVersion: 'product-family-v1',
-    members,
-  };
-}
 
 
 
@@ -398,39 +312,6 @@ describe('matchMemberDeterministically', () => {
 });
 
 // ─── C3b: resolveCohortProductType ───────────────────────────────────────────
-
-// REMOVED (issue #351): aggregation/family-invariant block deleted with the resolver aggregation.
-
-
-// ─── PR5 hardening (P1-2): reviewed-fact coherence at freeze time ────────────
-
-/** Minimal `primary_product_type` reviewed fact carried in a frozen snapshot. */
-function makeTypeFact(productTypeId: string): ReviewedFact {
-  return {
-    proposalId: 'p-type',
-    decisionId: 'd-type',
-    runId: 'run-prior',
-    workspaceId: 'ws',
-    productSku: 'SKU-1',
-    proposalType: 'primary_product_type',
-    targetId: productTypeId,
-    value: { productTypeId },
-    configSnapshotHash: 'cfg',
-    sourceHash: 'src',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  };
-}
-
-/** Spread-copy the snapshot fixture with a seeded reviewed type fact (the
- *  resolver's snapshot-derived fallback path). */
-function withReviewedFacts(snapshot: RuntimeClassificationSnapshot, typeId: string): RuntimeClassificationSnapshot {
-  return { ...snapshot, reviewedFacts: [makeTypeFact(typeId)] } as RuntimeClassificationSnapshot;
-}
-
-// REMOVED (issue #351): aggregation/family-invariant block deleted with the resolver aggregation.
-
-
-// ─── C3b: validateCohortFamilyInvariants ─────────────────────────────────────
 
 // REMOVED (issue #351): aggregation/family-invariant block deleted with the resolver aggregation.
 
