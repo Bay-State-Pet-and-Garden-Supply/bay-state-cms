@@ -40,6 +40,7 @@ import {
   type InsertItemData,
   listItemsByBatch,
   findItemById,
+  setDiscoverySourceUrl,
   listItemsByBatchStaged,
   advanceItemsToNextStage,
   updateItemStageStatus,
@@ -114,10 +115,7 @@ import {
   type EvidenceAttempt,
 } from '../../shared/schemas/distributor-evidence';
 import { ResolveConflictRequestSchema } from '../../shared/schemas/distributor';
-import { listSourcesByItem } from '../../db/repositories/onboarding-source-repo';
-import { proposePageCandidate } from '../../db/repositories/official-page-decision-repo';
-import { confirmOfficialPageCandidate, OfficialPageConfirmationError } from '../../onboarding/official-page-confirmation';
-import { getAllowedOfficialPageDomains, isAuthorizedOfficialPageUrl } from '../../onboarding/official-page-authority';
+import { listSourcesByItem, selectSource } from '../../db/repositories/onboarding-source-repo';
 import {
   getLatestExtraction,
   updateLatestExtractionData
@@ -222,7 +220,6 @@ import { OnboardingWorker } from '../../onboarding/job-queue';
 import { getDomainDiagnosticsResponse } from '../../onboarding/domain-diagnostics-service';
 import { generateSelectors } from '../services/profile-builder/generateSelectorsService';
 import { GenerateSelectorsRequestSchema } from '../../shared/schemas/selector-generation';
-import { captureModelPolicySnapshot } from '../../onboarding/model-policy-snapshot';
 import {
   getWorkerHealth,
   snapshotPage,
@@ -2068,9 +2065,6 @@ route.put('/onboarding/items/:id', async (c) => {
       400,
     );
   }
-  if (body.source_url !== undefined) {
-    return c.json({ error: 'An official product page must be proposed and confirmed through Discovery, not edited directly.' }, 400);
-  }
 
   // e10s02 adjudication: distributor inventory is upstream-managed — the
   // review UI renders quantity read-only and never sends the key; reject
@@ -2141,6 +2135,9 @@ route.put('/onboarding/items/:id', async (c) => {
         body.quantity === null ? null : Number.parseInt(String(body.quantity), 10);
       const safeQuantity = parsedQuantity !== null && Number.isNaN(parsedQuantity) ? null : parsedQuantity;
       db.query('UPDATE onboarding_items SET quantity = ? WHERE id = ?').run(safeQuantity, itemId);
+    }
+    if (body.source_url !== undefined) {
+      db.query('UPDATE onboarding_items SET source_url = ? WHERE id = ?').run(body.source_url, itemId);
     }
     if (body.status) {
       db.query('UPDATE onboarding_items SET status = ? WHERE id = ?').run(body.status, itemId);
@@ -2429,7 +2426,7 @@ route.post('/onboarding/items/:id/decisions', async (c) => {
   // or requiring the operator to manually restart Curation. The shared refresh
   // keeps the accepted type and naming authority in this exact frozen run.
   const currentTypeDecision = result.decisions.find(decision => decision.decision === 'accepted'
-    && getProposalsByRun(activeRunId).some(proposal => proposal.id === decision.proposalId && proposal.proposalType === 'primary_product_type'));
+    && getProposalsByRun(activeRunId).some(proposal => proposal.id === decision.proposalId && proposal.proposalType === 'product_classification'));
   let dependentRefresh: { status: 'completed' | 'blocked'; message?: string } | undefined;
   if (currentTypeDecision && result.refreshRequired) {
     try {
@@ -2512,33 +2509,108 @@ route.post('/onboarding/items/:id/retry', async (c) => {
   return c.json({ success: true });
 });
 
-/** Confirm an imported, discovered or manager-proposed candidate after a fresh guarded fetch. */
+/**
+ * POST /api/onboarding/items/:id/select-source
+ * Confirms a selected discovery source candidate.
+ */
 route.post('/onboarding/items/:id/select-source', async (c) => {
   const itemId = c.req.param('id');
+  const { sourceId } = await c.req.json();
+  if (!sourceId) {
+    return c.json({ error: 'sourceId is required' }, 400);
+  }
+
+  // Epic #46 audit fix (fix 5): workspace ownership — foreign items are 404
+  // before any source is listed or bound.
   const item = findItemById(itemId);
-  if (!item) return c.json({ error: 'Item not found' }, 404);
+  if (!item) {
+    return c.json({ error: 'Item not found' }, 404);
+  }
   const ownershipError = itemWorkspaceError(c, item);
   if (ownershipError) return ownershipError;
-  const workspace = findWorkspace();
-  if (!workspace) return c.json({ error: 'No active workspace loaded' }, 400);
-  let body: { sourceId?: unknown; attestedProductAndVariant?: unknown };
-  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON body' }, 400); }
-  if (typeof body.sourceId !== 'string' || !body.sourceId) return c.json({ error: 'sourceId is required' }, 400);
-  const source = listSourcesByItem(itemId).find(candidate => candidate.id === body.sourceId);
-  if (!source) return c.json({ error: 'Source candidate not found' }, 404);
+
+  // M6 hardening: if unresolved variant matrix present, require select-variant
   try {
-    const decision = await confirmOfficialPageCandidate({
-      item, source, workspaceId: workspace.id,
-      attestedProductAndVariant: body.attestedProductAndVariant === true,
-    });
-    return c.json({ success: true, sourceUrl: decision.url });
-  } catch (error) {
-    if (error instanceof OfficialPageConfirmationError) {
-      return c.json({ error: error.message, code: error.code }, error.status);
+    const { getEffectiveVariantResolutionMode } = await import('../../onboarding/variant-flags');
+    if (getEffectiveVariantResolutionMode() === 'active') {
+      const { getDb } = await import('../../db/connection');
+      const db = getDb();
+      const res = db.prepare('SELECT status FROM onboarding_variant_resolutions WHERE onboarding_item_id = ? AND superseded_at IS NULL LIMIT 1').get(itemId) as any;
+      if (res && (res.status === 'ambiguous' || res.status === 'no_match' || res.status === 'stale')) {
+        return c.json({ error: 'Unresolved variant matrix — use select-variant' }, 409);
+      }
     }
-    console.error('[OnboardingRoutes] Official page confirmation failed:', error);
-    return c.json({ error: 'Official page confirmation could not be completed' }, 503);
+  } catch {
+    // Variant-matrix check is advisory; absence keeps the response usable.
   }
+  const sources = listSourcesByItem(itemId);
+  const selected = sources.find(s => s.id === sourceId);
+  if (!selected) {
+    return c.json({ error: 'Source candidate not found' }, 404);
+  }
+
+  // Builder slice B2 + ticket #123: strategy-bound manual selection cannot
+  // admit a non-official candidate as the official source. Authority is the
+  // item's CURRENT generation frozen binding first (a live approval edit
+  // can never expand a running generation), live approval as fallback.
+  // A known retailer/distributor host is never official (hard reject even
+  // before boundary evaluation). Legacy unbound rows keep their historical
+  // semantics (no check).
+  try {
+    const { getApprovedBrandStrategy } = await import('../../db/repositories/brand-strategy-approval-repo');
+    const { getGenerationStrategyBinding } = await import('../../db/repositories/brand-strategy-generation-repo');
+    const { getCurrentSourcingGeneration } = await import('../../db/repositories/onboarding-evidence-repo');
+    const { isOfficialDomainMatch } = await import('../../onboarding/domain-utils');
+    const { isKnownRetailerOrDistributorDomain } = await import('../../onboarding/discovery/retailer-domain-list');
+    let host = '';
+    try {
+      host = new URL(selected.url).hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      host = '';
+    }
+    if (host && isKnownRetailerOrDistributorDomain(host)) {
+      return c.json(
+        { error: 'strategy_source_not_approved', code: 'strategy_source_not_approved', message: 'Selected source is a retailer/distributor host, never an official source' },
+        409,
+      );
+    }
+    const officialOf = (sources: Array<{ kind: string; domain?: string | null }>): string[] =>
+      sources.filter((s) => s.kind === 'official_page' && s.domain).map((s) => (s.domain as string).toLowerCase());
+    let allowed: string[] | null = null;
+    // A corrupt binding propagates to the fail-closed 503 below (never a
+    // live-approval fallback past a pinned-but-unreadable boundary).
+    const generation = getCurrentSourcingGeneration(itemId);
+    const binding = generation ? getGenerationStrategyBinding(generation.id) : null;
+    if (binding?.mode === 'approved') allowed = officialOf(binding.sources);
+    if (allowed === null) {
+      const strategyWorkspace = findWorkspace();
+      const approved = strategyWorkspace
+        ? getApprovedBrandStrategy(strategyWorkspace.id, (item as { brandHint?: string | null }).brandHint ?? null)
+        : null;
+      if (approved) allowed = officialOf(approved.sources);
+    }
+    if (allowed !== null) {
+      const admitted = allowed.some((d) => isOfficialDomainMatch(host, d));
+      if (!admitted) {
+        return c.json(
+          { error: 'strategy_source_not_approved', code: 'strategy_source_not_approved', message: 'Selected source is outside the approved brand strategy' },
+          409,
+        );
+      }
+    }
+  } catch (err) {
+    // A guard evaluation failure fails closed (never an unguarded write).
+    if (err instanceof Response) throw err;
+    if (err && typeof err === 'object' && 'status' in (err as Record<string, unknown>)) throw err;
+    return c.json(
+      { error: 'strategy_guard_unavailable', code: 'strategy_guard_unavailable', message: 'Strategy guard could not be evaluated' },
+      503,
+    );
+  }
+  selectSource(sourceId);
+  setDiscoverySourceUrl(itemId, selected.url);
+
+  return c.json({ success: true });
 });
 
 /**
@@ -2588,35 +2660,52 @@ route.post('/onboarding/items/:id/select-variant', async (c) => {
   }
 });
 
-/** Propose a URL without certifying it; selection uses the same page identity check. */
-route.post('/onboarding/items/:id/propose-url', async (c) => {
+/**
+ * POST /api/onboarding/items/:id/set-url
+ * Manually set the URL for an onboarding item.
+ */
+route.post('/onboarding/items/:id/set-url', async (c) => {
   const itemId = c.req.param('id');
+  const { url } = await c.req.json();
+  if (!url) {
+    return c.json({ error: 'url is required' }, 400);
+  }
+
+  try {
+    new URL(url);
+  } catch {
+    return c.json({ error: 'Invalid URL format' }, 400);
+  }
+
+  // Distributor-source items have no product page: their source URL is
+  // derived-null by the deterministic materializer. Assigning a URL here
+  // would contradict the no-fake-URL rule (ADR 0014 / Amendment A).
   const item = findItemById(itemId);
-  if (!item) return c.json({ error: 'Item not found' }, 404);
+  if (!item) {
+    return c.json({ error: 'Item not found' }, 404);
+  }
+  // Epic #46 audit fix (fix 5): workspace ownership — foreign items are 404.
   const ownershipError = itemWorkspaceError(c, item);
   if (ownershipError) return ownershipError;
-  if (item.sourceType === 'distributor_record' || !routeStageIs(item.stage, 'find_product_page')) {
-    return c.json({ error: 'Only an official-page Discovery item can propose a URL' }, 409);
+  if (item.sourceType === 'distributor_record') {
+    return c.json(
+      {
+        error:
+          'Distributor-source items cannot set a URL; use Continue-with-Official-Site-Discovery to change the source.',
+      },
+      400,
+    );
   }
-  const workspace = findWorkspace();
-  if (!workspace) return c.json({ error: 'No active workspace loaded' }, 400);
-  let body: { url?: unknown };
-  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON body' }, 400); }
-  if (typeof body.url !== 'string' || !body.url.trim()) return c.json({ error: 'url is required' }, 400);
-  try {
-    const domains = getAllowedOfficialPageDomains({
-      workspaceId: workspace.id, itemId, brandHint: item.brandHint,
-    });
-    if (!isAuthorizedOfficialPageUrl(body.url, domains)) {
-      return c.json({ error: 'Choose a URL on the approved official brand site, not a retailer.', code: 'strategy_source_not_approved' }, 409);
-    }
-    const source = proposePageCandidate({ itemId, url: body.url.trim(), origin: 'operator' });
-    return c.json({ success: true, source });
-  } catch (error) {
-    console.error('[OnboardingRoutes] Official URL proposal failed:', error);
-    return c.json({ error: 'Could not propose this URL' }, 503);
-  }
+
+  setDiscoverySourceUrl(itemId, url);
+  return c.json({ success: true });
 });
+
+/**
+ * ADR 0017 commitment 4 — re-trigger official site discovery using the SAME
+ * re-run flow the existing search_again/retry path uses: reset the item to
+ * discovery/pending (retry_count cleared, error cleared, flat status back to
+ * 'imported') and poll the background worker so the guided discovery run
 
 /**
  * ADR 0017 commitment 4 — re-trigger official site discovery using the SAME
@@ -3757,14 +3846,7 @@ route.post('/onboarding/settings/profile-tooling/generate-selectors', async (c) 
   const requestId = crypto.randomUUID();
 
   try {
-    const workspace = findWorkspace();
-    const snapshot = workspace
-      ? captureModelPolicySnapshot(workspace.workspacePath, requestId, workspace.id)
-      : { state: 'disabled', reason: 'no_workspace' } as const;
-    const result = await generateSelectors(parsed.data, {
-      userId, requestId,
-      modelPolicy: snapshot.state === 'configured' ? snapshot.view : null,
-    });
+    const result = await generateSelectors(parsed.data, { userId, requestId });
     return c.json(result, 200);
   } catch (err) {
     // Map known errors to standardized error responses
@@ -3798,12 +3880,6 @@ route.post('/onboarding/settings/profile-tooling/generate-selectors', async (c) 
       return c.json({
         requestId,
         error: { code: 'LLM_NOT_CONFIGURED', message: (err as Error).message, retryable: false },
-      }, 503);
-    }
-    if (err instanceof Error && err.name === 'ModelPolicyDeniedError') {
-      return c.json({
-        requestId,
-        error: { code: 'MODEL_POLICY_DENIED', message: 'Model proposal is unavailable under this workspace policy. Use visual selection or manual selectors under Advanced.', retryable: false },
       }, 503);
     }
     if (err instanceof Error && err.name === 'LlmProviderError') {
