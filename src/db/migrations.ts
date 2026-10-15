@@ -6208,6 +6208,20 @@ export function runMigrations(): void {
     console.error('[Migrations] classification model calls typed metadata migration failed:', e);
   }
 
+  // ── Change-set item classification run binding (backfill P0 #1) ────────────
+  // Nullable provenance: catalog drafts bind the classification run whose
+  // accepted decisions produced them; noncatalog drafts stay NULL. Additive
+  // + idempotent: guarded ALTER TABLE only, existing rows untouched (NULL).
+  try {
+    const itemCols = db.query('PRAGMA table_info(change_set_items)').all() as Array<{ name: string }>;
+    if (itemCols.length > 0 && !itemCols.some((c) => c.name === 'classification_run_id')) {
+      db.exec('ALTER TABLE change_set_items ADD COLUMN classification_run_id TEXT;');
+      console.log('[Migrations] Added change_set_items.classification_run_id.');
+    }
+  } catch (e) {
+    console.error('[Migrations] change-set item run binding migration failed:', e);
+  }
+
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as
     | { value: string }
     | undefined;

@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS change_set_items (
   base_json TEXT,
   draft_hash TEXT NOT NULL,
   validation_status TEXT NOT NULL DEFAULT 'unknown',
+  classification_run_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE(change_set_id, sku)
