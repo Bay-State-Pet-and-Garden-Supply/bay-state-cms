@@ -88,7 +88,7 @@ describe('widened universal tier — pure evaluator', () => {
     for (const attribute of [size, color, material, flavor]) {
       const result = evalFor(attribute);
       expect(result.state).toBe('unknown');
-      expect(result.reason).toMatch(/No reviewed Primary Product Type/);
+      expect(result.reason).toMatch(/No Product Classification/);
     }
   });
 

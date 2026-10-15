@@ -193,7 +193,7 @@ export interface CuratePreparedMemberInput {
   verifiedPageIds: string[];
   memberProjection: ExecutionEvidenceProjectionMemberV2;
   memberExtractionMethod: string | null;
-  effectiveType?: { id: string | null; source: 'reviewed' | 'none' };
+  effectiveType?: { id: string | null; source: 'reviewed' | 'provisional' | 'none' };
   productLineGroup: PreparedProductLineGroup | null;
   productLineItems?: ProductLineItemSnapshot[];
   /** Settled MEMBER title input (null = member-local naming path). */

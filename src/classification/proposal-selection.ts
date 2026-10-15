@@ -60,6 +60,35 @@ function selectAcceptedPrimaryProductType(input: StageInput): ProposalSelection 
 export function selectAcceptedClassification(input: StageInput): ProposalSelection {
   return selectAcceptedPrimaryProductType(input);
 }
+/**
+ * The provisional (pending, unreviewed) canonical pair from the SAME
+ * pipeline pass (issue #352): the highest-confidence non-stale
+ * pending/deferred `product_classification` (then legacy type) in
+ * `allProposals`. Own-SKU pipeline output only — never a parent, sibling,
+ * or execution conclusion. Returns null ids when no provisional pair
+ * exists; callers withhold pair-gated proposals then (fail closed).
+ */
+export function selectProvisionalClassification(
+  input: StageInput,
+): { categoryId: string | null; productTypeId: string | null } {
+  const provisional = input.allProposals
+    .filter(
+      p =>
+        (p.proposalType === 'product_classification' || p.proposalType === 'primary_product_type') &&
+        !p.isStale &&
+        (p.status === 'pending' || p.status === 'deferred'),
+    )
+    .sort((a, b) => b.confidence - a.confidence)[0] ?? null;
+  if (!provisional) return { categoryId: null, productTypeId: null };
+  const proposal = provisional as { proposedValue?: unknown; revisedValue?: unknown; hasRevisedValue?: boolean; targetId?: string | null };
+  const value = proposal.hasRevisedValue ? proposal.revisedValue : proposal.proposedValue;
+  const typeId = getProductTypeIdFromValue(value) ?? (typeof proposal.targetId === 'string' ? proposal.targetId : null);
+  const categoryId = getCategoryIdFromValue(value);
+  return {
+    categoryId: categoryId && categoryId.length > 0 ? categoryId : null,
+    productTypeId: typeId && typeId.length > 0 ? typeId : null,
+  };
+}
 
 /**
  * Best available canonical pair proposal for UI/draft preview only (issue

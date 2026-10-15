@@ -35,6 +35,27 @@ import { getCachedAttributeProfiles, getCachedProductTypes } from '../../db/repo
 import { evaluateAttributeApplicability } from './attribute-applicability';
 import { resolveProductTypeInvariants } from '../product-type-invariants';
 import { isUniversalAttribute } from '../applicability-evaluator';
+/**
+ * P1 #9 proposal-time check: true when the product's current slot for this
+ * attribute already holds multiple pipe-delimited values. Custom-field
+ * evidence rows carry the live slot value verbatim (source catalog_product
+ * or spreadsheet under the mapped catalog field).
+ */
+function isAlreadyPopulatedMultiValue(input: {
+  input: StageInput;
+  attribute: { id: string };
+}): boolean {
+  const { input: stageInput, attribute } = input;
+  for (const record of stageInput.evidence) {
+    if (record.source !== 'catalog_product' && record.source !== 'spreadsheet') continue;
+    const field = (record.sourceField ?? '').toLocaleLowerCase();
+    if (!field.includes(attribute.id.toLocaleLowerCase()) && field !== attribute.id.toLocaleLowerCase()) continue;
+    const raw = typeof record.value === 'string' ? record.value : '';
+    if (raw.split('|').map(p => p.trim()).filter(Boolean).length > 1) return true;
+  }
+  return false;
+}
+
 
 export const productAttributeProposalsStage: StageDefinition = {
   name: 'product_attribute_proposals',
@@ -100,12 +121,18 @@ export const productAttributeProposalsStage: StageDefinition = {
       });
       if (evaluation.state !== 'applicable') continue;
 
+      // P1 #9 proposal-time no-narrowing: where the current slot already
+      // holds multiple values, abstain as already-populated rather than
+      // proposing a partial replacement. The stage emits a review-visible
+      // message; the matching proposal never materializes. Empty slots
+      // still accept grounded values.
+      if (isAlreadyPopulatedMultiValue({ input, attribute })) continue;
+
       // Per-Product-Type cardinality wins over the global target mode when a
       // profile entry exists; otherwise the target's own selection mode.
       const cardinality = profileEntry?.cardinality ?? target.config.selectionMode ?? 'single';
       gated.push({ target, cardinality });
     }
-
     if (gated.length === 0) {
       // e04s01: fail-closed with explicit abstention — silent "succeeded" with
       // zero proposals made the review panel indistinguishable from
@@ -113,8 +140,8 @@ export const productAttributeProposalsStage: StageDefinition = {
       // surface applicability reasons and gating provenance.
       const blockedReason =
         effectiveTypeId === null && typeTargetEnabled
-          ? 'No reviewed Primary Product Type; type-gated attribute proposals are withheld until the type is accepted.'
-          : 'No applicable product-field targets for the accepted Product Type.';
+          ? 'No Product Classification (reviewed or provisional); type-gated attribute proposals are withheld until the pair is proposed.'
+          : 'No applicable product-field targets for the Product Classification.';
       return {
         status: 'abstained',
         reason: blockedReason,

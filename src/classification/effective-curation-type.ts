@@ -28,15 +28,15 @@ import type { StageContext, StageInput } from './types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import type { AttributeProfileConfig } from '../shared/schemas/classification';
 import { getProductTypeIdFromValue } from './assignment-projection';
-import { getReviewedClassification } from './proposal-selection';
+import { getReviewedClassification, selectProvisionalClassification } from './proposal-selection';
 
 /** Where the effective Curation Product Type came from. */
-export type EffectiveTypeSource = 'reviewed' | 'none';
+export type EffectiveTypeSource = 'reviewed' | 'provisional' | 'none';
 
 export interface EffectiveCurationType {
   /** The Product Type id that gates attribute applicability, or null. */
   effectiveTypeId: string | null;
-  /** Provenance of the effective type: reviewed own-SKU fact, or none. */
+  /** Provenance: reviewed own-SKU fact, provisional same-pass pair, or none. */
   source: EffectiveTypeSource;
 }
 
@@ -80,19 +80,24 @@ export function getReviewedTypeFromSnapshot(
 }
 
 /**
- * Effective Curation Product Type for a stage (issue #351): the member's
- * own reviewed pair's type (`getReviewedClassification`) or `none`.
- * Reviewed facts are provenance-compatible by snapshot construction, so no
- * live-config re-validation happens here. The context execution type is
- * never consulted — it is not factual authority for the member.
+ * Effective Curation Product Type for a stage (issues #351 + #352): the
+ * member's own reviewed pair's type when accepted, else the provisional
+ * (pending, unreviewed) in-run pair from the SAME pass — never a parent,
+ * sibling, or execution conclusion. The provisional pair is the pipeline's
+ * own earlier-stage output for this SKU (deterministic order: the type
+ * stage runs before attribute stages), so it carries no cross-SKU
+ * authority. Reviewed facts are provenance-compatible by snapshot
+ * construction, so no live-config re-validation happens here.
  */
 export function getEffectiveCurationProductType(
   input: StageInput,
   context: StageContext,
 ): EffectiveCurationType {
-  return resolveEffectiveCurationType(
-    getReviewedClassification(input, context.snapshot).productTypeId,
-  );
+  const reviewed = getReviewedClassification(input, context.snapshot).productTypeId;
+  if (reviewed && reviewed.length > 0) return { effectiveTypeId: reviewed, source: 'reviewed' };
+  const provisional = selectProvisionalClassification(input).productTypeId;
+  if (provisional && provisional.length > 0) return { effectiveTypeId: provisional, source: 'provisional' };
+  return { effectiveTypeId: null, source: 'none' };
 }
 
 /**
