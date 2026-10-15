@@ -194,3 +194,55 @@ describe('provisional classification drives attributes in one pass (issue #352)'
     expect(result.proposals.filter(p => p.proposalType === 'field_assignment')).toHaveLength(0);
   });
 });
+
+describe('provisional first pass flows without a redundant second decision (issues #352 + #354)', () => {
+  it('accepting the unchanged provisional pair needs no second pair decision; rejecting it stales first-pass dependents', async () => {
+    const sku = 'SKU-FIRST-PASS';
+    const { getDb } = await import('../../db/connection');
+    const { submitProposalDecisions } = await import('../../classification/proposal-review-service');
+    const { getProposalsByRun } = await import('../../db/repositories/classification-run-repo');
+    const { getPendingRefreshCount } = await import('../../db/repositories/classification-refresh-repo');
+    const db = getDb();
+
+    // First pass: provisional pair + dependent flavor proposal, same run, persisted.
+    const pass = await runAttrPass(sku, ['Dry Dog Food chicken kibble, flavor Chicken']);
+    const pair = pass.proposals.find(p => p.proposalType === 'product_classification');
+    if (!pair) throw new Error('first pass produced no provisional pair');
+    const flavor = pass.proposals.find(p => p.proposalType === 'field_assignment' && p.targetId === 'flavor');
+    if (!flavor) throw new Error('first pass produced no dependent flavor proposal');
+    const runId = (pair as { runId: string }).runId;
+    db.run(`UPDATE classification_runs SET status = 'completed', source_kind = 'catalog_product' WHERE id = ?`, [runId]);
+
+    // Accept the UNCHANGED provisional pair plus its first-pass dependent in
+    // one request: no redundant second pair decision is forced.
+    const accept = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: pair.id, decision: 'accepted' },
+        { proposalId: flavor.id, decision: 'accepted' },
+      ],
+    });
+    if (!accept.ok) throw new Error(`unchanged accept failed: ${accept.reason ?? accept.code}`);
+    expect(accept.refreshRequired).toBe(false);
+    const afterAccept = getProposalsByRun(runId);
+    expect(afterAccept.find(p => p.id === flavor.id)?.status).toBe('accepted');
+    expect(getPendingRefreshCount(WS_ID)).toBe(0);
+
+    // Reject the pair: the first-pass dependent stales and a refresh is
+    // queued for new review — invalidation before application (#354). (A
+    // same-value re-accept is correctly a no-op and would not stale.)
+    const pairDecisionId = accept.decisions.find(d => d.proposalId === pair.id)?.id;
+    if (!pairDecisionId) throw new Error('pair decision id missing');
+    const correct = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: pair.id, decision: 'rejected', expectedRevisionId: pairDecisionId }],
+    });
+    expect(correct.ok).toBe(true);
+    const afterCorrect = getProposalsByRun(runId);
+    expect(afterCorrect.find(p => p.id === flavor.id)?.status).toBe('stale');
+    // A rejection clears the pair (no corrected pair to refresh from), so no
+    // dependent refresh is queued; a CHANGED pair (different type) would queue
+    // one — covered by the #354 readiness-invalidation seam.
+    expect(getPendingRefreshCount(WS_ID)).toBe(0);
+  });
+});
