@@ -5,7 +5,9 @@
  * Review and Promotion gates.
  *
  * Invariants:
- * 1. An active, non-superseded 'accepted' decision on an active primary_product_type proposal.
+ * 1. An active, non-superseded 'accepted' decision on an active canonical
+ *    `product_classification` proposal (ADR 0041: legacy
+ *    `primary_product_type` rows are history-only).
  * 2. Server-derived decision origin must be 'human_review'. Automation (system_auto_accept,
  *    verifier, execution, migration, unknown) cannot qualify.
  * 3. Non-null effective target. Explicit clear returns 'reviewed_product_type_cleared'.
@@ -21,7 +23,7 @@
 import type { Database } from 'bun:sqlite';
 import type { ClassificationProposal, DecisionOrigin } from '../shared/types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
-import { getProductTypeIdFromValue } from './assignment-projection';
+import { getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
 import { isUniversalAttribute } from './applicability-evaluator';
 import { hashCanonicalJson } from '../shared/stable-id';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
@@ -245,11 +247,12 @@ export function evaluateProductTypeCurrentness(
 
   // 3. Primary Product Type Proposal & Decision
   const proposal = input.primaryTypeProposal;
-  if (!proposal || proposal.proposalType !== 'primary_product_type') {
+  // ADR 0041: legacy `primary_product_type` rows are history-only.
+  if (!proposal || proposal.proposalType !== 'product_classification') {
     return {
       ok: false,
       code: 'missing_primary_product_type_proposal',
-      reason: 'Classification run has no active Primary Product Type proposal.',
+      reason: 'Classification run has no active Product Classification proposal.',
     };
   }
 
@@ -322,6 +325,9 @@ export function evaluateProductTypeCurrentness(
       reason: 'Effective Primary Product Type resolved to empty/null.',
     };
   }
+  // Issue #350: the pair's category resolves alongside the type; a legacy
+  // type-only value resolves through the snapshot mapping below.
+  const effectiveCategoryId = getCategoryIdFromValue(effectiveValue);
 
   // 7. Option exists in run's frozen configured options — missing snapshot blocks fail-closed.
   if (!snapshot) {
@@ -339,6 +345,46 @@ export function evaluateProductTypeCurrentness(
         code: 'unconfigured_product_type',
         reason: `Effective Product Type "${effectiveTypeId}" is not a configured option in the run's frozen runtime snapshot.`,
       };
+    }
+    // Issue #350: the pair must be an approved combination. A legacy
+    // type-only value resolves its category through the snapshot mapping;
+    // an unmapped type or mismatched category fails closed here.
+    const snapshotTypes = snapshot.productTypes as Array<{ id: string; categoryId?: unknown }>;
+    const mappedCategory = (() => {
+      const type = snapshotTypes.find(candidate => candidate.id === effectiveTypeId);
+      return typeof type?.categoryId === 'string' && type.categoryId.length > 0 ? type.categoryId : null;
+    })();
+    const pairCategoryId = effectiveCategoryId ?? mappedCategory;
+    // Historical runs predate the Category side: a snapshot without any
+    // categories cannot resolve a mapping — treat as legacy authority
+    // (readable, applicable) rather than a hard gap. New snapshots always
+    // carry categories, so unmapped types there still fail closed below.
+    const snapshotCategories = (snapshot as { categories?: Array<{ id: string }> }).categories;
+    const snapshotHasCategories = Array.isArray(snapshotCategories) && snapshotCategories.length > 0;
+    const legacySnapshotWithoutCategories = !pairCategoryId && !snapshotHasCategories;
+    if (!pairCategoryId && !legacySnapshotWithoutCategories) {
+      return {
+        ok: false,
+        code: 'unconfigured_product_type',
+        reason: `Effective Product Type "${effectiveTypeId}" has no approved Category mapping in the run's frozen runtime snapshot.`,
+      };
+    }
+    if (!legacySnapshotWithoutCategories) {
+      const configuredCategories = (snapshot as { categories?: Array<{ id: string }> }).categories ?? [];
+      if (!configuredCategories.some(category => category.id === pairCategoryId)) {
+      return {
+        ok: false,
+        code: 'unconfigured_product_type',
+        reason: `Effective Category "${pairCategoryId}" is not a configured option in the run's frozen runtime snapshot.`,
+      };
+    }
+      if (mappedCategory && pairCategoryId !== mappedCategory) {
+        return {
+          ok: false,
+          code: 'revised_product_type_mismatch',
+          reason: `Effective Category "${pairCategoryId}" does not match the approved mapping "${mappedCategory}" for Product Type "${effectiveTypeId}".`,
+        };
+      }
     }
   }
 
@@ -476,7 +522,7 @@ export function loadAndValidateProductTypeCurrentness(
      FROM classification_proposals p
      LEFT JOIN classification_proposal_decisions d
        ON d.proposal_id = p.id AND d.superseded_at IS NULL
-     WHERE p.run_id = ? AND p.proposal_type = 'primary_product_type' AND p.superseded_at IS NULL
+     WHERE p.run_id = ? AND p.proposal_type = 'product_classification' AND p.superseded_at IS NULL
      ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1`,
   ).get(activeRunId) as Record<string, any> | undefined;
 
@@ -495,7 +541,7 @@ export function loadAndValidateProductTypeCurrentness(
       id: String(typeProposalRow.id),
       runId: String(typeProposalRow.run_id),
       productSku: String(typeProposalRow.product_sku),
-      proposalType: 'primary_product_type',
+      proposalType: 'product_classification' as ClassificationProposal['proposalType'],
       targetId: typeProposalRow.target_id ? String(typeProposalRow.target_id) : null,
       proposedValue: typeProposalRow.proposed_value_json
         ? JSON.parse(String(typeProposalRow.proposed_value_json))
@@ -538,7 +584,7 @@ export function loadAndValidateProductTypeCurrentness(
      FROM classification_proposals p
      JOIN classification_proposal_decisions d
        ON d.proposal_id = p.id AND d.superseded_at IS NULL AND d.decision = 'accepted'
-     WHERE p.run_id = ? AND p.superseded_at IS NULL AND p.proposal_type != 'primary_product_type'`,
+     WHERE p.run_id = ? AND p.superseded_at IS NULL AND p.proposal_type NOT IN ('primary_product_type', 'product_classification')`,
   ).all(activeRunId) as Record<string, any>[];
 
   const typeDependentProposals: ProposalWithDependencies[] = [];

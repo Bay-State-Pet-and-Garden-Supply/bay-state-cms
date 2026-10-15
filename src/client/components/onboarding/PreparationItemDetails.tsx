@@ -284,11 +284,11 @@ export function PreparationItemDetails({ batchId, workspaceId, item, summary, st
               {group.key === 'product_type' && <>
                 {curation?.effectiveProductType && <p>Effective product type: {curation.effectiveProductType.id ?? 'Unavailable'} · {curation.effectiveProductType.source}
                   {curation.effectiveProductType.source === 'execution' ? ' (frozen execution fallback, not a reviewed assignment)' : ''}</p>}
-                {curation ? <ProposalFacts curation={curation} sku={item.upc} proposals={facts.proposals.filter(p => p.proposalType === 'primary_product_type')} />
+                {curation ? <ProposalFacts curation={curation} sku={item.upc} proposals={facts.proposals.filter(p => p.proposalType === 'product_classification' || p.proposalType === 'primary_product_type')} />
                   : <p className="bws-muted">Product type facts unavailable.</p>}
               </>}
               {group.key === 'field_classification' && <>
-                {curation ? <ProposalFacts curation={curation} sku={item.upc} proposals={facts.proposals.filter(p => p.proposalType !== 'primary_product_type' && p.proposalType !== 'category_page')} />
+                {curation ? <ProposalFacts curation={curation} sku={item.upc} proposals={facts.proposals.filter(p => p.proposalType !== 'primary_product_type' && p.proposalType !== 'product_classification' && p.proposalType !== 'category_page')} />
                   : <p className="bws-muted">Field classification facts unavailable.</p>}
                 <div data-testid="prepare-page-placement-subrow">
                   <h5>Page placement / draft-readiness</h5>

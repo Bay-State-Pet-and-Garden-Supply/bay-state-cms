@@ -63,3 +63,37 @@ export function buildCgiScriptUrl(baseUrl: string, scriptName: string, params?: 
   }
   return url;
 }
+
+/**
+ * Derive the storefront media base (`https://<host>/media/`) from a ShopSite
+ * CGI base URL. ShopSite stores only the path suffix of product images
+ * (e.g. `brand/foo.jpg`); the domain is never persisted on the product.
+ * Returns '' when the base URL is unparseable.
+ */
+export function buildStorefrontMediaBaseUrl(cgiBaseUrl: string): string {
+  const base = normalizeCgiBaseUrl(cgiBaseUrl);
+  if (!base) return '';
+  try {
+    const parsed = new URL(base);
+    return `${parsed.protocol}//${parsed.host}/media/`;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Resolve a stored ShopSite image reference to a fetchable URL.
+ * Absolute http(s) references pass through; bare paths (with or without a
+ * brand subdirectory) join onto the media base derived from the CGI URL.
+ * Path segments are percent-encoded (stored names may contain spaces).
+ * Returns the original reference when no media base is available.
+ */
+export function resolveProductImageUrl(imageRef: string, cgiBaseUrl: string): string {
+  const trimmed = imageRef.trim();
+  if (!trimmed) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const mediaBase = buildStorefrontMediaBaseUrl(cgiBaseUrl);
+  if (!mediaBase) return trimmed;
+  const encoded = trimmed.replace(/^\/+/, '').split('/').map(seg => encodeURIComponent(seg)).join('/');
+  return `${mediaBase}${encoded}`;
+}

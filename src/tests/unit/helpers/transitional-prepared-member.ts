@@ -128,41 +128,16 @@ export interface PreparedCohortContext {
   /** Frozen member `OnboardingItem` views (projection-derived) for title coordination. */
   frozenBatchItems?: OnboardingItem[];
   /**
-   * Cohort-level Execution Product Type resolved at freeze (issue #30 PR4
-   * C4b). Filled by `buildPreparedCohortContextForMember` from the parent run
-   * row's `execution_product_type_id` / `product_type_confidence` /
-   * `product_type_outcome` — ONLY when the id is non-null (coherent /
-   * coherent_with_abstentions). Absent when the flag was OFF, the cohort
-   * abstained/conflicted (id stays NULL by design), or the run predates PR4.
-   * Metadata only: PR4 consumes it to stamp ONE `execution_product_type`
-   * dependency row per `field_assignment` proposal inside the member-projection
-   * atomic commit (PR5 hardening: proposal-accurate separate kinds —
-   * `execution_product_type` vs `reviewed_product_type`; only the effective
-   * type's field-assignment proposals are stamped); no gate logic reads it
-   * (review authority is unchanged).
+   * Issue #351 (SKU-local evidence): the member's effective Curation Product
+   * Type — the member's OWN reviewed pair from the frozen snapshot, or none.
+   * No execution fallback. A non-null id with `source === 'reviewed'`
+   * triggers `reviewed_product_type` rows on the child run's
+   * `field_assignment` proposals; `source === 'none'` stamps nothing. The
+   * value is exposed read-only on the member's `curation_data_json` as
+   * `effectiveProductType` (cohort mode only). Absent for legacy
+   * (non-cohort) invocations.
    */
-  cohortExecutionType?: {
-    id: string | null;
-    confidence: number | null;
-    outcome: 'coherent' | 'coherent_with_abstentions' | 'conflicted' | 'abstained' | null;
-  };
-  /**
-   * PR5 (DECISION-H/J): the member's effective Curation Product Type — the
-   * reviewed (accepted) Primary Product Type from the frozen snapshot's
-   * provenance-compatible facts first, the cohort Execution Product Type as
-   * fallback, else none. Resolved ONCE in
-   * `buildPreparedCohortContextForMember` via `getEffectiveCurationTypeForSnapshot`,
-   * so the stages (via `StageContext.cohortExecutionType`) and the
-   * member-projection dependency stamping agree by construction. A
-   * non-null id with `source === 'execution'` triggers `execution_product_type`
-   * dependency rows on the child run's `field_assignment` proposals (PR5
-   * DECISION-H); `source === 'reviewed'` (id = the reviewed type id) triggers
-   * `reviewed_product_type` rows on those same proposals (PR5 hardening —
-   * separate kinds); `source === 'none'` stamps nothing. The value is exposed
-   * read-only on the member's `curation_data_json` as `effectiveProductType`
-   * (cohort mode only). Absent for legacy (non-cohort) invocations.
-   */
-  effectiveType?: { id: string | null; source: 'reviewed' | 'execution' | 'none' };
+  effectiveType?: { id: string | null; source: 'reviewed' | 'none' };
 }
 
 /**
@@ -227,7 +202,6 @@ async function adaptTransitionalPreparedInput(
     memberProjection: prepared.memberProjection as ExecutionEvidenceProjectionMemberV2,
     memberExtractionMethod:
       ((prepared.memberProjection as { extractionMethod?: string | null } | null)?.extractionMethod ?? null),
-    cohortExecutionType: prepared.cohortExecutionType,
     effectiveType: prepared.effectiveType,
     productLineGroup: buildPreparedProductLineGroup({
       productLineContext: prepared.productLineContext,

@@ -4,12 +4,14 @@
  * Thin wrapper around the shared curation target engine. Proposes
  * which existing store Category Pages the product should be assigned to.
  *
- * Fail-closed gating:
+ * Fail-closed gating (issue #353):
  * - A `page` curation target must be enabled.
- * - Page proposals require BOTH a reviewed (accepted) Primary Product Type
- *   and a verified Page catalog. A pending type guess produces no
- *   decision-eligible Page proposal; without a verified catalog the stage
+ * - Page proposals require a verified Page catalog; without one the stage
  *   abstains (name-only rows are review context, never assignment identities).
+ * - The provisional canonical classification may drive page proposals in
+ *   the same pass (ADR 0041) — there is no reviewed-type gate. Scope,
+ *   hierarchy, species, and applicability policy still constrain every
+ *   proposal; Brand pages are never proposed.
  *
  * Disabled page targets return succeeded with empty proposals (not abstained)
  * to avoid noisy reviewable_abstention proposals.
@@ -20,7 +22,6 @@ import type { StageDefinition, StageContext, StageInput, StageResult } from '../
 import { loadClassificationConfig } from '../config-loader';
 import { resolveEnabledTargets, resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { processPageTarget, materializeCoordinatedPages } from '../curation-target-processor';
-import { getReviewedPrimaryProductTypeId } from '../proposal-selection';
 
 export const categoryPageProposalsStage: StageDefinition = {
   name: 'category_page_proposals',
@@ -82,17 +83,11 @@ export const categoryPageProposalsStage: StageDefinition = {
       };
     }
 
-    // Page proposals require a reviewed Primary Product Type whenever the
-    // config makes Product Type a gating target. Pending guesses abstain.
-    if (resolved.productTypes.length > 0) {
-      const acceptedTypeId = getReviewedPrimaryProductTypeId(input, context.snapshot);
-      if (acceptedTypeId === null) {
-        return {
-          status: 'abstained',
-          reason: 'No reviewed Primary Product Type. Page assignment requires an accepted Product Type and a verified Page catalog.',
-        };
-      }
-    }
+    // Issue #353: no reviewed-type gate. The provisional canonical pair
+    // (accepted, else pending) and SKU-local facts may drive page proposals
+    // in the same pass — scope/hierarchy/species/applicability policy still
+    // applies downstream. A missing pair is a gap in drive signal, not a
+    // block on evidence-driven proposals.
 
     // Target exists but no verified store pages available
     if (resolved.pages[0].options.length === 0) {

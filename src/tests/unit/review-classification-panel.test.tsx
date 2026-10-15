@@ -239,7 +239,7 @@ describe('ReviewClassificationPanel clarity', () => {
       derivation: {
         kind: 'product_type_invariant',
         productTypeId: 'dog-food-dry',
-        productTypeSource: 'execution',
+        productTypeSource: 'reviewed',
       },
     });
     const r = await renderWith([ppt, conflictingInvariant]);

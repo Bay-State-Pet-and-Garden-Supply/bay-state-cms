@@ -202,7 +202,7 @@ describe('Classification Pipeline Integration', () => {
     const config = loadClassificationConfig(workspacePath);
     const { id: snapId, hash: snapHash } = createConfigSnapshot(workspaceId, config);
     const run = createRun(workspaceId, 'TEST-SKU-2', snapId, snapHash);
-    const acceptedType = { id: randomUUID(), runId: run.id, productSku: 'TEST-SKU-2', proposalType: 'primary_product_type' as const, targetId: 'dry-dog-food', proposedValue: {}, confidence: 1, evidenceIds: [], status: 'accepted' as const, isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: new Date().toISOString() };
+    const acceptedType = { id: randomUUID(), runId: run.id, productSku: 'TEST-SKU-2', proposalType: 'product_classification' as const, targetId: 'dry-dog-food', proposedValue: { categoryId: 'dog-food', productTypeId: 'dry-dog-food' }, confidence: 1, evidenceIds: [], status: 'accepted' as const, isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: new Date().toISOString() };
     const evidence = [
       { id: randomUUID(), runId: run.id, stageName: 'evidence_extraction' as const, productSku: 'TEST-SKU-2', attributeId: null, source: 'spreadsheet' as const, reliability: 'medium' as const, sourceUrl: null, sourceField: 'name', snippet: 'Beef Recipe', value: 'Beef Recipe', metadata: {}, capturedAt: new Date().toISOString() },
       { id: randomUUID(), runId: run.id, stageName: 'evidence_extraction' as const, productSku: 'TEST-SKU-2', attributeId: null, source: 'official_product_page' as const, reliability: 'medium' as const, sourceUrl: null, sourceField: 'description', snippet: 'Made with Chicken and Lamb', value: 'Made with Chicken and Lamb', metadata: {}, capturedAt: new Date().toISOString() },
@@ -239,7 +239,7 @@ describe('Classification Pipeline Integration', () => {
     );
     // Reviewable outcome: a primary-product-type proposal or a reviewable
     // abstention — never a silent bypass.
-    expect(result.proposals.some(p => p.proposalType === 'primary_product_type' || p.proposalType === 'reviewable_abstention')).toBe(true);
+    expect(result.proposals.some(p => p.proposalType === 'product_classification' || p.proposalType === 'reviewable_abstention')).toBe(true);
 
     // Persisted evidence is truthful: distributor_record source, NULL
     // classification URL, never elevated to official_product_page.
@@ -358,12 +358,14 @@ describe('Classification Pipeline Integration', () => {
       { sku: 'TEST-SKU-PROV', evidence, acceptedProposals: [], allProposals: [] },
     );
 
-    // Should have a primary_product_type proposal (pending)
-    const typeProposals = result.proposals.filter(p => p.proposalType === 'primary_product_type');
-    expect(typeProposals.length).toBeGreaterThanOrEqual(1);
-    expect(typeProposals[0].status).toBe('pending');
+    // No accepted pair and no confident provisional pair here: the type
+    // stage abstains on this evidence, so NO pair proposal exists and
+    // type-gated attributes stay withheld (fail closed). The positive
+    // provisional path (pending pair drives dependents in one pass) is
+    // covered by the #352 provisional-attribute seam.
+    const typeProposals = result.proposals.filter(p => p.proposalType === 'product_classification');
+    expect(typeProposals.length).toBe(0);
 
-    // NO decision-eligible field assignments while the type is pending.
     const fieldProposals = result.proposals.filter(p => p.proposalType === 'field_assignment');
     expect(fieldProposals.length).toBe(0);
     const flavorProposal = fieldProposals.find(p => p.targetId === 'flavor');
@@ -396,7 +398,7 @@ describe('Classification Pipeline Integration', () => {
 
     // The accepted type must flow in as an in-run accepted proposal so the
     // gating logic sees a reviewed type (facts alone are also honored).
-    const acceptedType = { id: randomUUID(), runId: run.id, productSku: 'TEST-SKU-REVIEWED', proposalType: 'primary_product_type' as const, targetId: 'dry-dog-food', proposedValue: { productTypeId: 'dry-dog-food' }, confidence: 1, evidenceIds: [], status: 'accepted' as const, isBulkAcceptable: false, isStale: false, stalenessReason: null, snapshotHash: runtime.snapshotHash, createdAt: new Date().toISOString() };
+    const acceptedType = { id: randomUUID(), runId: run.id, productSku: 'TEST-SKU-REVIEWED', proposalType: 'product_classification' as const, targetId: 'dry-dog-food', proposedValue: { categoryId: 'dog-food', productTypeId: 'dry-dog-food' }, confidence: 1, evidenceIds: [], status: 'accepted' as const, isBulkAcceptable: false, isStale: false, stalenessReason: null, snapshotHash: runtime.snapshotHash, createdAt: new Date().toISOString() };
 
     persistFixtureEvidence(run.id, evidence);
     const result = await runPipeline(
@@ -571,7 +573,7 @@ describe('Classification Pipeline Integration', () => {
       { sku: 'TEST-SKU-NOPT', evidence, acceptedProposals: [], allProposals: [] },
     );
 
-    const typeProposals = result.proposals.filter(p => p.proposalType === 'primary_product_type');
+    const typeProposals = result.proposals.filter(p => p.proposalType === 'product_classification');
     expect(typeProposals.length).toBe(0);
 
     // Restore original config for subsequent tests
@@ -1001,7 +1003,7 @@ describe('Classification Pipeline Integration', () => {
       semanticValidation: {
         status: 'blocked',
         findings: [
-          { code: 'family_product_type', memberSku: item.upc, message: 'Primary Product Type "dog-treats" does not match the family invariant.' },
+          { code: 'family_brand', memberSku: item.upc, message: 'Brand conflict.' },
           { code: 'family_brand', memberSku: item.upc, message: 'Brand conflict.' },
         ],
       },
@@ -1065,12 +1067,13 @@ describe('Classification Pipeline Integration', () => {
   });
 
   it('defaults isBulkAcceptable to false on all proposals even with high confidence (Issue #10)', async () => {
-    const { buildCategoryPageProposal, buildFieldAssignmentProposal, buildProductTypeProposal } = await import('../../classification/curation-target-proposal');
+    const { buildCategoryPageProposal, buildFieldAssignmentProposal, buildClassificationProposal } = await import('../../classification/curation-target-proposal');
 
-    const typeProp = buildProductTypeProposal({
+    const typeProp = buildClassificationProposal({
       runId: randomUUID(),
       sku: '12345',
-      productTypeId: 'dog-food',
+      categoryId: 'dog-food',
+      productTypeId: 'dog-food-dry',
       confidence: 0.99,
       evidenceIds: [],
     });
@@ -1248,9 +1251,9 @@ describe('Classification Pipeline Integration', () => {
             id: randomUUID(),
             runId: 'rogue-run',
             productSku: 'RUNID-SKU',
-            proposalType: 'primary_product_type' as const,
+            proposalType: 'product_classification' as const,
             targetId: 'dry-dog-food',
-            proposedValue: { productTypeId: 'dry-dog-food' },
+            proposedValue: { categoryId: 'dog-food', productTypeId: 'dry-dog-food' },
             confidence: 0.9,
             evidenceIds: [],
             status: 'pending' as const,
@@ -1317,7 +1320,7 @@ describe('Classification Pipeline Integration', () => {
     const makeEvidence = (runId: string) => [
       { id: randomUUID(), runId, stageName: 'evidence_extraction' as const, productSku: 'PAGE-SKU', attributeId: null, source: 'spreadsheet' as const, reliability: 'medium' as const, sourceUrl: null, sourceField: 'name', snippet: 'Dry Dog Food Beef Recipe for dogs', value: 'Dry Dog Food Beef Recipe for dogs', metadata: {}, capturedAt: new Date().toISOString() },
     ];
-    const makeAcceptedType = (runId: string) => ({ id: randomUUID(), runId, productSku: 'PAGE-SKU', proposalType: 'primary_product_type' as const, targetId: 'dry-dog-food', proposedValue: {}, confidence: 1, evidenceIds: [], status: 'accepted' as const, isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: new Date().toISOString() });
+    const makeAcceptedType = (runId: string) => ({ id: randomUUID(), runId, productSku: 'PAGE-SKU', proposalType: 'product_classification' as const, targetId: 'dry-dog-food', proposedValue: { categoryId: 'dog-food', productTypeId: 'dry-dog-food' }, confidence: 1, evidenceIds: [], status: 'accepted' as const, isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: new Date().toISOString() });
 
     const runA = createRun(workspaceId, 'PAGE-SKU', null, runtime.snapshotHash, { sourceKind: 'catalog_product', sourceProductHash: 'src-hash-page' });
     const contextA = { workspacePath, workspaceId, runId: runA.id, configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() }, snapshot: runtime };

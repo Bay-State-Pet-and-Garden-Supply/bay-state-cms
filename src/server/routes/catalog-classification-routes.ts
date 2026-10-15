@@ -9,6 +9,7 @@ import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../.
 import { authorityConfigHashMatches, runtimeSnapshotHashMatchesConfig } from '../../classification/runtime-snapshot';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { validateCatalogReviewCompletionGate } from '../../classification/review-completion-gate';
+import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
 import { applyCatalogClassification } from '../../classification/catalog-product-application';
 import { ClassificationNotReadyError, normalizeClassificationReadinessReport } from '../../classification/readiness';
 import { SubmitCatalogDecisionsRequestSchema } from '../../shared/schemas/classification';
@@ -188,6 +189,14 @@ route.post('/products/:sku/classification/runs/:runId/apply', async (c) => {
 
   if (!gate.ok) {
     return c.json({ error: gate.reason, code: gate.code }, 400);
+  }
+
+  // Issue #354: shared canonical readiness (pair + profile + required values)
+  // is enforced before any draft mutation — same result the review surfaces
+  // report. A required gap fails attributably with no partial write.
+  const readiness = evaluateCanonicalReadiness({ workspaceId: workspace.id, runId });
+  if (!readiness.ok) {
+    return c.json({ error: readiness.reason, code: readiness.code }, 400);
   }
 
   try {

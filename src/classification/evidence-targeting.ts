@@ -409,9 +409,12 @@ export function buildEvidenceTargetPacket(
 }
 
 /**
- * Aggregate a target packet for the page stage: only target-relevant
- * identity/species/type/category context is used; cross-species evidence
- * remains a contradiction/rejection signal, never hidden concatenated text.
+ * Aggregate a target packet for the page stage (issue #351 SKU-local page
+ * evidence): identity/species/type/category facts about THIS SKU feed the
+ * page prompt as context only. Page placement rows (`page_context` source,
+ * `page_name` field) are NEVER packet members: a prior placement is a
+ * removal/comparison signal, not proof of product facts. Retained for the
+ * benchmark page-qual mirror; real proposals carry no packet evidenceIds.
  */
 export function buildPageEvidencePacket(
   evidence: ClassificationEvidence[],
@@ -429,6 +432,9 @@ export function buildPageEvidencePacket(
 ): EvidenceTargetPacket {
   const pageAttributeIds = new Set(options.pageContextAttributeIds ?? []);
   const pageEvidence = evidence.filter(record => {
+    // Prior placements are removal/comparison context only — never packet
+    // members, even when the page-context allowlist would admit them.
+    if (record.source === 'page_context') return false;
     if (record.attributeId && pageAttributeIds.has(record.attributeId)) return true;
     return options.pageContextSourceFields.includes(record.sourceField ?? '');
   });

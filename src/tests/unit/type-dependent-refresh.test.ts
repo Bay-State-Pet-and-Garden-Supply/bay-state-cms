@@ -44,9 +44,13 @@ describe('type-dependent-refresh (P1.4)', () => {
     const now = '2026-08-01T12:00:00.000Z';
     return {
       manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: now, updatedAt: now, fileVersions: {} },
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
+      ],
       productTypes: [
-        { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [] },
-        { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [] },
+        { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], categoryId: 'dog_food_cat' },
+        { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [], categoryId: 'cat_food_cat' },
       ],
       attributes: [
         { id: 'brand', name: 'Brand', description: null, valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, isUniversal: true, group: 'Identity' },
@@ -95,7 +99,7 @@ describe('type-dependent-refresh (P1.4)', () => {
 
     const config = loadConfigFixture();
     const { id: snapId, hash: snapHash } = createConfigSnapshot(wsId, config);
-    const runtime = buildRuntimeSnapshot({
+    const baseRuntime = buildRuntimeSnapshot({
       workspaceId: wsId,
       workspacePath: '/tmp/refresh',
       productSku: sku,
@@ -103,7 +107,21 @@ describe('type-dependent-refresh (P1.4)', () => {
       configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() },
       sourceProductHash: 'hash-sku-recomp',
     });
-    persistRuntimeSnapshot(runtime);
+    const { snapshotHash: recomputeHash2, deepFreeze: deepFreeze2 } = await import('../../classification/runtime-snapshot');
+    const runtime = {
+      ...structuredClone(baseRuntime),
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
+      ],
+    };
+    (runtime as { productTypes: unknown }).productTypes = (runtime.productTypes as Array<Record<string, unknown>>).map((t) => {
+      if (t.id === 'dog_food') return { ...t, categoryId: 'dog_food_cat' };
+      if (t.id === 'cat_food') return { ...t, categoryId: 'cat_food_cat' };
+      return { ...t };
+    });
+    (runtime as { snapshotHash: string }).snapshotHash = recomputeHash2(runtime as never);
+    persistRuntimeSnapshot(deepFreeze2(runtime as never));
 
     db.run(
       `INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
@@ -125,7 +143,7 @@ describe('type-dependent-refresh (P1.4)', () => {
     db.run(
       `INSERT INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', 'cat_food', '{"productTypeId":"cat_food"}', 0.9, 'accepted', datetime('now'))`,
+       VALUES (?, ?, ?, 'product_classification', 'cat_food', '{"categoryId":"cat_food_cat","productTypeId":"cat_food"}', 0.9, 'accepted', datetime('now'))`,
       ['prop-type-cat', runId, sku],
     );
     db.run(
@@ -200,9 +218,23 @@ describe('type-dependent-refresh (P1.4)', () => {
     const sku = 'SKU-ACCEPT-UNCHANGED';
     const config = loadConfigFixture();
     const ref = createConfigSnapshot(wsId, config);
-    const snapshot = buildRuntimeSnapshot({ workspaceId: wsId, workspacePath: '/tmp/refresh', productSku: sku, sourceProductHash: '',
+    const baseSnapshot2 = buildRuntimeSnapshot({ workspaceId: wsId, workspacePath: '/tmp/refresh', productSku: sku, sourceProductHash: '',
       config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() } });
-    persistRuntimeSnapshot(snapshot);
+    const { snapshotHash: recomputeHash3, deepFreeze: deepFreeze3 } = await import('../../classification/runtime-snapshot');
+    const snapshot = {
+      ...structuredClone(baseSnapshot2),
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
+      ],
+    };
+    (snapshot as { productTypes: unknown }).productTypes = (snapshot.productTypes as Array<Record<string, unknown>>).map((t) => {
+      if (t.id === 'dog_food') return { ...t, categoryId: 'dog_food_cat' };
+      if (t.id === 'cat_food') return { ...t, categoryId: 'cat_food_cat' };
+      return { ...t };
+    });
+    (snapshot as { snapshotHash: string }).snapshotHash = recomputeHash3(snapshot as never);
+    persistRuntimeSnapshot(deepFreeze3(snapshot as never));
     db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
       VALUES (?, ?, 'Accept unchanged', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
     db.run(`INSERT INTO onboarding_items (id, batch_id, row_number, upc, name, stage, stage_status, curation_data_json, created_at, updated_at)
@@ -212,7 +244,7 @@ describe('type-dependent-refresh (P1.4)', () => {
       VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'))`, [runId, wsId, itemId, sku, snapshot.snapshotHash]);
     const typeId = randomUUID();
     const brandId = randomUUID();
-    for (const [id, proposalType, targetId, value] of [[typeId, 'primary_product_type', 'dog_food', { productTypeId: 'dog_food' }], [brandId, 'field_assignment', 'brand', 'Acme']] as const) {
+    for (const [id, proposalType, targetId, value] of [[typeId, 'product_classification', 'dog_food', { categoryId: 'dog_food_cat', productTypeId: 'dog_food' }], [brandId, 'field_assignment', 'brand', 'Acme']] as const) {
       db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 1, 'accepted', datetime('now'))`, [id, runId, sku, proposalType, targetId, JSON.stringify(value)]);
       db.run(`INSERT INTO classification_proposal_decisions (id, proposal_id, decision, reviewer_id, decision_origin, created_at)
@@ -243,7 +275,7 @@ describe('type-dependent-refresh (P1.4)', () => {
     expect(JSON.parse(newValue.proposed_value_json)).toBe('Small');
     expect(newValue.status).toBe('pending');
     expect(db.query('SELECT superseded_at, status FROM classification_proposals WHERE id = ?').get(brandId)).toEqual({ superseded_at: null, status: 'accepted' });
-    expect(db.query(`SELECT COUNT(*) AS n FROM classification_proposals WHERE run_id = ? AND proposal_type = 'primary_product_type'`).get(runId)).toEqual({ n: 1 });
+    expect(db.query(`SELECT COUNT(*) AS n FROM classification_proposals WHERE run_id = ? AND proposal_type = 'product_classification'`).get(runId)).toEqual({ n: 1 });
     expect(capturePreReviewPrediction({ runId, workspaceId: wsId, productSku: sku }).failureCode).toBe('post_review_refresh');
   });
 });

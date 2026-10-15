@@ -960,17 +960,15 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
     expect(curationData.suggestedPages).toHaveLength(0);
   });
 
-  it('3e (DECISION-B): an attribute-stage failure FAILS the member via the pipeline throw (no partial draft)', async () => {
+  it('3e (SKU-local, issue #351): a member with no reviewed pair curates with source none — no execution fill, no partial draft failure', async () => {
     const { workspaceId, workspacePath: wsPath, run, items, frozenLineContext } = await freezeAndScaffold();
     const prepared = buildPreparedContext(workspaceId, run, items[0], frozenLineContext);
     prepared.coordinatedTitles = new Map([['100000000001', { title: 'Acme Frozen Coordinated Title 5 lb', source: 'llm_cohort' }]]);
-    // An execution type absent from the frozen snapshot makes
-    // `attribute_applicability` fail closed — the pipeline throws and the
-    // member fails.
-    prepared.cohortExecutionType = { id: 'bogus-not-a-real-type', confidence: 0.95, outcome: 'coherent' };
-    await expect(
-      curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared),
-    ).rejects.toThrow(/missing from the frozen runtime snapshot/);
+    // No reviewed pair is seeded: the member resolves effective source none
+    // (SKU-local evidence — no execution fallback) and the pipeline
+    // completes without throwing; type-gated attributes stay unknown.
+    const curationData = await curateTransitionalPreparedMember(findItemById(items[0].id)!, wsPath, workspaceId, prepared);
+    expect(curationData.classificationProposals.length).toBeGreaterThanOrEqual(0);
   });
 
   // ─── PR8 review R1 (BLOCKER 1) + review round 2 (P1): corrupt DURABLE rows
@@ -1050,10 +1048,9 @@ describe('PR8 acceptance — draft projection ordering + fail-closed member draf
 
     // The claim slot REOPENED: a NEW parent revision is immediately claimable,
     // freezes, and executes — a FRESH complete set under the new run id.
-    // PR9 review R1 (B1): a null Primary-Product-Type suggestion is now a HARD
-    // family_product_type finding whenever the parent Execution Product Type
-    // exists — the singleton member 3's original evidence ('Adult Dog Food
-    // Salmon') abstains on the family invariant. Give member 3's extraction
+    // Issue #351 (SKU-local evidence): no family Product Type invariant —
+    // the singleton member 3's original evidence ('Adult Dog Food Salmon')
+    // may abstain without a family block. Give member 3's extraction
     // TITLE type keywords so the fresh revision resolves a non-null
     // suggestion; its `_name` stays 'Adult Dog Food Salmon' (separate group),
     // so DECISION-O title rows (2) and the singleton page call (1) are

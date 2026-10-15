@@ -31,9 +31,9 @@ import type { ClassificationProposal } from '../shared/types';
 import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
 import type { CohortRun } from '../shared/schemas/cohorts';
 import { hashCanonicalJson } from '../shared/stable-id';
-import { getEffectivePrimaryProductTypeId } from './assignment-projection';
+import { getEffectiveClassificationPair } from './assignment-projection';
 import { getPageIdentityId } from '../shared/proposal-display';
-import { resolveEffectiveCurationType, getReviewedTypeFromSnapshot } from './effective-curation-type';
+import { getReviewedClassificationPair } from './effective-curation-type';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 
 export type PromotionGateResult =
@@ -129,9 +129,10 @@ function firstFindingMessage(semanticValidation: Record<string, unknown>): strin
  * (architecture-report §2.1; PR11 review R1 P1-A + R2):
  *
  * REVIEWED-FIRST — Reviewed Product Type is the catalog/Promotion authority:
- *   1. the in-run accepted/revised `primary_product_type` decision (paired
- *      `revisedTargetId` materialized by `getAcceptedProposals`);
- *   2. a provenance-compatible reviewed Primary Product Type fact carried in
+ *   1. the in-run accepted/revised `product_classification` decision (paired
+ *      `revisedTargetId` materialized by `getAcceptedProposals`; ADR 0041:
+ *      legacy `primary_product_type` rows are history-only);
+ *   2. a provenance-compatible reviewed canonical-pair fact carried in
  *      the frozen runtime snapshot (`getReviewedTypeFromSnapshot` — the PR5
  *      second reviewed source; the cohort executor's
  *      `getEffectiveCurationTypeForSnapshot` uses the same fact when deciding
@@ -143,7 +144,7 @@ function firstFindingMessage(semanticValidation: Record<string, unknown>): strin
  *      children with `reviewed_product_type_required`; a present
  *      type-dependency against a null reviewed type is itself stale.
  *
- * PRESENCE vs VALUE (PR11 review R3): an in-run accepted `primary_product_type`
+ * PRESENCE vs VALUE (PR11 review R3): an in-run accepted `product_classification`
  * decision is authoritative BY PRESENCE — including an explicit null target
  * (a reviewer clearing the type canonicalizes to `hasRevisedTargetId: true,
  * revisedTargetId: null`). An explicit clear therefore SUPPRESSES the frozen
@@ -157,18 +158,35 @@ export function resolvePromotionEffectiveTypeId(
   acceptedProposals: ClassificationProposal[],
   snapshot?: RuntimeClassificationSnapshot | null,
 ): string | null {
+  return resolvePromotionEffectiveClassification(parentRun, acceptedProposals, snapshot).productTypeId;
+}
+
+/**
+ * The item's CURRENT effective canonical pair (issue #350, ADR 0041):
+ * reviewed-first pair authority with the same presence-vs-value semantics.
+ * Accepts the `product_classification` kind ONLY (legacy
+ * `primary_product_type` is history-only). An explicit clear of either
+ * member suppresses the frozen fallback for that member.
+ */
+export function resolvePromotionEffectiveClassification(
+  parentRun: CohortRun | null,
+  acceptedProposals: ClassificationProposal[],
+  snapshot?: RuntimeClassificationSnapshot | null,
+): { categoryId: string | null; productTypeId: string | null } {
   let inRunReviewedDecisionPresent = false;
-  let reviewedTypeId: string | null = null;
+  let reviewedPair: { categoryId: string | null; productTypeId: string | null } = { categoryId: null, productTypeId: null };
   for (const proposal of acceptedProposals) {
-    if (proposal.proposalType !== 'primary_product_type') continue;
+    // ADR 0041: legacy `primary_product_type` rows are history-only.
+    if (proposal.proposalType !== 'product_classification') continue;
     inRunReviewedDecisionPresent = true;
-    reviewedTypeId = getEffectivePrimaryProductTypeId(proposal);
+    reviewedPair = getEffectiveClassificationPair(proposal);
     break;
   }
   if (!inRunReviewedDecisionPresent) {
-    reviewedTypeId = getReviewedTypeFromSnapshot(snapshot ?? undefined);
+    const reviewed = getReviewedClassificationPair(snapshot ?? undefined);
+    return { categoryId: reviewed.categoryId, productTypeId: reviewed.productTypeId };
   }
-  return resolveEffectiveCurationType(reviewedTypeId, null).effectiveTypeId;
+  return reviewedPair;
 }
 
 /**
@@ -339,7 +357,7 @@ export function validatePromotionGate(input: PromotionGateInput): PromotionGateR
         code: 'reviewed_product_type_required',
         reason:
           `Item ${itemId} (SKU ${productSku}) has no Reviewed Product Type — neither an accepted ` +
-          'primary_product_type decision nor a frozen reviewed fact — so it cannot promote ' +
+          'product_classification decision nor a frozen reviewed fact — so it cannot promote ' +
           '(the Execution Product Type is Curation-only authority).',
       };
     }

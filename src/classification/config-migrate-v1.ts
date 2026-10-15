@@ -12,6 +12,7 @@ import {
   CurationTargetKindEnum,
   CurationTargetOptionSourceEnum,
   CurationTargetsFileV2Schema,
+  CategoriesFileV2Schema,
   DataSharingFileV2Schema,
   GuidanceFileV2Schema,
   GuidanceScopeEnum,
@@ -53,6 +54,8 @@ const LegacyProductTypeSchema = z.object({
   description: z.string().nullable(),
   attributeProfileId: ClassificationSlugSchema.nullable(),
   oldIdAliases: z.array(ClassificationSlugSchema),
+  /** Approved canonical Category (issue #350). Absent on legacy configs — migration reports the gap. */
+  categoryId: ClassificationSlugSchema.nullable().optional(),
 }).strict();
 const LegacyAttributeSchema = z.object({
   id: ClassificationSlugSchema,
@@ -211,6 +214,7 @@ function focusedFileContents(
 ): Record<ClassificationFocusedFileName, string> {
   return {
     'product-types.json': canonicalJsonFileString(ProductTypesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.productTypes })),
+    'categories.json': canonicalJsonFileString(CategoriesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.categories })),
     'attributes.json': canonicalJsonFileString(AttributesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributes })),
     'attribute-profiles.json': canonicalJsonFileString(AttributeProfilesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeProfiles })),
     'mappings.json': canonicalJsonFileString(AttributeMappingsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeMappings })),
@@ -443,9 +447,25 @@ export function migrateClassificationConfigV1(input: unknown): ConfigMigrationV1
     message: 'All ML features defaulted to disabled; qualification and explicit activation are required.',
   });
 
+  // Issue #350: carry approved Category mappings; legacy types without one
+  // get an explicit blocking gap finding each — ambiguous old semantics
+  // require an explicit owner decision, never silent invention.
+  const productTypes = legacy.productTypes.map((type, index) => {
+    if (!type.categoryId) {
+      findings.push({
+        severity: 'error',
+        code: 'unmapped_product_type_category',
+        path: `$.productTypes[${index}].categoryId`,
+        message: `Product Type "${type.id}" has no approved Category mapping; assign its canonical Category explicitly before activation.`,
+      });
+    }
+    return { ...type, categoryId: type.categoryId ?? null };
+  });
+
   const withoutManifest: Omit<ClassificationConfigBundleV2, 'manifest'> = {
     bundleOrigin: { kind: 'migrated_v1', sourceConfigHash },
-    productTypes: legacy.productTypes,
+    productTypes,
+    categories: [],
     attributes,
     attributeProfiles,
     attributeMappings,

@@ -36,7 +36,8 @@ export interface ReviewClassificationPanelProps {
 }
 
 export const PROPOSAL_TYPE_LABELS: Record<string, string> = {
-  primary_product_type: 'Primary Product Type',
+  primary_product_type: 'Product Type (legacy)',
+  product_classification: 'Product Classification',
   category_page: 'Category Page',
   field_assignment: 'Attribute',
   configuration_gap: 'Configuration gap',
@@ -66,16 +67,17 @@ function proposalValueText(proposal: ClassificationProposal): {
   const raw = proposal.revisedValue ?? proposal.proposedValue;
   if (raw === null || raw === undefined) return { text: '—', matchedWords: [] };
 
-  if (proposal.proposalType === 'primary_product_type' && typeof raw === 'object' && !Array.isArray(raw)) {
+  if ((proposal.proposalType === 'primary_product_type' || proposal.proposalType === 'product_classification') && typeof raw === 'object' && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
     const typeId = typeof obj.productTypeId === 'string' ? obj.productTypeId : null;
+    const categoryId = typeof obj.categoryId === 'string' ? obj.categoryId : null;
     const words = Array.isArray(obj.matchedWords)
       ? (obj.matchedWords as unknown[]).filter((w): w is string => typeof w === 'string')
       : [];
-    return {
-      text: typeId ? humanizeId(typeId) : '—',
-      matchedWords: words,
-    };
+    const text = categoryId && typeId
+      ? `${humanizeId(categoryId)} / ${humanizeId(typeId)}`
+      : typeId ? humanizeId(typeId) : '—';
+    return { text, matchedWords: words };
   }
 
   if (typeof raw === 'string') return { text: raw, matchedWords: [] };
@@ -168,7 +170,7 @@ export function ReviewClassificationPanel({
     }
   };
 
-  const primary = proposals.find(p => p.proposalType === 'primary_product_type');
+  const primary = proposals.find(p => p.proposalType === 'product_classification') ?? proposals.find(p => p.proposalType === 'primary_product_type');
   const abstentions = proposals.filter(p => p.proposalType === 'reviewable_abstention');
   // Attributes/category pages/brand field assignments — the primary type lives
   // in its own headline row above, never duplicated here.
@@ -176,12 +178,14 @@ export function ReviewClassificationPanel({
     p =>
       p.proposalType !== 'reviewable_abstention' &&
       p.proposalType !== 'primary_product_type' &&
+      p.proposalType !== 'product_classification' &&
       p.status === 'pending',
   );
   const settled = proposals.filter(
     p =>
       p.proposalType !== 'reviewable_abstention' &&
       p.proposalType !== 'primary_product_type' &&
+      p.proposalType !== 'product_classification' &&
       p.status !== 'pending',
   );
 
@@ -222,7 +226,7 @@ export function ReviewClassificationPanel({
 
         {primary && (
           <div className="rv-field">
-            <div className="rv-field-label">Primary Product Type</div>
+            <div className="rv-field-label">Product Classification</div>
             {proposals.some(p => p.derivation?.kind === 'product_type_invariant' && (p.contradictingEvidenceIds?.length ?? 0) > 0) && (
               <div
                 className="rv-conflict-banner"
@@ -437,7 +441,13 @@ function ReviewProposalRow({
       <div className="rv-proposal-head">
         <span className="rv-proposal-type">
           {PROPOSAL_TYPE_LABELS[proposal.proposalType] ?? proposal.proposalType}
-          {uniqueLabels.length > 0 && proposal.proposalType !== 'primary_product_type' && (
+          {(proposal as unknown as { hasRevisedValue?: boolean }).hasRevisedValue === true &&
+            (proposal as unknown as { revisedValue?: unknown }).revisedValue === null && (
+            <span className="rv-conf-chip" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', marginLeft: 6 }} title="Reviewed removal: accepting clears this value (the before value is shown below)">
+              Removal
+            </span>
+          )}
+          {uniqueLabels.length > 0 && proposal.proposalType !== 'primary_product_type' && proposal.proposalType !== 'product_classification' && (
             <span className="rv-proposal-target"> · {uniqueLabels.join(' & ')}</span>
           )}
         </span>
@@ -494,7 +504,7 @@ function ReviewProposalRow({
           ))}
         </div>
       )}
-      {proposal.proposalType === 'primary_product_type' && matchedWords.length === 0 && isPending && (
+      {(proposal.proposalType === 'primary_product_type' || proposal.proposalType === 'product_classification') && matchedWords.length === 0 && isPending && (
         <div className="rv-meta-note">Model pick — no keyword evidence. Only accept if it's clearly right.</div>
       )}
 

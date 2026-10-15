@@ -278,9 +278,9 @@ describe('resolveReviewBrand (promoter input-chain parity)', () => {
     expect(result).toBeNull();
   });
 
-  it('resolves via the effective name when brandHint is falsy', () => {
+  it('never invents Brand from the effective name when brandHint is falsy (issue #349)', () => {
     const result = resolveReviewBrand(baseItem({ brandHint: null }), null, 'Acme Pet Food', brands);
-    expect(result).toBe('Acme');
+    expect(result).toBeNull();
   });
 
   it('falls back to the trimmed hint when resolution fails on a usable hint', () => {

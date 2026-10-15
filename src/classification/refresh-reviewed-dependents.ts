@@ -1,6 +1,7 @@
 import { getAcceptedProposals, getEvidenceByRun, getLiveDecisionsByRun, getRun } from '../db/repositories/classification-run-repo';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
-import { getEffectivePrimaryProductTypeId } from './assignment-projection';
+import { getEffectiveClassificationPair } from './assignment-projection';
+import { isApprovedClassificationPair } from './product-classification';
 import { runPipeline } from './pipeline-runner';
 import { attributeApplicabilityStage } from './stages/attribute-applicability';
 import { productAttributeProposalsStage } from './stages/attribute-proposals';
@@ -30,11 +31,19 @@ export async function refreshReviewedDependents(input: {
   // singleton page execution. The cohort worker must restart the parent instead.
   if (run.cohortRunId) throw new Error('Coordinated cohort review must refresh through its parent run; restart the cohort preparation.');
   const accepted = getAcceptedProposals(run.productSku, run.id);
-  const type = accepted.find(proposal => proposal.proposalType === 'primary_product_type');
-  const typeId = type ? getEffectivePrimaryProductTypeId(type) : null;
+  // ADR 0041: refresh requires an accepted canonical pair; legacy
+  // `primary_product_type` rows are history-only and cannot authorize it.
+  const type = accepted.find(proposal => proposal.proposalType === 'product_classification');
+  const pair = type ? getEffectiveClassificationPair(type) : { categoryId: null, productTypeId: null };
+  const typeId = pair.productTypeId;
   const decision = type && getLiveDecisionsByRun(run.id).find(row => row.proposalId === type.id && row.decision === 'accepted');
-  if (!typeId || !decision) throw new Error('Accept or correct a Product Type before refreshing its attributes and pages.');
+  if (!typeId || !decision) throw new Error('Accept or correct a Product Classification before refreshing its attributes and pages.');
   if (!snapshot.productTypes.some(type => type.id === typeId)) throw new Error('Reviewed Product Type is not an option in the run’s frozen taxonomy.');
+  if (pair.categoryId) {
+    if (!isApprovedClassificationPair({ categoryId: pair.categoryId, productTypeId: typeId }, { productTypes: snapshot.productTypes as any, categories: (snapshot as any).categories ?? [] })) {
+      throw new Error('Reviewed Product Classification is not an approved configured combination in the run’s frozen taxonomy.');
+    }
+  }
   const guardInput = { ...input, decisionId: decision.id };
   assertDependentReviewCurrent(guardInput);
   const evidence = getEvidenceByRun(run.id);

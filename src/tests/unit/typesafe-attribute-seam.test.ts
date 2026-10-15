@@ -28,7 +28,7 @@ import {
   batchResolveAttributeDecisions,
   buildProposalFromAttributeDecision,
 } from '../../classification/attribute-decision';
-import { processProductFieldTarget, processProductFieldTargetsBatch } from '../../classification/curation-target-processor';
+import { processProductFieldTarget } from '../../classification/curation-target-processor';
 import { productAttributeProposalsStage } from '../../classification/stages/attribute-proposals';
 import { capturePreReviewPrediction } from '../../classification/benchmark-prediction';
 import {
@@ -41,7 +41,6 @@ import { buildRuntimeSnapshot } from '../../classification/runtime-snapshot';
 import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';
 import type {
   ClassificationEvidence,
-  ClassificationConfig,
   ModelPolicyConfigV2,
 } from '../../shared/schemas/classification';
 
@@ -336,7 +335,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(decision.abstentionCode).toBe('candidate_limit_exceeded');
   });
 
-  it('4. deterministic precedence: reviewed facts, aliases, brand shortcuts, and free-text never call Jev', async () => {
+  it('4. deterministic precedence: reviewed facts and aliases never call Jev; Brand is never a classifier output', async () => {
     const run = createRun(workspaceId, 'SKU-PREC-1', null, 'hash-prec');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
@@ -398,7 +397,8 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(aliasDecision.value).toBe('Chicken');
     expect(aliasDecision.probabilityBasis).toBe('deterministic_alias');
 
-    // 4c. Free-text attribute
+    // 4c. Brand attribute (issue #349): never a classifier output — the
+    // shared composition emits no proposal even with grounding evidence.
     const freeTextTarget = {
       config: {
         id: 'brand',
@@ -440,12 +440,11 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       {
         runId: run.id,
         workspaceId,
-        snapshot: { snapshotHash: 'hash-prec' } as any,
-      } as any,
+        snapshot: { snapshotHash: 'hash-prec' } as unknown as never,
+      } as never,
     );
     expect(fetchCalled).toBe(false);
-    expect(freeTextResult.proposals).toHaveLength(1);
-    expect(freeTextResult.proposals[0].proposedValue).toBe('Acme Pet Food Co.');
+    expect(freeTextResult.proposals).toEqual([]);
   });
 
   it('5. empty profile & unresolved type: universal attributes proceed; type-dependent withheld', async () => {
@@ -500,7 +499,6 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       workspacePath: '/tmp/test-ws',
       configSnapshotRef: emptySnapshot.configSnapshotRef,
       snapshot: emptySnapshot,
-      cohortExecutionType: { id: 'general-item', name: 'General Item', attributeProfileId: null },
     } as any;
 
     const stageInput = {

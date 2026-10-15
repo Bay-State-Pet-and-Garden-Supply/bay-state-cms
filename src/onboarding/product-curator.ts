@@ -50,7 +50,8 @@ import { valueGapAbstainStage } from '../classification/stages/value-gap-abstain
 import { getUniversalTierFlags } from '../classification/flags';
 import { modelPolicyViewFromConfig } from './model-policy-snapshot';
 import { redactTransportText, type ModelPolicyView } from '../classification/model-policy-gateway';
-import { selectPrimaryProductTypeProposal } from '../classification/proposal-selection';
+import { selectClassificationProposal } from '../classification/proposal-selection';
+import { getCategoryIdFromValue } from '../classification/assignment-projection';
 import { determineProductGroup } from './product-line-grouper';
 import { listDistinctProductPageNames } from '../db/repositories/page-repo';
 import { packagingOcrStage } from '../classification/stages/packaging-ocr-stage';
@@ -192,12 +193,7 @@ export interface CuratePreparedMemberInput {
   verifiedPageIds: string[];
   memberProjection: ExecutionEvidenceProjectionMemberV2;
   memberExtractionMethod: string | null;
-  cohortExecutionType?: {
-    id: string | null;
-    confidence: number | null;
-    outcome: 'coherent' | 'coherent_with_abstentions' | 'conflicted' | 'abstained' | null;
-  };
-  effectiveType?: { id: string | null; source: 'reviewed' | 'execution' | 'none' };
+  effectiveType?: { id: string | null; source: 'reviewed' | 'provisional' | 'none' };
   productLineGroup: PreparedProductLineGroup | null;
   productLineItems?: ProductLineItemSnapshot[];
   /** Settled MEMBER title input (null = member-local naming path). */
@@ -321,7 +317,6 @@ export async function curatePreparedMember(input: CuratePreparedMemberInput): Pr
     memberExtractionMethod: input.memberExtractionMethod,
     prepared: {
       memberProjection: input.memberProjection,
-      cohortExecutionType: input.cohortExecutionType,
       effectiveType: input.effectiveType,
       productLineGroup: input.productLineGroup,
       productLineItems: input.productLineItems,
@@ -342,7 +337,6 @@ export async function curatePreparedMember(input: CuratePreparedMemberInput): Pr
  */
 interface ResolvedPreparedInputs {
   memberProjection: ExecutionEvidenceProjectionMemberV2;
-  cohortExecutionType: CuratePreparedMemberInput['cohortExecutionType'];
   effectiveType: CuratePreparedMemberInput['effectiveType'];
   productLineGroup: PreparedProductLineGroup | null;
   productLineItems?: ProductLineItemSnapshot[];
@@ -779,14 +773,8 @@ async function executeCurationPipeline(args: {
       cohortFrozenEvidence: cohortMode
         ? prepared!.memberProjection
         : undefined,
-      // PR4 C4b: cohort-level Execution Product Type resolved at freeze.
-      // METADATA ONLY — no gate logic reads it in PR4 (review authority stays
-      // on the member's own reviewed proposals). Present only in
-      // prepared-cohort mode when the parent run carries an execution type;
-      // flag OFF / abstained / conflicted / legacy runs leave it absent. The
-      // cohort executor consumes it AFTER runPipeline to stamp dependency
-      // metadata rows inside the member-projection atomic commit.
-      cohortExecutionType: prepared?.cohortExecutionType,
+      // Issue #351 (SKU-local evidence): no execution-type context is
+      // seeded — stages resolve the member's own reviewed pair (or none).
       productLineContext: productLineGroup
         ? {
             groupId: productLineGroup.groupId,
@@ -946,8 +934,9 @@ async function executeCurationPipeline(args: {
       }
     }
 
-    // Suggested product type from the best available proposal
-    const typeSelection = selectPrimaryProductTypeProposal({
+    // Suggested canonical classification from the best available pair
+    // proposal (new kind first, legacy type kind for historical runs).
+    const typeSelection = selectClassificationProposal({
       sku: item.upc,
       onboardingItemId: item.id,
       evidence: allEvidence,
@@ -955,6 +944,11 @@ async function executeCurationPipeline(args: {
       allProposals: allProposals,
     });
     const suggestedProductType = typeSelection.proposal?.targetId ?? null;
+    const suggestedCategory = getCategoryIdFromValue(
+      typeSelection.proposal
+        ? (typeSelection.proposal.hasRevisedValue ? typeSelection.proposal.revisedValue : typeSelection.proposal.proposedValue)
+        : null,
+    );
 
     // LEGACY fallback — active cohort mode skips this; kept for flag-OFF compatibility only.
     // Validated via category-page-correctness — unverified/incompatible pages abstain.
@@ -1118,6 +1112,7 @@ async function executeCurationPipeline(args: {
         : {}),
       suggestedPages,
       suggestedProductType,
+      suggestedCategory,
       curatedAt: new Date().toISOString(),
       curationMethod: 'auto',
       classificationRunId: run.id,
@@ -1158,7 +1153,7 @@ async function executeCurationPipeline(args: {
         // Gate reasons are encoded as abstention proposals; check proposals for reviewable_abstention target category_page_proposals
         const catAbstention = result.proposals.find(p => p.proposalType === 'reviewable_abstention' && String(p.targetId) === 'category_page_proposals');
         const reasonRaw = (catAbstention?.proposedValue as { reason?: string } | null)?.reason ?? null;
-        const needsReviewedType = reasonRaw ? reasonRaw.includes('No reviewed Primary Product Type') : false;
+        const needsReviewedType = reasonRaw ? (reasonRaw.includes('No reviewed Primary Product Type') || reasonRaw.includes('No reviewed Product Classification')) : false;
         const needsVerifiedPages = reasonRaw ? reasonRaw.includes('No verified store pages available') : false;
         return {
           needsReviewedType,

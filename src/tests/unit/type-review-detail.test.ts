@@ -34,8 +34,8 @@ describe('type-review-detail (P1.3)', () => {
     return {
       manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: now, updatedAt: now, fileVersions: {} },
       productTypes: [
-        { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], departmentId: 'pets' },
-        { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [], departmentId: 'pets' },
+        { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], departmentId: 'pets', categoryId: 'dog_food_cat' },
+        { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [], departmentId: 'pets', categoryId: 'cat_food_cat' },
       ],
       attributes: [
         { id: 'brand', name: 'Brand', description: null, valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, isUniversal: true, group: 'Identity' },
@@ -55,7 +55,7 @@ describe('type-review-detail (P1.3)', () => {
     };
   }
 
-  it('assembles complete TypeReviewDetail matching schema and invariants', () => {
+  it('assembles complete TypeReviewDetail matching schema and invariants', async () => {
     const db = getDb();
     const now = new Date().toISOString();
 
@@ -73,7 +73,7 @@ describe('type-review-detail (P1.3)', () => {
     const sku = '012345678901';
     const bundle = loadConfigFixture();
     const { id: snapId, hash: snapHash } = createConfigSnapshot(wsId, bundle);
-    const snap = buildRuntimeSnapshot({
+    const baseSnap = buildRuntimeSnapshot({
       workspaceId: wsId,
       workspacePath: '/tmp/test',
       productSku: sku,
@@ -81,7 +81,22 @@ describe('type-review-detail (P1.3)', () => {
       configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() },
       sourceProductHash: 'cat-hash',
     });
-    persistRuntimeSnapshot(snap);
+    const { snapshotHash: recomputeHash } = await import('../../classification/runtime-snapshot');
+    const snap = {
+      ...structuredClone(baseSnap),
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
+      ],
+    };
+    (snap as { productTypes: unknown }).productTypes = (snap.productTypes as Array<Record<string, unknown>>).map((t) => {
+      if (t.id === 'dog_food') return { ...t, categoryId: 'dog_food_cat' };
+      if (t.id === 'cat_food') return { ...t, categoryId: 'cat_food_cat' };
+      return { ...t };
+    });
+    (snap as { snapshotHash: string }).snapshotHash = recomputeHash(snap as never);
+    const { deepFreeze } = await import('../../classification/runtime-snapshot');
+    persistRuntimeSnapshot(deepFreeze(snap as never));
 
     const itemId = `item-${randomUUID()}`;
     const batchId = `batch-${randomUUID()}`;
@@ -107,8 +122,8 @@ describe('type-review-detail (P1.3)', () => {
     const typePropId = `prop-${randomUUID()}`;
     db.query(
       `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, is_bulk_acceptable, is_stale, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', 'dog_food', ?, 0.95, 'pending', 0, 0, ?)`,
-    ).run(typePropId, runId, sku, JSON.stringify({ productTypeId: 'dog_food', productTypeName: 'Dog Food' }), now);
+       VALUES (?, ?, ?, 'product_classification', 'dog_food', ?, 0.95, 'pending', 0, 0, ?)`,
+    ).run(typePropId, runId, sku, JSON.stringify({ categoryId: 'dog_food_cat', productTypeId: 'dog_food', productTypeName: 'Dog Food' }), now);
 
     // Initial unreviewed state: execution preview available, reviewed is null, blocked
     const initialDetail = computeTypeReviewDetail(db, wsId, itemId, sku, runId);

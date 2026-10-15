@@ -20,17 +20,11 @@
  *   processCohort. `cohortShadowOnly` observes without installing the claim
  *   barrier.
  *
- * PR5 note (issue #30): the effective-type path is active-mode-only BY
- * CONSTRUCTION, so no new flag is added. Only active runs
- * (`cohortCurationV2Enabled && !cohortShadowOnly`) freeze a cohort Execution
- * Product Type; the two attribute-applicability stages then fall back to it
- * behind the reviewed Primary Product Type (reviewed-first / execution
- * fallback), and the executor stamps type dependency rows with separate kinds
- * on `field_assignment` proposals only — `execution_product_type` for
- * execution-driven members, `reviewed_product_type` for reviewed-driven ones
- * (PR5 hardening, issue #30 P2). Flag OFF and shadow runs never carry a
- * cohort execution type, so stage gating, dependency rows, and
- * `curation_data_json` stay byte-identical to PR4/legacy.
+ * Issue #351 note (SKU-local evidence): the effective-type path is
+ * reviewed-or-none BY CONSTRUCTION — no cohort execution conclusion ever
+ * fills a member result. The executor stamps `reviewed_product_type` rows
+ * on `field_assignment` proposals for reviewed-driven members only;
+ * `none` members stamp nothing.
  *
  * PR6 note (issue #30): the durable parent title op
  * (`ensureCohortTitlesCoordinated`) runs ONLY inside `processCohort`, which
@@ -161,7 +155,7 @@ export function getCohortCurationFlags(): CohortCurationFlags {
  *   requiredness/cardinality/applicability still evaluate under the
  *   effective type. Widened pre-type proposals carry NO product-type
  *   dependency rows (PR9 DECISION-B invariant — they are produced while no
- *   reviewed/execution type drives the member, so dependency stamping never
+ *   reviewed type drives the member, so dependency stamping never
  *   fires for them).
  * - `valueGapLlmEnabled` (BAYSTATE_CMS_VALUE_GAP_LLM): when ON, the
  *   flag-gated `value_gap_abstain` stage joins the curation pipeline and

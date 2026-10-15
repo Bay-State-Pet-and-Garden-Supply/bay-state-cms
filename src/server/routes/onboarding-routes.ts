@@ -6,7 +6,7 @@
 // remaining clones are baselined in .fallow-baselines/dupes.json. Revisit only with a response-preserving
 // contract change, never as a drive-by refactor.
 import { Hono, type Context } from 'hono';
-import { isPrivateOrLinkLocal, isPrivateOrLinkLocalHost } from '../../shared/ssrf';
+import { isPrivateOrLinkLocalHost } from '../../shared/ssrf';
 import { getLocalRuntimeStatus } from '../../ai/local-runtime-coordinator';
 import { OLLAMA_VLM_SERVICE_NAME, DEFAULT_LOCAL_VISION_MODEL } from '../../ai/vision-model-defaults';
 import { streamSSE } from 'hono/streaming';
@@ -115,10 +115,7 @@ import {
   type EvidenceAttempt,
 } from '../../shared/schemas/distributor-evidence';
 import { ResolveConflictRequestSchema } from '../../shared/schemas/distributor';
-import {
-  listSourcesByItem,
-  selectSource
-} from '../../db/repositories/onboarding-source-repo';
+import { listSourcesByItem, selectSource } from '../../db/repositories/onboarding-source-repo';
 import {
   getLatestExtraction,
   updateLatestExtractionData
@@ -273,6 +270,7 @@ import {
   type ReviewCompletenessBlockerCode,
 } from '../../classification/review-completeness';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
+import { isProtectedTargetId } from '../../classification/classification-ownership';
 import { SubmitProposalDecisionsRequestSchema } from '../../shared/schemas/classification';
 import { getDb } from '../../db/connection';
 import { getCohortById, listCohortShadowObservations } from '../../db/repositories/curation-cohort-repo';
@@ -450,14 +448,19 @@ export function resetActiveWorkerForTest(): void {
 function autoAcceptPendingProposalsForRun(runId: string): void {
   const db = getDb();
   const proposals = db.query(
-    `SELECT p.id, p.status, 
+    `SELECT p.id, p.status, p.proposal_type, p.target_id,
             EXISTS(SELECT 1 FROM classification_proposal_decisions d WHERE d.proposal_id = p.id AND d.superseded_at IS NULL) AS has_decision
      FROM classification_proposals p
      WHERE p.run_id = ? AND (p.status = 'pending' OR p.status = 'stale')`
-  ).all(runId) as { id: string; status: string; has_decision: number }[];
+  ).all(runId) as { id: string; status: string; proposal_type: string; target_id: string | null; has_decision: number }[];
 
   const now = new Date().toISOString();
   for (const p of proposals) {
+    // ADR 0041 / issue #349: auto-accept is an explicit human review action
+    // applied in bulk — it must never authorize a protected write. Leave
+    // historical Brand proposals pending so they stay attributable but
+    // inapplicable; the reviewer explicitly rejects or ignores them.
+    if (p.proposal_type === 'field_assignment' && isProtectedTargetId(p.target_id)) continue;
     if (!p.has_decision) {
       try {
         const decisionId = randomUUID();
@@ -603,6 +606,11 @@ route.post('/onboarding/batches', async (c) => {
         continue;
       }
 
+      // ADR 0041 / issue #349 ownership note: this spreadsheet-import
+      // brandHint assembly is non-classification supplied-identity handling
+      // (permitted owner), not classifier title-inference. The Classification
+      // Engine never writes Brand; this path only supplies the input hint
+      // the classifier may read as evidence.
       let assignedBrandHint = item.brandHint;
       if (!assignedBrandHint) {
         const matched = matchExistingBrand(item.name, existingBrands);
@@ -784,7 +792,6 @@ route.get('/onboarding/batches/:id/missing-brand-groups', async (c) => {
   const batchId = c.req.param('id');
   const scoped = requireWorkspaceBatch(c, batchId);
   if ('error' in scoped) return scoped.error;
-  const { workspace } = scoped;
 
   try {
     const groups = buildMissingBrandGroups(batchId);
@@ -879,7 +886,6 @@ route.post('/onboarding/batches/:id/assign-brand-group', async (c) => {
   const batchId = c.req.param('id');
   const scoped = requireWorkspaceBatch(c, batchId);
   if ('error' in scoped) return scoped.error;
-  const { workspace } = scoped;
 
   const { itemIds, brand } = await c.req.json();
   if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0 || !brand?.trim()) {
@@ -2007,7 +2013,9 @@ route.get('/onboarding/items/:id', async (c) => {
     if (row) {
       variantResolution = { id: row.id, status: row.status, candidates: JSON.parse(row.candidates_json), identityMatrixHash: row.identity_matrix_hash, platform: row.platform, selectedVariantKey: row.selected_variant_key ?? null, decisionOrigin: row.decision_origin ?? null };
     }
-  } catch {}
+  } catch {
+    // Variant resolution is advisory; absence keeps the response usable.
+  }
   return c.json({
     item: hydratedItem,
     sources,
@@ -2418,7 +2426,7 @@ route.post('/onboarding/items/:id/decisions', async (c) => {
   // or requiring the operator to manually restart Curation. The shared refresh
   // keeps the accepted type and naming authority in this exact frozen run.
   const currentTypeDecision = result.decisions.find(decision => decision.decision === 'accepted'
-    && getProposalsByRun(activeRunId).some(proposal => proposal.id === decision.proposalId && proposal.proposalType === 'primary_product_type'));
+    && getProposalsByRun(activeRunId).some(proposal => proposal.id === decision.proposalId && proposal.proposalType === 'product_classification'));
   let dependentRefresh: { status: 'completed' | 'blocked'; message?: string } | undefined;
   if (currentTypeDecision && result.refreshRequired) {
     try {
@@ -2532,7 +2540,9 @@ route.post('/onboarding/items/:id/select-source', async (c) => {
         return c.json({ error: 'Unresolved variant matrix — use select-variant' }, 409);
       }
     }
-  } catch {}
+  } catch {
+    // Variant-matrix check is advisory; absence keeps the response usable.
+  }
   const sources = listSourcesByItem(itemId);
   const selected = sources.find(s => s.id === sourceId);
   if (!selected) {
@@ -2597,7 +2607,6 @@ route.post('/onboarding/items/:id/select-source', async (c) => {
       503,
     );
   }
-
   selectSource(sourceId);
   setDiscoverySourceUrl(itemId, selected.url);
 
@@ -2637,8 +2646,12 @@ route.post('/onboarding/items/:id/select-variant', async (c) => {
         db.prepare('UPDATE onboarding_items SET stage = ?, stage_status = ?, retry_count = 0, error_message = NULL, updated_at = ? WHERE id = ?').run(encodeForStorage('collect_details', readStorageVersion(db)), 'pending', new Date().toISOString(), itemId);
         const { OnboardingWorker } = await import('../../onboarding/job-queue');
         const worker = new (OnboardingWorker as any)(workspace.id, workspace.workspacePath);
-        try { worker.poll(); } catch {}
-      } catch {}
+        try { worker.poll(); } catch {
+          // Worker poll is best-effort; the requeue write above already landed.
+        }
+      } catch {
+        // Requeue is best-effort; variant selection already succeeded.
+      }
     }
     return c.json({ success: true, sourceUrl: result.sourceUrl });
   } catch (e: any) {
@@ -2687,6 +2700,12 @@ route.post('/onboarding/items/:id/set-url', async (c) => {
   setDiscoverySourceUrl(itemId, url);
   return c.json({ success: true });
 });
+
+/**
+ * ADR 0017 commitment 4 — re-trigger official site discovery using the SAME
+ * re-run flow the existing search_again/retry path uses: reset the item to
+ * discovery/pending (retry_count cleared, error cleared, flat status back to
+ * 'imported') and poll the background worker so the guided discovery run
 
 /**
  * ADR 0017 commitment 4 — re-trigger official site discovery using the SAME

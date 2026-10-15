@@ -88,7 +88,7 @@ describe('widened universal tier — pure evaluator', () => {
     for (const attribute of [size, color, material, flavor]) {
       const result = evalFor(attribute);
       expect(result.state).toBe('unknown');
-      expect(result.reason).toMatch(/No reviewed Primary Product Type/);
+      expect(result.reason).toMatch(/No Product Classification/);
     }
   });
 
@@ -267,8 +267,8 @@ describe('widened universal tier — stages thread the shared flag', () => {
     const resolved = getEffectiveCurationProductType(input, context);
     expect(resolved.effectiveTypeId).toBeNull();
     expect(resolved.source).toBe('none');
-    // Dependency stamping in the cohort executor fires only for sources
-    // 'execution' | 'reviewed'; source 'none' stamps nothing — so every
+    // Dependency stamping in the cohort executor fires only for source
+    // 'reviewed'; source 'none' stamps nothing — so every
     // proposal produced under widening carries NO product-type dependency row.
   });
 });

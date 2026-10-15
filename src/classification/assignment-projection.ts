@@ -2,6 +2,7 @@ import type { AttributeMappingConfig, ClassificationProposal, ProductAttributeCo
 import type { SerializationConfigV2 } from '../shared/schemas/classification';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import { resolveAlias } from './controlled-value-identity';
+import { isSilentNarrowing } from './attribute-grounding-guards';
 
 /** Return the reviewed correction when present, including an explicit null. */
 export function getEffectiveProposalValue(proposal: ClassificationProposal): unknown {
@@ -22,6 +23,17 @@ export function getProductTypeIdFromValue(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+/**
+ * Extract the canonical Category ID from a pair proposal value shape.
+ * Returns null for legacy type-only values (historical reads, not new authority).
+ */
+export function getCategoryIdFromValue(value: unknown): string | null {
+  if (value && typeof value === 'object' && 'categoryId' in value) {
+    const categoryId = (value as { categoryId?: unknown }).categoryId;
+    return typeof categoryId === 'string' && categoryId.length > 0 ? categoryId : null;
+  }
+  return null;
+}
 /**
  * Resolve the one effective Primary Product Type identity for every consumer.
  *
@@ -45,6 +57,33 @@ export function getEffectivePrimaryProductTypeId(
     : getProductTypeIdFromValue(proposal.proposedValue);
 }
 
+/**
+ * Resolve the one effective canonical Category identity for every consumer.
+ * Mirrors getEffectivePrimaryProductTypeId: presence is authoritative
+ * (explicit clear wins); legacy type-only proposals carry no category.
+ */
+export function getEffectiveClassificationCategoryId(
+  proposal: ClassificationProposal,
+): string | null {
+  if (proposal.hasRevisedValue === true) {
+    return getCategoryIdFromValue(proposal.revisedValue);
+  }
+  return getCategoryIdFromValue(proposal.proposedValue);
+}
+
+/**
+ * Resolve the one effective canonical pair for every consumer: the effective
+ * type id plus the effective category id. Either member may be null
+ * (unresolved); callers gate on completeness through resolveClassificationResult.
+ */
+export function getEffectiveClassificationPair(
+  proposal: ClassificationProposal,
+): { categoryId: string | null; productTypeId: string | null } {
+  return {
+    categoryId: getEffectiveClassificationCategoryId(proposal),
+    productTypeId: getEffectivePrimaryProductTypeId(proposal),
+  };
+}
 /**
  * Serialize an attribute value into a catalog field string using the mapping's
  * serialization config. This is the ONE serializer shared by preview
@@ -281,6 +320,13 @@ export function buildAssignmentProjection(
 
       const currentValue = currentCustomFields[mapping.catalogField] ?? null;
       const proposedValue = serializeAttributeValue(getEffectiveProposalValue(proposal), mapping.serialization);
+      // P1 #9: predicted silent multi→single narrowing is a visible skip,
+      // not a diff. An explicit reviewed revised value is human intent
+      // (issue #353) and bypasses the guard.
+      if (!proposal.hasRevisedValue && isSilentNarrowing(currentValue, proposedValue)) {
+        skipped.push({ proposalId: proposal.id, targetId, reason: 'No-narrowing guard: existing multi-value slot survives' });
+        continue;
+      }
       const isNoOp = currentValue === proposedValue;
       const isOverwrite = currentValue !== null && !isNoOp;
 

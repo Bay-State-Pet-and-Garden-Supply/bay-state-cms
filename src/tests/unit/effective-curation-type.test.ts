@@ -1,10 +1,10 @@
 /**
- * Effective Curation Product Type resolver — pure unit tests (issue #30 PR5 C1).
+ * Effective Curation Product Type resolver — pure unit tests (issue #351 SKU-local evidence).
  *
- * Covers: reviewed-first resolution, reviewed-override precedence over the
- * cohort execution type, execution fallback, the `none` outcome, the
- * snapshot-only reviewed-type reader, and the stage-facing helper against a
- * synthetic StageContext.
+ * Covers: reviewed own-SKU resolution, the `none` outcome when no reviewed
+ * pair exists (no execution fallback — execution values are never factual
+ * authority), the snapshot-only reviewed-type reader, and the stage-facing
+ * helper against a synthetic StageContext.
  */
 import { describe, expect, it } from 'bun:test';
 import {
@@ -18,7 +18,6 @@ import type { StageContext, StageInput } from '../../classification/types';
 import type { ReviewedFact } from '../../classification/reviewed-facts';
 
 const REVIEWED_ID = 'dry-dog-food';
-const EXECUTION_ID = 'dry-dog-food';
 
 function makeTypeFact(value: unknown): ReviewedFact {
   return {
@@ -27,7 +26,7 @@ function makeTypeFact(value: unknown): ReviewedFact {
     runId: 'r1',
     workspaceId: 'ws',
     productSku: 'sku',
-    proposalType: 'primary_product_type',
+    proposalType: 'product_classification',
     targetId: REVIEWED_ID,
     value,
     configSnapshotHash: 'cfg',
@@ -56,13 +55,12 @@ function makeSnapshot(facts: ReviewedFact[]): RuntimeClassificationSnapshot {
   return { reviewedFacts: facts } as unknown as RuntimeClassificationSnapshot;
 }
 
-function makeContext(cohortExecutionType?: StageContext['cohortExecutionType']): StageContext {
+function makeContext(): StageContext {
   return {
     workspacePath: '/tmp/ws',
     workspaceId: 'ws',
     configSnapshotRef: { id: 'snap', hash: 'hash', sourceCommit: null, createdAt: '2026-08-01T00:00:00.000Z' },
     runId: 'run',
-    cohortExecutionType,
   };
 }
 
@@ -74,31 +72,24 @@ const EMPTY_INPUT: StageInput = {
 };
 
 describe('resolveEffectiveCurationType', () => {
-  it('prefers the reviewed type when both reviewed and execution ids are present', () => {
-    expect(resolveEffectiveCurationType(REVIEWED_ID, EXECUTION_ID)).toEqual({
+  it('resolves the reviewed own-SKU type', () => {
+    expect(resolveEffectiveCurationType(REVIEWED_ID)).toEqual({
       effectiveTypeId: REVIEWED_ID,
       source: 'reviewed',
     });
   });
 
-  it('lets the reviewed type win even when it differs from the execution type (override precedence)', () => {
-    expect(resolveEffectiveCurationType('dog-treats', 'dry-dog-food')).toEqual({
-      effectiveTypeId: 'dog-treats',
-      source: 'reviewed',
-    });
-  });
-
-  it('falls back to the execution type when no reviewed type exists', () => {
-    expect(resolveEffectiveCurationType(null, EXECUTION_ID)).toEqual({
-      effectiveTypeId: EXECUTION_ID,
-      source: 'execution',
+  it('ignores any execution value — an execution id never fills the result', () => {
+    expect(resolveEffectiveCurationType(null, 'dry-dog-food')).toEqual({
+      effectiveTypeId: null,
+      source: 'none',
     });
   });
 
   it('treats empty-string ids as absent', () => {
-    expect(resolveEffectiveCurationType('', EXECUTION_ID)).toEqual({
-      effectiveTypeId: EXECUTION_ID,
-      source: 'execution',
+    expect(resolveEffectiveCurationType('')).toEqual({
+      effectiveTypeId: null,
+      source: 'none',
     });
     expect(resolveEffectiveCurationType(REVIEWED_ID, '')).toEqual({
       effectiveTypeId: REVIEWED_ID,
@@ -151,9 +142,9 @@ describe('getReviewedTypeFromSnapshot', () => {
 });
 
 describe('getEffectiveCurationProductType', () => {
-  it('matches the pure resolver: reviewed fact wins over the execution type', () => {
+  it('resolves the reviewed fact from the snapshot', () => {
     const input = { ...EMPTY_INPUT };
-    const context = makeContext({ id: EXECUTION_ID, confidence: 0.9, outcome: 'coherent' });
+    const context = makeContext();
     context.snapshot = makeSnapshot([makeTypeFact({ productTypeId: REVIEWED_ID })]);
     expect(getEffectiveCurationProductType(input, context)).toEqual({
       effectiveTypeId: REVIEWED_ID,
@@ -161,17 +152,17 @@ describe('getEffectiveCurationProductType', () => {
     });
   });
 
-  it('matches the pure resolver: execution type used when no reviewed facts exist', () => {
-    const context = makeContext({ id: EXECUTION_ID, confidence: 0.9, outcome: 'coherent' });
+  it('returns none when no reviewed facts exist (no execution fallback)', () => {
+    const context = makeContext();
     context.snapshot = makeSnapshot([]);
     expect(getEffectiveCurationProductType(EMPTY_INPUT, context)).toEqual({
-      effectiveTypeId: EXECUTION_ID,
-      source: 'execution',
+      effectiveTypeId: null,
+      source: 'none',
     });
   });
 
-  it('matches the pure resolver: cohortExecutionType absent behaves exactly like legacy reviewed-only', () => {
-    const context = makeContext(undefined);
+  it('returns none without a snapshot and without reviewed facts', () => {
+    const context = makeContext();
     context.snapshot = makeSnapshot([]);
     expect(getEffectiveCurationProductType(EMPTY_INPUT, context)).toEqual({
       effectiveTypeId: null,
@@ -180,7 +171,7 @@ describe('getEffectiveCurationProductType', () => {
   });
 
   it('honors an in-run accepted proposal through the unchanged reviewed helper', () => {
-    const context = makeContext({ id: EXECUTION_ID, confidence: 0.9, outcome: 'coherent' });
+    const context = makeContext();
     context.snapshot = makeSnapshot([]);
     const input = {
       ...EMPTY_INPUT,
@@ -189,9 +180,9 @@ describe('getEffectiveCurationProductType', () => {
           id: 'acc-1',
           runId: 'run',
           productSku: 'sku',
-          proposalType: 'primary_product_type' as const,
+          proposalType: 'product_classification' as const,
           targetId: 'dog-treats',
-          proposedValue: { productTypeId: 'dog-treats' },
+          proposedValue: { categoryId: 'dog-treats-cat', productTypeId: 'dog-treats' },
           confidence: 1,
           evidenceIds: [],
           status: 'accepted' as const,
@@ -210,22 +201,22 @@ describe('getEffectiveCurationProductType', () => {
 });
 
 describe('getEffectiveCurationTypeForSnapshot', () => {
-  it('resolves the reviewed type from snapshot facts ahead of the execution id', () => {
+  it('resolves the reviewed type from snapshot facts, ignoring any execution id', () => {
     const snapshot = makeSnapshot([makeTypeFact({ productTypeId: REVIEWED_ID })]);
-    expect(getEffectiveCurationTypeForSnapshot(snapshot, EXECUTION_ID)).toEqual({
+    expect(getEffectiveCurationTypeForSnapshot(snapshot, 'dry-dog-food')).toEqual({
       effectiveTypeId: REVIEWED_ID,
       source: 'reviewed',
     });
   });
 
-  it('falls back to the execution id when the snapshot has no reviewed type', () => {
-    expect(getEffectiveCurationTypeForSnapshot(makeSnapshot([]), EXECUTION_ID)).toEqual({
-      effectiveTypeId: EXECUTION_ID,
-      source: 'execution',
+  it('returns none when the snapshot has no reviewed type, even with an execution id', () => {
+    expect(getEffectiveCurationTypeForSnapshot(makeSnapshot([]), 'dry-dog-food')).toEqual({
+      effectiveTypeId: null,
+      source: 'none',
     });
   });
 
-  it('returns none when the snapshot is absent and no execution id exists', () => {
+  it('returns none when the snapshot is absent and no reviewed type exists', () => {
     expect(getEffectiveCurationTypeForSnapshot(undefined, null)).toEqual({
       effectiveTypeId: null,
       source: 'none',

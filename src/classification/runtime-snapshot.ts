@@ -131,6 +131,12 @@ export interface RuntimeClassificationSnapshot {
   focusedFileHashes: Record<string, string>;
   catalogEvidenceHash: string | null;
   productTypes: ClassificationConfig['productTypes'];
+  /**
+   * Canonical Categories frozen for the run (issue #350). V1 configs carry
+   * no categories (empty); v2 bundles carry the approved set. The snapshot
+   * hash covers this field, so old snapshots stay pinned to their authority.
+   */
+  categories: Array<{ id: string; name: string }>;
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
   attributeMappings: ClassificationConfig['attributeMappings'];
@@ -207,6 +213,7 @@ export function computeSnapshotFieldOptions(config: ClassificationConfig): Recor
 function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   config: ClassificationConfig;
   productTypes: ClassificationConfig['productTypes'];
+  categories: Array<{ id: string; name: string }>;
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
   attributeMappings: ClassificationConfig['attributeMappings'];
@@ -221,6 +228,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
     return {
       config,
       productTypes: config.productTypes,
+      categories: [],
       attributes: config.attributes,
       attributeProfiles: config.attributeProfiles,
       attributeMappings: config.attributeMappings,
@@ -235,6 +243,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   return {
     config: bundle as unknown as ClassificationConfig,
     productTypes: bundle.productTypes as unknown as ClassificationConfig['productTypes'],
+    categories: (bundle.categories ?? []).map(category => ({ id: category.id, name: category.name })),
     attributes: bundle.attributes as unknown as ClassificationConfig['attributes'],
     attributeProfiles: bundle.attributeProfiles as unknown as ClassificationConfig['attributeProfiles'],
     attributeMappings: bundle.attributeMappings as unknown as ClassificationConfig['attributeMappings'],
@@ -296,6 +305,7 @@ export function buildRuntimeSnapshot(input: RuntimeSnapshotInput): RuntimeClassi
       authority.kind === 'v2' ? authority.bundle.manifest.catalogEvidenceHash : null
     ),
     productTypes: fields.productTypes,
+    categories: fields.categories,
     attributes: fields.attributes,
     attributeProfiles: fields.attributeProfiles,
     attributeMappings: fields.attributeMappings,

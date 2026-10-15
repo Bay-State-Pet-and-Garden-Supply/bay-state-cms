@@ -8,9 +8,10 @@ export function parseCanaryCorrection(proposal: ClassificationProposal, text: st
   revisedValue: unknown; revisedTargetId?: string;
 } {
   if (!snapshot) throw new Error('A frozen taxonomy/catalog is required to validate a correction.');
+  // ADR 0041: legacy `primary_product_type` rows are history-only — they
+  // cannot be corrected into live authority; restart or reclassify instead.
   if (proposal.proposalType === 'primary_product_type') {
-    if (!snapshot.productTypes.some(type => type.id === text)) throw new Error('Select an existing frozen Product Type ID.');
-    return { revisedValue: { productTypeId: text }, revisedTargetId: text };
+    throw new Error('Legacy Product Type rows are history-only; restart or reclassify to establish canonical authority.');
   }
   if (proposal.proposalType === 'category_page') {
     const pages = snapshot.pages.state === 'verified' ? snapshot.pages.records : [];
@@ -67,7 +68,7 @@ export interface CanaryReviewItem {
 }
 
 const stages = {
-  productType: { proposal: 'primary_product_type', abstention: 'primary_product_type_proposal' },
+  productType: { proposal: 'product_classification', abstention: 'primary_product_type_proposal' },
   attributes: { proposal: 'field_assignment', abstention: 'product_attribute_proposals' },
   pages: { proposal: 'category_page', abstention: 'category_page_proposals' },
 } as const;

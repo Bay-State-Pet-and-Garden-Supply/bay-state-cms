@@ -58,9 +58,7 @@ import type { CoordinatedPageMemberValue } from '../../classification/types';
 export interface CohortCurationTestCheckpoints {
   beforeFinalCas?: () => void;
   onOcrInFlight?: () => void | Promise<void>;
-  onTypeRankerInFlight?: () => void | Promise<void>;
   beforeCasSupersede?: () => void;
-  beforeConflictTerminal?: () => void;
   onPipelineInFlight?: () => void | Promise<void>;
   afterMemberPipeline?: () => void | Promise<void>;
   afterMemberProjectionDependencyInsert?: () => void;
@@ -145,9 +143,7 @@ export function createCohortCuration(options: {
       const finalized = await freezeCohortForExecution(current, workspacePath, workspaceId, {
         beforeFinalCas: testCheckpoints?.beforeFinalCas,
         onOcrInFlight: testCheckpoints?.onOcrInFlight,
-        onTypeRankerInFlight: testCheckpoints?.onTypeRankerInFlight,
         beforeCasSupersede: testCheckpoints?.beforeCasSupersede,
-        beforeConflictTerminal: testCheckpoints?.beforeConflictTerminal,
       });
       if (finalized.status !== 'running') {
         // Freeze conflict / supersession / direct-failure terminal: a

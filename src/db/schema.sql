@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS change_set_items (
   base_json TEXT,
   draft_hash TEXT NOT NULL,
   validation_status TEXT NOT NULL DEFAULT 'unknown',
+  classification_run_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE(change_set_id, sku)
@@ -408,7 +409,7 @@ CREATE TABLE IF NOT EXISTS classification_proposals (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL REFERENCES classification_runs(id) ON DELETE CASCADE,
   product_sku TEXT NOT NULL,
-  proposal_type TEXT NOT NULL CHECK (proposal_type IN ('primary_product_type', 'category_page', 'field_assignment', 'configuration_gap', 'reviewable_abstention')),
+  proposal_type TEXT NOT NULL CHECK (proposal_type IN ('primary_product_type', 'product_classification', 'category_page', 'field_assignment', 'configuration_gap', 'reviewable_abstention')),
   target_id TEXT,
   proposed_value_json TEXT,
   confidence REAL NOT NULL DEFAULT 0 CHECK (confidence >= 0 AND confidence <= 1),

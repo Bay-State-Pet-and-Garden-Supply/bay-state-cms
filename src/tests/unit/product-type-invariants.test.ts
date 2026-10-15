@@ -153,7 +153,7 @@ describe('Product Type Invariants Resolver', () => {
 
     const result = resolveProductTypeInvariants({
       effectiveTypeId: 'dog-food-dry',
-      effectiveTypeSource: 'execution',
+      effectiveTypeSource: 'reviewed',
       gatedTargets: gated,
       productTypes: [dogFoodType],
       evidence: [conflictingEvidence],
@@ -168,7 +168,7 @@ describe('Product Type Invariants Resolver', () => {
     expect(proposal.derivation).toEqual({
       kind: 'product_type_invariant',
       productTypeId: 'dog-food-dry',
-      productTypeSource: 'execution',
+      productTypeSource: 'reviewed',
     });
   });
 

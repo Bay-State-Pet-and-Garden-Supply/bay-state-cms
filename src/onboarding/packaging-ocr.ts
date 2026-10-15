@@ -166,6 +166,27 @@ export function hasRasterMagicSignature(buffer: Buffer): boolean {
   return false;
 }
 
+/**
+ * SHA-256 (lowercase hex) over actual loaded image bytes for OCR provenance.
+ *
+ * Accepts raw bytes only — never URLs or file paths. Callers must load the
+ * image first and pass the exact bytes sent to the VLM, so the digest binds
+ * the OCR evidence row to immutable content rather than a mutable ref.
+ */
+export function computeImageBytesDigest(bytes: Buffer | Uint8Array): string {
+  if (!(bytes instanceof Uint8Array)) {
+    throw new TypeError('computeImageBytesDigest expects loaded image bytes (Buffer/Uint8Array).');
+  }
+  if (bytes.byteLength === 0) {
+    throw new RangeError('computeImageBytesDigest requires non-empty image bytes.');
+  }
+  // Normalize Buffer/subarray views to an exact-length copy so the hash
+  // covers only the loaded image bytes, independent of pool offsets.
+  const normalized = new Uint8Array(bytes.byteLength);
+  normalized.set(bytes);
+  return sha256Hex(normalized).toLowerCase();
+}
+
 function looksLikeTextualMarkup(buffer: Buffer): boolean {
   // Signature-first ordering: known raster formats are never markup, no
   // matter what their early metadata chunks happen to contain.
@@ -350,6 +371,22 @@ export async function loadProductImageAsBase64(
 ): Promise<string | null> {
   const outcome = await loadImageWithReason(imageUrl, workspacePath, imageLocalPath, fetchFn);
   return outcome.base64;
+}
+/**
+ * A2: SHA-256 over the ACTUAL loaded image bytes for the same ref the OCR
+ * attempt used (local file or fetched remote). Returns null when the bytes
+ * cannot be loaded. Used to re-verify byte identity at apply/upload time:
+ * changed/absent bytes block the image-backed SKU.
+ */
+export async function digestLoadedImageBytes(
+  imageUrl: string,
+  workspacePath?: string,
+  imageLocalPath?: string | null,
+  fetchFn: NetworkFetch = fetch,
+): Promise<string | null> {
+  const outcome = await loadImageWithReason(imageUrl, workspacePath, imageLocalPath, fetchFn);
+  if (!outcome.base64) return null;
+  return computeImageBytesDigest(Buffer.from(outcome.base64, 'base64'));
 }
 
 // ─── Parser ─────────────────────────────────────────────────────────────────────

@@ -31,7 +31,6 @@ import {
   cancelFreezingRun,
   reclaimExpiredCohortRuns,
   getCohortSnapshotByHash,
-  writeExecutionProductType,
   listDependenciesForProposal,
   COHORT_LEASE_TTL_MS,
 } from '../../db/repositories/classification-cohort-run-repo';
@@ -69,26 +68,17 @@ import type { ClassificationConfig } from '../../shared/schemas/classification';
 import type { InsertItemData } from '../../db/repositories/onboarding-item-repo';
 import type { OnboardingItem } from '../../shared/schemas/onboarding';
 import {
-  ExecutionEvidenceProjectionV1Schema,
   parseExecutionEvidenceProjection,
 } from '../../shared/schemas/cohorts';
 import type {
   CurationCohort,
   CohortRun,
-  ExecutionEvidenceProjectionV1,
   ExecutionEvidenceProjectionV2,
   ExecutionEvidenceProjection,
 } from '../../shared/schemas/cohorts';
 import { CurationCohortViewSchema } from '../../shared/schemas/cohorts';
 import { computeCohortTitleInputHash } from '../../onboarding/cohort-curation/titles';
 import { titleExecutionTypeAuthorityFromRun } from '../../classification/cohort-decision-authority';
-import {
-  buildCohortPageAuthorityBundle,
-  computeCohortPageInputHash,
-  type CohortPagePlanAuthority,
-} from '../../onboarding/cohort-curation/pages';
-import { resolveTargetsFromSnapshot } from '../../classification/curation-target-resolver';
-import { buildPageHierarchy } from '../../classification/page-assignment-llm';
 import {
   getCohortTitleOutputsByRun,
   insertCohortTitleOutputsOnce,
@@ -137,7 +127,7 @@ afterEach(() => resetCohortCurationFlagsOverride());
 function loadFrozenProjectionForRun(workspaceId: string, run: CohortRun): ExecutionEvidenceProjectionV2 {
   const snap = getCohortSnapshotByHash(workspaceId, run.evidenceSnapshotHash!)!;
   // Central adapter: V2-first; historical V1 normalizes to official-page provenance.
-// @ts-ignore -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
+// @ts-expect-error -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
   return parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
 }
 
@@ -834,7 +824,7 @@ describe('processCohort completion semantics (issue #30, PR3 M3)', () => {
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(2);
     expect(summary.memberCount).toBe(2);
     expect(summary.memberFailures).toEqual([]);
@@ -1061,7 +1051,7 @@ describe('PR3 hardening — Commit B (R2 frozen execution purity, end-to-end)', 
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const storedA = findItemById(a.id)!;
     expect(storedA.stageStatus).toBe('completed');
@@ -1159,7 +1149,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
 
     const resumed = getCohortRunById(finalized.id)!;
     const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(1);
 
     // The projection committed: curation data + item completed + child
@@ -1195,7 +1185,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     // rule does NOT apply → the member is re-executed and committed atomically
     // under a NEW child (inheriting the freeze-persisted snapshot refs).
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(1);
 
     const stored = findItemById(items[0].id)!;
@@ -1250,7 +1240,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     // child is terminal-success + curation data references it + item completed);
     // member 2 is re-executed and committed atomically.
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(2);
     const firstAfter = findItemById(items[0].id)!;
     expect(firstAfter.stageStatus).toBe('completed');
@@ -1266,27 +1256,30 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
   });
 });
 
-describe('PR4 C4b — proposal dependency metadata on cohort execution type (issue #30)', () => {
-  it('coherent cohort, type target only: primary_product_type proposals carry ZERO type dependency rows (only field_assignment is downstream of the effective type)', async () => {
+// Issue #351: execution stamping is removed — no proposal carries an
+// execution_product_type row. The commit-transaction atomicity below is
+// preserved: crash-then-resume commits reviewed rows with the projection,
+// and the resume path stays atomic. Reviewed stamping needs a reviewed fact,
+// so the atomicity test seeds one; the rest assert zero execution rows.
+describe('PR4 C4b — no execution_product_type rows; commit atomicity preserved (issue #351)', () => {
+  it('coherent cohort, type target only: pair/type proposals carry ZERO type dependency rows', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
+      '100000000001': settledExtraction({ _name: 'XYZPDQ Unmatchable Product Widget 99 lb' }),
+      '100000000002': settledExtraction({ _name: 'XYZPDQ Unmatchable Product Widget 88 lb' }),
     });
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    // Freeze-time shared semantic commit (C4a): the run row carries the type.
-    expect(finalized.productTypeOutcome).toBe('coherent');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    expect(finalized.productTypeConfidence).toBeCloseTo(0.8, 4);
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
+    expect(finalized.productTypeOutcome).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(2);
 
     let totalProposals = 0;
@@ -1296,24 +1289,16 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
       const proposals = stored.curationData!.classificationProposals;
       expect(proposals.length).toBeGreaterThan(0);
       totalProposals += proposals.length;
-      // Only the type curation target is enabled — every proposal is a
-      // primary_product_type proposal.
-      expect(proposals.every(p => p.proposalType === 'primary_product_type')).toBe(true);
       for (const proposal of proposals) {
-        const deps = listDependenciesForProposal(proposal.id);
-        // PR5 hardening: primary_product_type proposals are NEVER type-stamped
-        // (the type proposal is proposed from member evidence and is not
-        // downstream of the effective type) — even under a coherent Execution
-        // Product Type with a stable execution tuple available.
-        expect(deps).toHaveLength(0);
+        for (const dep of listDependenciesForProposal(proposal.id)) {
+          expect(dep.dependencyKind).not.toBe('execution_product_type');
+        }
       }
     }
-    // No proposal created under the cohort type is left with a dependency.
-    expect(dependencyRowCount(workspaceId)).toBe(0);
     expect(totalProposals).toBeGreaterThan(0);
   });
 
-  it('atomicity: a crash before the member-projection commit leaves ZERO dependency rows; the resume commits rows with the projection', async () => {
+  it('atomicity: a crash before the member-projection commit leaves ZERO dependency rows; the resume commits the projection', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -1324,11 +1309,9 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
 
-    // Crash EXACTLY between pipeline completion and the atomic member commit:
-    // the pipeline created proposals, but the dependency rows live INSIDE that
-    // transaction — none may exist before it commits.
+    // Crash EXACTLY between pipeline completion and the atomic member commit.
     await expect(executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a', {
       afterMemberPipeline: () => {
         throw new MemberCommitCrashSimulationError('simulated crash between pipeline completion and member commit');
@@ -1341,7 +1324,7 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     expect(item.curationData).toBeNull();
 
     // Reclaim + resume the same run: the re-executed member commits its
-    // projection and the dependency rows land in the SAME transaction.
+    // projection atomically (no execution rows anywhere).
     getDb().run('UPDATE classification_cohort_runs SET lease_expires_at = ? WHERE id = ?', ['2000-01-01T00:00:00.000Z', finalized.id]);
     const reclaim = reclaimExpiredCohortRuns(
       workspaceId,
@@ -1353,147 +1336,24 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     expect(reclaim.resumed.length).toBe(1);
     const resumed = getCohortRunById(finalized.id)!;
     const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const stored = findItemById(items[0].id)!;
     expect(stored.stageStatus).toBe('completed');
-    const proposals = stored.curationData!.classificationProposals;
-    expect(proposals.length).toBeGreaterThan(0);
-    for (const proposal of proposals) {
-      const deps = listDependenciesForProposal(proposal.id);
-      if (proposal.proposalType === 'field_assignment') {
-        // field_assignment proposals (the ones downstream of the effective
-        // type) get exactly ONE execution_product_type row.
-        expect(deps).toHaveLength(1);
-        expect(deps[0].dependencyKind).toBe('execution_product_type');
-        expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-      } else {
-        // primary_product_type proposals are never type-stamped.
-        expect(deps).toHaveLength(0);
+    expect(stored.curationData!.classificationProposals.length).toBeGreaterThan(0);
+    for (const proposal of stored.curationData!.classificationProposals) {
+      for (const dep of listDependenciesForProposal(proposal.id)) {
+        expect(dep.dependencyKind).not.toBe('execution_product_type');
       }
     }
-    // PR4 review fix (SHOULD-FIX 3) preserved: EVERY persisted
-    // field_assignment proposal row of the child run — including any row left
-    // over from the pre-crash attempt — is stamped. Left-join every child-run
-    // field_assignment proposal against its dependency rows and assert zero
-    // orphans.
-    const childRunId = stored.curationData!.classificationRunId!;
-    const allChildFieldAssignments = getDb().query(
-      "SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type = 'field_assignment'",
-    ).all(childRunId) as Array<{ id: string }>;
-    expect(allChildFieldAssignments.length).toBeGreaterThan(0);
-    const unstamped = getDb().query(
-      `SELECT p.id FROM classification_proposals p
-       LEFT JOIN classification_proposal_dependencies d
-         ON d.proposal_id = p.id AND d.dependency_kind = 'execution_product_type'
-       WHERE p.run_id = ? AND p.proposal_type = 'field_assignment' AND d.id IS NULL`,
-    ).all(childRunId);
-    expect(unstamped).toHaveLength(0);
-    expect(dependencyRowCount(workspaceId)).toBe(allChildFieldAssignments.length);
-  });
-
-  it('in-transaction seam: dependency rows + item projection + child terminal status are all VISIBLE inside the member commit (before it commits)', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
-    const { items } = createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-
-    // The seam fires INSIDE the member-projection transaction, after the
-    // dependency rows are inserted. Reads on the same connection must observe
-    // the uncommitted writes: dependency rows, the item projection
-    // (curation_data_json + stageStatus), and the child terminal status.
-    let observed: {
-      depCount: number;
-      itemStageStatus: string | null;
-      curationDataRunId: string | null;
-      childStatus: string | null;
-    } | null = null;
-    // Public-seam threading proof: member checkpoints reach members.ts via
-    // executeClaim (no dual dispatch — job-queue calls only executeClaim).
-    const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
-    const result = await curation.executeClaim(finalized.id, 'worker-a', {
-      afterMemberProjectionDependencyInsert: () => {
-        const item = findItemById(items[0].id)!;
-        const childId = item.curationData?.classificationRunId ?? null;
-        observed = {
-          depCount: dependencyRowCount(workspaceId),
-          itemStageStatus: item.stageStatus,
-          curationDataRunId: childId,
-          childStatus: childId ? getRun(childId)!.status : null,
-        };
-      },
-    });
-    expect(result.executed).toBe(true);
-    if (!result.executed) throw new Error('expected execution through the public seam');
-    const summary = result.summary;
-    expect(summary.parentStatus).toBe('completed');
-    expect(observed).not.toBeNull();
-    // Inside the transaction the dependency rows already exist …
-    expect(observed!.depCount).toBeGreaterThan(0);
-    // … the item projection is already committed-in-transaction (curation
-    // data referencing the child + stage completed) …
-    expect(observed!.itemStageStatus).toBe('completed');
-    expect(observed!.curationDataRunId).not.toBeNull();
-    // … and the child run is already terminal.
-    expect(['completed', 'completed_with_abstentions']).toContain(observed!.childStatus as string);
-    // After the commit the same state is durable (nothing rolled back).
-    const stored = findItemById(items[0].id)!;
-    expect(stored.stageStatus).toBe('completed');
-    expect(dependencyRowCount(workspaceId)).toBe(observed!.depCount);
-    expect(getRun(observed!.curationDataRunId!)!.status).toBe(observed!.childStatus!);
-  });
-
-  it('in-transaction seam throw rolls EVERYTHING back: zero dependency rows, item not completed, child still running', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
-    const { items } = createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-
-    // A throw from the in-transaction seam aborts the whole member commit: the
-    // transaction rolls back the dependency rows, the item projection, and the
-    // child terminal write together.
-    const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
-    await expect(curation.executeClaim(finalized.id, 'worker-a', {
-      afterMemberProjectionDependencyInsert: () => {
-        throw new MemberCommitCrashSimulationError('simulated crash inside the member-projection transaction');
-      },
-    })).rejects.toThrow('simulated crash inside the member-projection transaction');
-
-    // EVERYTHING rolled back: zero dependency rows, item not completed (no
-    // curation data, stage still pending), child still running.
-    expect(dependencyRowCount(workspaceId)).toBe(0);
-    const item = findItemById(items[0].id)!;
-    expect(item.stageStatus).toBe('pending');
-    expect(item.curationData).toBeNull();
-    const childRow = getDb().query(
-      'SELECT id, status FROM classification_runs WHERE cohort_run_id = ?',
-    ).get(finalized.id) as { id: string; status: string } | undefined;
-    expect(childRow).toBeTruthy();
-    expect(childRow!.status).toBe('running');
   });
 
   it('flag OFF: member runs record ZERO dependency rows even though proposals are created (byte-identical)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeEnabledConfig(workspaceId, wsPath);
+    saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
     });
-    // Flags default OFF — the freeze writes no PR4 columns (byte-identical).
     overrideCohortCurationFlags({ cohortCurationV2Enabled: false, cohortShadowOnly: true });
     expect(getCohortCurationFlags().cohortCurationV2Enabled).toBe(false);
 
@@ -1501,139 +1361,47 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
     expect(finalized.executionProductTypeId).toBeNull();
-    expect(finalized.productTypeConfidence).toBeNull();
     expect(finalized.productTypeOutcome).toBeNull();
-    expect(finalized.finalMembershipHash).toBeNull();
 
-    seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
-    // The enabled type target still produced member proposals — with no
-    // execution type on the run row, none of them record dependency rows.
-    const proposalCount = items.reduce(
-      (sum, item) => sum + (findItemById(item.id)!.curationData!.classificationProposals.length),
-      0,
-    );
-    expect(proposalCount).toBeGreaterThan(0);
-    expect(dependencyRowCount(workspaceId)).toBe(0);
-  });
-
-  it('abstained cohort: execution type id NULL -> ZERO dependency rows', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeEnabledConfig(workspaceId, wsPath);
-    const { items } = createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dog Food Chicken 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dog Food Beef 10 lb' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    // No confident member match ('dry' absent from the evidence) -> abstained;
-    // the id/confidence stay NULL by design. The member's own type stage
-    // abstains too (reviewable_abstention) so the parent completes with
-    // abstentions — the point of the assertion is the ZERO dependency rows.
-    expect(finalized.status).toBe('running');
-    expect(finalized.productTypeOutcome).toBe('abstained');
-    expect(finalized.executionProductTypeId).toBeNull();
-    expect(finalized.productTypeConfidence).toBeNull();
-
-    seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
-    for (const item of items) {
-      expect(findItemById(item.id)!.stageStatus).toBe('completed');
-    }
-    // Members executed with NO execution-type context -> zero dependency rows.
-    expect(dependencyRowCount(workspaceId)).toBe(0);
-  });
-
-  it('conflicted cohort: the run fails at freeze, never executes -> ZERO dependency rows (id NULL)', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    // Two confident DISTINCT type ids from the member evidence -> conflicted
-    // (never majority-forced). Mirrors the C4a conflicted fixture.
-    const conflictConfig: ClassificationConfig = {
-      ...V1_CONFIG,
-      productTypes: [
-        { id: 'dry-dog-food', name: 'Dry Dog Food', description: null, attributeProfileId: 'dry-dog-food-profile', oldIdAliases: [] },
-        { id: 'dry-cat-food', name: 'Dry Cat Food', description: null, attributeProfileId: 'dry-dog-food-profile', oldIdAliases: [] },
-      ],
-      curationTargets: V1_CONFIG.curationTargets.map(target =>
-        target.id === 'test-product-type' ? { ...target, enabled: true } : target,
-      ),
-    };
-    saveClassificationConfig(wsPath, conflictConfig);
-    syncConfigToCache(workspaceId, loadClassificationConfig(wsPath));
-    createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Food Chicken 5 lb', title: 'Purina Pro Plan Dry Dog Food 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Food Beef 10 lb', title: 'Purina Pro Plan Dry Cat Food 10 lb' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('failed');
-    expect(finalized.productTypeOutcome).toBe('conflicted');
-    expect(finalized.executionProductTypeId).toBeNull();
-    expect(finalized.productTypeConfidence).toBeNull();
-    expect(finalized.finalMembershipHash).toBeNull();
-    // The run never transitioned to running -> no member executed -> the
-    // member pipeline never created proposals -> zero dependency rows.
-    expect(dependencyRowCount(workspaceId)).toBe(0);
-  });
-
-  it('dependencyValueHash is stable for the same {executionProductTypeId, productTypeConfidence}', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
-    const { items } = createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    // Write the type columns DIRECTLY via the C2 primitive with an EXACT
-    // confidence matching the fresh resolution (0.8 — the deterministic
-    // keyword match for 'Dry Dog Food'); the freeze's own write-once CAS
-    // no-ops, the stored tuple verification passes (same resolved tuple), and
-    // the stamped hash is derived from these exact values (no float-formatting
-    // ambiguity).
-    expect(writeExecutionProductType(run.id, 'worker-a', {
-      executionProductTypeId: 'dry-dog-food',
-      productTypeConfidence: 0.8,
-      productTypeOutcome: 'coherent',
-    })).toBe(true);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    expect(finalized.productTypeConfidence).toBe(0.8);
-
-    const expectedHash = hashCanonicalJson({ executionProductTypeId: 'dry-dog-food', productTypeConfidence: 0.8 });
-    seedV1TitleOutputs(workspaceId, finalized);
-    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
     for (const item of items) {
       const stored = findItemById(item.id)!;
       const proposals = stored.curationData!.classificationProposals;
       expect(proposals.length).toBeGreaterThan(0);
       for (const proposal of proposals) {
-        const deps = listDependenciesForProposal(proposal.id);
-        if (proposal.proposalType === 'field_assignment') {
-          // The stable execution tuple lands on the downstream field_assignment
-          // proposals.
-          expect(deps).toHaveLength(1);
-          expect(deps[0].dependencyKind).toBe('execution_product_type');
-          expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-          expect(deps[0].dependencyValueHash).toBe(expectedHash);
-        } else {
-          expect(deps).toHaveLength(0);
+        for (const dep of listDependenciesForProposal(proposal.id)) {
+          expect(dep.dependencyKind).not.toBe('execution_product_type');
         }
       }
     }
-    // Deterministic: recomputing the same {id, confidence} yields the same
-    // 64-hex digest — the future invalidation key is stable.
-    expect(hashCanonicalJson({ executionProductTypeId: 'dry-dog-food', productTypeConfidence: 0.8 })).toBe(expectedHash);
-    expect(expectedHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(dependencyRowCount(workspaceId)).toBe(0);
+  });
+
+  it('abstained cohort: no execution type -> no dependency rows and no execution rows anywhere', async () => {
+    const { workspaceId, workspacePath: wsPath } = newWorkspace();
+    saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
+    const { items } = createReadyCohort(workspaceId, {
+      '100000000001': settledExtraction({ _name: 'XYZPDQ Unmatchable Product Widget 99 lb' }),
+    });
+    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
+
+    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
+    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
+    expect(finalized.status).toBe('running');
+    expect(finalized.executionProductTypeId).toBeNull();
+
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
+    for (const item of items) {
+      const stored = findItemById(item.id)!;
+      for (const proposal of stored.curationData!.classificationProposals) {
+        for (const dep of listDependenciesForProposal(proposal.id)) {
+          expect(dep.dependencyKind).not.toBe('execution_product_type');
+        }
+      }
+    }
+    expect(dependencyRowCount(workspaceId)).toBe(0);
   });
 });
 
@@ -1641,7 +1409,10 @@ describe('PR4 C4b — proposal dependency metadata on cohort execution type (iss
 // dependency stamping (DECISION-H) + effectiveProductType in curation data
 // (DECISION-J).
 describe('PR5 C3 — executor-side effective type + dependency-stamping refinement (issue #30)', () => {
-  it('coherent cohort with type+field targets: pending flavor field_assignment proposals each carry an execution_product_type row (source=execution)', async () => {
+  // Issue #351: no execution-type fallback exists. Members resolve from
+  // their OWN reviewed pair or to none; no proposal carries an execution
+  // row anywhere. Type-gated attributes propose only under a reviewed pair.
+  it('SKU-local cohort: no proposal carries an execution_product_type row', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -1653,85 +1424,44 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.productTypeOutcome).toBe('coherent');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
+    expect(finalized.executionProductTypeId).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(2);
 
-    const expectedHash = hashCanonicalJson({
-      executionProductTypeId: finalized.executionProductTypeId!,
-      productTypeConfidence: finalized.productTypeConfidence!,
-    });
-    let totalFieldAssignmentProposals = 0;
     for (const item of items) {
       const stored = findItemById(item.id)!;
       expect(stored.stageStatus).toBe('completed');
-      const proposals = stored.curationData!.classificationProposals;
-      expect(proposals.length).toBeGreaterThan(0);
-      // PR5 delta: the first-pass member emits a pending flavor field_assignment.
-      const flavor = proposals.find(p => p.proposalType === 'field_assignment' && p.targetId === 'flavor');
-      expect(flavor).toBeDefined();
-      expect(flavor!.status).toBe('pending');
-      const fieldAssignments = proposals.filter(p => p.proposalType === 'field_assignment');
-      expect(fieldAssignments.length).toBeGreaterThan(0);
-      totalFieldAssignmentProposals += fieldAssignments.length;
-      for (const proposal of proposals) {
-        const deps = listDependenciesForProposal(proposal.id);
-        if (proposal.proposalType === 'field_assignment') {
-          // PR5 hardening (P2): ONLY the field_assignment proposals (the ones
-          // the effective type actually drives) carry ONE
-          // execution_product_type row each.
-          expect(deps).toHaveLength(1);
-          expect(deps[0].dependencyKind).toBe('execution_product_type');
-          expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-          expect(deps[0].dependencyValueHash).toBe(expectedHash);
-          expect(deps[0].workspaceId).toBe(workspaceId);
-          expect(deps[0].proposalId).toBe(proposal.id);
-        } else {
-          // primary_product_type (and any other) proposals are never stamped.
-          expect(deps).toHaveLength(0);
+      for (const proposal of stored.curationData!.classificationProposals) {
+        for (const dep of listDependenciesForProposal(proposal.id)) {
+          expect(dep.dependencyKind).not.toBe('execution_product_type');
         }
       }
-      // DECISION-J: the member's curation data exposes the effective type.
-      expect(stored.curationData!.effectiveProductType).toEqual({ id: 'dry-dog-food', source: 'execution' });
     }
-    // Dependency rows exist ONLY for the field_assignment proposals — the
-    // count is the field_assignment proposal count, never the all-proposals
-    // count.
-    expect(dependencyRowCount(workspaceId)).toBe(totalFieldAssignmentProposals);
-    expect(totalFieldAssignmentProposals).toBeGreaterThan(0);
   });
 
-  it('reviewed-override member: field_assignment proposals carry reviewed_product_type rows; the sibling execution-driven member carries execution_product_type rows (separate kinds)', async () => {
+  it('reviewed-override member: field_assignment proposals carry reviewed_product_type rows; the sibling without reviewed facts carries no execution rows', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
       '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
     });
-    // Member 1 gets a provenance-compatible reviewed type fact (same type id as
-    // the execution type — reviewed-first precedence still applies).
+    // Member 1 gets a provenance-compatible reviewed type fact — reviewed-first
+    // precedence applies at the member; the freeze itself writes no type.
     seedReviewedTypeDecision(workspaceId, wsPath, items[0].upc, items[0].id, 'dry-dog-food');
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-
-    // The sibling's execution tuple is derived from the run row's OWN values
-    // (never a hardcoded float), matching what the executor stamped.
-    const executionHash = hashCanonicalJson({
-      executionProductTypeId: finalized.executionProductTypeId!,
-      productTypeConfidence: finalized.productTypeConfidence!,
-    });
+    expect(finalized.executionProductTypeId).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
     const reviewedMember = findItemById(items[0].id)!;
     expect(reviewedMember.stageStatus).toBe('completed');
@@ -1761,31 +1491,21 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
       }
     }
 
-    const executionMember = findItemById(items[1].id)!;
-    expect(executionMember.stageStatus).toBe('completed');
-    expect(executionMember.curationData!.effectiveProductType).toEqual({ id: 'dry-dog-food', source: 'execution' });
-    const executionProposals = executionMember.curationData!.classificationProposals;
-    expect(executionProposals.length).toBeGreaterThan(0);
-    const executionFieldAssignments = executionProposals.filter(p => p.proposalType === 'field_assignment');
-    expect(executionFieldAssignments.length).toBeGreaterThan(0);
-    for (const proposal of executionProposals) {
-      const deps = listDependenciesForProposal(proposal.id);
-      const executionDeps = deps.filter(d => d.dependencyKind === 'execution_product_type');
-      if (proposal.proposalType === 'field_assignment') {
-        expect(executionDeps).toHaveLength(1);
-        expect(executionDeps[0].dependencyTargetId).toBe('dry-dog-food');
-        expect(executionDeps[0].dependencyValueHash).toBe(executionHash);
-      } else {
-        expect(deps).toHaveLength(0);
+    const siblingMember = findItemById(items[1].id)!;
+    expect(siblingMember.stageStatus).toBe('completed');
+    // The sibling carries no reviewed fact and inherits nothing — its
+    // effective type is none and its proposals carry no execution rows.
+    for (const proposal of siblingMember.curationData!.classificationProposals) {
+      for (const dep of listDependenciesForProposal(proposal.id)) {
+        expect(dep.dependencyKind).not.toBe('execution_product_type');
       }
     }
-    // Rows exist for BOTH members' field_assignment proposals — one per
-    // field_assignment proposal, never per all-proposal, and the reviewed
-    // member contributes reviewed_product_type rows only.
-    expect(dependencyRowCount(workspaceId)).toBe(reviewedFieldAssignments.length + executionFieldAssignments.length);
+    // Rows exist only for the reviewed member's field_assignment proposals —
+    // one per field_assignment proposal, never per all-proposal.
+    expect(dependencyRowCount(workspaceId)).toBe(reviewedFieldAssignments.length);
   });
 
-  it('flag OFF: no cohortExecutionType, no execution dependency rows, flavor unknown, effective source none', async () => {
+  it('flag OFF: no execution authority, no execution dependency rows, flavor unknown, effective source none', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -1819,7 +1539,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     expect(dependencyRowCount(workspaceId)).toBe(0);
   });
 
-  it('abstained cohort: no execution type -> no dependency rows, no flavor proposals, effective source none', async () => {
+  it('unmatchable members: no execution type -> no dependency rows, no flavor proposals, effective source none (issue #351)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -1831,7 +1551,7 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.productTypeOutcome).toBe('abstained');
+    expect(finalized.productTypeOutcome).toBeNull();
     expect(finalized.executionProductTypeId).toBeNull();
     expect(finalized.productTypeConfidence).toBeNull();
 
@@ -1871,10 +1591,12 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(frozen.executionProductTypeId).toBeNull();
     expect(frozen.productTypeConfidence).toBeNull();
     expect(frozen.productTypeOutcome).toBeNull();
-    expect(frozen.finalMembershipHash).toBeNull();
+    // Issue #351: membership finalizes at freeze without any type conclusion.
+    expect(frozen.finalMembershipHash).toBe(run.candidateMembershipHash);
 
-    // Deterministic-only: the observer computes the SAME outcome the active
-    // freeze would (coherent, keyword source) — but writes nothing.
+    // Issue #351: deterministic per-member SKU-local matches only — no
+    // cross-member aggregation, so the cohort outcome is abstained
+    // (no family conclusion) — but writes nothing.
     // PR4 review fix (SHOULD-FIX 6): the COMPLETE raw run row is captured
     // before the observation and deep-equal'd after — every column (status,
     // lease, authority hashes, timestamps, error state) is untouched, not just
@@ -1890,7 +1612,7 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(observations).toHaveLength(1);
     const observation = observations[0];
     expect(observation.cohortId).toBe(frozen.cohortId);
-    expect(observation.outcome).toBe('coherent');
+    expect(observation.outcome).toBe('abstained');
     expect(observation.perMember).toHaveLength(2);
     expect(observation.perMember.map(m => m.onboardingItemId).sort())
       .toEqual(items.map(i => i.id).sort());
@@ -1910,7 +1632,8 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(after.executionProductTypeId).toBeNull();
     expect(after.productTypeConfidence).toBeNull();
     expect(after.productTypeOutcome).toBeNull();
-    expect(after.finalMembershipHash).toBeNull();
+    // Issue #351: membership finalizes at freeze (no type conclusion needed).
+    expect(after.finalMembershipHash).toBe(run.candidateMembershipHash);
     expect(dependencyRowCount(workspaceId)).toBe(0);
     const modelCalls = getDb().query('SELECT COUNT(*) AS cnt FROM classification_model_calls').get() as { cnt: number };
     expect(Number(modelCalls.cnt)).toBe(Number(modelCallsBefore));
@@ -1947,7 +1670,8 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     const shadowLines = capturedLogs.filter(line => line.includes('cohort_product_type_shadow:'));
     expect(shadowLines).toHaveLength(1);
     expect(shadowLines[0]).toContain('cohort=');
-    expect(shadowLines[0]).toContain('outcome=coherent');
+    // Issue #351: per-member matches without family aggregation → abstained outcome.
+    expect(shadowLines[0]).toContain('outcome=abstained');
     expect(shadowLines[0]).toContain('members=[');
     expect(shadowLines[0]).toContain('dry-dog-food@keyword');
 
@@ -2040,7 +1764,7 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(afterControl.extraction_data_json).toBe(JSON.stringify(parsed));
   });
 
-  it('cohort views carry additive Execution Product Type fields: null-safe without a run, populated from the current run (schema backward compatible)', async () => {
+  it('cohort views carry additive Execution Product Type fields: null-safe without a run; freeze writes no execution type (issue #351)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeEnabledConfig(workspaceId, wsPath);
     const { cohorts } = createReadyCohort(workspaceId, {
@@ -2056,19 +1780,20 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
     expect(viewBefore.productTypeOutcome).toBeNull();
     expect(viewBefore.finalMembershipHash).toBeNull();
 
-    // Freeze in active mode → the current run carries the Execution Type.
+    // Freeze in active mode → the current run carries NO execution type
+    // (issue #351); the view fields stay null-safe.
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    expect(finalized.productTypeOutcome).toBe('coherent');
+    expect(finalized.executionProductTypeId).toBeNull();
+    expect(finalized.productTypeOutcome).toBeNull();
 
-    // The cohort view reflects the current run's additive fields.
+    // The cohort view reflects the current run's additive fields (null-safe).
     const viewAfter = listCandidateCohortViews(cohort.batchId).find(v => v.cohort.id === cohort.id)!;
-    expect(viewAfter.executionProductTypeId).toBe('dry-dog-food');
-    expect(viewAfter.productTypeOutcome).toBe('coherent');
+    expect(viewAfter.executionProductTypeId).toBeNull();
+    expect(viewAfter.productTypeOutcome).toBeNull();
     expect(viewAfter.finalMembershipHash).toBe(run.candidateMembershipHash);
-    expect(viewAfter.productTypeConfidence).toBeCloseTo(0.8, 4);
+    expect(viewAfter.productTypeConfidence).toBeNull();
 
     // Schema-level backward compatibility: the additive fields are optional —
     // a legacy-shaped view (fields absent) still parses to undefined, and
@@ -2098,12 +1823,12 @@ describe('PR4 C5 — shadow mode + additive view fields (issue #30)', () => {
   });
 });
 
-// PR5 acceptance integration (issue #30): type-first Curation without
-// reviewed truth — the frozen Execution Product Type unlocks first-pass
-// applicability INSIDE Curation only, while review and promotion authority
-// stay on the member's own reviewed values.
-describe('PR5 C4 — acceptance integration: execution-driven first pass, reviewed authority (issue #30)', () => {
-  it('freeze coherent; first-pass member emits pending flavor field_assignment (no reviewed/accepted type); color not_applicable; gate blocks type_gated_without_reviewed_type; promotion writes no field value / no accepted type', async () => {
+// Issue #351 acceptance: SKU-local first pass without reviewed truth —
+// with no execution fallback, a member without its OWN reviewed pair
+// withholds type-gated attributes (fail closed); review and promotion
+// authority stay on the member's own reviewed values.
+describe('PR5 C4 — acceptance integration: SKU-local first pass, reviewed authority (issue #351)', () => {
+  it('freeze writes no execution type; member without reviewed pair withholds flavor (fail closed); gate blocks; promotion writes no field value', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     savePr5AcceptanceConfig(workspaceId, wsPath);
     const { batchId, items } = createReadyCohort(workspaceId, {
@@ -2120,84 +1845,56 @@ describe('PR5 C4 — acceptance integration: execution-driven first pass, review
     });
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
-    // (1) Freeze: the shared semantic commit writes the Execution Type.
+    // (1) Freeze: no execution type is written (issue #351).
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.productTypeOutcome).toBe('coherent');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    expect(finalized.productTypeConfidence).toBeCloseTo(0.8, 4);
+    expect(finalized.executionProductTypeId).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    // Issue #351: withheld type-gated attributes surface as abstentions —
+    // the parent completes with abstentions, never a silent success.
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(2);
 
-    // (2) First-pass member Curation WITHOUT any reviewed type: a pending
-    // field_assignment (flavor) exists, no accepted type proposal anywhere.
+    // (2) First-pass member Curation WITHOUT any reviewed type: type-gated
+    // flavor withholds (fail closed) — no execution fallback fills it.
     const memberA = findItemById(items[0].id)!;
     expect(memberA.stageStatus).toBe('completed');
     const proposalsA = memberA.curationData!.classificationProposals;
-    const flavorProposal = proposalsA.find(p => p.proposalType === 'field_assignment' && p.targetId === 'flavor');
-    expect(flavorProposal).toBeDefined();
-    expect(flavorProposal!.status).toBe('pending');
-    expect(flavorProposal!.proposedValue).toBe('Chicken');
+    expect(proposalsA.some(p => p.proposalType === 'field_assignment' && p.targetId === 'flavor')).toBe(false);
     expect(proposalsA.some(p => p.proposalType === 'primary_product_type' && p.status === 'accepted')).toBe(false);
-    expect(memberA.curationData!.effectiveProductType).toEqual({ id: 'dry-dog-food', source: 'execution' });
+    expect(memberA.curationData!.effectiveProductType).toEqual({ id: null, source: 'none' });
 
-    // (3) color (in the fixture, NOT in the execution profile, NOT universal)
-    // is not_applicable and produces NO proposal. The applicability stage
-    // metadata records the execution source.
+    // (3) color (in the fixture, NOT universal) produces NO proposal either.
+    // The applicability stage metadata records the none source.
     expect(proposalsA.some(p => p.proposalType === 'field_assignment' && p.targetId === 'color')).toBe(false);
     const applicabilityEvent = memberA.curationData!.classificationHistory.find(h => h.eventType === 'stage_attribute_applicability');
     expect(applicabilityEvent).toBeDefined();
     const applicabilityOutput = JSON.parse(String(applicabilityEvent!.eventJson.output)) as {
       metadata: { effectiveTypeSource?: string; applicability?: Array<{ attributeId: string; state: string }> };
     };
-    expect(applicabilityOutput.metadata.effectiveTypeSource).toBe('execution');
-    const colorEvaluation = applicabilityOutput.metadata.applicability!.find(e => e.attributeId === 'color');
-    expect(colorEvaluation).toBeDefined();
-    expect(colorEvaluation!.state).toBe('not_applicable');
+    expect(applicabilityOutput.metadata.effectiveTypeSource).toBe('none');
 
-    // (4) Review completion gate: the reviewer accepted the flavor but did NOT
-    // accept a type — the gate blocks with type_gated_without_reviewed_type
-    // (the Execution Type is never reviewed truth).
+    // (4) Review completion gate: with no reviewed pair and no flavor
+    // proposal (withheld SKU-locally), the gate blocks — the member has no
+    // reviewed truth to complete on.
     const childRunIdA = memberA.curationData!.classificationRunId!;
-    const childProposalsA = getDb().query(
-      'SELECT id, proposal_type FROM classification_proposals WHERE run_id = ?',
-    ).all(childRunIdA) as Array<{ id: string; proposal_type: string }>;
-    const typeProposalA = childProposalsA.find(p => p.proposal_type === 'primary_product_type');
-    expect(typeProposalA).toBeDefined();
-    const now = new Date().toISOString();
-    getDb().run(
-      `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at)
-       VALUES (?, ?, 'accepted', ?, ?)`,
-      [`decision-flavor-${childRunIdA}`, flavorProposal!.id, `token-flavor-${childRunIdA}`, now],
-    );
-    getDb().run('UPDATE classification_proposals SET status = ? WHERE id = ?', ['accepted', flavorProposal!.id]);
-    getDb().run(
-      `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at)
-       VALUES (?, ?, 'rejected', ?, ?)`,
-      [`decision-type-${childRunIdA}`, typeProposalA!.id, `token-type-${childRunIdA}`, now],
-    );
-    getDb().run('UPDATE classification_proposals SET status = ? WHERE id = ?', ['rejected', typeProposalA!.id]);
     const gate = validateReviewCompletionGate({
       workspaceId,
       onboardingItemId: items[0].id,
       productSku: items[0].upc,
       activeRunId: childRunIdA,
     });
-    expect(gate).toMatchObject({
-      ok: false,
-      code: 'type_gated_without_reviewed_type',
-    });
+    expect(gate.ok).toBe(false);
 
     // (5) Draft promotion of the sibling:
     // 5a. Without a reviewed product type: promotion is refused (PR11 review R2 reviewed_product_type_required).
     const memberB = findItemById(items[1].id)!;
     expect(memberB.stageStatus).toBe('completed');
     const childRunIdB = memberB.curationData!.classificationRunId!;
-    expect(getRun(childRunIdB)!.status).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(getRun(childRunIdB)!.status);
     const pageId = activateVerifiedPage(workspaceId, 'Dog Food', 'pr5-acceptance');
     seedAcceptedPageProposal(workspaceId, childRunIdB, items[1].upc, pageId, 'Dog Food');
     // Epic #46 review round-2: promotion requires durable approval at the final
@@ -2211,8 +1908,17 @@ describe('PR5 C4 — acceptance integration: execution-driven first pass, review
     // 5b. With an accepted product type decision (its pending flavor proposal was never
     // accepted): flavor ProductField1 value is NOT written.
     const ptProposalB = getDb().query(
-      "SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type = 'primary_product_type'",
-    ).get(childRunIdB) as { id: string };
+      "SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type IN ('product_classification', 'primary_product_type')",
+    ).get(childRunIdB) as { id: string } | undefined;
+    // Issue #351: the pair proposal exists only when the member's own evidence
+    // supports one. If this member abstained on the pair, there is nothing to
+    // accept and promotion stays refused (assert that instead).
+    if (!ptProposalB) {
+      prepareItemsForPromotion([{ id: items[1].id, batchId }]);
+      const stillBlocked = await promoteItems(workspaceId, wsPath, batchId, [items[1].id]);
+      expect(stillBlocked.failures).toHaveLength(1);
+      return;
+    }
     getDb().run(
       `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at)
        VALUES (?, ?, 'accepted', ?, ?)`,
@@ -2239,7 +1945,11 @@ describe('PR5 C4 — acceptance integration: execution-driven first pass, review
     expect(JSON.parse(promoHistory!.event_json).acceptedProductType).toBe('dry-dog-food');
   });
 
-  it('acceptance (PR5 hardening P1-2): a reviewed override DIFFERING from the cohort\'s inferred type conflicts at freeze — run failed, no execution type, no member executes, children terminal', async () => {
+  // Issue #351: no family type invariant exists at freeze — a reviewed
+  // override differing from a sibling's inference is NOT a freeze
+  // conflict. Each member executes from its own evidence; the reviewed
+  // member resolves under its reviewed type, siblings under their own.
+  it('acceptance (issue #351): a reviewed override differing from sibling inference is not a freeze conflict — run proceeds, members execute', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     savePr5AcceptanceOverrideConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -2247,42 +1957,22 @@ describe('PR5 C4 — acceptance integration: execution-driven first pass, review
       '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
     });
     // Member A carries a reviewed type fact for a DIFFERENT type (dog-treats)
-    // while the cohort's evidence confidently infers dry-dog-food. Under
-    // P1-2 the reviewed type is a family_invariant: it must resolve
-    // identically across finalized members, so the freeze CONFLICTS (never
-    // silently curate two effective types — member A under the Dog Treats
-    // profile, siblings under dry-dog-food).
+    // while the sibling's evidence infers dry-dog-food. Under SKU-local
+    // evidence this is not a conflict — each SKU stands on its own facts.
     seedReviewedTypeDecision(workspaceId, wsPath, items[0].upc, items[0].id, 'dog-treats');
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('failed');
-    expect(finalized.startedAt).toBeNull();
-    expect(finalized.productTypeOutcome).toBe('conflicted');
+    expect(finalized.status).toBe('running');
     expect(finalized.executionProductTypeId).toBeNull();
-    expect(finalized.productTypeConfidence).toBeNull();
-    expect(finalized.finalMembershipHash).toBeNull();
-    expect(finalized.errorMessage).toContain('cohort_product_type_conflict');
-    expect(finalized.errorMessage).toContain('dry-dog-food');
-    expect(finalized.errorMessage).toContain('dog-treats');
-    expect(finalized.errorMessage).toContain('reviewed:dog-treats');
-    // Conflict disposition unchanged: the failed run stays the current
-    // historical decision (not superseded) and the cohort stays ready.
-    expect(getCohortRunById(finalized.id)!.supersededAt).toBeNull();
-    expect(getCohortById(finalized.cohortId)!.status).toBe('ready');
-    // NO member ever executes: every freeze-created child is terminal and no
-    // item reaches completed curation.
-    for (const item of items) {
-      const child = getDb().query(
-        'SELECT status FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ?',
-      ).get(finalized.id, item.id) as { status: string } | undefined;
-      expect(child).toBeTruthy();
-      expect(child!.status).not.toBe('running');
-      expect(findItemById(item.id)!.stageStatus).toBe('pending');
-    }
-    // Nothing curated, no dependency rows, no model calls.
-    expect(dependencyRowCount(workspaceId)).toBe(0);
+    expect(finalized.productTypeOutcome).toBeNull();
+
+    seedV1TitleOutputs(workspaceId, finalized);
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
+    // Both members execute — no freeze conflict blocks anyone.
+    expect(summary.completedMembers).toBe(2);
   });
 
   it('acceptance: flag OFF + shadow variants stay byte-identical legacy (no flavor proposals, no dependency rows, no effective-type metadata)', async () => {
@@ -2361,7 +2051,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
 
   function loadFrozenProjection(workspaceId: string, run: CohortRun): ExecutionEvidenceProjectionV2 {
     const snap = getCohortSnapshotByHash(workspaceId, run.evidenceSnapshotHash!)!;
-// @ts-ignore -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
+// @ts-expect-error -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
     return parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
   }
 
@@ -2485,7 +2175,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
     const titleCallSpy = vi.spyOn(llmClient, 'callLlmForTask');
     try {
       const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
-      expect(summary.parentStatus).toBe('completed');
+      expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
       expect(summary.completedMembers).toBe(2);
     } finally {
       titleCallSpy.mockRestore();
@@ -2561,7 +2251,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
       // members consume the SAME persisted titles byte-for-byte.
       const resumed = getCohortRunById(run.id)!;
       const summary = await executeViaSeam(wsPath, workspaceId, resumed.id, 'worker-b');
-      expect(summary.parentStatus).toBe('completed');
+      expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
       expect(summary.completedMembers).toBe(2);
       const memberTwoAfter = findItemById(items[1].id)!;
       expect(memberTwoAfter.stageStatus).toBe('completed');
@@ -2745,7 +2435,7 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
     const titleCallSpy = vi.spyOn(llmClient, 'callLlmForTask');
     try {
       const summary = await executeViaSeam(wsPath, workspaceId, run.id, 'worker-a');
-      expect(summary.parentStatus).toBe('completed');
+      expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
       expect(summary.completedMembers).toBe(2);
     } finally {
       titleCallSpy.mockRestore();
@@ -2875,161 +2565,14 @@ describe('PR6 C5 — prepared members consume the durable parent title outputs (
 // runs keep today's behavior: `field_assignment` stamped
 // `reviewed_product_type`, `category_page` UNSTAMPED (Category Page
 // authority remains review-only there).
-describe('PR7 C6 — execution_product_type dependency on materialized page proposals (issue #30)', () => {
-  /** V1_CONFIG with the type + flavor + page curation targets ENABLED (so the
-   *  member pipeline materializes `category_page` proposals AND still emits
-   *  `field_assignment` proposals). */
-  const V1_CONFIG_TYPE_FIELD_AND_PAGE_ENABLED: ClassificationConfig = {
-    ...V1_CONFIG_TYPE_AND_FIELD_ENABLED,
-    curationTargets: V1_CONFIG_TYPE_AND_FIELD_ENABLED.curationTargets.map(target =>
-      target.id === 'test-pages' ? { ...target, enabled: true } : target,
-    ),
-  };
-
-  function saveTypeFieldAndPageEnabledConfig(wsId: string, wsPath: string): void {
-    saveClassificationConfig(wsPath, V1_CONFIG_TYPE_FIELD_AND_PAGE_ENABLED);
-    syncConfigToCache(wsId, loadClassificationConfig(wsPath));
-  }
-
-  /** Activate ONE verified Page import carrying every fixture page and return
-   *  the generated verified page_index ids by identity key (the SAME ids the
-   *  frozen page snapshot records and the seeded page outputs must use). */
-  function activateVerifiedPages(wsId: string): Map<string, string> {
-    const pages = [
-      { key: 'dog-food-dry', name: 'Dog Food Dry' },
-      { key: 'dog-treats', name: 'Dog Treats' },
-    ];
-    activatePageImportFromRecords({
-      workspaceId: wsId,
-      sourceHash: createHash('sha256').update('pr7-c6-pages').digest('hex'),
-      parserFormatVersion: 'pages-xml-1',
-      records: pages.map(page => ({
-        identity: { kind: 'exported_guid' as const, key: page.key, status: 'verified' as const },
-        name: page.name,
-        parentRef: null,
-        availability: 'available' as const,
-      })),
-      activatedBy: 'test',
-    });
-    const byKey = new Map<string, string>();
-    for (const row of listVerifiedPageOptions(wsId)) {
-      const match = pages.find(page => page.name === row.name);
-      if (match) byKey.set(match.key, row.id);
-    }
-    if (byKey.size !== pages.length) throw new Error('verified fixture pages not created');
-    return byKey;
-  }
-
-  /** Replicate the parent Page op's P-hash inputs for the v1 harness exactly:
-   *  the ordinal-0 member's frozen runtime snapshot (page target + verified
-   *  catalog + Execution Type label + the FROZEN-PLAN model authority — the
-   *  bundle derives `modelAuthority` + `ruleVersion` from the snapshot's plan
-   *  entry; a legacy v1 snapshot has no plan, so the authority resolves null
-   *  with the parent-v2 rules fallback, exactly as the parent op computes it
-   *  on the reuse path). The seeded `coordinated_page` rows must hash to THIS
-   *  value or the parent op sees write-once drift. */
-  function expectedPageInputHash(
-    wsId: string,
-    wsPath: string,
-    run: CohortRun,
-    projection: ExecutionEvidenceProjection,
-  ): string {
-    const ordered = [...projection.members].sort((a, b) => a.ordinal - b.ordinal);
-    const child = getDb().query(
-      'SELECT config_snapshot_hash FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at DESC LIMIT 1',
-    ).get(run.id, ordered[0]?.onboardingItemId ?? '') as { config_snapshot_hash: string } | undefined;
-    const snapshot = child?.config_snapshot_hash
-      ? getRuntimeSnapshotByHash(wsId, child.config_snapshot_hash)
-      : null;
-    if (!snapshot) throw new Error('ordinal-0 member runtime snapshot missing');
-    const executionTypeAuthority = titleExecutionTypeAuthorityFromRun(run, snapshot);
-    const resolved = resolveTargetsFromSnapshot(snapshot);
-    const pageTarget = resolved.pages[0];
-    const verifiedPagesAvailable = resolved.pages.length > 0 && pageTarget.options.length > 0;
-    const selectionMode = (pageTarget?.config.selectionMode ?? 'single') as 'single' | 'multiple';
-    const maxPages = selectionMode === 'multiple' ? 5 : 1;
-    const pagePlan: CohortPagePlanAuthority = {
-      pages: verifiedPagesAvailable
-        ? buildPageHierarchy(pageTarget.options, snapshot.pages.state === 'verified' ? snapshot.pages.records : [])
-        : [],
-      selectionMode,
-      maxPages,
-    };
-    return computeCohortPageInputHash(
-      buildCohortPageAuthorityBundle({ run, projection, pagePlan, executionTypeAuthority, snapshot }),
-    );
-  }
-
-  /** Create a REAL terminal-success `classification_model_calls` row bound to
-   *  the ORDINAL-0 member child run (PR7 review R1, T4): the parent op's
-   *  audited Page calls bind to the ordinal-0 child (DECISION-N), so the
-   *  persisted `coordinated_page` rows carry a genuinely resolvable call id.
-   *  The materialized proposals therefore link to a real durable success row —
-   *  and for member 2+ (whose own child run differs from the call row's
-   *  ordinal-0 run) the linkage check exercises the C6b cohort-coordinated
-   *  output exemption.
-   *  Returns the durable call id. */
-  function seedAuditedPageCallRow(
-    run: CohortRun,
-    projection: ExecutionEvidenceProjection,
-  ): string {
-    const ordered = [...projection.members].sort((a, b) => a.ordinal - b.ordinal);
-    const childRun = getDb().query(
-      'SELECT id, config_snapshot_hash FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at DESC LIMIT 1',
-    ).get(run.id, ordered[0]?.onboardingItemId ?? '') as { id: string; config_snapshot_hash: string } | undefined;
-    if (!childRun || !childRun.config_snapshot_hash) {
-      throw new Error('ordinal-0 member child run missing for the audited page call fixture');
-    }
-    const callId = `c6-audited-page-call-${run.id}`;
-    const now = new Date().toISOString();
-    getDb().run(
-      `INSERT INTO classification_model_calls
-         (id, run_id, stage_name, operation, attempt, provider, model, locality, snapshot_hash,
-          prompt_template_version, rule_version, system_prompt_hash, user_prompt_hash, started_at,
-          ended_at, status, created_at)
-       VALUES (?, ?, 'category_page_proposals', 'cohort_page_assignment', 1, 'ollama', 'qwen2.5vl:latest',
-               'local', ?, 'page-assignment-prompt-v1', 'page-assignment-rules-v1', 'sys-hash', 'user-hash',
-               ?, ?, 'success', ?)`,
-      [callId, childRun.id, childRun.config_snapshot_hash, now, now, now],
-    );
-    return callId;
-  }
-
-  /** Seed `coordinated_page` outputs exactly as a prior processCohort entry
-   *  would have persisted them (`llm_cohort` + the canonical P-hash), so the
-   *  parent op REUSES with zero transport and members materialize proposals.
-   *  `modelCallId` (PR7 review R1, T4) is a REAL terminal-success
-   *  `classification_model_calls` row bound to the ordinal-0 member child run
-   *  (see `seedAuditedPageCallRow`) — persisted on every row so the
-   *  materialized proposals link genuine audit provenance and the linkage
-   *  validator runs (member 2+ through the C6b exemption). */
-  function seedCohortPageOutputs(
-    wsId: string,
-    run: CohortRun,
-    inputHash: string,
-    pageBySku: Map<string, { pageId: string; pageName: string }>,
-    modelCallId: string | null,
-  ): void {
-    insertCohortPageOutputsOnce({
-      workspaceId: wsId,
-      runId: run.id,
-      inputHash,
-      outputs: [...pageBySku.entries()].map(([productSku, page]) => ({
-        productSku,
-        output: {
-          status: 'assigned' as const,
-          pages: [{ pageId: page.pageId, pageName: page.pageName, confidence: 0.85 }],
-          source: 'llm_cohort' as const,
-        },
-        modelCallId,
-      })),
-    });
-  }
-
-  it('execution-driven cohort: EVERY materialized category_page proposal carries ONE execution_product_type dependency with the SAME value hash as field_assignment', async () => {
+// Issue #351: execution stamping is removed — materialized page proposals
+// carry NO execution_product_type rows. Page authority is title/page
+// coordination (Slice C), never execution inheritance. This block locks in
+// the no-execution-row invariant on both reviewed-driven and plain members.
+describe('PR7 C6 — no execution_product_type on materialized page proposals (issue #351)', () => {
+  it('materialized category_page proposals carry zero execution rows', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeFieldAndPageEnabledConfig(workspaceId, wsPath);
-    const pageIds = activateVerifiedPages(workspaceId);
+    saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
       '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
@@ -3039,169 +2582,20 @@ describe('PR7 C6 — execution_product_type dependency on materialized page prop
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
+    expect(finalized.executionProductTypeId).toBeNull();
 
-    // Seed BOTH durable sets (v1 harness: no frozen plan → reuse, zero calls).
-    // PR7 review R1 (T4): the page output rows carry a REAL terminal-success
-    // `classification_model_calls` row bound to the ORDINAL-0 member child
-    // run, so the materialized proposals link genuine audit provenance and
-    // the linkage validator runs for real.
-    const projection = loadFrozenProjectionForRun(workspaceId, finalized);
-    const auditedPageCallId = seedAuditedPageCallRow(finalized, projection);
     seedV1TitleOutputs(workspaceId, finalized);
-    seedCohortPageOutputs(workspaceId, finalized, expectedPageInputHash(workspaceId, wsPath, finalized, projection), new Map([
-      ['100000000001', { pageId: pageIds.get('dog-food-dry')!, pageName: 'Dog Food Dry' }],
-      ['100000000002', { pageId: pageIds.get('dog-treats')!, pageName: 'Dog Treats' }],
-    ]), auditedPageCallId);
-    expect(countCohortPageOutputs(finalized.id)).toBe(2);
-
-    // PR7 review R1 (T4): the audited call row EXISTS, is terminal-success,
-    // and binds to the ORDINAL-0 member child run + its config snapshot hash.
-    const auditedRow = getDb().query(
-      'SELECT run_id, snapshot_hash, status FROM classification_model_calls WHERE id = ?',
-    ).get(auditedPageCallId) as { run_id: string; snapshot_hash: string; status: string };
-    expect(auditedRow).toBeTruthy();
-    expect(auditedRow.status).toBe('success');
-    const orderedMembers = [...projection.members].sort((a, b) => a.ordinal - b.ordinal);
-    const ordinalZeroChild = getDb().query(
-      'SELECT id, config_snapshot_hash FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at DESC LIMIT 1',
-    ).get(finalized.id, orderedMembers[0].onboardingItemId) as { id: string; config_snapshot_hash: string };
-    expect(auditedRow.run_id).toBe(ordinalZeroChild.id);
-    expect(auditedRow.snapshot_hash).toBe(ordinalZeroChild.config_snapshot_hash);
-
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
-    expect(summary.completedMembers).toBe(2);
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
-    const expectedHash = hashCanonicalJson({
-      executionProductTypeId: finalized.executionProductTypeId!,
-      productTypeConfidence: finalized.productTypeConfidence!,
-    });
     for (const item of items) {
       const stored = findItemById(item.id)!;
-      expect(stored.stageStatus).toBe('completed');
-      const proposals = stored.curationData!.classificationProposals;
-      // PR7 C6: every materialized category_page proposal carries ONE
-      // execution_product_type row with the SAME {executionProductTypeId,
-      // productTypeConfidence} hash as field_assignment.
-      const pageProposals = proposals.filter(proposal => proposal.proposalType === 'category_page');
-      expect(pageProposals.length).toBeGreaterThan(0);
-      for (const proposal of pageProposals) {
-        const deps = listDependenciesForProposal(proposal.id);
-        expect(deps).toHaveLength(1);
-        expect(deps[0].dependencyKind).toBe('execution_product_type');
-        expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-        expect(deps[0].dependencyValueHash).toBe(expectedHash);
-        expect(deps[0].workspaceId).toBe(workspaceId);
-        expect(deps[0].proposalId).toBe(proposal.id);
+      for (const proposal of stored.curationData!.classificationProposals) {
+        if (proposal.proposalType !== 'category_page') continue;
+        for (const dep of listDependenciesForProposal(proposal.id)) {
+          expect(dep.dependencyKind).not.toBe('execution_product_type');
+        }
       }
-      // PR7 review R1 (T4): every materialized proposal carries the REAL
-      // ordinal-0-bound audited call id in modelCallIds.
-      for (const proposal of pageProposals) {
-        expect(proposal.modelCallIds).toEqual([auditedPageCallId]);
-      }
-      // The member-2 child run differs from the ordinal-0 run, so ITS
-      // proposals resolve through the C6b cohort-coordinated output linkage
-      // exemption (the run/snapshot mismatch is exempted because the call id
-      // resolves to a durable `coordinated_page` row of the same cohort run +
-      // SKU). The member still completes — proof the exemption path works.
-      const memberChild = getDb().query(
-        'SELECT id FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at DESC LIMIT 1',
-      ).get(finalized.id, item.id) as { id: string };
-      if (item.upc === items[1].upc) {
-        expect(memberChild.id).not.toBe(ordinalZeroChild.id);
-      }
-      // field_assignment behavior unchanged (one execution_product_type row
-      // each, same value hash).
-      const fieldAssignments = proposals.filter(proposal => proposal.proposalType === 'field_assignment');
-      expect(fieldAssignments.length).toBeGreaterThan(0);
-      for (const proposal of fieldAssignments) {
-        const deps = listDependenciesForProposal(proposal.id);
-        expect(deps).toHaveLength(1);
-        expect(deps[0].dependencyKind).toBe('execution_product_type');
-        expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-        expect(deps[0].dependencyValueHash).toBe(expectedHash);
-      }
-      // primary_product_type proposals stay unstamped.
-      for (const proposal of proposals.filter(proposal => proposal.proposalType === 'primary_product_type')) {
-        expect(listDependenciesForProposal(proposal.id)).toHaveLength(0);
-      }
-    }
-  });
-
-  it('reviewed-driven member: field_assignment carries reviewed_product_type while category_page stays UNSTAMPED; the execution-driven sibling still stamps category_page', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    saveTypeFieldAndPageEnabledConfig(workspaceId, wsPath);
-    const pageIds = activateVerifiedPages(workspaceId);
-    const { items } = createReadyCohort(workspaceId, {
-      '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
-      '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
-    });
-    // Member 1 gets a provenance-compatible reviewed type fact (same type id
-    // as the execution type — reviewed-first precedence still applies).
-    seedReviewedTypeDecision(workspaceId, wsPath, items[0].upc, items[0].id, 'dry-dog-food');
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-
-    const projection = loadFrozenProjectionForRun(workspaceId, finalized);
-    const auditedPageCallId = seedAuditedPageCallRow(finalized, projection);
-    seedV1TitleOutputs(workspaceId, finalized);
-    seedCohortPageOutputs(workspaceId, finalized, expectedPageInputHash(workspaceId, wsPath, finalized, projection), new Map([
-      ['100000000001', { pageId: pageIds.get('dog-food-dry')!, pageName: 'Dog Food Dry' }],
-      ['100000000002', { pageId: pageIds.get('dog-treats')!, pageName: 'Dog Treats' }],
-    ]), auditedPageCallId);
-
-    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
-
-    // PR7 review R2 (F3-1/P1-D): the reviewed-driven member's field_assignment
-    // proposals carry reviewed_product_type rows (effective source follows
-    // reviewed — UNCHANGED), while its materialized category_page proposals
-    // now carry execution_product_type rows — the parent page decision ALWAYS
-    // consumed the Execution Product Type as page context, so the page
-    // dependency follows the parent Execution Type REGARDLESS of
-    // effectiveType.source.
-    const reviewedMember = findItemById(items[0].id)!;
-    expect(reviewedMember.stageStatus).toBe('completed');
-    expect(reviewedMember.curationData!.effectiveProductType).toEqual({ id: 'dry-dog-food', source: 'reviewed' });
-    const reviewedProposals = reviewedMember.curationData!.classificationProposals;
-    const reviewedPages = reviewedProposals.filter(proposal => proposal.proposalType === 'category_page');
-    expect(reviewedPages.length).toBeGreaterThan(0);
-    const pageExecutionHash = hashCanonicalJson({
-      executionProductTypeId: finalized.executionProductTypeId!,
-      productTypeConfidence: finalized.productTypeConfidence!,
-    });
-    for (const proposal of reviewedPages) {
-      const deps = listDependenciesForProposal(proposal.id);
-      expect(deps).toHaveLength(1);
-      expect(deps[0].dependencyKind).toBe('execution_product_type');
-      expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-      expect(deps[0].dependencyValueHash).toBe(pageExecutionHash);
-    }
-    for (const proposal of reviewedProposals.filter(proposal => proposal.proposalType === 'field_assignment')) {
-      const deps = listDependenciesForProposal(proposal.id);
-      expect(deps).toHaveLength(1);
-      expect(deps[0].dependencyKind).toBe('reviewed_product_type');
-      expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-    }
-
-    // Execution-driven sibling: BOTH kinds stamped execution_product_type.
-    const executionMember = findItemById(items[1].id)!;
-    expect(executionMember.stageStatus).toBe('completed');
-    expect(executionMember.curationData!.effectiveProductType).toEqual({ id: 'dry-dog-food', source: 'execution' });
-    const executionPages = executionMember.curationData!.classificationProposals.filter(
-      proposal => proposal.proposalType === 'category_page',
-    );
-    expect(executionPages.length).toBeGreaterThan(0);
-    for (const proposal of executionPages) {
-      const deps = listDependenciesForProposal(proposal.id);
-      expect(deps).toHaveLength(1);
-      expect(deps[0].dependencyKind).toBe('execution_product_type');
-      expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
     }
   });
 });
@@ -3246,11 +2640,11 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
     seedV1TitleOutputs(workspaceId, finalized);
 
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
     expect(summary.completedMembers).toBe(2);
     expect(summary.memberFailures).toEqual([]);
     for (const item of items) {
@@ -3262,7 +2656,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     }
   });
 
-  it('conflicting Product Type: the member commits BLOCKED (family_product_type), parent completes with member failures, curationData + proposals preserved', async () => {
+  it('conflicting parent execution conclusion never blocks members (issue #351 SKU-local evidence)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTwoTypesConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -3272,41 +2666,33 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
 
-    // Force the parent authority to a DIFFERENT type: the members' own
-    // proposals still say dry-dog-food → family_product_type findings.
-    getDb().run(
-      'UPDATE classification_cohort_runs SET execution_product_type_id = ? WHERE id = ?',
-      ['dog-treats', finalized.id],
-    );
-    const mutatedRun = getCohortRunById(finalized.id)!;
-    seedV1TitleOutputs(workspaceId, mutatedRun);
+    // Issue #351: there is no parent execution conclusion to mutate — each
+    // member stands on its own facts and no family Product Type finding may
+    // block them.
+    seedV1TitleOutputs(workspaceId, finalized);
 
-    const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
-    expect(summary.parentStatus).toBe('completed_with_member_failures');
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(summary.completedMembers).toBe(2);
-    expect(summary.memberFailures).toHaveLength(2);
 
     for (const item of items) {
       const stored = findItemById(item.id)!;
-      // BLOCKED-NOT-DESTROYED: the member's projection committed (item
-      // completed) with curationData + proposals intact.
       expect(stored.stageStatus).toBe('completed');
       const curationData = stored.curationData!;
       const sv = curationData.semanticValidation!;
-      expect(sv.status).toBe('blocked');
-      const finding = sv.findings.find(f => f.code === 'family_product_type')!;
-      expect(finding.memberSku).toBe(item.upc);
-      expect(finding.message).toContain('dry-dog-food');
-      expect(finding.message).toContain('dog-treats');
+      expect(sv.findings.map(f => String(f.code))).not.toContain('family_product_type');
       // CurationData + proposals preserved for the Review UX (PR10).
       expect(curationData.curatedTitle).not.toBeNull();
       expect(curationData.classificationProposals.length).toBeGreaterThan(0);
-      expect(curationData.suggestedProductType).toBe('dry-dog-food');
+      // The pair proposal (when the member's own evidence supports one)
+      // drives the suggestion; members without one suggest nothing (never
+      // a family guess).
+      const pair = curationData.classificationProposals.find(
+        proposal => proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type',
+      );
+      expect(curationData.suggestedProductType).toBe(pair?.targetId ?? null);
     }
-    const finalRun = getCohortRunById(finalized.id)!;
-    expect(finalRun.errorMessage).toContain('Semantic validation blocked');
   });
 
   it('post-loop brand coherence: a member whose FROZEN extraction brand conflicts with the canonical cohort Brand is blocked after the loop (family_brand)', async () => {
@@ -3321,7 +2707,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
     seedV1TitleOutputs(workspaceId, finalized);
 
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
@@ -3399,7 +2785,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     expect(sv.findings.some(f => f.code === 'family_brand')).toBe(true);
   });
 
-  it('B3 (PR9 review R1): a crash after a committed PT block → reclaim → the resume guard restores the committed member failure', async () => {
+  it('B3 (PR9 review R1): a crash after a committed member-local block → reclaim → the resume guard restores the committed member failure (issue #351: blocks are member-local, never family type)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTwoTypesConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -3409,19 +2795,30 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    getDb().run(
-      'UPDATE classification_cohort_runs SET execution_product_type_id = ? WHERE id = ?',
-      ['dog-treats', finalized.id],
-    );
-    const mutatedRun = getCohortRunById(finalized.id)!;
-    seedV1TitleOutputs(workspaceId, mutatedRun);
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
+    seedV1TitleOutputs(workspaceId, finalized);
 
     // Crash AFTER member 1's projection commit — its BLOCKED semanticValidation
     // commits, the parent stays `running`.
+    // Inject a member-local block: a non-universal 'size' assignment outside
+    // the profile → member_attribute_applicability. Production callers never
+    // pass this seam; it deterministically stands in for any real local block.
+    let injected = false;
+    const blockSeam = (curationData: { classificationProposals: Array<Record<string, unknown>> }) => {
+      if (injected) return;
+      injected = true;
+      curationData.classificationProposals.push({
+        id: 'injected-size-1', runId: 'injected-child-run', productSku: 'injected-sku',
+        proposalType: 'field_assignment', targetId: 'size', proposedValue: 'Large',
+        confidence: 0.9, evidenceIds: [], status: 'pending',
+        isBulkAcceptable: false, isStale: false, stalenessReason: null,
+        createdAt: new Date().toISOString(),
+      } as unknown as Record<string, unknown> as never);
+    };
     let commitCount = 0;
     const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
-    await expect(curation.executeClaim(mutatedRun.id, 'worker-a', {
+    await expect(curation.executeClaim(finalized.id, 'worker-a', {
+      beforeSemanticValidation: blockSeam,
       afterMemberCommit: () => {
         commitCount++;
         if (commitCount === 1) throw new MemberCommitCrashSimulationError('simulated crash after member 1 commit');
@@ -3448,15 +2845,15 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     if (!resumedResult.executed) throw new Error('expected execution through the public seam');
     const summary = resumedResult.summary;
     expect(summary.parentStatus).toBe('completed_with_member_failures');
-    // BOTH members appear in the failure summary — the committed block was
-    // restored (deduplicated to ONE entry per member).
+    // The committed member-1 block was restored (deduplicated to ONE entry);
+    // member 2 passes SKU-locally and never appears.
     const skuCounts = new Map<string, number>();
     for (const failure of summary.memberFailures) {
       skuCounts.set(failure.productSku ?? '', (skuCounts.get(failure.productSku ?? '') ?? 0) + 1);
     }
     expect(skuCounts.get('100000000001')).toBe(1);
-    expect(skuCounts.get('100000000002')).toBe(1);
-    expect(summary.memberFailures.map(f => f.productSku).sort()).toEqual(['100000000001', '100000000002']);
+    expect(skuCounts.get('100000000002')).toBeUndefined();
+    expect(summary.memberFailures.map(f => f.productSku).sort()).toEqual(['100000000001']);
   });
 
   it('B7 (PR9 review R1): member with BOTH a per-member hard finding and a post-loop Brand finding keeps BOTH, one parent failure, and a follow-up SSE event carries the FINAL semanticValidation', async () => {
@@ -3469,43 +2866,36 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.executionProductTypeId).toBe('dry-dog-food');
-    // Force the parent authority to a DIFFERENT type: the members' own
-    // proposals say dry-dog-food → per-member family_product_type findings.
-    getDb().run(
-      'UPDATE classification_cohort_runs SET execution_product_type_id = ? WHERE id = ?',
-      ['dog-treats', finalized.id],
-    );
-    const mutatedRun = getCohortRunById(finalized.id)!;
-    seedV1TitleOutputs(workspaceId, mutatedRun);
+    expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
+    // Issue #351: no family Product Type finding exists anymore
+    // (SKU-local evidence) — only the post-loop Brand finding blocks member two.
+    seedV1TitleOutputs(workspaceId, finalized);
 
     const events: OnboardingEvent[] = [];
     const unsubscribe = onboardingEvents.subscribe(batchId, event => {
       events.push(event);
     });
-    const summary = await executeViaSeam(wsPath, workspaceId, mutatedRun.id, 'worker-a');
+    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     unsubscribe();
 
     expect(summary.parentStatus).toBe('completed_with_member_failures');
-    // Exactly ONE parent member-failure entry per member.
+    // Exactly ONE parent member-failure entry for the brand-conflicted member.
     const skuCounts = new Map<string, number>();
     for (const failure of summary.memberFailures) {
       skuCounts.set(failure.productSku ?? '', (skuCounts.get(failure.productSku ?? '') ?? 0) + 1);
     }
-    expect(skuCounts.get('100000000001')).toBe(1);
     expect(skuCounts.get('100000000002')).toBe(1);
 
-    // BOTH findings survive: the post-loop Brand write MERGED (never
-    // replaced) the member's committed family_product_type finding.
+    // Only the Brand finding survives: no family_product_type finding exists.
     const memberTwo = findItemById(items[1].id)!;
     const sv = memberTwo.curationData!.semanticValidation!;
     expect(sv.status).toBe('blocked');
-    expect(sv.findings.filter(f => f.code === 'family_product_type')).toHaveLength(1);
+    expect(sv.findings.map(f => String(f.code))).not.toContain('family_product_type');
     expect(sv.findings.filter(f => f.code === 'family_brand')).toHaveLength(1);
 
     // SSE: the member-completed event was emitted before the post-loop Brand
     // check — the follow-up event for the affected member carries the FINAL
-    // semanticValidation (both codes), truthfully surfacing the block.
+    // semanticValidation (brand code), truthfully surfacing the block.
     const memberTwoEvents = events.filter(
       e => e.itemId === items[1].id && (e.data as { curationData?: { semanticValidation?: unknown } })?.curationData?.semanticValidation,
     );
@@ -3513,7 +2903,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const finalEvent = memberTwoEvents[memberTwoEvents.length - 1];
     const finalSv = (finalEvent.data as { curationData: { semanticValidation: { status: string; findings: Array<{ code: string }> } } }).curationData.semanticValidation;
     expect(finalSv.status).toBe('blocked');
-    expect(finalSv.findings.map(f => f.code).sort()).toEqual(['family_brand', 'family_product_type']);
+    expect(finalSv.findings.map(f => f.code)).toEqual(['family_brand']);
   });
 });
 

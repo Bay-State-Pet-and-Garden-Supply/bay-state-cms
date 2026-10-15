@@ -7,6 +7,7 @@ import {
   AttributesFileV2Schema,
   BrandConfigV2Schema,
   BrandsFileV2Schema,
+  CategoriesFileV2Schema,
   ClassificationConfigBundleV2Schema,
   ClassificationFocusedFileNames,
   ClassificationManifestV2Schema,
@@ -480,6 +481,7 @@ function loadClassificationConfigBundleV2Internal(
   ) as Record<ClassificationFocusedFileName, ReadFileResult>;
 
   const productTypesFile = parseEnvelope(raw['product-types.json'], ProductTypesFileV2Schema);
+  const categoriesFile = parseEnvelope(raw['categories.json'], CategoriesFileV2Schema);
   const attributesFile = parseEnvelope(raw['attributes.json'], AttributesFileV2Schema);
   const attributeProfilesFile = parseEnvelope(raw['attribute-profiles.json'], AttributeProfilesFileV2Schema);
   const attributeMappingsFile = parseEnvelope(raw['mappings.json'], AttributeMappingsFileV2Schema);
@@ -490,6 +492,7 @@ function loadClassificationConfigBundleV2Internal(
   const dataSharingFile = parseEnvelope(raw['data-sharing.json'], DataSharingFileV2Schema);
   const envelopes = [
     productTypesFile,
+    categoriesFile,
     attributesFile,
     attributeProfilesFile,
     attributeMappingsFile,
@@ -513,6 +516,7 @@ function loadClassificationConfigBundleV2Internal(
     manifest: manifestParsed.data,
     bundleOrigin: productTypesFile.bundleOrigin,
     productTypes: productTypesFile.entries,
+    categories: categoriesFile.entries,
     attributes: attributesFile.entries,
     attributeProfiles: attributeProfilesFile.entries,
     attributeMappings: attributeMappingsFile.entries,
@@ -944,6 +948,9 @@ export function saveClassificationConfig(workspacePath: string, config: Classifi
     'guidance.json': parsed.data.guidance,
     'model-policies.json': parsed.data.modelPolicy,
     'data-sharing.json': parsed.data.dataSharing,
+    // Issue #350: legacy v1 bundles predate the Category side — persist the
+    // empty set the schema carries (never invent owner mappings on save).
+    'categories.json': (parsed.data as { categories?: unknown }).categories ?? [],
   };
   const noFollow = typeof fs.constants.O_NOFOLLOW === 'number' ? fs.constants.O_NOFOLLOW : 0;
   for (const [fileName, value] of Object.entries(files)) {

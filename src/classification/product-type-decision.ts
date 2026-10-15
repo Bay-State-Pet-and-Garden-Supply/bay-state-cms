@@ -53,6 +53,12 @@ import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import type { ClassificationEvidence, ProposalDerivation } from '../shared/schemas/classification';
 import {
+  collectTypeVetoSignals,
+  titleTextFromEvidence,
+  vetoMetaFromTypeNode,
+  vetoTypeCandidate,
+} from './product-type-veto';
+import {
   MAX_ORDINARY_CHOICE_CANDIDATES,
   SYSTEMONE_SINGLE_CHOICE_MIN_PROBABILITY,
     buildChoiceJudgmentDerivation,
@@ -90,6 +96,12 @@ const now = () => new Date().toISOString();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface ProductTypeVetoTypeNode {
+  id: string;
+  scope?: { animalDomain?: string } | null;
+  invariantAttributes?: Record<string, string | string[]>;
+}
+
 export interface ProductTypeDecisionParams {
   target: ResolvedTarget;
   evidence: ClassificationEvidence[];
@@ -100,6 +112,12 @@ export interface ProductTypeDecisionParams {
   confidenceFloor?: number;
   assertHeld?: () => void;
   dispatchGuard?: LlmDispatchGuard;
+  /**
+   * P1 #7: release type nodes for the final candidate veto (generic
+   * v9/v10 shapes — scope.animalDomain + invariantAttributes). When absent
+   * the veto degrades to id-heuristic form cues only.
+   */
+  vetoTypeNodes?: ProductTypeVetoTypeNode[] | null;
   deterministicMatch?: {
     productTypeId: string | null;
     confidence: number | null;
@@ -124,7 +142,8 @@ export interface ProductTypeDecisionResult {
     | 'candidate_limit_exceeded'
     | 'service_failure'
     | 'policy_denied'
-    | 'no_confident_match';
+    | 'no_confident_match'
+    | 'configuration_gap';
   abstentionReason?: string | null;
   derivation: ProposalDerivation;
   modelCallIds: string[];
@@ -134,7 +153,51 @@ export interface ProductTypeDecisionResult {
   error?: unknown;
 }
 
-// ─── Bounded State Builder ───────────────────────────────────────────────────
+export type ClassificationDecisionStatus = 'resolved' | 'abstained' | 'failed';
+
+export interface ClassificationDecisionResult {
+  status: ClassificationDecisionStatus;
+  categoryId: string | null;
+  productTypeId: string | null;
+  confidence: number;
+  selectedProbability: number | null;
+  vendorConfidence: number | null;
+  probabilityBasis: string | null;
+  source: 'keyword' | 'llm' | 'jev';
+  abstentionCode?:
+    | 'no_match'
+    | 'insufficient_evidence'
+    | 'low_probability'
+    | 'candidate_limit_exceeded'
+    | 'service_failure'
+    | 'policy_denied'
+    | 'no_confident_match'
+    | 'configuration_gap';
+  abstentionReason?: string | null;
+  derivation: ProposalDerivation;
+  modelCallIds: string[];
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+  error?: unknown;
+}
+
+export interface ClassificationDecisionParams {
+  target: ResolvedTarget;
+  evidence: ClassificationEvidence[];
+  sku: string;
+  runId: string;
+  snapshot?: RuntimeClassificationSnapshot | null;
+  modelPolicy?: ModelPolicyView | null;
+  confidenceFloor?: number;
+  assertHeld?: () => void;
+  dispatchGuard?: LlmDispatchGuard;
+  deterministicMatch?: {
+    productTypeId: string | null;
+    confidence: number | null;
+    source: 'keyword' | null;
+  } | null;
+}
 
 interface BoundedProductTypeState {
   sku: string;
@@ -1095,6 +1158,42 @@ function buildProductTypePolicyDeniedResult(input: {
     contradictingEvidenceIds,
   };
 }
+/**
+ * P1 #7: single final candidate veto. Runs AFTER any path (keyword,
+ * model/Jev, legacy LLM) selects its top candidate: a contradicted winner
+ * becomes an explicit abstention, never a silent runner-up promotion.
+ */
+export function applyProductTypeVeto(
+  result: ProductTypeDecisionResult,
+  evidence: ClassificationEvidence[],
+  vetoTypeNodes?: ProductTypeVetoTypeNode[] | null,
+): ProductTypeDecisionResult {
+  if (result.status !== 'resolved' || !result.productTypeId) return result;
+  const signals = collectTypeVetoSignals(titleTextFromEvidence(evidence));
+  const node = (vetoTypeNodes ?? []).find(n => n.id === result.productTypeId);
+  const meta = node
+    ? vetoMetaFromTypeNode(node)
+    : { id: result.productTypeId, animalDomain: null, invariantSpecies: null, invariantFoodForm: null };
+  const veto = vetoTypeCandidate(meta, signals);
+  if (!veto.vetoed) return result;
+  return {
+    status: 'abstained',
+    productTypeId: null,
+    confidence: 0,
+    selectedProbability: result.selectedProbability,
+    vendorConfidence: result.vendorConfidence,
+    probabilityBasis: result.probabilityBasis,
+    source: result.source,
+    abstentionCode: 'no_confident_match',
+    abstentionReason: `type_veto: ${veto.reason} (candidate "${result.productTypeId}" withheld).`,
+    derivation: result.derivation,
+    modelCallIds: result.modelCallIds,
+    evidenceIds: result.evidenceIds,
+    supportingEvidenceIds: result.supportingEvidenceIds,
+    contradictingEvidenceIds: result.contradictingEvidenceIds,
+  };
+}
+
 
 export async function resolveProductTypeDecision(
   params: ProductTypeDecisionParams,
@@ -1118,7 +1217,7 @@ export async function resolveProductTypeDecision(
     deterministicMatch: params.deterministicMatch,
     confidenceFloor: params.confidenceFloor,
   });
-  if (deterministic) return deterministic;
+  if (deterministic) return applyProductTypeVeto(deterministic, evidence, params.vetoTypeNodes);
 
   // 3. Resolve route through frozen model policy
   const effectivePolicy = resolveProductTypeEffectivePolicy(modelPolicy, snapshot);
@@ -1152,7 +1251,7 @@ export async function resolveProductTypeDecision(
 
   if (!isSystemOne) {
     // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
-    return executeProductTypeLegacyFallback({
+    const legacy = await executeProductTypeLegacyFallback({
       target,
       options,
       text,
@@ -1165,10 +1264,11 @@ export async function resolveProductTypeDecision(
       supportingEvidenceIds,
       contradictingEvidenceIds,
     });
+    return applyProductTypeVeto(legacy, evidence, params.vetoTypeNodes);
   }
 
   // ── TypeSafe Jev System One Choice Path ─────────────────────────────────────
-  return executeProductTypeJevChoice({
+  const jev = await executeProductTypeJevChoice({
     options,
     evidence,
     sku,
@@ -1182,4 +1282,59 @@ export async function resolveProductTypeDecision(
     supportingEvidenceIds,
     contradictingEvidenceIds,
   });
+  return applyProductTypeVeto(jev, evidence, params.vetoTypeNodes);
+}
+
+/**
+ * Resolve the canonical Category + Product Type pair (issue #350).
+ *
+ * Delegates the type decision to the unchanged `resolveProductTypeDecision`
+ * (keyword → Jev/LLM → veto ordering preserved), then resolves the decided
+ * type's Category through the approved mapping in the frozen snapshot. A
+ * decided type with no approved mapping is an explicit `configuration_gap`
+ * abstention — never a silent type-only success. Unresolved/failed type
+ * decisions pass through with a null category.
+ */
+export async function resolveClassificationDecision(
+  params: ClassificationDecisionParams,
+): Promise<ClassificationDecisionResult> {
+  const decision = await resolveProductTypeDecision({
+    target: params.target,
+    evidence: params.evidence,
+    sku: params.sku,
+    runId: params.runId,
+    snapshot: params.snapshot,
+    modelPolicy: params.modelPolicy,
+    confidenceFloor: params.confidenceFloor,
+    assertHeld: params.assertHeld,
+    dispatchGuard: params.dispatchGuard,
+    deterministicMatch: params.deterministicMatch,
+  });
+  if (decision.status !== 'resolved' || !decision.productTypeId) {
+    return { ...decision, categoryId: null };
+  }
+  const productTypes = params.snapshot?.productTypes ?? [];
+  const type = productTypes.find(candidate => candidate.id === decision.productTypeId) as { categoryId?: unknown } | undefined;
+  const rawCategoryId = type?.categoryId;
+  const categoryId = typeof rawCategoryId === 'string' && rawCategoryId.length > 0 ? rawCategoryId : null;
+  if (!categoryId) {
+    return {
+      status: 'abstained',
+      categoryId: null,
+      productTypeId: null,
+      confidence: 0,
+      selectedProbability: null,
+      vendorConfidence: null,
+      probabilityBasis: null,
+      source: decision.source,
+      abstentionCode: 'configuration_gap',
+      abstentionReason: `Product Type "${decision.productTypeId}" has no approved Category mapping; assign its canonical Category explicitly.`,
+      derivation: decision.derivation,
+      modelCallIds: decision.modelCallIds,
+      evidenceIds: decision.evidenceIds,
+      supportingEvidenceIds: decision.supportingEvidenceIds,
+      contradictingEvidenceIds: decision.contradictingEvidenceIds,
+    };
+  }
+  return { ...decision, categoryId };
 }

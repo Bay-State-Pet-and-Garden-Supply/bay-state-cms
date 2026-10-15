@@ -64,9 +64,9 @@ function snapshotWithReviewedFact(typeId: string): RuntimeClassificationSnapshot
         runId: 'run-1',
         workspaceId: 'ws-1',
         productSku: 'SKU-1',
-        proposalType: 'primary_product_type',
+        proposalType: 'product_classification',
         targetId: typeId,
-        value: { productTypeId: typeId },
+        value: { categoryId: 'dog-food', productTypeId: typeId },
       },
     ],
     rules: [] as never,
@@ -746,7 +746,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
   it('cohort child WITH an accepted reviewed type: REVIEWED wins even when the Execution Type differs (PR5 precedence — the flipped authority test)', () => {
     expect(
       resolvePromotionEffectiveTypeId(cohortRun(), [
-        proposal({ proposalType: 'primary_product_type', targetId: 'dog-food-dry' }),
+        proposal({ proposalType: 'product_classification', targetId: 'dog-food-dry' }),
       ], null),
     ).toBe('dog-food-dry');
     // The reviewer-revised type is the promotion authority over the frozen
@@ -754,7 +754,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
     expect(
       resolvePromotionEffectiveTypeId(cohortRun(), [
         proposal({
-          proposalType: 'primary_product_type',
+          proposalType: 'product_classification',
           targetId: 'dry-dog-food',
           hasRevisedTargetId: true,
           revisedTargetId: 'wet-dog-food',
@@ -763,7 +763,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
     ).toBe('wet-dog-food');
     expect(
       resolvePromotionEffectiveTypeId(cohortRun({ executionProductTypeId: 'dry-dog-food' }), [
-        proposal({ proposalType: 'primary_product_type', targetId: 'wet-dog-food' }),
+        proposal({ proposalType: 'product_classification', targetId: 'wet-dog-food' }),
       ], null),
     ).toBe('wet-dog-food');
   });
@@ -777,7 +777,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
     const snapshot = snapshotWithReviewedFact('wet-dog-food');
     expect(
       resolvePromotionEffectiveTypeId(cohortRun(), [
-        proposal({ proposalType: 'primary_product_type', targetId: 'dry-dog-food' }),
+        proposal({ proposalType: 'product_classification', targetId: 'dry-dog-food' }),
       ], snapshot),
     ).toBe('dry-dog-food');
   });
@@ -790,7 +790,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
     expect(
       resolvePromotionEffectiveTypeId(cohortRun(), [
         proposal({
-          proposalType: 'primary_product_type',
+          proposalType: 'product_classification',
           targetId: 'dry-dog-food',
           hasRevisedTargetId: true,
           revisedTargetId: null,
@@ -806,7 +806,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
   it('non-cohort member: the live accepted primary_product_type proposal target is the reviewed truth', () => {
     expect(
       resolvePromotionEffectiveTypeId(null, [
-        proposal({ proposalType: 'primary_product_type', targetId: 'dog-food-dry' }),
+        proposal({ proposalType: 'product_classification', targetId: 'dog-food-dry' }),
       ]),
     ).toBe('dog-food-dry');
   });
@@ -815,7 +815,7 @@ describe('PR11 C1 — resolvePromotionEffectiveTypeId (reviewed-first, PR11 revi
     expect(
       resolvePromotionEffectiveTypeId(null, [
         proposal({
-          proposalType: 'primary_product_type',
+          proposalType: 'product_classification',
           targetId: 'dog-food-dry',
           hasRevisedTargetId: true,
           revisedTargetId: 'cat-food-wet',

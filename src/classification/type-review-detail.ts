@@ -10,7 +10,7 @@
  */
 
 import { Database } from 'bun:sqlite';
-import type { TypeReviewDetail, ProductTypeConfigV2 } from '../shared/schemas/classification';
+import type { TypeReviewDetail } from '../shared/schemas/classification';
 import { loadAndValidateProductTypeCurrentness } from './classification-currentness';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { verifyProductTypeCandidate } from './product-type-verifier';
@@ -52,11 +52,12 @@ export function computeTypeReviewDetail(
     onboardingItemId: itemId,
   });
 
-  // Find candidate proposal for Primary Product Type
+  // Find candidate proposal for the canonical Product Classification
+  // (ADR 0041: legacy `primary_product_type` rows are history-only).
   const topPrimaryProposal = db.query(
     `SELECT id, target_id, confidence, proposed_value_json
      FROM classification_proposals
-     WHERE run_id = ? AND proposal_type = 'primary_product_type' AND superseded_at IS NULL
+     WHERE run_id = ? AND proposal_type = 'product_classification' AND superseded_at IS NULL
      ORDER BY confidence DESC
      LIMIT 1`,
   ).get(activeRunId) as {
@@ -75,7 +76,7 @@ export function computeTypeReviewDetail(
       // ignore invalid json
     }
     const candidateId = topPrimaryProposal.target_id ?? (typeof parsed?.productTypeId === 'string' ? parsed.productTypeId : null);
-    const ptConfig = candidateId ? snapshot.productTypes.find((pt: ProductTypeConfigV2) => pt.id === candidateId) : null;
+    const ptConfig = candidateId ? snapshot.productTypes.find((pt) => pt.id === candidateId) : null;
     const label = ptConfig?.name ?? (typeof parsed?.productTypeName === 'string' ? parsed.productTypeName : null) ?? candidateId;
     executionPreview = {
       id: candidateId,
@@ -85,12 +86,12 @@ export function computeTypeReviewDetail(
     };
   }
 
-  // Find live decision for primary_product_type
+  // Find live decision for the canonical pair (ADR 0041: legacy kind is history-only).
   const liveDecision = db.query(
     `SELECT d.id, d.decision, d.revised_target_id, d.revised_value_json, p.target_id
      FROM classification_proposal_decisions d
      JOIN classification_proposals p ON d.proposal_id = p.id
-     WHERE p.run_id = ? AND p.proposal_type = 'primary_product_type' AND d.superseded_at IS NULL
+     WHERE p.run_id = ? AND p.proposal_type = 'product_classification' AND d.superseded_at IS NULL
      ORDER BY d.created_at DESC
      LIMIT 1`,
   ).get(activeRunId) as {
@@ -108,7 +109,7 @@ export function computeTypeReviewDetail(
 
   if (isCurrent) {
     reviewedId = currentness.effectiveTypeId!;
-    const ptConfig = snapshot.productTypes.find((pt: ProductTypeConfigV2) => pt.id === reviewedId);
+    const ptConfig = snapshot.productTypes.find((pt) => pt.id === reviewedId);
     reviewedLabel = ptConfig?.name ?? reviewedId;
     reviewedDecisionId = currentness.decisionId;
   } else if (liveDecision) {
@@ -121,7 +122,7 @@ export function computeTypeReviewDetail(
     }
     reviewedId = liveDecision.revised_target_id ?? (typeof revVal?.productTypeId === 'string' ? revVal.productTypeId : null) ?? liveDecision.target_id ?? null;
     if (reviewedId) {
-      const ptConfig = snapshot.productTypes.find((pt: ProductTypeConfigV2) => pt.id === reviewedId);
+      const ptConfig = snapshot.productTypes.find((pt) => pt.id === reviewedId);
       reviewedLabel = ptConfig?.name ?? reviewedId;
     }
   }
@@ -130,7 +131,7 @@ export function computeTypeReviewDetail(
   // ancestor chain (only departmentId + name), so the path is the honest
   // subset [departmentId?, name] — never a guessed taxonomy trail. If a future
   // release adds ancestor IDs, resolve them here and fall back explicitly.
-  const options: TypeReviewDetail['options'] = snapshot.productTypes.map((pt: ProductTypeConfigV2) => {
+  const options: TypeReviewDetail['options'] = snapshot.productTypes.map((pt: { id: string; name: string; departmentId?: string | null }) => {
     const hierarchyPath: string[] = [];
     if (pt.departmentId) {
       hierarchyPath.push(pt.departmentId);

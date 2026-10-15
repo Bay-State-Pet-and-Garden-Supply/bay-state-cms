@@ -33,7 +33,7 @@ export type ReviewTier = 'abstain' | 'review' | 'auto';
 
 /** One development example-level prediction with its gold outcome. */
 export interface DevPredictionPair {
-  proposalType: 'primary_product_type' | 'category_page' | 'field_assignment';
+  proposalType: 'primary_product_type' | 'product_classification' | 'category_page' | 'field_assignment';
   confidence: number;
   correct: boolean;
 }
@@ -85,7 +85,7 @@ export function calibrateThresholds(
   options: CalibrateOptions = {},
 ): CalibratedThresholds {
   const byType = {
-    'primary_product_type': devPairs.filter(p => p.proposalType === 'primary_product_type'),
+    'primary_product_type': devPairs.filter(p => p.proposalType === 'primary_product_type' || p.proposalType === 'product_classification'),
     'category_page': devPairs.filter(p => p.proposalType === 'category_page'),
     'field_assignment': devPairs.filter(p => p.proposalType === 'field_assignment'),
   };
@@ -144,14 +144,14 @@ export function getReviewTier(
 }
 
 function thresholdsFor(proposalType: string, thresholds: CalibratedThresholds): { abstainBelow: number; reviewAbove: number } {
-  if (proposalType === 'primary_product_type') return thresholds.productType;
+  if (proposalType === 'primary_product_type' || proposalType === 'product_classification') return thresholds.productType;
   if (proposalType === 'category_page') return thresholds.categoryPage;
   if (proposalType === 'field_assignment') return thresholds.fieldAssignment;
   return thresholds.fieldAssignment;
 }
 
 export interface DepthStratifiedPredictionPair {
-  proposalType: 'primary_product_type' | 'category_page' | 'field_assignment';
+  proposalType: 'primary_product_type' | 'product_classification' | 'category_page' | 'field_assignment';
   depth: number;
   confidence: number;
   correct: boolean;

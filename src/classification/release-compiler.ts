@@ -70,6 +70,20 @@ function compileReleaseInternal(
     .filter(node => node.classifiable)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
+  const nodeById = new Map(bundle.hierarchy.map(node => [node.id, node]));
+  // Issue #350: approved Category per type = nearest non-classifiable
+  // ancestor (family/group/department chain). Non-classifiable nodes become
+  // the canonical Category entries below.
+  const categoryIdFor = (node: V4HierarchyNode | V5HierarchyNode): string => {
+    let cursor: V4HierarchyNode | V5HierarchyNode | undefined = node;
+    while (cursor?.parentId) {
+      const parent = nodeById.get(cursor.parentId);
+      if (!parent) break;
+      if (!parent.classifiable) return parent.id;
+      cursor = parent;
+    }
+    throw new Error(`Hierarchy node "${node.id}" has no non-classifiable ancestor Category.`);
+  };
   const productTypes = classifiableNodes.map(node => ({
     id: node.id,
     name: node.label,
@@ -77,8 +91,18 @@ function compileReleaseInternal(
     attributeProfileId: `profile-${node.id}`,
     oldIdAliases: [...node.legacyTypeIds],
     departmentId: node.departmentId,
+    categoryId: categoryIdFor(node),
     invariantAttributes: extractInvariants(node),
   }));
+  const categories = [...nodeById.values()]
+    .filter(node => !node.classifiable)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map(node => ({
+      id: node.id,
+      name: node.label,
+      description: 'description' in node && typeof node.description === 'string' ? node.description : null,
+      oldIdAliases: [...node.legacyTypeIds],
+    }));
 
   const attributeProfiles: AttributeProfileConfigV2[] = classifiableNodes.map(node => {
     if (!node.facetProfileId) {
@@ -214,6 +238,7 @@ function compileReleaseInternal(
     },
     bundleOrigin,
     productTypes,
+    categories,
     attributes,
     attributeProfiles,
     attributeMappings,

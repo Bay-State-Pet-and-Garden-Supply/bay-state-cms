@@ -65,3 +65,17 @@ export function getPageIdentityId(proposal: PageProposalLike): string | null {
   }
   return null;
 }
+
+/**
+ * True when a row carries explicit reviewed removal intent (issue #353):
+ * the correction sets a null value (`hasRevisedValue && revisedValue ===
+ * null`). Covers both the value-clear shape (field keeps its target, value
+ * empties) and the full-clear shape (target also nulled). Works on proposals
+ * and live decisions alike (both carry the same presence-flag fields).
+ */
+export function isRemovalIntent(row: {
+  hasRevisedValue?: boolean;
+  revisedValue?: unknown;
+}): boolean {
+  return row.hasRevisedValue === true && row.revisedValue === null;
+}

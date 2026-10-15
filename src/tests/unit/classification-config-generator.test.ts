@@ -50,8 +50,9 @@ describe('classification config generator', () => {
     // Complete focused-file set with manifest-bound hashes.
     expect(Object.keys(candidate.focusedFiles).sort()).toEqual([
       'attribute-profiles.json', 'attributes.json', 'brands.json',
-      'curation-targets.json', 'data-sharing.json', 'guidance.json',
-      'mappings.json', 'model-policies.json', 'product-types.json',
+      'categories.json', 'curation-targets.json', 'data-sharing.json',
+      'guidance.json', 'mappings.json', 'model-policies.json',
+      'product-types.json',
     ]);
   });
 

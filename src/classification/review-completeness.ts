@@ -508,13 +508,11 @@ export function countReviewPageAssignments(
 }
 
 /**
- * Brand resolution mirroring the promoter's pre-mandatory-check chain
- * (draft-promoter.ts ~920–951): an existing approved catalog value at the
- * MAPPED Brand slot (resolveBrandCatalogField over active
- * attributeMappings, fallback ProductField16) wins outright; otherwise
- * resolveBrand runs against cached workspace brands over brandHint →
- * effective name → item name; unresolved input falls back to the raw
- * brandHint (and to nothing when there is no hint).
+ * Brand resolution mirroring the promoter's pre-mandatory-check chain: an
+ * existing approved catalog value at the MAPPED Brand slot wins outright;
+ * otherwise the supplied brandHint resolves via the shared resolver. Title
+ * fallback is removed (ADR 0041 / issue #349) — a missing Brand is never
+ * invented from a title.
  */
 export function resolveReviewBrand(
   item: ReviewCompletenessItemLike,
@@ -524,21 +522,20 @@ export function resolveReviewBrand(
 ): string | null {
   if (trimOrNull(existingApprovedBrandField)) return existingApprovedBrandField!.trim();
 
-  // Promoter-parity note: the caller feeds the UNTRIMMED effective title
-  // into this chain (draft-promoter.ts feeds raw finalTitle); trimming is
-  // applied only by the mandatory checks themselves.
-  const brandInput = item.brandHint || effectiveName || item.name;
-  if (!brandInput) return null;
+  // ADR 0041 / issue #349: classification-coupled Brand inference from
+  // product-title prefixes is removed. Only the supplied brandHint resolves
+  // (exact/alias/prefix via the shared resolver); a missing Brand is never
+  // invented from a title. Any listing-identity requirement stays an
+  // explicit separate gap owned outside classification.
+  void effectiveName;
+  if (!trimOrNull(item.brandHint)) return null;
 
   try {
-    const resolved = resolveBrand(brandInput, brands);
+    const resolved = resolveBrand(item.brandHint!.trim(), brands);
     if (resolved?.brandName) return resolved.brandName;
   } catch {
-    // Brand cache is optional; keep the original brand hint (promoter parity).
+    // Brand cache is optional; fall through to the raw hint below.
   }
-  // Promoter parity (draft-promoter.ts:967): the promoter assigns the RAW
-  // hint and its mandatory `.trim()` check rejects whitespace-only hints;
-  // returning the trimmed-or-null form reproduces exactly that outcome.
   return trimOrNull(item.brandHint);
 }
 

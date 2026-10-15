@@ -36,7 +36,6 @@ vi.mock('@/db/repositories/page-repo', () => ({
 
 // Import after mocks are set up
 import { callLlmForTask } from '../../onboarding/llm-client';
-import { listPages } from '../../db/repositories/page-repo';
 import {
   buildPageHierarchy,
   extractProductContext,
@@ -69,7 +68,7 @@ const makeProposal = (overrides: Partial<ClassificationProposal> = {}): Classifi
   id: 'prop-' + Math.random().toString(36).slice(2, 8),
   runId: 'run-1',
   productSku: 'test-sku',
-  proposalType: 'primary_product_type',
+  proposalType: 'product_classification',
   targetId: null,
   proposedValue: null,
   confidence: 0.8,
@@ -231,16 +230,16 @@ describe('extractProductContext', () => {
     expect(result.ocrSummary.healthConcern).toEqual(['Joint Health', 'Digestion']);
   });
 
-  it('extracts productType from primary_product_type proposals', () => {
+  it('extracts productType from product_classification proposals', () => {
     const proposals = [
-      makeProposal({ proposalType: 'primary_product_type', targetId: 'Dry Dog Food' }),
+      makeProposal({ proposalType: 'product_classification', targetId: 'Dry Dog Food' }),
     ];
 
     const result = extractProductContext([], proposals);
     expect(result.productType).toBe('Dry Dog Food');
   });
 
-  it('returns null productType when no primary_product_type proposal exists', () => {
+  it('returns null productType when no product_classification proposal exists', () => {
     const result = extractProductContext([], []);
     expect(result.productType).toBeNull();
   });
@@ -513,14 +512,13 @@ describe('normalizePageAssignments', () => {
     expect(result[0].pageName).toBe('Dog Food Shop All');
   });
 
-  it('includes exact brand page when it exists and is not already present', () => {
+  it('never appends a brand page (issue #353: Brand placement is outside classifier ownership)', () => {
     const input = [
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.85 },
     ];
     const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, 'Acme Pet', [], 5);
-    expect(result).toHaveLength(2);
-    expect(result[1].pageName).toBe('Brand - Acme Pet');
-    expect(result[1].confidence).toBe(0.95);
+    expect(result).toEqual(input);
+    expect(result.some(p => p.pageName.startsWith('Brand -'))).toBe(false);
   });
 
   it('does not add a second page in single-selection mode', () => {
@@ -538,22 +536,18 @@ describe('normalizePageAssignments', () => {
     expect(result).toEqual(input);
   });
 
-  it('reserves a slot for an exact brand page when specific pages fill capacity', () => {
+  it('never reserves a slot for a brand page when at capacity (issue #353)', () => {
     const input = [
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.9 },
       { pageId: 'p7', pageName: 'Dog Food Wet', confidence: 0.8 },
       { pageId: 'p5', pageName: 'Dog Treats', confidence: 0.7 },
     ];
     const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, 'Acme Pet', [], 3);
-    expect(result).toHaveLength(3);
-    expect(result.map(p => p.pageName)).toEqual([
-      'Dog Food Dry',
-      'Dog Food Wet',
-      'Brand - Acme Pet',
-    ]);
+    expect(result).toEqual(input);
+    expect(result.some(p => p.pageName.startsWith('Brand -'))).toBe(false);
   });
 
-  it('does NOT add brand page when already present', () => {
+  it('preserves an already-present brand page without duplicating (existing placement is out of scope)', () => {
     const input = [
       { pageId: 'p6', pageName: 'Brand - Acme Pet', confidence: 0.9 },
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.85 },
@@ -564,16 +558,14 @@ describe('normalizePageAssignments', () => {
     expect(brandEntries).toHaveLength(1);
   });
 
-  it('drops Shop All to make room for brand page when at capacity', () => {
+  it('drops Shop All at capacity without inventing a brand page (issue #353)', () => {
     const input = [
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.85 },
       { pageId: 'p7', pageName: 'Dog Food Wet', confidence: 0.8 },
       { pageId: 'p2', pageName: 'Dog Food Shop All', confidence: 0.5 },
     ];
     const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, 'Acme Pet', [], 3);
-    // After removing Shop All (2 remain), brand page fits
-    expect(result).toHaveLength(3);
-    expect(result.some(p => p.pageName === 'Brand - Acme Pet')).toBe(true);
+    expect(result.some(p => p.pageName === 'Brand - Acme Pet')).toBe(false);
   });
 
   it('clamps output to maxResults', () => {
@@ -948,29 +940,34 @@ describe('llmAssignCategoryPages', () => {
 
   // ── Prompt inspection tests ────────────────────────────────────────────
 
-  it('sibling prompt does not contain "assigned to"', async () => {
+  // Issue #351: `siblingProducts` was REMOVED from PageAssignmentParams —
+  // there is no sibling channel to leak into the prompt. This test passes
+  // an unknown sibling key (type error suppressed) and asserts the prompt
+  // carries no sibling content.
+  it('no sibling channel exists on the prompt (issue #351 SKU-local evidence)', async () => {
     asMock(callLlmForTask).mockResolvedValue(
       JSON.stringify({ pages: [{ pageName: 'Dog Food Dry', confidence: 0.8 }] }),
     );
 
     const paramsWithSiblings: PageAssignmentParams = {
       ...defaultParams,
+      // @ts-expect-error deliberate: sibling channel removed from the type;
+      // an unknown key must not typecheck.
       siblingProducts: [
         { sku: 'SKU002', name: 'Honest Kitchen Beef Recipe Chicken' },
         { sku: 'SKU003', name: 'Honest Kitchen Beef Recipe Lamb' },
       ],
     };
 
-    await llmAssignCategoryPages(paramsWithSiblings);
+    await llmAssignCategoryPages(paramsWithSiblings as PageAssignmentParams);
 
     expect(asMock(callLlmForTask).mock.calls.length).toBe(1);
     // callLlmForTask signature: (taskName, prompt, systemPrompt, options)
     const prompt = asMock(callLlmForTask).mock.calls[0][1] as string;
-    expect(prompt).not.toContain('assigned to');
-    expect(prompt).not.toContain('assigned to []');
-    expect(prompt).toContain('SKU002');
-    expect(prompt).toContain('Honest Kitchen Beef Recipe Chicken');
-    expect(prompt).toContain('SIBLING PRODUCTS');
+    expect(prompt).not.toContain('SKU002');
+    expect(prompt).not.toContain('Honest Kitchen Beef Recipe Chicken');
+    expect(prompt).not.toContain('SIBLING PRODUCTS');
+    expect('siblingProducts' in defaultParams).toBe(false);
   });
 
   it('includes page IDs ([ID:...]) in the prompt listing', async () => {

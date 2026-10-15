@@ -56,7 +56,6 @@ import { HeartbeatLostError } from './heartbeat-errors';
 import {
   buildEvidenceTargetPacket,
   tokenGroundingSupport,
-  resolveCanonicalAssertion,
   type EvidenceTargetPacket,
 } from './evidence-targeting';
 import { matchAttributeOptions } from './curation-target-matcher';
@@ -65,7 +64,6 @@ import { llmRankOptions } from './curation-target-ranker';
 import type { LlmDispatchGuard } from '../onboarding/llm-client';
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import {
-  CanonicalBrandEvidenceValueSchema,
   type ClassificationEvidence,
   type ProposalDerivation,
   type ProductAttributeConfig,
@@ -184,7 +182,7 @@ export interface AttributeDecisionResult {
   vendorConfidence: number | null;
   probabilityBasis: string | null;
   candidateProbabilities?: Record<string, number>;
-  source: 'keyword' | 'llm' | 'jev' | 'invariant' | 'brand_resolved';
+  source: 'keyword' | 'llm' | 'jev' | 'invariant';
   abstentionCode?:
     | 'no_match'
     | 'insufficient_evidence'
@@ -1655,130 +1653,6 @@ async function executeAttributeSingleChoice(input: {
   });
 }
 
-/**
- * Parse brand evidence records to canonical brand names.
- */
-/**
- * Resolve one brand evidence record to its canonical brand name (null when unresolvable).
- */
-function resolveBrandRecordName(input: {
-  record: ClassificationEvidence;
-  attribute: ResolvedTarget['attribute'];
-}): string | null {
-  const { record, attribute } = input;
-  const parsed = CanonicalBrandEvidenceValueSchema.safeParse(record.value);
-  let name: unknown = parsed.success
-    ? parsed.data.brandName
-    : ((record.value as any)?.brandName ?? (record.value as any)?.name);
-  if (typeof name !== 'string' && typeof record.value === 'string') {
-    name = record.value;
-  }
-  return resolveCanonicalAssertion(name, attribute?.valueAliases ?? []);
-}
-
-function parseBrandEvidenceRecords(input: {
-  brandEvidence: ClassificationEvidence[];
-  attribute: ResolvedTarget['attribute'];
-}): Array<{ id: string; brandName: string }> {
-  const { brandEvidence, attribute } = input;
-  const parsedBrands: Array<{ id: string; brandName: string }> = [];
-  for (const record of brandEvidence) {
-    const brandName = resolveBrandRecordName({ record, attribute });
-    if (brandName !== null) {
-      parsedBrands.push({ id: record.id, brandName });
-    }
-  }
-  return parsedBrands;
-}
-
-/**
- * Resolve parsed brand names to a single option value. Null unless the
- * evidence is unanimous for one canonical brand.
- */
-function resolveSingleBrandName(input: {
-  parsedBrands: Array<{ id: string; brandName: string }>;
-  options: ResolvedTargetOption[];
-  attribute: ResolvedTarget['attribute'];
-}): { value: string; allBrandIds: string[] } | null {
-  const { parsedBrands, options, attribute } = input;
-  if (parsedBrands.length === 0) return null;
-  const uniqueBrands = [...new Set(parsedBrands.map(p => p.brandName))];
-  if (uniqueBrands.length !== 1) return null;
-  const brandName = uniqueBrands[0];
-  const matchedOption = options.find(o =>
-    resolveCanonicalAssertion(o.label, attribute?.valueAliases ?? []) === brandName,
-  );
-  const value = matchedOption?.label ?? brandName;
-  const allBrandIds = parsedBrands.map(p => p.id).filter(Boolean);
-  return { value, allBrandIds };
-}
-
-/**
- * Select brand-field evidence records eligible for the brand shortcut.
- */
-function selectBrandEvidence(input: {
-  permittedEvidence: ClassificationEvidence[];
-  attrId: string;
-}): ClassificationEvidence[] {
-  const { permittedEvidence, attrId } = input;
-  return permittedEvidence.filter(
-    e =>
-      e.sourceField === 'resolved_brand'
-      || e.sourceField === 'brand'
-      || e.attributeId === attrId
-      || e.attributeId === 'brand',
-  );
-}
-
-/**
- * Brand-shortcut precedence: a single canonical resolved brand resolves
- * brand attributes without model dispatch.
- */
-function resolveAttributeBrandShortcut(input: {
-  target: ResolvedTarget;
-  cardinality: AttributeDecisionParams['cardinality'];
-  permittedEvidence: ClassificationEvidence[];
-  attribute: ResolvedTarget['attribute'];
-  attrId: string;
-  options: ResolvedTargetOption[];
-}): AttributeDecisionResult | null {
-  const {
-    target,
-    cardinality,
-    permittedEvidence,
-    attribute,
-    attrId,
-    options,
-  } = input;
-  // 3. Precedence: Brand shortcut
-  const targetLabel = target.config.label.toLowerCase();
-  const isBrandField = targetLabel.includes('brand') || attrId.toLowerCase().includes('brand');
-  if (!isBrandField) return null;
-
-  const brandEvidence = selectBrandEvidence({ permittedEvidence, attrId });
-  if (brandEvidence.length === 0) return null;
-
-  const parsedBrands = parseBrandEvidenceRecords({ brandEvidence, attribute });
-  const resolved = resolveSingleBrandName({ parsedBrands, options, attribute });
-  if (!resolved) return null;
-
-  return {
-    status: 'resolved',
-    targetId: attrId,
-    value: resolved.value,
-    values: cardinality === 'multiple' ? [resolved.value] : undefined,
-    confidence: 0.9,
-    selectedProbability: null,
-    vendorConfidence: null,
-    probabilityBasis: 'brand_shortcut',
-    source: 'brand_resolved',
-    derivation: { kind: 'evidence_match' },
-    modelCallIds: [],
-    evidenceIds: resolved.allBrandIds,
-    supportingEvidenceIds: resolved.allBrandIds,
-    contradictingEvidenceIds: [],
-  };
-}
 
 function checkAttributeDeterministicPrecedence(input: {
   target: ResolvedTarget;
@@ -1794,7 +1668,6 @@ function checkAttributeDeterministicPrecedence(input: {
   const {
     target,
     cardinality,
-    permittedEvidence,
     packet,
     text,
     snapshot,
@@ -1852,10 +1725,9 @@ function resolveReviewedFactResult(input: {
     };
   return null;
 }
-
-  const brandShortcut = resolveAttributeBrandShortcut({ target, cardinality, permittedEvidence, attribute, attrId, options });
-  if (brandShortcut) return brandShortcut;
-
+  // ADR 0041 / issue #349: no Brand shortcut here — Brand targets never
+  // resolve through the decision core. (The guard lives in the shared
+  // composition; this core only handles classifier-owned attributes.)
 /**
  * Deterministic alias/exact-match precedence over the evidence text.
  */

@@ -1,7 +1,8 @@
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { getCachedAttributeMappings } from '../../db/repositories/classification-config-repo';
-import { getEffectiveProposalValue, serializeAttributeValue } from '../assignment-projection';
-import { getPageDisplayName } from '../../shared/proposal-display';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from '../assignment-projection';
+import { getPageDisplayName, isRemovalIntent, pageNameFromPageValue } from '../../shared/proposal-display';
+import { isBrandPageProposal, isProtectedTargetId } from '../classification-ownership';
 
 /**
  * Product Draft Projection Stage
@@ -35,16 +36,10 @@ export const productDraftProjectionStage: StageDefinition = {
     const accepted = input.acceptedProposals;
     const allProposals = input.allProposals;
 
-    // PR8 C2 (DECISION-D): frozen-only attribute mappings. Active cohort mode
-    // (an execution type present) requires the frozen runtime snapshot — the
-    // live config cache is never read with an execution type. Mirrors the
-    // attribute-applicability guard (attribute-applicability.ts:92). Legacy
-    // (no execution type) keeps the live cache fallback byte-identical.
-    if (context.cohortExecutionType !== undefined && context.snapshot === undefined) {
-      throw new Error(
-        `Member ${input.sku} (run ${context.runId}) draft projection requires the frozen runtime snapshot in active cohort mode; live config is never read`,
-      );
-    }
+    // Issue #351 (SKU-local evidence): no execution-type context exists —
+    // the stage resolves mappings from the frozen snapshot when present,
+    // else the live cache (unchanged fallback).
+
 
     // PR8 C1 (DECISION-A): the coordinated/consolidated title + its source
     // from the `name_consolidation` stage output — the SAME source the
@@ -90,6 +85,9 @@ export const productDraftProjectionStage: StageDefinition = {
     // Process accepted proposals
     for (const proposal of accepted) {
       if (proposal.proposalType !== 'field_assignment' || !proposal.targetId) continue;
+      // ADR 0041 / issue #349: the accepted preview and the resulting draft
+      // agree — protected targets never project, even via revised targets.
+      if (isProtectedTargetId(getEffectiveProposalTargetId(proposal)) || isProtectedTargetId(proposal.targetId)) continue;
       const mapping = mappings.find(m => m.attributeId === proposal.targetId);
       if (!mapping || mapping.isStale) continue;
       fieldAssignments[mapping.catalogField] = applyMapping(proposal, mapping);
@@ -103,6 +101,7 @@ export const productDraftProjectionStage: StageDefinition = {
         acceptedTargetIds.has(proposal.targetId)
       ) continue;
       if (proposal.status !== 'pending' || proposal.isStale) continue;
+      if (isProtectedTargetId(getEffectiveProposalTargetId(proposal)) || isProtectedTargetId(proposal.targetId)) continue;
 
       const mapping = mappings.find(m => m.attributeId === proposal.targetId);
       if (!mapping || mapping.isStale) continue;
@@ -116,12 +115,21 @@ export const productDraftProjectionStage: StageDefinition = {
 
     // Collect accepted category page assignments, then supplement with pending.
     // Page display names come from proposedValue.pageName (never the target
-    // Page ID — issue #17 D1).
+    // Page ID — issue #17 D1). Issue #353: accepted explicit removals are
+    // surfaced as `removedPages` (before names) so the accepted preview and
+    // the resulting draft agree; Brand pages never project (outside owned
+    // scope — refused at review, skipped here too).
     const pageAssignments: string[] = [];
+    const removedPages: string[] = [];
     for (const proposal of accepted) {
       if (proposal.proposalType !== 'category_page') continue;
-      const pageName = getPageDisplayName(proposal);
-      if (pageName) pageAssignments.push(pageName);
+      if (isRemovalIntent(proposal as unknown as { hasRevisedValue?: boolean; revisedValue?: unknown })) {
+        const beforeName = pageNameFromPageValue((proposal as unknown as { proposedValue?: unknown }).proposedValue);
+        if (beforeName && !isBrandPageProposal(beforeName) && !removedPages.includes(beforeName)) removedPages.push(beforeName);
+        continue;
+      }
+      const pageName = getPageDisplayName(proposal as unknown as Parameters<typeof getPageDisplayName>[0]);
+      if (pageName && !isBrandPageProposal(pageName)) pageAssignments.push(pageName);
     }
 
     const pendingPageAssignments: string[] = [];
@@ -129,8 +137,8 @@ export const productDraftProjectionStage: StageDefinition = {
       for (const proposal of allProposals) {
         if (proposal.proposalType !== 'category_page') continue;
         if (proposal.status !== 'pending' || proposal.isStale) continue;
-        const pageName = getPageDisplayName(proposal);
-        if (pageName) pendingPageAssignments.push(pageName);
+        const pageName = getPageDisplayName(proposal as unknown as Parameters<typeof getPageDisplayName>[0]);
+        if (pageName && !isBrandPageProposal(pageName)) pendingPageAssignments.push(pageName);
       }
     }
 
@@ -151,6 +159,7 @@ export const productDraftProjectionStage: StageDefinition = {
               pendingPageAssignments.length > 0
                 ? pendingPageAssignments
                 : pageAssignments,
+            removedPages,
             acceptedProposalCount: accepted.length,
             pendingSupplementCount: pendingSupplement.length,
             hasAcceptedAssignments: accepted.length > 0,

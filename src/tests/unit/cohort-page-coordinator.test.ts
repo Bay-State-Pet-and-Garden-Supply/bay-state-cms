@@ -119,9 +119,9 @@ describe('cohort page coordinator', () => {
       SKU2: [{ pageId: 'cat-wet', pageName: 'Cat Food Wet', confidence: 0.8 }],
     }));
     const result = await coordinateCohortPagesOnce(input);
+    // Issue #353: no Brand-page append — only the taxonomy page survives.
     expect(result.get('SKU1')).toEqual({ status: 'assigned', pages: [
       { pageId: 'cat-wet', pageName: 'Cat Food Wet', confidence: 0.8 },
-      { pageId: 'brand-acme', pageName: 'Brand - Acme', confidence: 0.95, isBrandShortcut: true },
     ], modelCallIds: ['cohort-call-1'] });
   });
 
@@ -140,8 +140,9 @@ describe('cohort page coordinator', () => {
     expect(cat?.status).toBe('assigned');
     expect(dog?.status).toBe('assigned');
     if (cat?.status === 'assigned' && dog?.status === 'assigned') {
-      expect(cat.pages.map(page => page.pageId)).toEqual(['cat-treats', 'brand-acme']);
-      expect(dog.pages.map(page => page.pageId)).toEqual(['dog-food', 'brand-acme']);
+      // Issue #353: no Brand-page append — per-SKU taxonomy sets only.
+      expect(cat.pages.map(page => page.pageId)).toEqual(['cat-treats']);
+      expect(dog.pages.map(page => page.pageId)).toEqual(['dog-food']);
       expect(cat.pages).not.toEqual(dog.pages);
     }
   });
@@ -209,7 +210,8 @@ describe('PR7 review R2 (F2) — singleton parity: parent singletons are ONE-MEM
     const assigned = result.get('SKU1');
     expect(assigned?.status).toBe('assigned');
     if (assigned?.status === 'assigned') {
-      expect(assigned.pages.map(page => page.pageId)).toEqual(['cat-wet', 'brand-acme']);
+      // Issue #353: no Brand-page append.
+      expect(assigned.pages.map(page => page.pageId)).toEqual(['cat-wet']);
       expect(assigned.modelCallIds).toEqual(['cohort-call-1']);
     }
     const prompt = mocks.callLlmForTaskWithProvenance.mock.calls[0][1] as string;

@@ -37,13 +37,24 @@ export function packagingOcrDataToEvidence(
 ): ClassificationEvidence[] {
   const evidence: ClassificationEvidence[] = [];
   const { runId, sku, model } = params;
-  /** Resolve reliability — use per-field confidence when available. */
+  /**
+   * A3: self-reported VLM confidence caps at medium before independent
+   * title/quote corroboration — a structured guess without a matching visible
+   * package quotation is never high reliability on its own claim.
+   */
   const reliability = (field: string, fallback: string): string => {
     const confidence = ocrData.confidenceByField?.[field];
-    if (confidence == null) return fallback;
-    if (confidence >= 0.7) return 'high';
+    if (confidence == null) return fallback === 'high' ? 'medium' : fallback;
+    if (confidence >= 0.7) return 'medium';
     if (confidence >= 0.4) return 'medium';
     return 'low';
+  };
+  /** A3: supplying call IDs for one field — the exact image's calls from the
+   * merge provenance, never a union of unrelated image call IDs. */
+  const supplyingCallIds = (field: string): string[] | undefined => {
+    const provenance = (ocrData.metadata as { fieldProvenance?: Record<string, { imageIndex: number; modelCallIds: string[] }> } | null)?.fieldProvenance?.[field];
+    if (provenance && provenance.modelCallIds.length > 0) return provenance.modelCallIds;
+    return params.modelCallIds?.length ? params.modelCallIds : undefined;
   };
 
   const base = {
@@ -353,11 +364,30 @@ export function packagingOcrDataToEvidence(
     }
   }
 
-  // Propagate the durable model-call IDs that produced this OCR evidence so
-  // proposals/stage metadata can trace back to the exact calls (issue #17 E).
+  // A3: attach the exact supplying image's call IDs per row via the merge
+  // provenance (sourceField -> OCR field map). Rows without provenance keep
+  // the fallback union below.
+  const sourceFieldToOcrField: Record<string, string> = {
+    name: 'productName', brand: 'brand', species: 'species', flavor: 'flavorVariety',
+    color: 'color', material: 'material', size: 'size', weight: 'weight',
+    count: 'count', lifeStage: 'lifeStage', breedSize: 'breedSize',
+    productForm: 'productForm', packagingType: 'packagingType', npkRatio: 'npkRatio',
+  };
+  for (const e of evidence) {
+    const ocrField = sourceFieldToOcrField[String((e as { sourceField?: unknown }).sourceField ?? '')];
+    if (!ocrField) continue;
+    const ids = supplyingCallIds(ocrField);
+    if (ids) e.metadata = { ...((e.metadata ?? {}) as Record<string, unknown>), modelCallIds: ids };
+  }
+
+  // A3: the merge provenance already scopes each row to its supplying image;
+  // the params union is a fallback only when no per-field provenance exists.
   if (params.modelCallIds?.length) {
     for (const e of evidence) {
-      e.metadata = { ...(e.metadata ?? {}), modelCallIds: params.modelCallIds };
+      const existing = (e.metadata as { modelCallIds?: string[] } | null)?.modelCallIds;
+      if (!existing || existing.length === 0) {
+        e.metadata = { ...(e.metadata ?? {}), modelCallIds: params.modelCallIds };
+      }
     }
   }
 

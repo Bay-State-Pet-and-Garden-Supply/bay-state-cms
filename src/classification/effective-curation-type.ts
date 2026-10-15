@@ -1,73 +1,70 @@
 /**
- * Effective Curation Product Type Resolver (issue #30 PR5).
+ * Effective Curation Product Type Resolver (issue #351 SKU-local evidence).
  *
- * The two Curation stages that gate attribute applicability
- * (`attribute_applicability` / `product_attribute_proposals`) read ONE pure
- * helper here instead of the reviewed-only `getReviewedPrimaryProductTypeId`
- * directly. Priority is:
+ * Each Product SKU is classified ONLY from its own supplied facts and
+ * images. The effective Curation Product Type is the member's own reviewed
+ * (accepted) canonical pair's Product Type — resolved by
+ * `getReviewedClassification`, which honors an in-run accepted pair first
+ * and then provenance-compatible reviewed facts carried in the frozen
+ * runtime snapshot — or `none` when no reviewed pair exists.
  *
- *   1. `reviewed` — the member's own reviewed (accepted) Primary Product Type,
- *      resolved by the UNCHANGED `getReviewedPrimaryProductTypeId`, which
- *      honors an in-run accepted proposal first and then provenance-compatible
- *      reviewed facts carried in the frozen runtime snapshot.
- *   2. `execution` — the cohort Execution Product Type written once at freeze
- *      (PR4, `StageContext.cohortExecutionType`), used ONLY when no reviewed
- *      type exists.
- *   3. `none` — neither a reviewed type nor an execution type.
+ * There is NO cohort/parent execution-type fallback as factual authority:
+ * a sibling classification, flavor, image, species, or prior page
+ * assignment cannot fill an unsupported SKU result. A member missing its
+ * own reviewed pair resolves to `none` (unresolved), never to a
+ * family-level guess. Batch scheduling, leases, frozen evidence, and
+ * provider-call coordination remain supported without sharing factual
+ * authority.
  *
- * Provenance rule: a reviewed type is provenance-compatible BY CONSTRUCTION of
+ * Provenance rule: a reviewed pair is provenance-compatible BY CONSTRUCTION of
  * the runtime snapshot — `collectCompatibleReviewedFacts` drops every carried
  * fact whose config/source provenance drifted, so the stages need no further
  * checks. This module never re-reads live classification config, never queries
  * pending per-SKU proposals, and never consults `curation_data_json`
- * suggestions — the execution path is a pure function of the frozen snapshot's
- * facts and the frozen `cohortExecutionType`.
- *
- * Reviewed-override precedence: when both a reviewed type and an execution
- * type exist (and even when they differ), the reviewed type wins. Review and
- * Promotion authority stay on the member's own reviewed proposals; the
- * Execution Type only fills the gap for first-pass Curation applicability.
+ * suggestions — resolution is a pure function of the frozen snapshot's
+ * own-SKU facts.
  */
 import type { StageContext, StageInput } from './types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import type { AttributeProfileConfig } from '../shared/schemas/classification';
 import { getProductTypeIdFromValue } from './assignment-projection';
-import { getReviewedPrimaryProductTypeId } from './proposal-selection';
+import { getReviewedClassification, selectProvisionalClassification } from './proposal-selection';
 
 /** Where the effective Curation Product Type came from. */
-export type EffectiveTypeSource = 'reviewed' | 'execution' | 'none';
+export type EffectiveTypeSource = 'reviewed' | 'provisional' | 'none';
 
 export interface EffectiveCurationType {
   /** The Product Type id that gates attribute applicability, or null. */
   effectiveTypeId: string | null;
-  /** Provenance of the effective type: reviewed fact, execution type, or none. */
+  /** Provenance: reviewed own-SKU fact, provisional same-pass pair, or none. */
   source: EffectiveTypeSource;
 }
 
 /**
- * Pure resolution: reviewed first, then the cohort execution type, else none.
+ * Pure resolution: reviewed own-SKU type, else none (issue #351).
  * Empty-string ids are treated as absent (fail closed, never a lookup key).
+ * The legacy second parameter is accepted but ignored — kept so existing
+ * call sites need no flag-day rename; execution values are never factual
+ * authority.
  */
 export function resolveEffectiveCurationType(
   reviewedTypeId: string | null,
-  executionTypeId: string | null,
+  _ignoredExecutionTypeId?: string | null,
 ): EffectiveCurationType {
   if (reviewedTypeId !== null && reviewedTypeId.length > 0) {
     return { effectiveTypeId: reviewedTypeId, source: 'reviewed' };
-  }
-  if (executionTypeId !== null && executionTypeId.length > 0) {
-    return { effectiveTypeId: executionTypeId, source: 'execution' };
   }
   return { effectiveTypeId: null, source: 'none' };
 }
 
 /**
- * The one reviewed Primary Product Type id from a frozen snapshot's
+ * The one reviewed Product Type id from a frozen snapshot's
  * provenance-compatible reviewed facts, or null. Reimplements the reviewed-fact
- * loop of `getReviewedPrimaryProductTypeId` as a standalone additive helper
+ * loop of `getReviewedClassification` as a standalone additive helper
  * (snapshot-only; the in-run accepted branch is irrelevant mid-pipeline
- * because `runPipeline` seeds `acceptedProposals: []`). The first
- * `primary_product_type` fact wins; the id is extracted via
+ * because `runPipeline` seeds `acceptedProposals: []`). The first canonical
+ * (`product_classification`) fact wins (ADR 0041: legacy
+ * `primary_product_type` facts are history-only); the id is extracted via
  * `getProductTypeIdFromValue` (accepts `{ productTypeId }` and string shapes).
  */
 export function getReviewedTypeFromSnapshot(
@@ -75,7 +72,8 @@ export function getReviewedTypeFromSnapshot(
 ): string | null {
   if (!snapshot?.reviewedFacts?.length) return null;
   for (const fact of snapshot.reviewedFacts) {
-    if (fact.proposalType !== 'primary_product_type') continue;
+    // ADR 0041: legacy `primary_product_type` facts are history-only.
+    if (fact.proposalType !== 'product_classification') continue;
     const id = getProductTypeIdFromValue(fact.value);
     if (id && id.length > 0) return id;
   }
@@ -83,24 +81,36 @@ export function getReviewedTypeFromSnapshot(
 }
 
 /**
- * Effective Curation Product Type for a stage: the reviewed type
- * (`getReviewedPrimaryProductTypeId`, unchanged) with the frozen cohort
- * Execution Product Type as fallback. Reviewed facts are provenance-compatible
- * by snapshot construction, so no live-config re-validation happens here.
+ * Effective Curation Product Type for a stage (issues #351 + #352): the
+ * member's own reviewed pair's type when accepted, else the provisional
+ * (pending, unreviewed) in-run pair from the SAME pass — never a parent,
+ * sibling, or execution conclusion. The provisional pair is the pipeline's
+ * own earlier-stage output for this SKU (deterministic order: the type
+ * stage runs before attribute stages), so it carries no cross-SKU
+ * authority. Reviewed facts are provenance-compatible by snapshot
+ * construction, so no live-config re-validation happens here.
  */
 export function getEffectiveCurationProductType(
   input: StageInput,
   context: StageContext,
 ): EffectiveCurationType {
-  return resolveEffectiveCurationType(
-    getReviewedPrimaryProductTypeId(input, context.snapshot),
-    context.cohortExecutionType?.id ?? null,
-  );
+  const reviewed = getReviewedClassification(input, context.snapshot).productTypeId;
+  if (reviewed && reviewed.length > 0) return { effectiveTypeId: reviewed, source: 'reviewed' };
+  const provisional = selectProvisionalClassification(input).productTypeId;
+  if (provisional && provisional.length > 0) return { effectiveTypeId: provisional, source: 'provisional' };
+  return { effectiveTypeId: null, source: 'none' };
 }
 
 /**
  * Resolve the Attribute Profile that gates the effective Curation Product
- * Type (issue #30 PR5 P1-1).
+ * Type (issue #30 PR5 P1-1; issue #350 invariant below).
+ *
+ * Issue #350 invariant: each Product Type declares exactly one approved
+ * Category via `ProductTypeConfigV2.categoryId`, so the canonical pair is
+ * fully determined by the Type. Keying the profile by Type IS keying by the
+ * canonical classification — one classification selects exactly one profile
+ * and there is no second profile authority. Category never selects profiles
+ * independently; this is not leftover legacy type keying.
  *
  * - Legacy path (`effectivePath === false`, no cohort execution type):
  *   BYTE-IDENTICAL legacy semantics — the first profile whose `productTypeId`
@@ -151,13 +161,69 @@ export function resolveEffectiveTypeProfile(
 
 /**
  * Snapshot-only variant for the cohort executor (no `StageInput` in scope).
- * Resolves the reviewed type purely from `snapshot.reviewedFacts`, so it
- * agrees with `getEffectiveCurationProductType` by construction and the
- * executor's dependency stamping matches what the stages actually used.
+ * Resolves the reviewed type purely from `snapshot.reviewedFacts`, or
+ * `none` (issue #351). The legacy execution parameter is accepted but
+ * ignored — execution values are never factual authority.
  */
 export function getEffectiveCurationTypeForSnapshot(
   snapshot: RuntimeClassificationSnapshot | undefined,
-  executionTypeId: string | null,
+  _ignoredExecutionTypeId?: string | null,
 ): EffectiveCurationType {
-  return resolveEffectiveCurationType(getReviewedTypeFromSnapshot(snapshot), executionTypeId);
+  return resolveEffectiveCurationType(getReviewedTypeFromSnapshot(snapshot));
+}
+
+/** Where the effective canonical classification came from. */
+export interface EffectiveClassification {
+  /** The effective Product Type id that gates attribute applicability, or null. */
+  effectiveTypeId: string | null;
+  /** The effective Category id, or null when unresolved. */
+  effectiveCategoryId: string | null;
+  /** Provenance of the effective classification: reviewed own-SKU fact, or none. */
+  source: EffectiveTypeSource;
+}
+
+/**
+ * Effective canonical classification for a stage (issue #351): the member's
+ * own reviewed `product_classification` pair or `none` (ADR 0041: legacy
+ * `primary_product_type` is history-only). No execution fallback — missing
+ * own-SKU evidence produces an unresolved result, never a family-level guess.
+ */
+export function getEffectiveClassification(
+  input: StageInput,
+  context: StageContext,
+): EffectiveClassification {
+  const reviewed = getReviewedClassification(input, context.snapshot);
+  if (reviewed.productTypeId && reviewed.productTypeId.length > 0) {
+    return { effectiveTypeId: reviewed.productTypeId, effectiveCategoryId: reviewed.categoryId, source: 'reviewed' };
+  }
+  return { effectiveTypeId: null, effectiveCategoryId: null, source: 'none' };
+}
+
+/**
+ * Snapshot-only reviewed canonical pair (issue #350, ADR 0041). Reimplements
+ * the reviewed-fact loop of `getReviewedClassification` without the in-run
+ * accepted branch (irrelevant mid-pipeline). The first canonical
+ * (`product_classification`) fact wins; legacy `primary_product_type` facts
+ * are history-only and never confer live authority.
+ */
+export function getReviewedClassificationPair(
+  snapshot: RuntimeClassificationSnapshot | undefined,
+): { categoryId: string | null; productTypeId: string | null } {
+  if (!snapshot?.reviewedFacts?.length) return { categoryId: null, productTypeId: null };
+  const productTypes = snapshot.productTypes ?? [];
+  for (const fact of snapshot.reviewedFacts) {
+    // ADR 0041: legacy `primary_product_type` facts are history-only.
+    if (fact.proposalType !== 'product_classification') continue;
+    const typeId = getProductTypeIdFromValue(fact.value);
+    const rawCategory = (fact.value as { categoryId?: unknown } | null)?.categoryId;
+    const factCategory = typeof rawCategory === 'string' && rawCategory.length > 0 ? rawCategory : null;
+    if (!typeId && !factCategory) continue;
+    let categoryId = factCategory;
+    if (typeId && !categoryId) {
+      const type = productTypes.find(candidate => candidate.id === typeId) as { categoryId?: unknown } | undefined;
+      categoryId = typeof type?.categoryId === 'string' ? type.categoryId : null;
+    }
+    return { categoryId, productTypeId: typeId };
+  }
+  return { categoryId: null, productTypeId: null };
 }

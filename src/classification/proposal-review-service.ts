@@ -2,11 +2,12 @@ import { getDb } from '../db/connection';
 import { DecisionConflictError, getProposalsByRun, getLiveDecisionsByRun, insertDecisionRow, recordHistoryEvent, assertProposalReviewLiveness } from '../db/repositories/classification-run-repo';
 import { enqueueRefreshItem } from '../db/repositories/classification-refresh-repo';
 import type { ClassificationProposalDecision } from '../shared/types';
-import { getProductTypeIdFromValue } from './assignment-projection';
-import { getEffectivePrimaryProductTypeId } from './assignment-projection';
+import { getCategoryIdFromValue, getEffectiveClassificationPair, getEffectiveProposalValue, getProductTypeIdFromValue } from './assignment-projection';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
 import { validateFrozenReviewCorrection } from './review-correction';
+import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { pageNameFromPageValue } from '../shared/proposal-display';
 
 export interface ProposalReviewInput {
   workspaceId: string;
@@ -101,6 +102,54 @@ function resolveCorrection(
     }
   }
 
+  // Issue #350: the canonical pair corrects through the same validated
+  // model. Pair values carry {categoryId, productTypeId} and persist paired;
+  // a target-only correction keeps the proposal's own category. Combination
+  // validity is enforced downstream by validateClassificationCorrection
+  // against the frozen snapshot (never invented here).
+  if (proposalType === 'product_classification') {
+    if (!hasRevisedValue && !hasRevisedTargetId) {
+      return { ok: true, correction: { hasRevisedValue: false, hasRevisedTargetId: false } };
+    }
+    const categoryId = hasRevisedValue ? getCategoryIdFromValue(revisedValue) : null;
+    const valueTypeId = hasRevisedValue ? getProductTypeIdFromValue(revisedValue) : null;
+    if (hasRevisedValue && revisedValue !== null && (!categoryId || !valueTypeId)) {
+      return { ok: false, reason: `Decision ${decision.proposalId} has an invalid Product Classification value; a correction must address both Category and Product Type.` };
+    }
+    if (hasRevisedTargetId && revisedTargetId !== null && (typeof revisedTargetId !== 'string' || revisedTargetId.length === 0)) {
+      return { ok: false, reason: `Decision ${decision.proposalId} has an invalid Product Classification target.` };
+    }
+    const effectiveTypeId = hasRevisedTargetId ? revisedTargetId ?? null : valueTypeId;
+    if (hasRevisedValue && hasRevisedTargetId && valueTypeId !== effectiveTypeId) {
+      return { ok: false, reason: `Decision ${decision.proposalId} has conflicting Product Classification value and target IDs.` };
+    }
+    // Target-only correction (issue #354): pass through cleanly with
+    // hasRevisedValue=false so validation resolves the category through the
+    // approved mapping (never invented here). A null target is an explicit
+    // clear. A supplied value still requires both members here.
+    if (!hasRevisedValue && hasRevisedTargetId) {
+      return {
+        ok: true,
+        correction: {
+          hasRevisedValue: false,
+          hasRevisedTargetId: true,
+          revisedTargetId: effectiveTypeId ?? null,
+        },
+      };
+    }
+    return {
+      ok: true,
+      correction: {
+        hasRevisedValue: hasRevisedValue || hasRevisedTargetId,
+        ...(hasRevisedValue || hasRevisedTargetId
+          ? { revisedValue: hasRevisedValue ? { categoryId, productTypeId: valueTypeId } : { categoryId: null, productTypeId: effectiveTypeId } }
+          : {}),
+        hasRevisedTargetId: true,
+        revisedTargetId: effectiveTypeId ?? null,
+      },
+    };
+  }
+
   if (proposalType !== 'primary_product_type' || (!hasRevisedValue && !hasRevisedTargetId)) {
     return {
       ok: true,
@@ -112,7 +161,6 @@ function resolveCorrection(
       },
     };
   }
-
   // Product Type is one semantic identity even though legacy proposals stored
   // it in both value and target. New decisions always persist a paired,
   // canonical correction; existing one-sided history remains readable through
@@ -225,6 +273,46 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
   const proposalTypeById = new Map(proposalRows.map(row => [row.id, row.proposal_type]));
   const reviewSnapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
   const originalProposals = getProposalsByRun(input.runId);
+  // ADR 0041 / issue #349: a historical Brand proposal remains attributable
+  // but can never gain review authority. Refuse accepted decisions on
+  // protected targets — including protected revised targets — with an
+  // attributable code instead of applying or silently rerouting them.
+  // Rejections/deferrals carry no write authority and pass through. Issue
+  // #353: the same refusal covers Brand pages — a category_page proposal
+  // whose effective display name carries the `Brand -` prefix is outside
+  // classifier ownership (verified identity or not) and can never gain
+  // review authority, including via a revised value/target.
+  for (const decision of input.decisions) {
+    if (decision.decision !== 'accepted') continue;
+    const original = originalProposals.find(proposal => proposal.id === decision.proposalId);
+    if (!original) continue;
+    if (original.proposalType === 'category_page') {
+      const revisedValue = hasOwn(decision, 'revisedValue') ? decision.revisedValue : undefined;
+      const revisedTarget = hasOwn(decision, 'revisedTargetId')
+        ? (decision.revisedTargetId ?? null)
+        : hasOwn(decision, 'targetId')
+          ? (decision.targetId ?? null)
+          : original.targetId;
+      const effectiveName = revisedValue !== undefined
+        ? pageNameFromPageValue(revisedValue)
+        : pageNameFromPageValue(getEffectiveProposalValue(original));
+      if (isBrandPageProposal(effectiveName)) {
+        const refusal = protectedTargetRefusal(revisedTarget ?? original.targetId);
+        return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+      }
+      continue;
+    }
+    if (original.proposalType !== 'field_assignment') continue;
+    const revisedTarget = hasOwn(decision, 'revisedTargetId')
+      ? (decision.revisedTargetId ?? null)
+      : hasOwn(decision, 'targetId')
+        ? (decision.targetId ?? null)
+        : original.targetId;
+    if (isProtectedTargetId(original.targetId) || isProtectedTargetId(revisedTarget)) {
+      const refusal = protectedTargetRefusal(revisedTarget ?? original.targetId);
+      return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+    }
+  }
 
   // Issue #17 I: validate evidence citations BEFORE any decision or history
   // row is written. A cited evidence id must exist, belong to the same
@@ -313,7 +401,11 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           ...(d.evidenceIds && d.evidenceIds.length > 0 ? { evidenceIds: d.evidenceIds } : {}),
         };
         const priorProposal = getProposalsByRun(input.runId).find(proposal => proposal.id === d.proposalId);
-        const priorType = proposalTypeById.get(d.proposalId) === 'primary_product_type' ? priorProposal : null;
+        const priorKind = proposalTypeById.get(d.proposalId);
+        // ADR 0041: only the canonical pair kind drives invalidation; legacy
+        // `primary_product_type` decisions are history-only (explicit restart
+        // or reclassification required before they confer authority again).
+        const priorType = priorKind === 'product_classification' ? priorProposal : null;
         const priorDecision = priorType ? getLiveDecisionsByRun(input.runId).find(decision => decision.id === priorType.currentDecisionId) : null;
         const hadHumanReviewedType = priorType?.status === 'accepted' && priorDecision?.decision === 'accepted' && priorDecision.decisionOrigin === 'human_review';
         const { decision, inserted, decisionId } = insertDecisionRow(db, rowInput);
@@ -322,19 +414,23 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           throw new DecisionConflictError('Agent evaluation cannot replace an existing review decision.');
         }
         if (inserted && priorType) {
-          const previousTypeId = hadHumanReviewedType ? getEffectivePrimaryProductTypeId(priorType) : getProductTypeIdFromValue(priorType.proposedValue);
+          const previousPair = hadHumanReviewedType ? getEffectiveClassificationPair(priorType) : { categoryId: getCategoryIdFromValue(priorType.proposedValue), productTypeId: getProductTypeIdFromValue(priorType.proposedValue) };
+          const previousTypeId = previousPair.productTypeId;
+          const previousCategoryId = previousPair.categoryId;
           const nextType = getProposalsByRun(input.runId).find(proposal => proposal.id === priorType.id)!;
-          const nextTypeId = d.decision !== 'accepted' ? null : getEffectivePrimaryProductTypeId(nextType);
+          const nextPair = d.decision !== 'accepted' ? { categoryId: null, productTypeId: null } : getEffectiveClassificationPair(nextType);
+          const nextTypeId = nextPair.productTypeId;
+          const nextCategoryId = nextPair.categoryId;
           const snapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
           const currentProposals = listCurrentRunProposals(input.runId);
           const hasWithheldDependents = currentProposals.some(proposal => proposal.proposalType === 'reviewable_abstention'
             && ['product_attribute_proposals', 'category_page_proposals'].includes(proposal.targetId ?? '')
-            && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Primary Product Type'));
+            && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Product Classification'));
           const needsInitialDependents = !hadHumanReviewedType
             && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot)));
           refreshRequired = input.reviewOrigin !== 'agent_review' && nextTypeId !== null
-            && (nextTypeId !== previousTypeId || hasWithheldDependents || needsInitialDependents);
-          if (input.reviewOrigin !== 'agent_review' && nextTypeId !== previousTypeId) {
+            && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId || hasWithheldDependents || needsInitialDependents);
+          if (input.reviewOrigin !== 'agent_review' && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId)) {
             invalidateDependentTypeReview(input.runId, snapshot, input.onboardingItemId, nextTypeId === null ? 'product_type_cleared' : 'product_type_changed');
           }
         }
@@ -376,7 +472,10 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
       // proposals: queue a dependent refresh so the next run's snapshot cites
       // the accepted decision as a reviewed fact and re-evaluates gating.
       const typeDecisionInserted = insertedDecisions.find(
-        inserted => proposalTypeById.get(inserted.proposalId) === 'primary_product_type',
+        inserted => {
+          const kind = proposalTypeById.get(inserted.proposalId);
+          return kind === 'product_classification';
+        },
       );
       if (typeDecisionInserted && refreshRequired) {
         enqueueRefreshItem({

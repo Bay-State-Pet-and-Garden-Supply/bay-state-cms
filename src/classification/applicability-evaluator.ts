@@ -178,7 +178,7 @@ export function evaluateAttributeApplicability(
     return {
       attributeId: attribute.id,
       state: 'unknown',
-      reason: 'No reviewed Primary Product Type; type-gated attribute is blocked until the type is accepted.',
+      reason: 'No Product Classification (reviewed or provisional); type-gated attribute is blocked until the pair is proposed.',
     };
   }
   if (input.profileAttributeIds !== null && !input.profileAttributeIds.has(attribute.id)) {

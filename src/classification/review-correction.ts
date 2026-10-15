@@ -1,7 +1,8 @@
 import type { ClassificationProposal } from '../shared/types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
-import { getProductTypeIdFromValue } from './assignment-projection';
-
+import { getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
+import { isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { INVALID_CLASSIFICATION_PAIR_CODE, isApprovedClassificationPair } from './product-classification';
 export interface ReviewCorrection {
   hasRevisedValue: boolean;
   revisedValue?: unknown;
@@ -11,6 +12,17 @@ export interface ReviewCorrection {
 
 /** Shared HTTP/CLI frozen-membership guard. Historical rows remain readable, not correctable without their authority. */
 export function validateFrozenReviewCorrection(proposal: ClassificationProposal, correction: ReviewCorrection, snapshot: RuntimeClassificationSnapshot | null): ReviewCorrection {
+  // ADR 0041 / issue #349: a revised target or historical Brand proposal can
+  // never authorize a protected write. Accepted (or corrected) decisions on
+  // protected targets refuse attributably instead of applying or silently
+  // rerouting. Rejections/deferrals carry no write authority and pass.
+  if (proposal.proposalType === 'field_assignment' && (correction.hasRevisedValue || correction.hasRevisedTargetId)) {
+    const effectiveTarget = correction.hasRevisedTargetId ? correction.revisedTargetId : proposal.targetId;
+    const originalProtected = isProtectedTargetId(proposal.targetId);
+    if (originalProtected || isProtectedTargetId(effectiveTarget)) {
+      throw new Error(protectedTargetRefusal(effectiveTarget ?? proposal.targetId).reason);
+    }
+  }
   if (!correction.hasRevisedValue && !correction.hasRevisedTargetId) return correction;
   if (!snapshot) throw new Error('Frozen runtime snapshot is required to validate a correction.');
   if (proposal.proposalType === 'field_assignment' && correction.hasRevisedTargetId && correction.revisedTargetId === null) {
@@ -28,6 +40,9 @@ export function validateFrozenReviewCorrection(proposal: ClassificationProposal,
     const id = correction.hasRevisedTargetId ? correction.revisedTargetId : getProductTypeIdFromValue(correction.revisedValue);
     if (id != null && !snapshot.productTypes.some(type => type.id === id)) throw new Error('Corrected Product Type is not in the run’s frozen configured options.');
     return correction;
+  }
+  if (proposal.proposalType === 'product_classification') {
+    return validateClassificationCorrection(proposal, correction, snapshot);
   }
   if (proposal.proposalType === 'category_page') {
     const value = correction.hasRevisedValue ? correction.revisedValue : null;
@@ -55,4 +70,57 @@ export function validateFrozenReviewCorrection(proposal: ClassificationProposal,
     if (!values.length || values.some(value => typeof value !== 'string' || !allowed.includes(value))) throw new Error('Corrected value is not a configured controlled option.');
   }
   return correction;
+}
+
+/**
+ * Validate a correction to the canonical pair through the same validated
+ * model (issue #350). The corrected pair must be an approved configured
+ * combination; corrections to either member invalidate dependents identically
+ * (invalidation is owned by the review service reading the pair kind).
+ * A legacy type-only correction resolves its category through the approved
+ * mapping — an unmapped type is a configuration gap, never silent invention.
+ */
+export function validateClassificationCorrection(
+  proposal: ClassificationProposal,
+  correction: ReviewCorrection,
+  snapshot: Pick<RuntimeClassificationSnapshot, 'productTypes' | 'categories'>,
+): ReviewCorrection {
+  if (!correction.hasRevisedValue && correction.hasRevisedTargetId) {
+    // Target-only correction on either pair kind (issue #354): the category
+    // resolves through the approved type→category mapping — an unmapped type
+    // is a configuration gap, never silent invention. A null target is an
+    // explicit clear and passes through (invalidation treats it as cleared).
+    const typeId = correction.revisedTargetId;
+    if (typeId) {
+      const type = snapshot.productTypes.find(candidate => candidate.id === typeId);
+      if (!type) throw new Error('Corrected Product Type is not in the run’s frozen configured options.');
+      const categoryId = (type as { categoryId?: string | null }).categoryId ?? null;
+      if (!categoryId) throw new Error(`Product Type "${typeId}" has no approved Category mapping (${INVALID_CLASSIFICATION_PAIR_CODE}:unmapped).`);
+      return {
+        hasRevisedValue: true,
+        revisedValue: { categoryId, productTypeId: typeId },
+        hasRevisedTargetId: true,
+        revisedTargetId: typeId,
+      };
+    }
+    return correction;
+  }
+  const value = correction.hasRevisedValue ? correction.revisedValue
+    : proposal.hasRevisedValue ? proposal.revisedValue : proposal.proposedValue;
+  const categoryId = getCategoryIdFromValue(value);
+  const productTypeId = correction.hasRevisedTargetId && !correction.hasRevisedValue
+    ? correction.revisedTargetId
+    : getProductTypeIdFromValue(value);
+  if (!categoryId || !productTypeId) {
+    throw new Error(`${INVALID_CLASSIFICATION_PAIR_CODE}: corrected classification must address both Category and Product Type.`);
+  }
+  if (!isApprovedClassificationPair({ categoryId, productTypeId }, snapshot)) {
+    throw new Error(`${INVALID_CLASSIFICATION_PAIR_CODE}: "${categoryId}" + "${productTypeId}" is not an approved configured combination.`);
+  }
+  return {
+    hasRevisedValue: true,
+    revisedValue: { categoryId, productTypeId },
+    hasRevisedTargetId: true,
+    revisedTargetId: productTypeId,
+  };
 }

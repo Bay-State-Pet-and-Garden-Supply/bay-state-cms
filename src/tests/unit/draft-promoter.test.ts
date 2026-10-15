@@ -580,7 +580,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(updatedRow.error_message).toContain('Missing mandatory fields');
   });
 
-  it('should set ProductField1 to new{todaysDate} in MMDDYY format on new product promotion', async () => {
+  it('does NOT stamp ProductField1 on new product promotion: uncertified-unnamed slot refused (#355)', async () => {
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo F',
@@ -642,15 +642,12 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const csItems = listChangeSetItems(promoteRes.changeSetId!);
     const draftProduct = JSON.parse(csItems[0].draftJson);
-    
-    // Format today's date in MMDDYY format
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(-2);
-    const expectedField1Value = `new${mm}${dd}${yy}`;
-    
-    expect(draftProduct.customFields['ProductField1']).toBe(expectedField1Value);
+
+    // Issue #355: ProductField1 is an uncertified-unnamed slot (2026-10-15
+    // screenshot shows no display name) and a refused classification slot —
+    // no arrival_date mapping exists here, so no stamp is written. The mapped
+    // slot path is covered by the #142 test below.
+    expect(draftProduct.customFields['ProductField1']).toBeUndefined();
   });
 
   it('routes Brand to the mapped catalog slot instead of hardcoded ProductField16 (#142)', async () => {
@@ -996,7 +993,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     }
   });
 
-  it('falls back to ProductField1 when the arrival-date mapping is empty (#142)', async () => {
+  it('does NOT fall back to ProductField1 when the arrival-date mapping is empty: refused slot (#355)', async () => {
     const db = getDb();
     seedAttributeMapping(db, 'arrival_date', '   ');
     try {
@@ -1053,11 +1050,9 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       expect(promoteRes.count).toBe(1);
       const csItems = listChangeSetItems(promoteRes.changeSetId!);
       const draftProduct = JSON.parse(csItems[0].draftJson);
-      const d = new Date();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      const yy = String(d.getFullYear()).slice(-2);
-      expect(draftProduct.customFields['ProductField1']).toBe(`new${mm}${dd}${yy}`);
+      // Issue #355: the empty mapping resolves to the PF1 fallback, which is
+      // a refused slot (uncertified-unnamed) — no stamp is written.
+      expect(draftProduct.customFields['ProductField1']).toBeUndefined();
     } finally {
       db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-arrival_date']);
     }
@@ -1294,8 +1289,8 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       `INSERT INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
         confidence, status, created_at)
-       VALUES ('proposal-type-corrected', ?, ?, 'primary_product_type', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
-      [runId, item.upc, JSON.stringify({ productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
+       VALUES ('proposal-type-corrected', ?, ?, 'product_classification', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
+      [runId, item.upc, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
     );
     db.run(
       `INSERT INTO classification_proposals
@@ -1387,8 +1382,8 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
         `INSERT INTO classification_proposals
          (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
           confidence, status, created_at)
-         VALUES (?, ?, ?, 'primary_product_type', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
-        [proposalId, runId, item.upc, JSON.stringify({ productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
+         VALUES (?, ?, ?, 'product_classification', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
+        [proposalId, runId, item.upc, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
       );
       const toysPageId = activateVerifiedPage('Toys', `history-${scenario.suffix}`);
       db.run(
@@ -1468,8 +1463,8 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       `INSERT INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
         confidence, status, created_at)
-       VALUES ('proposal-type-foreign', ?, ?, 'primary_product_type', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
-      [runId, item.upc, JSON.stringify({ productTypeId: 'dog-food-dry' }), now],
+       VALUES ('proposal-type-foreign', ?, ?, 'product_classification', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
+      [runId, item.upc, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }), now],
     );
 
     // A present run pointer that fails ownership validation blocks promotion
@@ -1481,7 +1476,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(result.failures[0].error).toContain('Invalid classification run pointer');
   });
 
-  it('resolves brand from product title when brandHint is missing', async () => {
+  it('never invents Brand from the product title when brandHint is missing (issue #349)', async () => {
     const db = getDb();
     const now = new Date().toISOString();
 
@@ -1527,17 +1522,13 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 
     seedAcceptedCategoryProposal(db, item.upc, 'Cat Treats');
 
-        seedApproved(item.id, batch.id);
-const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
-    expect(result.failures).toHaveLength(0);
-    expect(result.count).toBe(1);
-
-    const changeSetItem = db.query(
-      `SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1`,
-    ).get(item.upc) as { draft_json: string };
-
-    const draft = JSON.parse(changeSetItem.draft_json);
-    expect(draft.customFields.ProductField16).toBe('Greenies');
+    seedApproved(item.id, batch.id);
+    const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    // Missing Brand stays a separate listing-identity gap: the item blocks
+    // on Brand instead of acquiring one from its title.
+    expect(result.count).toBe(0);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0].error).toContain('Brand');
   });
 
   it('applies nothing when an active run has only deferred proposals', async () => {

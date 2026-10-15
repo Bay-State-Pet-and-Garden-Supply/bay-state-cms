@@ -75,7 +75,7 @@ export type {
 } from './proposal-safety';
 
 // ─── Proposal Selection ───────────────────────────────────────────────────────
-export { selectPrimaryProductTypeProposal, getReviewedPrimaryProductTypeId } from './proposal-selection';
+export { selectAcceptedClassification, selectClassificationProposal, getReviewedClassification } from './proposal-selection';
 export type { ProposalSelection } from './proposal-selection';
 
 // ─── Assignment Projection ────────────────────────────────────────────────────

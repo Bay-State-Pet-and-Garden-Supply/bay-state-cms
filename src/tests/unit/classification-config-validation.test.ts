@@ -404,9 +404,10 @@ describe('classification v2 structural and semantic validation', () => {
       valueAliases: [],
       oldIdAliases: [],
     });
+    bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
     bundle.productTypes = [{
       id: 'dog-food', name: 'Dog Food', description: null,
-      attributeProfileId: 'dog-food-profile', oldIdAliases: [],
+      attributeProfileId: 'dog-food-profile', oldIdAliases: [], categoryId: 'food',
     }];
     bundle.attributeProfiles = [{
       id: 'dog-food-profile', productTypeId: 'dog-food', name: 'Dog Food', oldIdAliases: [],
@@ -438,9 +439,10 @@ describe('classification v2 structural and semantic validation', () => {
 
   it('allows profile-scoped mixed cardinality when the shared serializer supports multiple use', () => {
     const bundle = structuredClone(migrated().bundle);
+    bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
     bundle.productTypes = [
-      { id: 'dog-food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [] },
-      { id: 'cat-food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [] },
+      { id: 'dog-food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], categoryId: 'food' },
+      { id: 'cat-food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [], categoryId: 'food' },
     ];
     bundle.attributeProfiles = [
       { id: 'dog-profile', productTypeId: 'dog-food', name: 'Dog Profile', oldIdAliases: [], attributes: [{ attributeId: 'flavor', required: false, cardinality: 'single', applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] }] },
@@ -685,9 +687,10 @@ describe('classification v2 structural and semantic validation', () => {
       valueAliases: [],
       oldIdAliases: [],
     });
+    bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
     bundle.productTypes = [{
       id: 'dog-food', name: 'Dog Food', description: null,
-      attributeProfileId: 'dog-profile', oldIdAliases: [],
+      attributeProfileId: 'dog-profile', oldIdAliases: [], categoryId: 'food',
     }];
     bundle.attributeProfiles = [{
       id: 'dog-profile', productTypeId: 'dog-food', name: 'Dog', oldIdAliases: [],
@@ -720,9 +723,10 @@ describe('classification v2 structural and semantic validation', () => {
     expect(findingCodes(duplicated)).toContain('duplicate_product_type_target');
 
     const mixed = structuredClone(migrated().bundle);
+    mixed.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
     mixed.productTypes = [
-      { id: 'dog-food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [] },
-      { id: 'cat-food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [] },
+      { id: 'dog-food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], categoryId: 'food' },
+      { id: 'cat-food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [], categoryId: 'food' },
     ];
     mixed.attributeProfiles = [
       { id: 'dog-profile', productTypeId: 'dog-food', name: 'Dog', oldIdAliases: [], attributes: [{ attributeId: 'flavor', required: false, cardinality: 'single', applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] }] },
@@ -736,7 +740,8 @@ describe('classification v2 structural and semantic validation', () => {
     expect(findingCodes(mixed)).toContain('target_cardinality_conflict');
 
     const single = structuredClone(migrated().bundle);
-    single.productTypes = [{ id: 'dog-food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [] }];
+    single.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
+    single.productTypes = [{ id: 'dog-food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], categoryId: 'food' }];
     single.attributeProfiles = [{ id: 'dog-profile', productTypeId: 'dog-food', name: 'Dog', oldIdAliases: [], attributes: [{ attributeId: 'flavor', required: false, cardinality: 'single', applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] }] }];
     single.curationTargets = [
       ...single.curationTargets,
@@ -889,12 +894,14 @@ describe('classification v2 structural and semantic validation', () => {
 
     it('reports isReady: true for a fully configured workspace with legal options', () => {
       const fullBundle = structuredClone(migrated().bundle);
+      fullBundle.categories = [{ id: 'dog-food', name: 'Dog Food', description: null, oldIdAliases: [] }];
       fullBundle.productTypes = [{
         id: 'dog_food_dry',
         name: 'Dry Dog Food',
         description: 'Kibble',
         attributeProfileId: null,
         oldIdAliases: [],
+        categoryId: 'dog-food',
       }];
       fullBundle.curationTargets = [
         {
@@ -952,12 +959,14 @@ describe('classification v2 structural and semantic validation', () => {
       bundle.curationTargets = [
         bundle.curationTargets.find(t => t.id === 'primary-product-type')!,
       ];
+      bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
       bundle.productTypes = [{
         id: 'dog-food-dry',
         name: 'Dry Dog Food',
         description: null,
         attributeProfileId: null,
         oldIdAliases: [],
+        categoryId: 'food',
         invariantAttributes: {
           species: 'Dog',
         },
@@ -971,12 +980,14 @@ describe('classification v2 structural and semantic validation', () => {
     it('rejects invariant for unknown attribute', () => {
       const bundle = migrated().bundle;
       bundle.attributes = [makeSpeciesAttrV2(bundle, true)];
+      bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
       bundle.productTypes = [{
         id: 'dog-food-dry',
         name: 'Dry Dog Food',
         description: null,
         attributeProfileId: null,
         oldIdAliases: [],
+        categoryId: 'food',
         invariantAttributes: {
           'non-existent-attr': 'Value',
         },
@@ -994,12 +1005,14 @@ describe('classification v2 structural and semantic validation', () => {
     it('rejects invariant attribute not in profile and not universal', () => {
       const bundle = migrated().bundle;
       bundle.attributes = [makeSpeciesAttrV2(bundle, false)];
+      bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
       bundle.productTypes = [{
         id: 'dog-food-dry',
         name: 'Dry Dog Food',
         description: null,
         attributeProfileId: 'empty-profile',
         oldIdAliases: [],
+        categoryId: 'food',
         invariantAttributes: {
           species: 'Dog',
         },
@@ -1024,12 +1037,14 @@ describe('classification v2 structural and semantic validation', () => {
     it('rejects invalid controlled value for invariant', () => {
       const bundle = migrated().bundle;
       bundle.attributes = [makeSpeciesAttrV2(bundle, true)];
+      bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
       bundle.productTypes = [{
         id: 'dog-food-dry',
         name: 'Dry Dog Food',
         description: null,
         attributeProfileId: null,
         oldIdAliases: [],
+        categoryId: 'food',
         invariantAttributes: {
           species: 'Dragon', // Invalid controlled value
         },
@@ -1047,12 +1062,14 @@ describe('classification v2 structural and semantic validation', () => {
     it('rejects single-cardinality attribute with array invariant', () => {
       const bundle = migrated().bundle;
       bundle.attributes = [makeSpeciesAttrV2(bundle, true)];
+      bundle.categories = [{ id: 'food', name: 'Food', description: null, oldIdAliases: [] }];
       bundle.productTypes = [{
         id: 'dog-food-dry',
         name: 'Dry Dog Food',
         description: null,
         attributeProfileId: null,
         oldIdAliases: [],
+        categoryId: 'food',
         invariantAttributes: {
           species: ['Dog'] as any, // Array for single cardinality
         },
