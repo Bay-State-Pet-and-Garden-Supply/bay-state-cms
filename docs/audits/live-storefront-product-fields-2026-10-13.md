@@ -6,15 +6,24 @@ authenticated export) with **actual current storefront observation** (this pass,
 Supersedes the cached-export scout findings where they differ; provisional scout labels are
 treated skeptically throughout.
 
-**Headline:** no `ProductFieldN` literal appears anywhere in observed storefront output
-(category HTML, product HTML, `app.js`, `wl.js`, `reviews.js` — all zero hits), so numbered
-bindings are inferred from **facet-parameter ↔ census-value correspondence**, not proven by literal tags.
+**Update 2026-10-15:** the authenticated Extra Product Fields screenshot (user-supplied,
+2026-10-15; see `docs/audits/extra-fields-certification-2026-10-15.md`) certifies the
+live admin labels for PF16–PF32 exactly as the repo declared them (17/17 match, including
+`Lifestage` single word, `Product Cross Sell`, PF31 `Product Category` vs PF24
+`Facet - Category`). PF16–PF32 rows below are now `CERTIFIED (2026-10-15)`; the
+`UNCONFIRMED`/`UNRESOLVED` language in the original 2026-10-13 pass below applies only to
+PF1–PF15, whose labels were not shown in the screenshot and remain uncertified. The
+2026-10-13 census/storefront value evidence is unchanged.
+
+**Original headline (2026-10-13 pass):** no `ProductFieldN` literal appears anywhere in
+observed storefront output
+(`category HTML`, product HTML, `app.js`, `wl.js`, `reviews.js` — all zero hits), so numbered
+bindings were inferred from **facet-parameter ↔ census-value correspondence**, not proven by literal tags.
 Strongest new result: the observed product page's *"You may also like"* block renders exactly
 the 4-SKU set of one fresh-census PF32 sample value — PF32 carries **identifiers, not names** —
 but PF32's top values are shared verbatim by thousands of products, so its exact semantic role
-(cross-sell source vs. pack/group data) stays unresolved. **No admin Extra-Field label is
-confirmed for any slot** — the export carries values only, and the full export XML contains
-no `ProductFieldN` name/label tags (parent-verified, see §1).
+(cross-sell source vs. pack/group data) stayed unresolved in that pass. The export carries values
+only, and the full export XML contains no `ProductFieldN` name/label tags (parent-verified, see §1).
 
 ## 1. Method (reproducible, read-only)
 
@@ -167,23 +176,23 @@ Confidence describes the observed values and correspondence, not verified admin 
 | PF13 | UNRESOLVED (no `LOCAL` label; v10 projection slot) | Live-empty; populating = new live data | — | 0 (0.0%) | HIGH empty `LIVE-XML` |
 | PF14 | UNRESOLVED (no `LOCAL` label; v10 projection slot) | Live-empty; populating = new live data | — | 0 (0.0%) | HIGH empty `LIVE-XML` |
 | PF15 | UNRESOLVED (`LOCAL`: "Gift Wrap Eligible Flag") | Boolean flag | `yes` 1823, `YES` 1 | 1,824 (8.2%), 2 distinct | HIGH boolean; label UNCONFIRMED |
-| PF16 | UNRESOLVED (`LOCAL`: "Facet - Brand") | Brand-facet correspondence (`brand[]`); numbered binding unconfirmed | `Kong` 462 + `KONG` 366, `Bay State P&G` 323, `Blue` 287, `Instinct` 272 | 15,468 (69.7%), 1004 distinct, 97 piped | HIGH value correspondence; normalization remains store policy |
-| PF17 | UNRESOLVED (`LOCAL`: "Facet - Pet Type") | Pet Type/species correspondence (`pettype[]`) | `Dog` 5042 + `dog` 2408, `Cat` 878 + `cat` 511, `Wild Bird` 374, `Horse` 327 | 11,264 (50.8%), 69 distinct, 511 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF18 | UNRESOLVED (`LOCAL`: "Facet - Lifestage") | Lifestage correspondence (`lifestage[]`) | `Adult` 932, `Adult\|All Life Stages` 544, `adult` 262, `Puppy` 198, `Kitten` 31 | 2,101 (9.5%), 14 distinct, 547 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF19 | UNRESOLVED (`LOCAL`: "Facet - Pet Size") | Pet Size/breed-size correspondence (`petsize[]`); v10 locally retires its mapping | `All Breeds` 1224, `Small Breed` 95, `Large Breed` 78, stray `Adult` 15 | 1,445 (6.5%), 14 distinct, 13 piped | HIGH observed values; export-policy change requires review |
-| PF20 | UNRESOLVED (`LOCAL`: "Facet - Special Diet") | Special Diet correspondence | `Grain-Free` 954 + `grain-free` 187, `No Corn, Wheat or Soy` 401, typos `Gain-Free`, `Grian-Free` 40 | 1,844 (8.3%), 24 distinct, 163 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF21 | UNRESOLVED (`LOCAL`: "Facet - Health Feature") | Health Feature correspondence | `High Protein` 92, `Weight Management` 67, `Digestive Health` 37, `Teething` 29, `Dental` 20 | 410 (1.8%), 44 distinct, 57 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF22 | UNRESOLVED (`LOCAL`: "Facet - Food Form") | Food Form correspondence (`foodform[]`) | `Dry Food` 1314, `Treat` 906, `Wet Food` 486, `dry food` 357, `Frozen Raw` 156 | 4,263 (19.2%), 56 distinct, 23 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF23 | UNRESOLVED (`LOCAL`: "Facet - Flavor") | Flavor correspondence | `Chicken` 776 + `chicken` 343, `Beef` 302 + `beef` 227, `Lamb` 197, `Turkey` 154 | 3,961 (17.9%), 372 distinct, 748 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF24 | UNRESOLVED (`LOCAL`: "Facet - Category") | Category correspondence; PF31 also contains category values (§2.2) | `Dog Food` 1771, `Dog Supplies` 1395, `Dog Treats` 987, `dog supplies` 808, `Household` 778 | 13,019 (58.7%), 131 distinct, 652 piped | HIGH observed values; PF24-versus-PF31 binding unresolved |
-| PF25 | UNRESOLVED (`LOCAL`: "Facet - Product Type") | Product Type correspondence; not necessarily the CMS Primary Product Type label | `Food` 2743, `Treats` 960, `toys` 677, `treats` 638, `Toys` 614, `food` 582 | 12,689 (57.2%), 377 distinct, 526 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF26 | UNRESOLVED (`LOCAL`: "Facet - Product Feature") | Product Feature correspondence | `Squeak` 84, `Catnip` 35, `Organic` 26, `Squeak\|Crinkle` 23, `Heated` 14, `Glow` 11 | 218 (1.0%), 14 distinct, 34 piped | MEDIUM-HIGH correspondence; numbered binding unconfirmed |
-| PF27 | UNRESOLVED (`LOCAL`: "Facet - Size") | Size correspondence; v10 locally retires its mapping | `Large` 91, `Medium` 86, `Small` 73, `Wolf`/`Souper` 18, `medium` 18 | 434 (2.0%), 46 distinct, 21 piped | HIGH observed values; export-policy change requires review |
-| PF28 | UNRESOLVED (`LOCAL`: "Facet - Material") | Material correspondence | `Rubber` 122, `Polyester` 120, `Nylon` 105, `fabric` 36, `Felt\|Rubber` 26 | 485 (2.2%), 31 distinct, 35 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF29 | UNRESOLVED (`LOCAL`: "Facet - Color") | Color correspondence (public swatch links) | `Assorted` 136, `blue` 58, `black` 46, `purple` 43, `Red` 39, `Brown` 34 | 911 (4.1%), 94 distinct, 101 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF30 | UNRESOLVED (`LOCAL`: "Facet - Packaging Type") | Packaging Type correspondence (`packagingtype[]`) | `Bag` 1693, `Can` 335, `Individual` 143, `Box` 38, `bag` 29 | 2,374 (10.7%), 22 distinct, 1 piped | HIGH value correspondence; numbered binding unconfirmed |
-| PF31 | UNRESOLVED (`LOCAL`: "Product Category") | Live-populated category duplicate mirroring PF24 top values; NOT free | `Dog Food` 1476, `Dog Supplies` 1146, `Household` 610, `Dog Treats` 579, `Cat Food` 339 | 6,661 (30.0%), 55 distinct, 452 piped | HIGH `LIVE-XML`; "store does not use it" is FALSE |
-| PF32 | UNRESOLVED (`LOCAL`: "Product Cross Sell") | Pipe-joined **identifier** lists (UPCs + internal codes); same-set match with rendered cross-sell block (see §2.3); exact role unresolved | §2.3 samples; top-6 values cover ~77% of populated | 20,799 (93.8%), 4055 distinct, 20,796 piped | HIGH identifiers; semantic role UNRESOLVED; read-only |
+| PF16 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Brand") | Brand-facet correspondence (`brand[]`); numbered binding unconfirmed | `Kong` 462 + `KONG` 366, `Bay State P&G` 323, `Blue` 287, `Instinct` 272 | 15,468 (69.7%), 1004 distinct, 97 piped | HIGH value correspondence; normalization remains store policy |
+| PF17 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Pet Type") | Pet Type/species correspondence (`pettype[]`) | `Dog` 5042 + `dog` 2408, `Cat` 878 + `cat` 511, `Wild Bird` 374, `Horse` 327 | 11,264 (50.8%), 69 distinct, 511 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF18 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Lifestage") | Lifestage correspondence (`lifestage[]`) | `Adult` 932, `Adult\|All Life Stages` 544, `adult` 262, `Puppy` 198, `Kitten` 31 | 2,101 (9.5%), 14 distinct, 547 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF19 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Pet Size") | Pet Size/breed-size correspondence (`petsize[]`); v10 locally retires its mapping | `All Breeds` 1224, `Small Breed` 95, `Large Breed` 78, stray `Adult` 15 | 1,445 (6.5%), 14 distinct, 13 piped | HIGH observed values; export-policy change requires review |
+| PF20 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Special Diet") | Special Diet correspondence | `Grain-Free` 954 + `grain-free` 187, `No Corn, Wheat or Soy` 401, typos `Gain-Free`, `Grian-Free` 40 | 1,844 (8.3%), 24 distinct, 163 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF21 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Health Feature") | Health Feature correspondence | `High Protein` 92, `Weight Management` 67, `Digestive Health` 37, `Teething` 29, `Dental` 20 | 410 (1.8%), 44 distinct, 57 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF22 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Food Form") | Food Form correspondence (`foodform[]`) | `Dry Food` 1314, `Treat` 906, `Wet Food` 486, `dry food` 357, `Frozen Raw` 156 | 4,263 (19.2%), 56 distinct, 23 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF23 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Flavor") | Flavor correspondence | `Chicken` 776 + `chicken` 343, `Beef` 302 + `beef` 227, `Lamb` 197, `Turkey` 154 | 3,961 (17.9%), 372 distinct, 748 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF24 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Category") | Category correspondence; PF31 also contains category values (§2.2) | `Dog Food` 1771, `Dog Supplies` 1395, `Dog Treats` 987, `dog supplies` 808, `Household` 778 | 13,019 (58.7%), 131 distinct, 652 piped | HIGH observed values; PF24-versus-PF31 binding unresolved |
+| PF25 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Product Type") | Product Type correspondence; not necessarily the CMS Primary Product Type label | `Food` 2743, `Treats` 960, `toys` 677, `treats` 638, `Toys` 614, `food` 582 | 12,689 (57.2%), 377 distinct, 526 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF26 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Product Feature") | Product Feature correspondence | `Squeak` 84, `Catnip` 35, `Organic` 26, `Squeak\|Crinkle` 23, `Heated` 14, `Glow` 11 | 218 (1.0%), 14 distinct, 34 piped | MEDIUM-HIGH correspondence; numbered binding unconfirmed |
+| PF27 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Size") | Size correspondence; v10 locally retires its mapping | `Large` 91, `Medium` 86, `Small` 73, `Wolf`/`Souper` 18, `medium` 18 | 434 (2.0%), 46 distinct, 21 piped | HIGH observed values; export-policy change requires review |
+| PF28 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Material") | Material correspondence | `Rubber` 122, `Polyester` 120, `Nylon` 105, `fabric` 36, `Felt\|Rubber` 26 | 485 (2.2%), 31 distinct, 35 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF29 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Color") | Color correspondence (public swatch links) | `Assorted` 136, `blue` 58, `black` 46, `purple` 43, `Red` 39, `Brown` 34 | 911 (4.1%), 94 distinct, 101 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF30 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Packaging Type") | Packaging Type correspondence (`packagingtype[]`) | `Bag` 1693, `Can` 335, `Individual` 143, `Box` 38, `bag` 29 | 2,374 (10.7%), 22 distinct, 1 piped | HIGH value correspondence; numbered binding unconfirmed |
+| PF31 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Product Category") | Live-populated category duplicate mirroring PF24 top values; NOT free | `Dog Food` 1476, `Dog Supplies` 1146, `Household` 610, `Dog Treats` 579, `Cat Food` 339 | 6,661 (30.0%), 55 distinct, 452 piped | HIGH `LIVE-XML`; "store does not use it" is FALSE |
+| PF32 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Product Cross Sell") | Pipe-joined **identifier** lists (UPCs + internal codes); same-set match with rendered cross-sell block (see §2.3); exact role unresolved | §2.3 samples; top-6 values cover ~77% of populated | 20,799 (93.8%), 4055 distinct, 20,796 piped | HIGH identifiers; semantic role UNRESOLVED; read-only |
 
 Schema note: the freshly observed Bay State export contains exactly PF1–PF32 (all 32 tags
 present on all 22,178 rows; PF13/PF14 present-but-empty). This states only what Bay State's
@@ -193,12 +202,14 @@ product. No PF33+ tags were observed in the fresh export's tag set.
 
 ## 4. Uncertainty and explicit unresolved slots
 
-1. **Admin labels for all 32 slots** — requires an authenticated read-only Extra Fields
-   settings view. The authenticated CGI base-directory GET returned HTTP 500 without
+1. **Admin labels for PF1–PF15** — still require an authenticated read-only Extra Fields
+   settings view covering those slots (the 2026-10-15 screenshot shows PF16–PF32 only).
+   The authenticated CGI base-directory GET returned HTTP 500 without
    navigation; Chrome relay discovery timed out, and the installed browser's diagnostic
-   advises opening Chrome with its selected profile. No authenticated settings view was
-   available. The fresh export has no `ProductFieldN` name/label tags. Every "Facet - …"
-   admin name in this table comes from LOCAL declarations, not this live audit.
+   advises opening Chrome with its selected profile. No authenticated settings view of
+   PF1–PF15 was available. The fresh export has no `ProductFieldN` name/label tags. Every
+   PF1–PF15 admin name in this table comes from LOCAL declarations, not live evidence.
+   (PF16–PF32 labels: CERTIFIED 2026-10-15 — see the update note at the top of this file.)
 2. **PF3/PF4 exact semantics** — too sparse/mixed to infer (PF3 47 rows of fragments; PF4
    `M/F/S/H` single letters where `F`/`H` break the size reading).
 3. **PF32 semantic role** — identifiers confirmed; cross-sell-source vs. pack/group-data

@@ -10,8 +10,9 @@
  * Product Types: the 13 historically committed types plus the approved
  * eight-type expansion (21 total).
  *
- * ShopSite field mappings under review (local `SHOP_SITE_FIELD_LABELS` declarations;
- * configured Extra Fields labels unverified — see docs/audits/live-storefront-product-fields-2026-10-13.md):
+ * ShopSite field mappings (PF16–PF32 labels CERTIFIED against the authenticated Extra
+ * Fields screenshot, 2026-10-15 — see docs/audits/extra-fields-certification-2026-10-15.md;
+ * PF1–PF15 labels uncertified — see docs/audits/live-storefront-product-fields-2026-10-13.md):
  *   Brand → ProductField16, Pet Type → ProductField17, Lifestage → ProductField18,
  *   Pet Size → ProductField19, Special Diet → ProductField20, Health Feature → ProductField21,
  *   Food Form → ProductField22, Flavor → ProductField23, Category → ProductField24,
