@@ -837,3 +837,267 @@ function hydrateDecisionCitations(decisionId: unknown): string[] {
   ).all(id) as Array<{ evidence_id: string }>;
   return rows.map(r => String(r.evidence_id));
 }
+
+// ─── Gate Narrow Readers (standards: callers in src/classification read
+// through these; SQL lives here, never inline at call sites) ────────────────
+
+/** Minimal run gate columns shared by the readiness + review gates. */
+export interface GateRunRow {
+  id: string;
+  status: string;
+  workspaceId: string;
+  onboardingItemId: string | null;
+  productSku: string;
+  sourceKind: string;
+  sourceProductHash: string | null;
+  configSnapshotHash: string | null;
+  cohortRunId: string | null;
+}
+
+/**
+ * Gate projection of one classification run (same ownership/status columns
+ * every review gate checks; null when no row matches).
+ */
+export function findGateRunById(runId: string): GateRunRow | null {
+  const row = getDb().query(
+    `SELECT id, status, workspace_id, onboarding_item_id, product_sku,
+            source_kind, source_product_hash, config_snapshot_hash, cohort_run_id
+     FROM classification_runs WHERE id = ?`,
+  ).get(runId) as {
+    id: string; status: string; workspace_id: string;
+    onboarding_item_id: string | null; product_sku: string;
+    source_kind: string; source_product_hash: string | null;
+    config_snapshot_hash: string | null; cohort_run_id: string | null;
+  } | undefined;
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    status: String(row.status),
+    workspaceId: String(row.workspace_id),
+    onboardingItemId: row.onboarding_item_id ? String(row.onboarding_item_id) : null,
+    productSku: String(row.product_sku),
+    sourceKind: String(row.source_kind),
+    sourceProductHash: row.source_product_hash ? String(row.source_product_hash) : null,
+    configSnapshotHash: row.config_snapshot_hash ? String(row.config_snapshot_hash) : null,
+    cohortRunId: row.cohort_run_id ? String(row.cohort_run_id) : null,
+  };
+}
+
+/** Latest evidence_extraction stage output_json for a run (null when none). */
+export function findLatestEvidenceExtractionOutputJson(runId: string): string | null {
+  const row = getDb().query(
+    `SELECT output_json FROM classification_stage_results
+     WHERE run_id = ? AND stage_name = 'evidence_extraction'
+     ORDER BY started_at DESC LIMIT 1`,
+  ).get(runId) as { output_json: string | null } | undefined;
+  return row?.output_json ?? null;
+}
+
+/** Count of visual-product-evidence rows attached to a run. */
+export function countVisualProductEvidence(runId: string): number {
+  const row = getDb().query(
+    `SELECT COUNT(*) AS cnt FROM classification_evidence
+     WHERE run_id = ? AND source = 'visual_product_evidence'`,
+  ).get(runId) as { cnt: number } | undefined;
+  return Number(row?.cnt ?? 0);
+}
+
+/** Evidence-extraction rule version frozen in a runtime snapshot row, if any.
+ *  The `runtime_snapshots` table is legacy (no CREATE TABLE survives in the
+ *  current migrations): absent table or row reads as null, which fails
+ *  closed at the A3 contract exactly as before. */
+export function findRuntimeSnapshotEvidenceExtractionRuleVersion(snapshotHash: string): string | null {
+  let snapshotRow: { snapshot_json: string | null } | undefined;
+  try {
+    snapshotRow = getDb().query(
+      `SELECT snapshot_json FROM runtime_snapshots WHERE snapshot_hash = ?`,
+    ).get(String(snapshotHash)) as { snapshot_json: string | null } | undefined;
+  } catch {
+    return null;
+  }
+  if (!snapshotRow?.snapshot_json) return null;
+  try {
+    const snapshot = JSON.parse(snapshotRow.snapshot_json) as { runtimeRuleVersions?: { evidence_extraction?: string } };
+    return snapshot?.runtimeRuleVersions?.evidence_extraction ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Frozen page-import hash carried by a persisted config snapshot, if any. */
+export function findConfigSnapshotPageImportHash(workspaceId: string, snapshotHash: string): string | null {
+  const snapshotRow = getDb().query(
+    `SELECT config_json FROM classification_config_snapshots
+     WHERE workspace_id = ? AND snapshot_hash = ?`,
+  ).get(workspaceId, String(snapshotHash)) as { config_json: string | null } | undefined;
+  if (!snapshotRow?.config_json) return null;
+  try {
+    const snap = JSON.parse(snapshotRow.config_json) as { pageImportHash?: unknown };
+    return typeof snap.pageImportHash === 'string' ? snap.pageImportHash : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Accepted pair decision (new kind or legacy type) for a run, if any. */
+export interface AcceptedPairDecisionRow {
+  proposalType: string;
+  targetId: string | null;
+  proposedValueJson: string | null;
+  revisedValueJson: string | null;
+  revisedTargetId: string | null;
+  hasRevisedValue: boolean;
+  hasRevisedTarget: boolean;
+}
+
+export function findAcceptedPairDecision(runId: string): AcceptedPairDecisionRow | null {
+  const row = getDb().query(
+    `SELECT p.proposal_type, p.target_id, p.proposed_value_json,
+            d.revised_value_json, d.revised_target_id, d.has_revised_target,
+            (d.revised_value_json IS NOT NULL) AS has_revised_value
+     FROM classification_proposals p
+     JOIN classification_proposal_decisions d ON d.proposal_id = p.id AND d.superseded_at IS NULL
+     WHERE p.run_id = ? AND p.proposal_type IN ('product_classification', 'primary_product_type') AND d.decision = 'accepted'
+     LIMIT 1`,
+  ).get(runId) as {
+    proposal_type: string; target_id: string | null; proposed_value_json: string | null;
+    revised_value_json: string | null; revised_target_id: string | null;
+    has_revised_value: number | null; has_revised_target: number | null;
+  } | undefined;
+  if (!row) return null;
+  return {
+    proposalType: String(row.proposal_type),
+    targetId: row.target_id ? String(row.target_id) : null,
+    proposedValueJson: row.proposed_value_json,
+    revisedValueJson: row.revised_value_json,
+    revisedTargetId: row.revised_target_id ? String(row.revised_target_id) : null,
+    hasRevisedValue: Number(row.has_revised_value) === 1,
+    hasRevisedTarget: Number(row.has_revised_target) === 1,
+  };
+}
+
+/** Reviewable proposal gate columns for a run (all types; caller filters). */
+export interface GateProposalRow {
+  id: string;
+  status: string;
+  proposalType: string;
+  targetId: string | null;
+  hasDecision: boolean;
+}
+
+export function listGateProposalsByRun(runId: string): GateProposalRow[] {
+  const rows = getDb().query(
+    `SELECT p.id, p.status, p.proposal_type, p.target_id,
+            EXISTS(
+              SELECT 1 FROM classification_proposal_decisions d
+              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
+            ) AS has_decision
+     FROM classification_proposals p
+     WHERE p.run_id = ?`,
+  ).all(runId) as Array<{
+    id: string; status: string; proposal_type: string;
+    target_id: string | null; has_decision: number;
+  }>;
+  return rows.map(row => ({
+    id: String(row.id),
+    status: String(row.status),
+    proposalType: String(row.proposal_type),
+    targetId: row.target_id ? String(row.target_id) : null,
+    hasDecision: Number(row.has_decision) === 1,
+  }));
+}
+
+/** Category-page proposal gate columns (effective target + accepted flag). */
+export interface GatePageProposalRow {
+  targetId: string | null;
+  effectiveTargetId: string | null;
+  hasAcceptedDecision: boolean;
+}
+
+export function listGatePageProposalsByRun(runId: string): GatePageProposalRow[] {
+  const rows = getDb().query(
+    `SELECT p.target_id,
+            (SELECT CASE WHEN COALESCE(d.has_revised_target, CASE WHEN d.revised_target_id IS NULL THEN 0 ELSE 1 END) = 1
+                    THEN d.revised_target_id ELSE p.target_id END
+               FROM classification_proposal_decisions d
+              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
+              ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS effective_target_id,
+            EXISTS(
+              SELECT 1 FROM classification_proposal_decisions d
+              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL AND d.decision = 'accepted'
+            ) AS has_accepted_decision
+     FROM classification_proposals p
+     WHERE p.run_id = ? AND p.proposal_type = 'category_page'`,
+  ).all(runId) as Array<{
+    target_id: string | null;
+    effective_target_id: string | null;
+    has_accepted_decision: number;
+  }>;
+  return rows.map(row => ({
+    targetId: row.target_id ? String(row.target_id) : null,
+    effectiveTargetId: row.effective_target_id ? String(row.effective_target_id) : null,
+    hasAcceptedDecision: Number(row.has_accepted_decision) === 1,
+  }));
+}
+
+/** Accepted non-abstention proposals with decision ids + union citation ids. */
+export interface AcceptedVisualGateRow {
+  proposalId: string;
+  unionEvidenceIds: string[];
+  decisionId: string | null;
+}
+
+/**
+ * Accepted non-abstention proposals for the A3 visual-citation gate: the
+ * proposal union citation ids (parsed from evidence_ids_json) plus the live
+ * decision id (join citations hydrate separately via
+ * getDecisionEvidenceIds below).
+ */
+export function listAcceptedVisualGateRows(runId: string): AcceptedVisualGateRow[] {
+  const rows = getDb().query(
+    `SELECT p.id AS proposal_id, p.evidence_ids_json AS union_ids_json,
+            (SELECT d.id FROM classification_proposal_decisions d
+             WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
+             ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS decision_id
+     FROM classification_proposals p
+     WHERE p.run_id = ? AND p.status = 'accepted' AND p.proposal_type != 'reviewable_abstention'`,
+  ).all(runId) as Array<{ proposal_id: string; union_ids_json: string | null; decision_id: string | null }>;
+  return rows.map(row => {
+    let unionEvidenceIds: string[];
+    try {
+      const parsed = JSON.parse(row.union_ids_json ?? '[]') as unknown;
+      unionEvidenceIds = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    } catch {
+      unionEvidenceIds = [];
+    }
+    return {
+      proposalId: String(row.proposal_id),
+      unionEvidenceIds,
+      decisionId: row.decision_id ? String(row.decision_id) : null,
+    };
+  });
+}
+
+/** Sorted evidence ids cited by a decision, hydrated via the join table. */
+export function listDecisionEvidenceIds(decisionId: string): string[] {
+  const rows = getDb().query(
+    'SELECT evidence_id FROM classification_proposal_decision_evidence WHERE decision_id = ? ORDER BY evidence_id',
+  ).all(decisionId) as Array<{ evidence_id: string }>;
+  return rows.map(r => String(r.evidence_id));
+}
+
+/** Visual evidence rows (id + snippet) for an explicit citation id list. */
+export interface VisualEvidenceGateRow {
+  id: string;
+  snippet: string | null;
+}
+
+export function listVisualEvidenceByIds(ids: string[], runId: string): VisualEvidenceGateRow[] {
+  if (ids.length === 0) return [];
+  const rows = getDb().query(
+    `SELECT e.id, e.snippet FROM classification_evidence e
+     WHERE e.id IN (${ids.map(() => '?').join(',')}) AND e.run_id = ? AND e.source = 'visual_product_evidence'`,
+  ).all(...ids, runId) as Array<{ id: string; snippet: string | null }>;
+  return rows.map(row => ({ id: String(row.id), snippet: row.snippet ?? null }));
+}
+

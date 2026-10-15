@@ -368,6 +368,18 @@ export function listCurationDataRows(): CurationDataHistoryRow[] {
   }));
 }
 
+/**
+ * Raw `curation_data_json` for one onboarding item (review-gate seam).
+ * Returns the stored payload (null when the row or payload is absent) —
+ * JSON parsing and corrupt-payload semantics stay with the gate caller.
+ */
+export function findCurationDataJsonById(id: string): string | null {
+  const row = getDb()
+    .query('SELECT curation_data_json FROM onboarding_items WHERE id = ?')
+    .get(id) as { curation_data_json: string | null } | undefined;
+  return row?.curation_data_json ?? null;
+}
+
 export function insertItems(
   batchId: string,
   items: InsertItemData[],

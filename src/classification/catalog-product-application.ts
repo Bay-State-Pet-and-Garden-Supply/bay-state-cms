@@ -1,9 +1,16 @@
-import { getDb } from '../db/connection';
 import { readProductFile } from '../git/workspace-files';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
-import { getAcceptedProposals, recordHistoryEvent } from '../db/repositories/classification-run-repo';
+import {
+  countVisualProductEvidence,
+  findConfigSnapshotPageImportHash,
+  findGateRunById,
+  findLatestEvidenceExtractionOutputJson,
+  findRuntimeSnapshotEvidenceExtractionRuleVersion,
+  getAcceptedProposals,
+  recordHistoryEvent,
+} from '../db/repositories/classification-run-repo';
 import { getCachedAttributeMappings } from '../db/repositories/classification-config-repo';
-import { createChangeSet, upsertChangeSetItem } from '../db/repositories/change-set-repo';
+import { createUpdateDraftWithItem } from '../db/repositories/change-set-repo';
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from './config-loader';
 import { authorityConfigHashMatches, getRuntimeSnapshotByHash, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
@@ -34,14 +41,11 @@ export async function verifyRunImageBytesUnchanged(
   runId: string,
   product: Product,
 ): Promise<void> {
-  const db = getDb();
-  const rows = db.query(
-    `SELECT output_json FROM classification_stage_results WHERE run_id = ? AND stage_name = 'evidence_extraction' ORDER BY started_at DESC LIMIT 1`,
-  ).all(runId) as Array<{ output_json: string | null }>;
-  if (rows.length === 0) return;
+  const outputJson = findLatestEvidenceExtractionOutputJson(runId);
+  if (outputJson === null) return;
   let recorded: Array<{ imageBytesDigest?: string | null }>;
   try {
-    const parsed = JSON.parse(rows[0].output_json ?? '{}') as {
+    const parsed = JSON.parse(outputJson ?? '{}') as {
       metadata?: { ocrSummary?: { images?: Array<{ imageBytesDigest?: string | null }> } };
     };
     recorded = parsed.metadata?.ocrSummary?.images ?? [];
@@ -93,16 +97,12 @@ export async function applyCatalogClassification(
   sku: string,
   runId: string,
 ): Promise<ApplyClassificationResult> {
-  const db = getDb();
-
   // Verify run
-  const run = db.query(
-    `SELECT id, status, source_kind, source_product_hash, config_snapshot_hash
-     FROM classification_runs WHERE id = ?`,
-  ).get(runId) as {
-    id: string; status: string; source_kind: string;
-    source_product_hash: string | null; config_snapshot_hash: string | null;
-  } | undefined;
+  const gateRun = findGateRunById(runId);
+  const run = gateRun ? {
+    id: gateRun.id, status: gateRun.status, source_kind: gateRun.sourceKind,
+    source_product_hash: gateRun.sourceProductHash, config_snapshot_hash: gateRun.configSnapshotHash,
+  } : undefined;
 
   if (!run) throw new Error(`Run ${runId} not found.`);
   if (run.source_kind !== 'catalog_product') throw new Error('Run is not a catalog product run.');
@@ -113,20 +113,10 @@ export async function applyCatalogClassification(
   // grounded-merge evidence contract carry an older evidence_extraction rule
   // version — reclassify instead of reinterpreting their frozen snapshots.
   // Text-only runs (no visual evidence) are unaffected.
-  const visualCount = db.query(
-    `SELECT COUNT(*) AS cnt FROM classification_evidence WHERE run_id = ? AND source = 'visual_product_evidence'`,
-  ).get(runId) as { cnt: number };
-  if ((visualCount?.cnt ?? 0) > 0) {
-    const snapshotRow = run.config_snapshot_hash
-      ? db.query(`SELECT snapshot_json FROM runtime_snapshots WHERE snapshot_hash = ?`).get(String(run.config_snapshot_hash)) as { snapshot_json: string | null } | undefined
-      : undefined;
-    let ruleVersion: string | null;
-    try {
-      const snapshot = snapshotRow?.snapshot_json ? JSON.parse(snapshotRow.snapshot_json) as { runtimeRuleVersions?: { evidence_extraction?: string } } : null;
-      ruleVersion = snapshot?.runtimeRuleVersions?.evidence_extraction ?? null;
-    } catch {
-      ruleVersion = null;
-    }
+  if (countVisualProductEvidence(runId) > 0) {
+    const ruleVersion = run.config_snapshot_hash
+      ? findRuntimeSnapshotEvidenceExtractionRuleVersion(String(run.config_snapshot_hash))
+      : null;
     if (ruleVersion !== 'evidence-extraction-rules-v3-grounded-merge') {
       throw new Error('Run uses a pre-A3 visual evidence contract; reclassify instead of reinterpreting its frozen snapshot.');
     }
@@ -173,16 +163,9 @@ export async function applyCatalogClassification(
   // fail attributably with no partial write instead of silently skipping or
   // (worse) applying colliding IDs from the new import.
   if (acceptedProposals.some(p => p.proposalType === 'category_page')) {
-    const snapshotRow = run.config_snapshot_hash
-      ? db.query(`SELECT config_json FROM classification_config_snapshots WHERE workspace_id = ? AND snapshot_hash = ?`).get(workspaceId, String(run.config_snapshot_hash)) as { config_json: string | null } | undefined
-      : undefined;
-    let frozenImportHash: string | null = null;
-    try {
-      const snap = snapshotRow?.config_json ? JSON.parse(snapshotRow.config_json) as { pageImportHash?: unknown } : null;
-      if (snap && typeof snap.pageImportHash === 'string') frozenImportHash = snap.pageImportHash;
-    } catch {
-      frozenImportHash = null;
-    }
+    const frozenImportHash = run.config_snapshot_hash
+      ? findConfigSnapshotPageImportHash(workspaceId, String(run.config_snapshot_hash))
+      : null;
     if (frozenImportHash) {
       const activeHash = getActivePageImportHash(workspaceId);
       if (activeHash !== frozenImportHash) {
@@ -380,24 +363,17 @@ export async function applyCatalogClassification(
   const draftJsonStr = deterministicStringify(updatedProduct);
   const draftHash = hashJson(updatedProduct);
   const baseJsonStr = deterministicStringify(product);
-  const changeSet = db.transaction(() => {
-    const created = createChangeSet({
-      workspaceId,
-      title: `Classification: ${sku} (${dateStr})`,
-      description: `Applied accepted classification proposals for product ${sku}.`,
-      baseCommit,
-    });
-    upsertChangeSetItem({
-      changeSetId: created.id,
-      sku,
-      operation: 'update',
-      draftJson: draftJsonStr,
-      baseJson: baseJsonStr,
-      draftHash,
-      classificationRunId: runId,
-    });
-    return created;
-  })();
+  const changeSet = createUpdateDraftWithItem({
+    workspaceId,
+    title: `Classification: ${sku} (${dateStr})`,
+    description: `Applied accepted classification proposals for product ${sku}.`,
+    baseCommit,
+    sku,
+    draftJson: draftJsonStr,
+    baseJson: baseJsonStr,
+    draftHash,
+    classificationRunId: runId,
+  });
 
   // Track applied page names for the result (page data is embedded in the
   // ProductOnPages draft — product_pages table is updated when the change

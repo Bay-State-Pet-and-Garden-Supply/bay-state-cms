@@ -1,9 +1,13 @@
-import { getDb } from '../db/connection';
+import { findAcceptedPairDecision, listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById } from '../db/repositories/classification-run-repo';
 import {
   getManualEvidenceAttestation,
+  isManualEvidenceAttestationActive,
   parseManualEvidenceImageRights,
   verifyManualEvidenceAttestationHash,
 } from '../db/repositories/onboarding-manual-evidence-repo';
+import { findLatestExtractionGateRow } from '../db/repositories/onboarding-extraction-repo';
+import { findCurationDataJsonById } from '../db/repositories/onboarding-item-repo';
+import { findCohortParentGateRow } from '../db/repositories/classification-cohort-run-repo';
 import {
   buildManualEvidenceFieldValues,
   isManualFieldValueInherited,
@@ -54,21 +58,15 @@ function assertReviewedProductTypeForRun(options: {
     target => target.kind === 'product_type' && (target.enabled || target.mandatory),
   );
   if (!typeTargetEnabled) return null;
-
   // In-run accepted pair decision (new kind) or legacy accepted type.
-  const acceptedRow = getDb().query(
-    `SELECT p.proposal_type, p.target_id, p.proposed_value_json,
-            d.revised_value_json, d.revised_target_id, d.has_revised_target,
-            (d.revised_value_json IS NOT NULL) AS has_revised_value
-     FROM classification_proposals p
-     JOIN classification_proposal_decisions d ON d.proposal_id = p.id AND d.superseded_at IS NULL
-     WHERE p.run_id = ? AND p.proposal_type IN ('product_classification', 'primary_product_type') AND d.decision = 'accepted'
-     LIMIT 1`,
-  ).get(runId) as {
-    proposal_type: string; target_id: string | null; proposed_value_json: string | null;
-    revised_value_json: string | null; revised_target_id: string | null;
-    has_revised_value: number | null; has_revised_target: number | null;
-  } | undefined;
+  const pairDecision = findAcceptedPairDecision(runId);
+  const acceptedRow = pairDecision ? {
+    proposal_type: pairDecision.proposalType, target_id: pairDecision.targetId,
+    proposed_value_json: pairDecision.proposedValueJson,
+    revised_value_json: pairDecision.revisedValueJson, revised_target_id: pairDecision.revisedTargetId,
+    has_revised_value: pairDecision.hasRevisedValue ? 1 : 0,
+    has_revised_target: pairDecision.hasRevisedTarget ? 1 : 0,
+  } : undefined;
   const reviewedPairFact = snapshot.reviewedFacts.some(
     fact => fact.proposalType === 'product_classification' || fact.proposalType === 'primary_product_type',
   );
@@ -137,19 +135,12 @@ export interface ReviewCompletionGateInput {
  * isolated unit testing.
  */
 export function validateManualEvidenceForReview(itemId: string): ReviewCompletionGateResult | null {
-  const db = getDb();
-  let latest: { extraction_method: string; manual_attestation_id: string | null; extraction_data_json: string | null } | undefined;
-  try {
-    latest = db.query(
-      `SELECT extraction_method, manual_attestation_id, extraction_data_json FROM onboarding_extractions
-       WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-    ).get(itemId) as { extraction_method: string; manual_attestation_id: string | null; extraction_data_json: string | null } | undefined;
-  } catch {
-    // Pre-foundation databases (no attestation store): manual rows cannot
-    // exist (their insert requires the same columns), so there is nothing
-    // to refuse. Legacy fixtures keep byte-identical behavior.
-    return null;
-  }
+  const gateRow = findLatestExtractionGateRow(itemId);
+  const latest = gateRow ? {
+    extraction_method: gateRow.extractionMethod,
+    manual_attestation_id: gateRow.manualAttestationId,
+    extraction_data_json: gateRow.extractionDataJson,
+  } : undefined;
   if (!latest || latest.extraction_method !== 'manual_evidence_v1') return null;
   const attestationId = latest.manual_attestation_id;
   if (!attestationId) {
@@ -161,10 +152,7 @@ export function validateManualEvidenceForReview(itemId: string): ReviewCompletio
   }
   let active: { attestation_id: string } | undefined;
   try {
-    active = db.query(
-      `SELECT attestation_id FROM onboarding_manual_evidence_attestations
-       WHERE attestation_id = ? AND item_id = ? AND superseded_at IS NULL LIMIT 1`,
-    ).get(attestationId, itemId) as { attestation_id: string } | undefined;
+    active = isManualEvidenceAttestationActive(attestationId, itemId) ? { attestation_id: attestationId } : undefined;
   } catch {
     active = undefined;
   }
@@ -329,19 +317,15 @@ export function validateItemCategoryPagesAssigned(input: {
 export function validateReviewCompletionGate(
   input: ReviewCompletionGateInput,
 ): ReviewCompletionGateResult {
-  const db = getDb();
-  const run = db.query(
-    `SELECT status, workspace_id, onboarding_item_id, product_sku, config_snapshot_hash, cohort_run_id
-     FROM classification_runs
-     WHERE id = ?`,
-  ).get(input.activeRunId) as {
-    status: string;
-    workspace_id: string;
-    onboarding_item_id: string | null;
-    product_sku: string;
-    config_snapshot_hash: string | null;
-    cohort_run_id: string | null;
-  } | undefined;
+  const gateRun = findGateRunById(input.activeRunId);
+  const run = gateRun ? {
+    status: gateRun.status,
+    workspace_id: gateRun.workspaceId,
+    onboarding_item_id: gateRun.onboardingItemId,
+    product_sku: gateRun.productSku,
+    config_snapshot_hash: gateRun.configSnapshotHash,
+    cohort_run_id: gateRun.cohortRunId,
+  } : undefined;
 
   if (!run) {
     return { ok: false, code: 'run_not_found', reason: `Classification run ${input.activeRunId} not found.` };
@@ -397,9 +381,8 @@ export function validateReviewCompletionGate(
   if (run.cohort_run_id === null) {
     // ── Legacy path (byte-identical pre-R2 behavior) ──
     {
-      const curationRow = db.query(
-        'SELECT curation_data_json FROM onboarding_items WHERE id = ?',
-      ).get(input.onboardingItemId) as { curation_data_json: string | null } | undefined;
+      const curationDataJson = findCurationDataJsonById(input.onboardingItemId);
+      const curationRow = curationDataJson ? { curation_data_json: curationDataJson } : undefined;
       if (curationRow?.curation_data_json) {
         let parsedCuration: unknown;
         try {
@@ -437,9 +420,8 @@ export function validateReviewCompletionGate(
     // ── Active cohort child: strict R2-A gate ──
 
     // (b) The committed projection must reference THIS child run.
-    const curationRow = db.query(
-      'SELECT curation_data_json FROM onboarding_items WHERE id = ?',
-    ).get(input.onboardingItemId) as { curation_data_json: string | null } | undefined;
+    const cohortCurationJson = findCurationDataJsonById(input.onboardingItemId);
+    const curationRow = cohortCurationJson ? { curation_data_json: cohortCurationJson } : undefined;
     let parsedCuration: Record<string, unknown> | null = null;
     if (curationRow?.curation_data_json) {
       try {
@@ -468,9 +450,8 @@ export function validateReviewCompletionGate(
     }
 
     // (c) The parent run must exist and belong to the same workspace.
-    const parentRun = db.query(
-      'SELECT id, status, workspace_id FROM classification_cohort_runs WHERE id = ?',
-    ).get(run.cohort_run_id) as { id: string; status: string; workspace_id: string } | undefined;
+    const cohortParent = findCohortParentGateRow(run.cohort_run_id);
+    const parentRun = cohortParent ? { id: cohortParent.id, status: cohortParent.status, workspace_id: cohortParent.workspaceId } : undefined;
     if (!parentRun) {
       return {
         ok: false,
@@ -637,24 +618,12 @@ export function validateReviewCompletionGate(
       // otherwise the original predicted target. Adjudication #10 — a reviewer
       // correction satisfies the gate only when it resolves to a current
       // verified Page ID, so a REVISED target must be validated as itself.
-      const pageProposalRows = db.query(
-        `SELECT p.target_id,
-                (SELECT CASE WHEN COALESCE(d.has_revised_target, CASE WHEN d.revised_target_id IS NULL THEN 0 ELSE 1 END) = 1
-                        THEN d.revised_target_id ELSE p.target_id END
-                   FROM classification_proposal_decisions d
-                  WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
-                  ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS effective_target_id,
-                EXISTS(
-                  SELECT 1 FROM classification_proposal_decisions d
-                  WHERE d.proposal_id = p.id AND d.superseded_at IS NULL AND d.decision = 'accepted'
-                ) AS has_accepted_decision
-         FROM classification_proposals p
-         WHERE p.run_id = ? AND p.proposal_type = 'category_page'`,
-      ).all(input.activeRunId) as Array<{
-        target_id: string | null;
-        effective_target_id: string | null;
-        has_accepted_decision: number;
-      }>;
+      const gatePageRows = listGatePageProposalsByRun(input.activeRunId);
+      const pageProposalRows = gatePageRows.map(row => ({
+        target_id: row.targetId,
+        effective_target_id: row.effectiveTargetId,
+        has_accepted_decision: row.hasAcceptedDecision ? 1 : 0,
+      }));
       const hasAcceptedVerifiedPage = pageProposalRows.some(
         row =>
           row.has_accepted_decision &&
@@ -752,21 +721,14 @@ export function validateReviewCompletionGate(
     }
   }
 
-  const proposals = db.query(
-    `SELECT p.id, p.status, p.proposal_type, p.target_id,
-            EXISTS(
-              SELECT 1 FROM classification_proposal_decisions d
-              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
-            ) AS has_decision
-     FROM classification_proposals p
-     WHERE p.run_id = ?`,
-  ).all(input.activeRunId) as Array<{
-    id: string;
-    status: string;
-    proposal_type: string;
-    target_id: string | null;
-    has_decision: number;
-  }>;
+  const gateProposals = listGateProposalsByRun(input.activeRunId);
+  const proposals = gateProposals.map(row => ({
+    id: row.id,
+    status: row.status,
+    proposal_type: row.proposalType,
+    target_id: row.targetId,
+    has_decision: row.hasDecision ? 1 : 0,
+  }));
 
   if (proposals.length === 0) {
     return { ok: false, code: 'no_proposals', reason: 'No reviewable proposals in the classification run.' };
@@ -810,9 +772,8 @@ export function validateReviewCompletionGate(
   // curation JSON fails closed with the established semantic_validation_blocked code.
   let universalPagesCuration: Record<string, unknown> | null = null;
   {
-    const pagesCurationRow = db.query(
-      'SELECT curation_data_json FROM onboarding_items WHERE id = ?',
-    ).get(input.onboardingItemId) as { curation_data_json: string | null } | undefined;
+    const pagesCurationJson = findCurationDataJsonById(input.onboardingItemId);
+    const pagesCurationRow = pagesCurationJson ? { curation_data_json: pagesCurationJson } : undefined;
     if (pagesCurationRow?.curation_data_json) {
       try {
         const parsedPagesCuration = JSON.parse(String(pagesCurationRow.curation_data_json));
@@ -852,14 +813,14 @@ export interface CatalogReviewCompletionGateInput {
 export function validateCatalogReviewCompletionGate(
   input: CatalogReviewCompletionGateInput,
 ): ReviewCompletionGateResult {
-  const db = getDb();
-  const run = db.query(
-    `SELECT status, workspace_id, product_sku, source_kind, config_snapshot_hash
-     FROM classification_runs WHERE id = ?`,
-  ).get(input.runId) as {
-    status: string; workspace_id: string; product_sku: string; source_kind: string; config_snapshot_hash: string | null;
-  } | undefined;
-
+  const catalogGateRun = findGateRunById(input.runId);
+  const run = catalogGateRun ? {
+    status: catalogGateRun.status,
+    workspace_id: catalogGateRun.workspaceId,
+    product_sku: catalogGateRun.productSku,
+    source_kind: catalogGateRun.sourceKind,
+    config_snapshot_hash: catalogGateRun.configSnapshotHash,
+  } : undefined;
   if (!run) {
     return { ok: false, code: 'run_not_found', reason: `Run ${input.runId} not found.` };
   }
@@ -876,15 +837,14 @@ export function validateCatalogReviewCompletionGate(
     return { ok: false, code: 'run_not_completed', reason: `Run status is "${run.status}".` };
   }
 
-  const reviewableProposals = db.query(
-    `SELECT p.id, p.status, p.proposal_type, p.target_id,
-            EXISTS(
-              SELECT 1 FROM classification_proposal_decisions d
-              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
-            ) AS has_decision
-     FROM classification_proposals p
-     WHERE p.run_id = ? AND p.proposal_type != 'reviewable_abstention'`,
-  ).all(input.runId) as Array<{ id: string; status: string; proposal_type: string; target_id: string | null; has_decision: number }>;
+  const catalogGateProposals = listGateProposalsByRun(input.runId).filter(p => p.proposalType !== 'reviewable_abstention');
+  const reviewableProposals = catalogGateProposals.map(p => ({
+    id: p.id,
+    status: p.status,
+    proposal_type: p.proposalType,
+    target_id: p.targetId,
+    has_decision: p.hasDecision ? 1 : 0,
+  }));
 
   if (reviewableProposals.length === 0) {
     return { ok: false, code: 'no_proposals', reason: 'No reviewable proposals.' };
@@ -926,40 +886,24 @@ export function validateCatalogReviewCompletionGate(
   // quote, or an accepted visual decision without explicit citation, fails.
   // Citations live in the classification_proposal_decision_evidence join
   // table keyed by live decision id — never a column on the decision row.
-  const acceptedVisual = db.query(
-    `SELECT p.id AS proposal_id, p.evidence_ids_json AS union_ids_json,
-            (SELECT d.id FROM classification_proposal_decisions d
-             WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
-             ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS decision_id
-     FROM classification_proposals p
-     WHERE p.run_id = ? AND p.status = 'accepted' AND p.proposal_type != 'reviewable_abstention'`,
-  ).all(input.runId) as Array<{ proposal_id: string; union_ids_json: string | null; decision_id: string | null }>;
-  const parseIds = (json: string | null): string[] => {
-    try {
-      const parsed = JSON.parse(json ?? '[]') as unknown;
-      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-    } catch {
-      return [];
-    }
-  };
+  const gateVisualRows = listAcceptedVisualGateRows(input.runId);
+  const acceptedVisual = gateVisualRows.map(row => ({
+    proposal_id: row.proposalId,
+    union: row.unionEvidenceIds,
+    decision_id: row.decisionId,
+  }));
   const citedByDecision = (decisionId: string | null): string[] => {
     if (!decisionId) return [];
     try {
-      const rows = db.query(
-        'SELECT evidence_id FROM classification_proposal_decision_evidence WHERE decision_id = ? ORDER BY evidence_id',
-      ).all(decisionId) as Array<{ evidence_id: string }>;
-      return rows.map(row => String(row.evidence_id));
+      return listDecisionEvidenceIds(decisionId);
     } catch {
       return [];
     }
   };
   for (const row of acceptedVisual) {
     const cited = citedByDecision(row.decision_id);
-    const union = parseIds(row.union_ids_json);
-    const visualInUnion = union.length > 0 ? db.query(
-      `SELECT e.id FROM classification_evidence e
-       WHERE e.id IN (${union.map(() => '?').join(',')}) AND e.run_id = ? AND e.source = 'visual_product_evidence'`,
-    ).all(...union, input.runId) as Array<{ id: string }> : [];
+    const union = row.union;
+    const visualInUnion = listVisualEvidenceByIds(union, input.runId);
     // Image-backed but uncited: the value came from package pixels yet the
     // reviewer cited no same-run OCR evidence — hold for explicit citation.
     if (visualInUnion.length > 0 && cited.length === 0) {
@@ -970,10 +914,7 @@ export function validateCatalogReviewCompletionGate(
       };
     }
     if (cited.length === 0) continue;
-    const visualCited = db.query(
-      `SELECT e.id, e.snippet, e.metadata_json FROM classification_evidence e
-       WHERE e.id IN (${cited.map(() => '?').join(',')}) AND e.run_id = ? AND e.source = 'visual_product_evidence'`,
-    ).all(...cited, input.runId) as Array<{ id: string; snippet: string | null; metadata_json: string | null }>;
+    const visualCited = listVisualEvidenceByIds(cited, input.runId);
     // Cited visual evidence must carry a reviewed quote (non-empty snippet).
     // Byte identity is enforced at apply/upload by A2 re-hashing.
     const quoteless = visualCited.filter(e => !e.snippet || !e.snippet.trim());
