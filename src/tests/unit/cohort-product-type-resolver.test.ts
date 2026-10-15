@@ -222,7 +222,7 @@ describe('evidenceFromProjection', () => {
     expect(bySourceField.get('name')!.reliability).toBe('medium'); // A3: self-reported 0.95 caps at medium before corroboration
     expect(bySourceField.get('flavor')!.reliability).toBe('medium'); // null confidence -> fallback 'medium'
     expect(bySourceField.get('ingredientKeyword')!.reliability).toBe('low'); // confidence 0.2
-    expect(actual.filter(r => r.sourceField === 'visible_text')).toHaveLength(3); // A3: relevance-ranked 8-line window (was first-3)
+    expect(actual.filter(r => r.sourceField === 'visible_text')).toHaveLength(2); // first-3 truncation, blanks skipped (line-4 excluded)
     for (const rec of actual) {
       expect((rec.metadata as Record<string, unknown>).model).toBe('test-vlm');
       expect((rec.metadata as Record<string, unknown>).modelCallIds).toEqual(['call-eq']);

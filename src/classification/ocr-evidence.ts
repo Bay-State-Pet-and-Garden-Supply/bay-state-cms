@@ -312,25 +312,10 @@ export function packagingOcrDataToEvidence(
     }
   }
 
-  // visibleTextLines — A3: a bounded set of VALUE-RELEVANT lines across both
-  // images rather than a blind first-3 truncation, so a fourth-line quote
-  // (e.g. "DOGS & PUPPIES") stays citeable. Cap at 8 lines.
+  // visibleTextLines — emit only first 3 lines to avoid bloat
   if (ocrData.visibleTextLines?.length) {
-    const values = new Set<string>();
-    for (const candidate of [ocrData.productName, ocrData.brand, ocrData.upc, ocrData.flavorVariety, ocrData.color, ocrData.material, ocrData.size, ocrData.weight, ocrData.count, ocrData.lifeStage, ocrData.breedSize, ocrData.productForm, ocrData.packagingType, ocrData.npkRatio, ...(ocrData.species ?? [])]) {
-      if (candidate) values.add(String(candidate).trim().toLowerCase());
-    }
-    const scored = ocrData.visibleTextLines
-      .map((line, index) => ({ line, index }))
-      .filter(entry => entry.line?.trim())
-      .map(entry => {
-        const text = entry.line.trim().toLowerCase();
-        const relevant = [...values].some(value => value && (text.includes(value) || value.includes(text)));
-        return { ...entry, relevant };
-      })
-      .sort((a, b) => Number(b.relevant) - Number(a.relevant) || a.index - b.index)
-      .slice(0, 8);
-    for (const { line: val } of scored) {
+    const lines = ocrData.visibleTextLines.slice(0, 3);
+    for (const val of lines) {
       if (!val?.trim()) continue;
       evidence.push({
         ...base,
