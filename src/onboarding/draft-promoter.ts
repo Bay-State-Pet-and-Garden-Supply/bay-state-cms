@@ -1898,7 +1898,12 @@ export async function prepareDraftPromotion(
       // New-arrival date tag (new{todaysDate} in MMDDYY format) for new
       // products. The target slot resolves through the active `arrival_date`
       // attribute mapping (#142); ProductField1 is fallback-only.
-      if (!existingApproved) {
+      // Issue #355: ProductField1 has no certified live purpose
+      // (uncertified-unnamed, 2026-10-15 screenshot) and is a refused
+      // classification slot — stamp only into a mapped slot, never the
+      // fallback. No `arrival_date` mapping = no stamp (visible gap, not a
+      // misrouted write).
+      if (!existingApproved && !isProtectedCatalogField(arrivalDateCatalogField, 'arrival_date', mappings)) {
         const d = new Date();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');

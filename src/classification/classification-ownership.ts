@@ -94,6 +94,39 @@ export const NATIVE_CATALOG_SLOTS = [
 ] as const;
 
 /**
+ * Live Extra Fields slots the classifier must never write because their
+ * certified live purpose contradicts classification output (issue #355,
+ * authenticated Extra Fields screenshots 2026-10-15 — see
+ * docs/audits/extra-fields-certification-2026-10-15.md).
+ *
+ * - `ProductField13` is `Upsell - Lightbox`: a category identifier written
+ *   there would corrupt merchandising upsell data. The v10
+ *   `canonical-category-id → ProductField13` mapping is therefore refused.
+ * - `ProductField14` has no configured display name (uncertified-unnamed):
+ *   writing a breadcrumb projection into an unnamed slot is unverified
+ *   output. The v10 `canonical-breadcrumb → ProductField14` mapping is
+ *   therefore refused.
+ * - `ProductField8` is `Custom Tab #1`: the stale workspace
+ *   `nutrition → ProductField8` mapping (retired in v9/v10 as not_exported)
+ *   would route ingredient HTML into a display tab. Refused until a
+ *   governed release re-certifies the binding.
+ * - `ProductField1` has no configured display name (uncertified-unnamed):
+ *   the promoter's arrival-date fallback would stamp new-date markers into
+ *   an unnamed slot. Refused as a classification write; the owning module
+ *   (`src/onboarding/draft-promoter.ts`) must resolve an `arrival_date`
+ *   mapping or skip the stamp.
+ *
+ * Like the Brand slot, these refuse at edit time (field-mapping-editor) and
+ * apply time (catalog application + promoter) — never silently rerouted.
+ */
+export const MISROUTED_CATALOG_SLOTS = [
+  'ProductField13',
+  'ProductField14',
+  'ProductField8',
+  'ProductField1',
+] as const;
+
+/**
  * True when a RESOLVED catalog field is off-limits for classification output
  * (issue #355): the Brand identity slot (unless the attribute itself is the
  * Brand attribute, which never reaches output anyway) or a native
@@ -107,6 +140,7 @@ export function isProtectedCatalogField(
 ): boolean {
   if (!catalogField) return false;
   if ((NATIVE_CATALOG_SLOTS as readonly string[]).includes(catalogField)) return true;
+  if ((MISROUTED_CATALOG_SLOTS as readonly string[]).includes(catalogField)) return true;
   if (attributeId === BRAND_ATTRIBUTE_ID) return false;
   // Brand slot from the supplied mappings (v1 or v2 shape — structural read);
   // stale/empty falls closed to the documented fallback, mirroring

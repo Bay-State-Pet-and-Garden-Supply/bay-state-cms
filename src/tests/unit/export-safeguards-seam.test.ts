@@ -12,6 +12,7 @@
  * preserved/default metadata).
  */
 import { describe, it, expect } from 'bun:test';
+import { isProtectedCatalogField } from '../../classification/classification-ownership';
 import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import type { Product } from '../../shared/types';
 
@@ -209,6 +210,16 @@ describe('issue #355 export seam: mapping-layer non-rerouting', () => {
     const draft = JSON.parse((items[0] as any).draftJson);
     expect(draft.customFields.ProductField23).toBe('Beef');
     expect(draft.customFields.ProductField24).toBe('Old24');
+  });
+
+  it('a semantic attribute mapped into a misrouted live slot (PF13 Upsell) is refused at apply', () => {
+    // Certified live purpose (2026-10-15 screenshot): PF13 is `Upsell - Lightbox`,
+    // PF14 unnamed, PF8 `Custom Tab #1`, PF1 unnamed — none may take classification output.
+    for (const slot of ['ProductField13', 'ProductField14', 'ProductField8', 'ProductField1']) {
+      expect(isProtectedCatalogField(slot, 'category', [])).toBe(true);
+    }
+    // Certified PF16–32 slots stay writable (guard is slot-scoped, not blanket).
+    expect(isProtectedCatalogField('ProductField24', 'category', [])).toBe(false);
   });
 });
 

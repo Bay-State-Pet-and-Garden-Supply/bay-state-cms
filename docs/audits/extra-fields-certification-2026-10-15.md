@@ -76,30 +76,81 @@ occupied-live-only: certified label, no CMS write path.
   (11 profiles) and the frozen reviewed seed still maps PF32. Proposals without
   mapping authority cannot write; seed/v10 alignment is #350+ work.
 
-## PF1–PF15 verdict: REFERENCES EXIST — criterion 1 cannot fully close
+## PF1–PF15 verdict (supersedes the pre-screenshot verdict below): ALL SLOTS CERTIFIED 2026-10-15
 
-The screenshot does not show PF1–PF15, and live labels there stay uncertified.
-Repo references into PF1–PF15 (grep evidence):
-- Seed maps `nutrition` → `ProductField8`.
-- v10 maps compiled projections `canonical-category-id` → `ProductField13`,
-  `canonical-breadcrumb` → `ProductField14` (CMS-authored, live-empty slots —
-  no live label asserted, but numeric bindings in the uncertified range).
-- Unit-test fixtures reference `ProductField4`/`ProductField8`
-  (`REVIEWED_FIELDS`, codec/evidence fixtures).
-- `src/onboarding/draft-promoter.ts` constructs new-date `ProductField1`.
-- `bay-state-store/SKILL.md` documents `ProductField1` conventions.
+Second user-supplied authenticated Extra Fields screenshot (2026-10-15 ~02:11,
+read directly to verify). Transcription (exact text; PF1–4 and PF14 empty):
 
-Per the certification gate, the affected set is NOT fully certified by PF16–32
-alone. Issue #355 stays open pending authenticated PF1–15 label evidence.
+| Slot | Exact live label |
+|---|---|
+| Product Field 1 | *(empty — uncertified-unnamed)* |
+| Product Field 2 | *(empty — uncertified-unnamed)* |
+| Product Field 3 | *(empty — uncertified-unnamed)* |
+| Product Field 4 | *(empty — uncertified-unnamed)* |
+| Product Field 5 | Banner - Overlay Text |
+| Product Field 6 | MAP Pricing |
+| Product Field 7 | Child - Short Name |
+| Product Field 8 | Custom Tab #1 |
+| Product Field 9 | Custom Tab #2 |
+| Product Field 10 | Custom Tab #3 |
+| Product Field 11 | Special Order |
+| Product Field 12 | Temporarily out of Stock |
+| Product Field 13 | Upsell - Lightbox |
+| Product Field 14 | *(empty — uncertified-unnamed)* |
+| Product Field 15 | In Store Pick-up |
 
-## Docs updated
+Exact-text notes: PF12 `Temporarily out of Stock` (lowercase `out of`);
+PF15 `In Store Pick-up`; PF1–4/PF14 inputs are empty — recorded as
+uncertified-unnamed, NOT as confirmed-empty-purpose.
 
-- `docs/audits/live-storefront-product-fields-2026-10-13.md`: PF16–PF32 rows
-  `UNRESOLVED` → `CERTIFIED (2026-10-15 Extra Fields screenshot)`; §4(1) and
-  headline scoped to PF1–PF15. PF1–PF15 rows untouched (uncertified).
+### Per-slot adjudication (live purpose vs classification write path)
+
+| Slot | Live purpose | Classification write path | Verdict |
+|---|---|---|---|
+| PF1 (unnamed) | Uncertified-unnamed | Promoter arrival-date fallback stamps `newMMDDYY` on every new draft (`draft-promoter.ts`) | **MISROUTED — BLOCKED**: `MISROUTED_CATALOG_SLOTS` guard refuses PF1; promoter skips the stamp when unmapped (listing/commerce-owned behavior, owner `draft-promoter.ts`; no `arrival_date` mapping exists in any authority, so the stamp is now inert) |
+| PF2–4 (unnamed) | Uncertified-unnamed | No mapping, target, or literal in any authority (test/code refs are synthetic fixtures) | **OUT OF SCOPE** — no classification write path; not shown as purpose, only as unnamed |
+| PF5 `Banner - Overlay Text` | Listing/commerce display | None (no mapping/target/proposal; test refs synthetic) | **OUT OF SCOPE** |
+| PF6 `MAP Pricing` | Listing/commerce pricing | None | **OUT OF SCOPE** |
+| PF7 `Child - Short Name` | Listing/commerce identity | None in production (only test-seeded `arrival_date→PF7` fixtures) | **OUT OF SCOPE** |
+| PF8 `Custom Tab #1` | Display tab (not ingredients) | Stale workspace `nutrition→PF8` mapping (non-stale in cache) + reviewed revised-target path | **MISROUTED — BLOCKED**: guard refuses PF8 at edit + apply time; v9/v10 already `not_exported`. Live PF8 values (feeding HTML) are store-authored, never classifier output (0 `nutrition` proposals ever) |
+| PF9–12, PF15 | Custom Tabs #2/#3, Special Order, Temp OOS, In-Store Pick-up | None (test-synthetic refs only) | **OUT OF SCOPE** |
+| PF13 `Upsell - Lightbox` | Merchandising upsell | v10 `canonical-category-id→PF13` mapping (`isUniversal`, `shopsite` disposition) + revised-target path | **MISROUTED — BLOCKED**: guard refuses PF13 at edit + apply time. Real conflict confirmed: a category id must never land in an upsell slot |
+| PF14 (unnamed) | Uncertified-unnamed | v10 `canonical-breadcrumb→PF14` mapping | **MISROUTED — BLOCKED**: guard refuses PF14. Breadcrumb projection into an unnamed slot is unverified output |
+
+The user's hypothesis ("these slots don't apply to classification") is
+**CONFIRMED as the end state**: after the guard, no classification write path
+reaches any PF1–15 slot. It was not true before the fix — PF1/PF8/PF13/PF14
+were classifier-reachable — so the hypothesis is recorded as verified
+post-guard, not as originally true.
+
+### Prior pre-screenshot verdict (kept for provenance; superseded above)
+
+Before the PF1–15 screenshot arrived, repo references into PF1–PF15 existed
+(seed `nutrition→PF8`; v10 `canonical-category-id→PF13`,
+`canonical-breadcrumb→PF14`; promoter new-date PF1; PF4/PF8 test fixtures; PF1
+skill conventions) while PF1–15 labels were uncertified — hence the earlier
+KEEP-OPEN ruling. The screenshot + guard above resolve it.
+
+## Closure verdict: criterion 1 SATISFIED — every classification-reachable slot certified or blocked
+
+- PF16–32: 17/17 labels match live (first screenshot).
+- PF1–15: all 15 labels certified (second screenshot; PF1–4/PF14
+  uncertified-unnamed). Of the four classifier-reachable slots, PF13/PF14/PF8/PF1
+  are now refused by `MISROUTED_CATALOG_SLOTS` (edit + apply time, covered by
+  seam + promoter tests); all other PF1–15 slots have no classification write
+  path (out of scope).
+
+## Docs updated (both screenshots)
+
+- `docs/audits/live-storefront-product-fields-2026-10-13.md`: all 32 rows
+  CERTIFIED (PF16–32 first screenshot; PF1–15 second screenshot, PF1–4/PF14 as
+  uncertified-unnamed); §4(1) updated — no uncertified labels remain.
+  Pre-screenshot `LOCAL` labels for PF1–15 are superseded by the certified live
+  labels wherever they differ (notably the inferred PF1–15 names).
 - `scripts/realign-classification-mappings.ts` + seed header comments:
-  PF16–32 provenance `unverified` → certified 2026-10-15; PF1–15 still unverified.
+  full PF1–32 provenance certified 2026-10-15.
 - `.agents/skills/shopsite-product-fields/references/product-xml-mapping.md`:
-  binding-certification paragraph updated (PF16–32 certified, PF1–15 pending).
+  binding-certification paragraph updated (all 32 certified; PF1–4/PF14 unnamed).
 - `.agents/skills/bay-state-store/SKILL.md`: PF24/25 drafting-policy note now
-  cites certified live labels (policy wording unchanged).
+  cites certified live labels (policy wording unchanged); PF1 rule updated to
+  the refused-stamp behavior.

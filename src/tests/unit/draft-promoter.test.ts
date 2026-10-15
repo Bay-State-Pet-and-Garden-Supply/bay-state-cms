@@ -580,7 +580,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(updatedRow.error_message).toContain('Missing mandatory fields');
   });
 
-  it('should set ProductField1 to new{todaysDate} in MMDDYY format on new product promotion', async () => {
+  it('does NOT stamp ProductField1 on new product promotion: uncertified-unnamed slot refused (#355)', async () => {
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo F',
@@ -642,15 +642,12 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const csItems = listChangeSetItems(promoteRes.changeSetId!);
     const draftProduct = JSON.parse(csItems[0].draftJson);
-    
-    // Format today's date in MMDDYY format
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(-2);
-    const expectedField1Value = `new${mm}${dd}${yy}`;
-    
-    expect(draftProduct.customFields['ProductField1']).toBe(expectedField1Value);
+
+    // Issue #355: ProductField1 is an uncertified-unnamed slot (2026-10-15
+    // screenshot shows no display name) and a refused classification slot —
+    // no arrival_date mapping exists here, so no stamp is written. The mapped
+    // slot path is covered by the #142 test below.
+    expect(draftProduct.customFields['ProductField1']).toBeUndefined();
   });
 
   it('routes Brand to the mapped catalog slot instead of hardcoded ProductField16 (#142)', async () => {
@@ -996,7 +993,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     }
   });
 
-  it('falls back to ProductField1 when the arrival-date mapping is empty (#142)', async () => {
+  it('does NOT fall back to ProductField1 when the arrival-date mapping is empty: refused slot (#355)', async () => {
     const db = getDb();
     seedAttributeMapping(db, 'arrival_date', '   ');
     try {
@@ -1053,11 +1050,9 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       expect(promoteRes.count).toBe(1);
       const csItems = listChangeSetItems(promoteRes.changeSetId!);
       const draftProduct = JSON.parse(csItems[0].draftJson);
-      const d = new Date();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      const yy = String(d.getFullYear()).slice(-2);
-      expect(draftProduct.customFields['ProductField1']).toBe(`new${mm}${dd}${yy}`);
+      // Issue #355: the empty mapping resolves to the PF1 fallback, which is
+      // a refused slot (uncertified-unnamed) — no stamp is written.
+      expect(draftProduct.customFields['ProductField1']).toBeUndefined();
     } finally {
       db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-arrival_date']);
     }

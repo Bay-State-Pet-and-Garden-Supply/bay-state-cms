@@ -6,14 +6,17 @@ authenticated export) with **actual current storefront observation** (this pass,
 Supersedes the cached-export scout findings where they differ; provisional scout labels are
 treated skeptically throughout.
 
-**Update 2026-10-15:** the authenticated Extra Product Fields screenshot (user-supplied,
-2026-10-15; see `docs/audits/extra-fields-certification-2026-10-15.md`) certifies the
-live admin labels for PF16–PF32 exactly as the repo declared them (17/17 match, including
-`Lifestage` single word, `Product Cross Sell`, PF31 `Product Category` vs PF24
-`Facet - Category`). PF16–PF32 rows below are now `CERTIFIED (2026-10-15)`; the
-`UNCONFIRMED`/`UNRESOLVED` language in the original 2026-10-13 pass below applies only to
-PF1–PF15, whose labels were not shown in the screenshot and remain uncertified. The
-2026-10-13 census/storefront value evidence is unchanged.
+**Update 2026-10-15 (both screenshots):** two authenticated Extra Product Fields
+screenshots (user-supplied, 2026-10-15; see
+`docs/audits/extra-fields-certification-2026-10-15.md`) certify the live admin
+labels for all 32 slots. PF16–PF32 matched the repo declarations 17/17
+(including `Lifestage` single word, `Product Cross Sell`, PF31
+`Product Category` vs PF24 `Facet - Category`). PF1–15 labels are now also
+certified: PF5 `Banner - Overlay Text`, PF6 `MAP Pricing`, PF7
+`Child - Short Name`, PF8–10 `Custom Tab #1–#3`, PF11 `Special Order`, PF12
+`Temporarily out of Stock`, PF13 `Upsell - Lightbox`, PF15 `In Store Pick-up`;
+PF1–4 and PF14 show no display name (recorded as uncertified-unnamed, not as
+confirmed-empty-purpose). The 2026-10-13 census/storefront value evidence is unchanged.
 
 **Original headline (2026-10-13 pass):** no `ProductFieldN` literal appears anywhere in
 observed storefront output
@@ -161,21 +164,21 @@ Confidence describes the observed values and correspondence, not verified admin 
 
 | Tag | Admin label | Value-backed meaning / inferred binding | Representative live values (`LIVE-XML` samples) | Population | Confidence · provenance |
 |---|---|---|---|---|---|
-| PF1 | UNRESOLVED (`LOCAL`: "Import Status / Flags") | Mixed operations flags and new-arrival date markers; rendering unconfirmed | `skufix032922` 3171, `needfix032922` 2742; 892 rows match `newMMDDYY` across 92 distinct markers | 21,818 (98.4%), 693 distinct, 0 piped | HIGH observed patterns `LIVE-XML`; label UNCONFIRMED |
-| PF2 | UNRESOLVED (`LOCAL`: "Status Notes / Flags") | Ops/status notes; not rendered | `needfix040622` 5721, `Discontinued` 2917, `sold0920` 682, `classified101126` 72 | 10,827 (48.8%), 142 distinct, 10 piped | HIGH values `LIVE-XML`; label UNCONFIRMED |
-| PF3 | UNRESOLVED (`LOCAL`: "Vendor / Legacy Code") | Sparse fragments; meaning unclear | `BCI` 11, `Wood Pellets` 9, `x` 8, `Mulch` 7, `Stone` 6, `Loam` 4 | 47 (0.2%), 8 distinct | LOW — near-empty, `INFER` only |
-| PF4 | UNRESOLVED (`LOCAL`: "Size Abbreviation (S/M/L)") | Single-letter codes; `F`/`H` don't fit size-only reading | `M` 1706, `F` 447, `S` 122, `H` 30 | 2,312 (10.4%), 9 distinct | MEDIUM values; label UNCONFIRMED |
-| PF5 | UNRESOLVED (`LOCAL`: "Pricing Display Promo Text") | Promo callouts; render path unconfirmed | `See Low Price In Cart` 1529, `2 for $40` 80, `New!` 15 | 1,735 (7.8%), 42 distinct | MEDIUM-HIGH values; rendering `INFER` |
-| PF6 | UNRESOLVED (`LOCAL`: "Special Promo Flag") | Boolean flag | `yes` ×1318 (sole value) | 1,318 (5.9%), 1 distinct | HIGH boolean; label UNCONFIRMED |
-| PF7 | UNRESOLVED (`LOCAL`: "Packaging Size / Weight") | Pack size/weight text | `4 lb.` 129, `12 lb.` 74, `Large` 43, `Medium` 42 | 1,892 (8.5%), 413 distinct | MEDIUM-HIGH values; label UNCONFIRMED |
-| PF8 | UNRESOLVED (`LOCAL`: "Ingredients & Nutritional Info") | Mixed HTML/prose content; rendering unconfirmed | instructions/size/odor-removal prose; `Instructions\|…`, `Size\|…` tab separators | 101 (0.5%), 58 distinct, 45 piped | HIGH observed content; v10 `not_exported` is LOCAL policy |
-| PF9 | UNRESOLVED (`LOCAL`: "Feeding Instructions") | Mixed HTML/prose content; rendering unconfirmed | `FAQ\|…`, ingredient lists, `Feeding Instructions\|…`, `None` | 89 (0.4%), 68 distinct, 35 piped | HIGH observed content; obsolescence not established |
-| PF10 | UNRESOLVED (`LOCAL`: "Storage & Usage Instructions") | One storage sentence (×54) + `Y`/`N` flags; mixed use | storage sentence 54, `Y` 20, `How to Use\|…` 3, `N` 2 | 80 (0.4%), 5 distinct | HIGH mixed-use |
-| PF11 | UNRESOLVED (`LOCAL`: "Featured Flag") | Boolean flag | `yes` ×699 | 699 (3.2%), 1 distinct | HIGH boolean; label UNCONFIRMED |
-| PF12 | UNRESOLVED (`LOCAL`: "Stock Availability Status") | Availability flag, distinct from native `<Availability>` | `yes` 12694, `YES` 18, `out of stock` 1 | 12,713 (57.3%), 3 distinct | HIGH values; binding UNCONFIRMED |
-| PF13 | UNRESOLVED (no `LOCAL` label; v10 projection slot) | Live-empty; populating = new live data | — | 0 (0.0%) | HIGH empty `LIVE-XML` |
-| PF14 | UNRESOLVED (no `LOCAL` label; v10 projection slot) | Live-empty; populating = new live data | — | 0 (0.0%) | HIGH empty `LIVE-XML` |
-| PF15 | UNRESOLVED (`LOCAL`: "Gift Wrap Eligible Flag") | Boolean flag | `yes` 1823, `YES` 1 | 1,824 (8.2%), 2 distinct | HIGH boolean; label UNCONFIRMED |
+| PF1 | CERTIFIED-UNNAMED (2026-10-15 Extra Fields screenshot shows no display name) | Mixed operations flags and new-arrival date markers; rendering unconfirmed | `skufix032922` 3171, `needfix032922` 2742; 892 rows match `newMMDDYY` across 92 distinct markers | 21,818 (98.4%), 693 distinct, 0 piped | HIGH observed patterns `LIVE-XML`; label UNCONFIRMED |
+| PF2 | CERTIFIED-UNNAMED (2026-10-15 Extra Fields screenshot shows no display name) | Ops/status notes; not rendered | `needfix040622` 5721, `Discontinued` 2917, `sold0920` 682, `classified101126` 72 | 10,827 (48.8%), 142 distinct, 10 piped | HIGH values `LIVE-XML`; label UNCONFIRMED |
+| PF3 | CERTIFIED-UNNAMED (2026-10-15 Extra Fields screenshot shows no display name) | Sparse fragments; meaning unclear | `BCI` 11, `Wood Pellets` 9, `x` 8, `Mulch` 7, `Stone` 6, `Loam` 4 | 47 (0.2%), 8 distinct | LOW — near-empty, `INFER` only |
+| PF4 | CERTIFIED-UNNAMED (2026-10-15 Extra Fields screenshot shows no display name) | Single-letter codes; `F`/`H` don't fit size-only reading | `M` 1706, `F` 447, `S` 122, `H` 30 | 2,312 (10.4%), 9 distinct | MEDIUM values; label UNCONFIRMED |
+| PF5 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Banner - Overlay Text" | Promo callouts; render path unconfirmed | `See Low Price In Cart` 1529, `2 for $40` 80, `New!` 15 | 1,735 (7.8%), 42 distinct | MEDIUM-HIGH values; rendering `INFER` |
+| PF6 | CERTIFIED (2026-10-15 Extra Fields screenshot): "MAP Pricing" | Boolean flag | `yes` ×1318 (sole value) | 1,318 (5.9%), 1 distinct | HIGH boolean; label UNCONFIRMED |
+| PF7 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Child - Short Name" | Pack size/weight text | `4 lb.` 129, `12 lb.` 74, `Large` 43, `Medium` 42 | 1,892 (8.5%), 413 distinct | MEDIUM-HIGH values; label UNCONFIRMED |
+| PF8 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Custom Tab #1" | Mixed HTML/prose content; rendering unconfirmed | instructions/size/odor-removal prose; `Instructions\|…`, `Size\|…` tab separators | 101 (0.5%), 58 distinct, 45 piped | HIGH observed content; v10 `not_exported` is LOCAL policy |
+| PF9 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Custom Tab #2" | Mixed HTML/prose content; rendering unconfirmed | `FAQ\|…`, ingredient lists, `Feeding Instructions\|…`, `None` | 89 (0.4%), 68 distinct, 35 piped | HIGH observed content; obsolescence not established |
+| PF10 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Custom Tab #3" | One storage sentence (×54) + `Y`/`N` flags; mixed use | storage sentence 54, `Y` 20, `How to Use\|…` 3, `N` 2 | 80 (0.4%), 5 distinct | HIGH mixed-use |
+| PF11 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Special Order" | Boolean flag | `yes` ×699 | 699 (3.2%), 1 distinct | HIGH boolean; label UNCONFIRMED |
+| PF12 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Temporarily out of Stock" | Availability flag, distinct from native `<Availability>` | `yes` 12694, `YES` 18, `out of stock` 1 | 12,713 (57.3%), 3 distinct | HIGH values; binding UNCONFIRMED |
+| PF13 | CERTIFIED (2026-10-15 Extra Fields screenshot): "Upsell - Lightbox" | Live-empty; populating = new live data | — | 0 (0.0%) | HIGH empty `LIVE-XML` |
+| PF14 | CERTIFIED-UNNAMED (2026-10-15 Extra Fields screenshot shows no display name) | Live-empty; populating = new live data | — | 0 (0.0%) | HIGH empty `LIVE-XML` |
+| PF15 | CERTIFIED (2026-10-15 Extra Fields screenshot): "In Store Pick-up" | Boolean flag | `yes` 1823, `YES` 1 | 1,824 (8.2%), 2 distinct | HIGH boolean; label UNCONFIRMED |
 | PF16 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Brand") | Brand-facet correspondence (`brand[]`); numbered binding unconfirmed | `Kong` 462 + `KONG` 366, `Bay State P&G` 323, `Blue` 287, `Instinct` 272 | 15,468 (69.7%), 1004 distinct, 97 piped | HIGH value correspondence; normalization remains store policy |
 | PF17 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Pet Type") | Pet Type/species correspondence (`pettype[]`) | `Dog` 5042 + `dog` 2408, `Cat` 878 + `cat` 511, `Wild Bird` 374, `Horse` 327 | 11,264 (50.8%), 69 distinct, 511 piped | HIGH value correspondence; numbered binding unconfirmed |
 | PF18 | CERTIFIED (2026-10-15 Extra Fields screenshot; was `LOCAL`: "Facet - Lifestage") | Lifestage correspondence (`lifestage[]`) | `Adult` 932, `Adult\|All Life Stages` 544, `adult` 262, `Puppy` 198, `Kitten` 31 | 2,101 (9.5%), 14 distinct, 547 piped | HIGH value correspondence; numbered binding unconfirmed |
@@ -202,14 +205,12 @@ product. No PF33+ tags were observed in the fresh export's tag set.
 
 ## 4. Uncertainty and explicit unresolved slots
 
-1. **Admin labels for PF1–PF15** — still require an authenticated read-only Extra Fields
-   settings view covering those slots (the 2026-10-15 screenshot shows PF16–PF32 only).
-   The authenticated CGI base-directory GET returned HTTP 500 without
-   navigation; Chrome relay discovery timed out, and the installed browser's diagnostic
-   advises opening Chrome with its selected profile. No authenticated settings view of
-   PF1–PF15 was available. The fresh export has no `ProductFieldN` name/label tags. Every
-   PF1–PF15 admin name in this table comes from LOCAL declarations, not live evidence.
-   (PF16–PF32 labels: CERTIFIED 2026-10-15 — see the update note at the top of this file.)
+1. **Admin labels for all 32 slots — RESOLVED 2026-10-15.** The second
+   authenticated screenshot certified PF1–15 (PF1–4/PF14 unnamed). No
+   uncertified labels remain; the original `LOCAL` PF1–15 names are superseded
+   where they differ. (Historical note: the authenticated CGI base-directory
+   GET returned HTTP 500; the fresh export has no `ProductFieldN` name/label
+   tags — both now moot for labels.)
 2. **PF3/PF4 exact semantics** — too sparse/mixed to infer (PF3 47 rows of fragments; PF4
    `M/F/S/H` single letters where `F`/`H` break the size reading).
 3. **PF32 semantic role** — identifiers confirmed; cross-sell-source vs. pack/group-data
