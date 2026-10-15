@@ -11,13 +11,14 @@ describe('type-change-impact (P1.1)', () => {
     ],
   } as unknown as RuntimeClassificationSnapshot;
 
+  // ADR 0041: authority baseline is the canonical pair; legacy kind is history-only.
   const primaryTypeProp: ClassificationProposal = {
     id: 'prop-pt',
     runId: 'run-1',
     productSku: '012345678901',
-    proposalType: 'primary_product_type',
+    proposalType: 'product_classification',
     targetId: 'dog_food',
-    proposedValue: { productTypeId: 'dog_food' },
+    proposedValue: { categoryId: 'dog_food_cat', productTypeId: 'dog_food' },
     confidence: 0.9,
     status: 'accepted',
     isBulkAcceptable: true,

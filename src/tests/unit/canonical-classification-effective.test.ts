@@ -33,14 +33,14 @@ describe('effective pair + readiness (issue #350)', () => {
     expect(effective.source).toBe('reviewed');
   });
 
-  it('legacy accepted type resolves its category through the approved mapping', () => {
+  it('canonical accepted pair resolves both members with reviewed provenance', () => {
     const effective = getEffectiveClassification(
       {
         sku: 'S', evidence: [],
         acceptedProposals: [{
-          id: 'p', runId: 'r', productSku: 'S', proposalType: 'primary_product_type',
+          id: 'p', runId: 'r', productSku: 'S', proposalType: 'product_classification',
           targetId: 'dog-food-dry',
-          proposedValue: { productTypeId: 'dog-food-dry' },
+          proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
           confidence: 0.9, evidenceIds: [], status: 'accepted',
           isBulkAcceptable: false, isStale: false, stalenessReason: null,
           createdAt: new Date().toISOString(),
@@ -51,11 +51,8 @@ describe('effective pair + readiness (issue #350)', () => {
         snapshot: { productTypes: [{ id: 'dog-food-dry', categoryId: 'dog-food' }] },
       } as any,
     );
-    // Legacy type-only proposals carry no category in the value; the
-    // category resolves only where the snapshot mapping is consulted.
-    // Without pair-aware snapshot facts the category stays unresolved —
-    // explicit gap, never invention.
     expect(effective.effectiveTypeId).toBe('dog-food-dry');
+    expect(effective.effectiveCategoryId).toBe('dog-food');
     expect(effective.source).toBe('reviewed');
   });
 

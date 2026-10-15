@@ -1846,7 +1846,8 @@ export async function prepareDraftPromotion(
             }
             classificationPageNames.push(verifiedName);
             classificationPageProposals.push({ pageId, pageName: verifiedName });
-          } else if (proposal.proposalType === 'primary_product_type') {
+          } else if (proposal.proposalType === 'product_classification') {
+            // ADR 0041: legacy `primary_product_type` rows are history-only.
             acceptedProductType = getEffectivePrimaryProductTypeId(proposal);
           }
         }

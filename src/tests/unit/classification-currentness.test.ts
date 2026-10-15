@@ -22,9 +22,13 @@ describe('classification-currentness (P0.2)', () => {
     snapshotHash: 'snap-hash-1',
     schemaVersion: 2,
     createdAt: new Date().toISOString(),
+    categories: [
+      { id: 'dog_food_cat', name: 'Dog Food' },
+      { id: 'cat_food_cat', name: 'Cat Food' },
+    ],
     productTypes: [
-      { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: null, oldIdAliases: [] },
-      { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: null, oldIdAliases: [] },
+      { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: null, oldIdAliases: [], categoryId: 'dog_food_cat' },
+      { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: null, oldIdAliases: [], categoryId: 'cat_food_cat' },
     ],
     attributes: [
       {
@@ -77,9 +81,9 @@ describe('classification-currentness (P0.2)', () => {
     id: 'prop-pt-1',
     runId: 'run-1',
     productSku: '012345678901',
-    proposalType: 'primary_product_type',
+    proposalType: 'product_classification',
     targetId: 'dog_food',
-    proposedValue: { productTypeId: 'dog_food' },
+    proposedValue: { categoryId: 'dog_food_cat', productTypeId: 'dog_food' },
     confidence: 0.95,
     status: 'accepted',
     isBulkAcceptable: true,

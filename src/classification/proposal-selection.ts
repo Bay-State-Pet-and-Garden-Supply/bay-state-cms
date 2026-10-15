@@ -4,12 +4,10 @@
  * Selection is split into two distinct contracts:
  *
  * 1. ACCEPTED selection (`selectAcceptedClassification`) — the reviewed
- *    canonical Category + Product Type pair (new `product_classification`
- *    kind first, then the legacy `primary_product_type` kind, which the
- *    historical-interpretation path reads as a pair via the frozen snapshot
- *    mapping). This is the ONLY authority that may unlock pair-gated
- *    attribute and Page proposals. Pending guesses never unlock
- *    decision-eligible proposals.
+ *    canonical Category + Product Type pair (`product_classification` ONLY;
+ *    ADR 0041). The legacy `primary_product_type` kind is HISTORY ONLY and
+ *    never confers live authority — explicit restart or reclassification is
+ *    required. Pending guesses never unlock decision-eligible proposals.
  * 2. PREVIEW selection (`selectClassificationProposal`) — the "best
  *    available" pair (accepted first, then highest-confidence pending)
  *    used ONLY for UI/draft preview. It never authorizes pair-gated
@@ -32,10 +30,9 @@ export interface ProposalSelection {
 }
 
 /**
- * Select the reviewed (accepted) canonical pair proposal: the new
- * `product_classification` kind first, then the legacy
- * `primary_product_type` kind, which the historical-interpretation path
- * reads as a pair through the frozen snapshot mapping.
+ * Select the reviewed (accepted) canonical pair proposal (ADR 0041): the
+ * `product_classification` kind ONLY. Legacy `primary_product_type` rows
+ * are history-only and never confer live reviewed authority.
  * Pending/deferred guesses are never accepted selections.
  */
 function selectAcceptedPrimaryProductType(input: StageInput): ProposalSelection {
@@ -43,19 +40,14 @@ function selectAcceptedPrimaryProductType(input: StageInput): ProposalSelection 
     p => p.proposalType === 'product_classification' && p.status === 'accepted',
   );
   if (pair) return { proposal: pair, source: 'accepted' };
-  const legacy = input.acceptedProposals.find(
-    p => p.proposalType === 'primary_product_type' && p.status === 'accepted',
-  );
-  if (legacy) return { proposal: legacy, source: 'accepted' };
   return { proposal: null, source: null };
 }
 
 
 /**
- * Select the reviewed (accepted) canonical pair proposal: the new
- * `product_classification` kind first, then the legacy
- * `primary_product_type` kind for historical in-flight runs. Pending guesses
- * are never accepted selections.
+ * Select the reviewed (accepted) canonical pair proposal (ADR 0041):
+ * `product_classification` ONLY; legacy `primary_product_type` is
+ * history-only. Pending guesses are never accepted selections.
  */
 export function selectAcceptedClassification(input: StageInput): ProposalSelection {
   return selectAcceptedPrimaryProductType(input);
@@ -63,8 +55,9 @@ export function selectAcceptedClassification(input: StageInput): ProposalSelecti
 /**
  * The provisional (pending, unreviewed) canonical pair from the SAME
  * pipeline pass (issue #352): the highest-confidence non-stale
- * pending/deferred `product_classification` (then legacy type) in
- * `allProposals`. Own-SKU pipeline output only — never a parent, sibling,
+ * pending/deferred `product_classification` in `allProposals` (ADR 0041:
+ * legacy `primary_product_type` is history-only, never provisional
+ * authority). Own-SKU pipeline output only — never a parent, sibling,
  * or execution conclusion. Returns null ids when no provisional pair
  * exists; callers withhold pair-gated proposals then (fail closed).
  */
@@ -74,7 +67,7 @@ export function selectProvisionalClassification(
   const provisional = input.allProposals
     .filter(
       p =>
-        (p.proposalType === 'product_classification' || p.proposalType === 'primary_product_type') &&
+        p.proposalType === 'product_classification' &&
         !p.isStale &&
         (p.status === 'pending' || p.status === 'deferred'),
     )
@@ -92,29 +85,38 @@ export function selectProvisionalClassification(
 
 /**
  * Best available canonical pair proposal for UI/draft preview only (issue
- * #350): accepted pair, then accepted legacy type, then highest-confidence
- * non-stale pending/deferred pair or legacy type. Never authorizes gating.
+ * #350): accepted pair, then highest-confidence non-stale pending/deferred
+ * pair. Legacy `primary_product_type` rows may surface here as history-only
+ * preview context but never authorize gating. An accepted legacy type alone
+ * is NOT preview authority — it requires reclassification first.
  */
 export function selectClassificationProposal(input: StageInput): ProposalSelection {
   const accepted = selectAcceptedClassification(input);
   if (accepted.proposal) return accepted;
-  const provisional = input.allProposals
+  // Preview may surface the highest-confidence pending canonical pair OR a
+  // history-only legacy row for display context — but an accepted legacy
+  // type alone is never returned here (it requires reclassification).
+  // Neither branch authorizes gating; callers must use the accepted or
+  // provisional selectors for authority.
+  const pendingPair = input.allProposals
     .filter(
       p =>
-        (p.proposalType === 'product_classification' || p.proposalType === 'primary_product_type') &&
+        p.proposalType === 'product_classification' &&
         !p.isStale &&
         (p.status === 'pending' || p.status === 'deferred'),
     )
     .sort((a, b) => b.confidence - a.confidence)[0] ?? null;
-  if (provisional) return { proposal: provisional, source: 'provisional' };
+  if (pendingPair) return { proposal: pendingPair, source: 'provisional' };
   return { proposal: null, source: null };
 }
 
 /**
- * Resolve the one reviewed canonical pair for a run (issue #350): in-run
- * accepted pair proposals first (new kind, then legacy type kind), then
- * provenance-compatible reviewed facts. Returns null ids when no reviewed
- * pair exists — pair-gated proposals must then be withheld (fail closed).
+ * Resolve the one reviewed canonical pair for a run (issue #350, ADR 0041):
+ * in-run accepted `product_classification` proposals first, then
+ * provenance-compatible reviewed facts of the canonical kind. Legacy
+ * `primary_product_type` rows/facts are history-only and never confer live
+ * reviewed authority. Returns null ids when no reviewed pair exists —
+ * pair-gated proposals must then be withheld (fail closed).
  */
 export function getReviewedClassification(
   input: StageInput,
@@ -132,7 +134,7 @@ export function getReviewedClassification(
   }
   if (snapshot?.reviewedFacts?.length) {
     for (const fact of snapshot.reviewedFacts) {
-      if (fact.proposalType !== 'product_classification' && fact.proposalType !== 'primary_product_type') continue;
+      if (fact.proposalType !== 'product_classification') continue;
       const typeId = getProductTypeIdFromValue(fact.value);
       const categoryId = getCategoryIdFromValue(fact.value);
       if ((typeId && typeId.length > 0) || (categoryId && categoryId.length > 0)) {

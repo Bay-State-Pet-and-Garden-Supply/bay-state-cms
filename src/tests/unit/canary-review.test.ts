@@ -5,7 +5,7 @@ import { validateFrozenReviewCorrection } from '../../classification/review-corr
 import type { ClassificationProposal, ClassificationProposalDecision } from '../../shared/types';
 
 function reviewedItem(): CanaryReviewItem {
-  const proposals = ['primary_product_type', 'field_assignment', 'category_page'].map((proposalType, i) => ({
+  const proposals = ['product_classification', 'field_assignment', 'category_page'].map((proposalType, i) => ({
     id: `p${i}`, runId: 'run', productSku: 'SKU', proposalType, targetId: 'target',
     proposedValue: 'value', confidence: 0.9, evidenceIds: [], status: 'accepted',
     isBulkAcceptable: false, isStale: false, stalenessReason: null,

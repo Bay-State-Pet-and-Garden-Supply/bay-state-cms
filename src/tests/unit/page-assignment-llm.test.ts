@@ -68,7 +68,7 @@ const makeProposal = (overrides: Partial<ClassificationProposal> = {}): Classifi
   id: 'prop-' + Math.random().toString(36).slice(2, 8),
   runId: 'run-1',
   productSku: 'test-sku',
-  proposalType: 'primary_product_type',
+  proposalType: 'product_classification',
   targetId: null,
   proposedValue: null,
   confidence: 0.8,
@@ -230,16 +230,16 @@ describe('extractProductContext', () => {
     expect(result.ocrSummary.healthConcern).toEqual(['Joint Health', 'Digestion']);
   });
 
-  it('extracts productType from primary_product_type proposals', () => {
+  it('extracts productType from product_classification proposals', () => {
     const proposals = [
-      makeProposal({ proposalType: 'primary_product_type', targetId: 'Dry Dog Food' }),
+      makeProposal({ proposalType: 'product_classification', targetId: 'Dry Dog Food' }),
     ];
 
     const result = extractProductContext([], proposals);
     expect(result.productType).toBe('Dry Dog Food');
   });
 
-  it('returns null productType when no primary_product_type proposal exists', () => {
+  it('returns null productType when no product_classification proposal exists', () => {
     const result = extractProductContext([], []);
     expect(result.productType).toBeNull();
   });

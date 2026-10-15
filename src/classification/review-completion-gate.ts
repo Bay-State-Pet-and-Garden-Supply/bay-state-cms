@@ -55,14 +55,15 @@ function assertReviewedProductTypeForRun(options: {
   );
   if (!typeTargetEnabled) return null;
 
-  // In-run accepted pair decision (new kind) or legacy accepted type.
+  // In-run accepted canonical pair decision (ADR 0041: legacy
+  // `primary_product_type` rows are history-only, never gate authority).
   const acceptedRow = getDb().query(
     `SELECT p.proposal_type, p.target_id, p.proposed_value_json,
             d.revised_value_json, d.revised_target_id, d.has_revised_target,
             (d.revised_value_json IS NOT NULL) AS has_revised_value
      FROM classification_proposals p
      JOIN classification_proposal_decisions d ON d.proposal_id = p.id AND d.superseded_at IS NULL
-     WHERE p.run_id = ? AND p.proposal_type IN ('product_classification', 'primary_product_type') AND d.decision = 'accepted'
+     WHERE p.run_id = ? AND p.proposal_type = 'product_classification' AND d.decision = 'accepted'
      LIMIT 1`,
   ).get(runId) as {
     proposal_type: string; target_id: string | null; proposed_value_json: string | null;
@@ -70,12 +71,11 @@ function assertReviewedProductTypeForRun(options: {
     has_revised_value: number | null; has_revised_target: number | null;
   } | undefined;
   const reviewedPairFact = snapshot.reviewedFacts.some(
-    fact => fact.proposalType === 'product_classification' || fact.proposalType === 'primary_product_type',
+    // ADR 0041: legacy `primary_product_type` facts are history-only.
+    fact => fact.proposalType === 'product_classification',
   );
   if (acceptedRow ?? reviewedPairFact) {
-    // Presence alone is not enough: the pair must be complete. A legacy
-    // type-only acceptance resolves its category through the snapshot
-    // mapping; an unmapped type stays an explicit gap.
+    // Presence alone is not enough: the pair must be complete.
     if (reviewedPairFact && !acceptedRow) return null;
     if (acceptedRow) {
       let parsed: unknown;

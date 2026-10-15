@@ -100,8 +100,13 @@ export function analyzeProductTypeImpact(
   } = input;
 
   const isClear = candidateProductTypeId === null;
-  const primaryProposal = activeProposals.find(p => p.proposalType === 'primary_product_type');
-  const currentTypeId = primaryProposal ? getEffectivePrimaryProductTypeId(primaryProposal) : null;
+  // ADR 0041: the canonical pair is the authority baseline; legacy
+  // `primary_product_type` rows are history-only and never set it.
+  const primaryProposal = activeProposals.find(p => p.proposalType === 'product_classification')
+    ?? activeProposals.find(p => p.proposalType === 'primary_product_type');
+  const currentTypeId = primaryProposal && primaryProposal.proposalType === 'product_classification'
+    ? getEffectivePrimaryProductTypeId(primaryProposal)
+    : null;
   const isUnchanged = candidateProductTypeId === currentTypeId;
 
   const hasExecutionTypeAlignment =
@@ -125,7 +130,7 @@ export function analyzeProductTypeImpact(
   // If unchanged, no invalidations needed — but never revive already-stale rows.
   if (isUnchanged) {
     for (const p of activeProposals) {
-      if (p.proposalType === 'primary_product_type') continue;
+      if (p.proposalType === 'primary_product_type' || p.proposalType === 'product_classification') continue;
       if ((p as { isStale?: boolean }).isStale || (p as { status?: string }).status === 'stale') continue;
       if (p.proposalType === 'field_assignment' && p.targetId && snapshot) {
         const attr = snapshot.attributes.find(a => a.id === p.targetId);
@@ -166,7 +171,7 @@ export function analyzeProductTypeImpact(
   }
 
   for (const p of activeProposals) {
-    if (p.proposalType === 'primary_product_type') continue;
+    if (p.proposalType === 'primary_product_type' || p.proposalType === 'product_classification') continue;
     // Never preserve already-stale rows as valid.
     if ((p as { isStale?: boolean }).isStale || (p as { status?: string }).status === 'stale') continue;
 

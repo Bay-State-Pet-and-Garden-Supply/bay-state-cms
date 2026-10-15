@@ -7,7 +7,7 @@ import { submitProposalDecisions } from '../../classification/proposal-review-se
 import { markReviewed, getReviewState } from '../../db/repositories/onboarding-review-repo';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
-import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot, snapshotHash } from '../../classification/runtime-snapshot';
 
 describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
   const dbPath = `/tmp/test-review-invalidation-${randomUUID()}.db`;
@@ -36,8 +36,12 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     return {
       manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: now, updatedAt: now, fileVersions: {} },
       productTypes: [
-        { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [] },
-        { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [] },
+        { id: 'dog_food', name: 'Dog Food', description: null, attributeProfileId: 'dog-profile', oldIdAliases: [], categoryId: 'dog_food_cat' },
+        { id: 'cat_food', name: 'Cat Food', description: null, attributeProfileId: 'cat-profile', oldIdAliases: [], categoryId: 'cat_food_cat' },
+      ],
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
       ],
       attributes: [
         { id: 'brand', name: 'Brand', description: null, valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, isUniversal: true, group: 'Identity' },
@@ -159,7 +163,21 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
       configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() },
       sourceProductHash: 'hash-dog-food',
     });
-    persistRuntimeSnapshot(runtime);
+    const patchedRuntime = {
+      ...runtime,
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
+      ],
+      productTypes: runtime.productTypes.map((t) => {
+        const rec = t as { id: string; categoryId?: string };
+        if (rec.id === 'dog_food') return { ...rec, categoryId: 'dog_food_cat' };
+        if (rec.id === 'cat_food') return { ...rec, categoryId: 'cat_food_cat' };
+        return { ...rec };
+      }),
+    };
+    patchedRuntime.snapshotHash = snapshotHash(patchedRuntime as never);
+    persistRuntimeSnapshot(patchedRuntime as never);
 
     db.run(
       `INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
@@ -174,14 +192,14 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     db.run(
       `INSERT INTO classification_runs (id, workspace_id, onboarding_item_id, product_sku, status, config_snapshot_hash, started_at, completed_at)
        VALUES (?, ?, ?, '012345678901', 'completed', ?, datetime('now'), datetime('now'))`,
-      [runId, wsId, itemId, runtime.snapshotHash],
+      [runId, wsId, itemId, patchedRuntime.snapshotHash],
     );
 
     // Initial Primary Product Type proposal: dog_food
     db.run(
       `INSERT INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, '012345678901', 'primary_product_type', 'dog_food', '{"productTypeId":"dog_food"}', 0.9, 'pending', datetime('now'))`,
+       VALUES (?, ?, '012345678901', 'product_classification', 'dog_food', '{"categoryId":"dog_food_cat","productTypeId":"dog_food"}', 0.9, 'pending', datetime('now'))`,
       ['prop-type', runId],
     );
 
@@ -235,7 +253,7 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
           proposalId: 'prop-type',
           decision: 'accepted',
           revisedTargetId: 'cat_food',
-          revisedValue: { productTypeId: 'cat_food' },
+          revisedValue: { categoryId: 'cat_food_cat', productTypeId: 'cat_food' },
           reviewerId: 'reviewer-human',
         },
       ],
@@ -289,16 +307,30 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     const ref = createConfigSnapshot(wsId, config);
     const snapshot = buildRuntimeSnapshot({ workspaceId: wsId, workspacePath: '/tmp/test', productSku: sku,
       config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: sku });
-    persistRuntimeSnapshot(snapshot);
+    const patchedSnapshot = {
+      ...snapshot,
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food' },
+        { id: 'cat_food_cat', name: 'Cat Food' },
+      ],
+      productTypes: snapshot.productTypes.map((t) => {
+        const rec = t as { id: string; categoryId?: string };
+        if (rec.id === 'dog_food') return { ...rec, categoryId: 'dog_food_cat' };
+        if (rec.id === 'cat_food') return { ...rec, categoryId: 'cat_food_cat' };
+        return { ...rec };
+      }),
+    };
+    patchedSnapshot.snapshotHash = snapshotHash(patchedSnapshot as never);
+    persistRuntimeSnapshot(patchedSnapshot as never);
     db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
       VALUES (?, ?, 'Review fixture', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
     db.run(`INSERT INTO onboarding_items (id, batch_id, row_number, upc, name, stage, stage_status, curation_data_json, created_at, updated_at)
       VALUES (?, ?, 1, ?, 'Fixture', 'review', 'pending', ?, datetime('now'), datetime('now'))`,
     [itemId, batchId, sku, JSON.stringify({ classificationRunId: runId })]);
     db.run(`INSERT INTO classification_runs (id, workspace_id, onboarding_item_id, product_sku, status, config_snapshot_hash, started_at)
-      VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'))`, [runId, wsId, itemId, sku, snapshot.snapshotHash]);
+      VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'))`, [runId, wsId, itemId, sku, patchedSnapshot.snapshotHash]);
     db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-      VALUES (?, ?, ?, 'primary_product_type', 'dog_food', '{"productTypeId":"dog_food"}', 0.9, 'pending', datetime('now'))`, [typeProposalId, runId, sku]);
+      VALUES (?, ?, ?, 'product_classification', 'dog_food', '{"categoryId":"dog_food_cat","productTypeId":"dog_food"}', 0.9, 'pending', datetime('now'))`, [typeProposalId, runId, sku]);
     db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Chicken"', 0.9, ?, datetime('now'))`, [fieldProposalId, runId, sku, dependentAccepted ? 'accepted' : 'pending']);
     if (dependentAccepted) {
@@ -313,7 +345,7 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     const fixture = createReviewFixture();
     const input = { workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
       sourceKind: 'onboarding', onboardingItemId: fixture.itemId, reviewOrigin: 'agent_review',
-      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { productTypeId: 'cat_food' }, reviewerId: 'opencode', actionToken: randomUUID(), expectedRevisionId: null }] } as const;
+      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { categoryId: 'cat_food_cat', productTypeId: 'cat_food' }, reviewerId: 'opencode', actionToken: randomUUID(), expectedRevisionId: null }] } as const;
     const result = submitProposalDecisions({ ...input, decisions: [...input.decisions] });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.refreshRequired).toBe(false);
@@ -331,7 +363,7 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     if (!overwrite.ok) expect(overwrite.code).toBe('decision_conflict');
     const confirmation = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
       sourceKind: 'onboarding', onboardingItemId: fixture.itemId,
-      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', reviewerId: 'nick', revisedValue: { productTypeId: 'cat_food' },
+      decisions: [{ proposalId: fixture.typeProposalId, decision: 'accepted', reviewerId: 'nick', revisedValue: { categoryId: 'cat_food_cat', productTypeId: 'cat_food' },
         expectedRevisionId: result.ok ? result.decisions[0].id : null }] });
     expect(confirmation.ok).toBe(true);
     if (confirmation.ok) expect(confirmation.refreshRequired).toBe(true);
@@ -367,7 +399,7 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     const fixture = createReviewFixture(false);
     const result = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
       sourceKind: 'onboarding', onboardingItemId: fixture.itemId, decisions: [
-        { proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { productTypeId: 'cat_food' }, reviewerId: 'nick', expectedRevisionId: null },
+        { proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { categoryId: 'cat_food_cat', productTypeId: 'cat_food' }, reviewerId: 'nick', expectedRevisionId: null },
         { proposalId: fixture.fieldProposalId, decision: 'accepted', reviewerId: 'nick', expectedRevisionId: null },
       ] });
     expect(result.ok).toBe(false);

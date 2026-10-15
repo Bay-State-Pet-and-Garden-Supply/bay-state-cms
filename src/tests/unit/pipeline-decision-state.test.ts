@@ -65,9 +65,9 @@ describe('pipeline decision effective state', () => {
 
   it('uses one Product Type precedence rule for historical one-sided and conflicting corrections', () => {
     const original = proposal({
-      proposalType: 'primary_product_type',
+      proposalType: 'product_classification',
       targetId: 'dog-food-dry',
-      proposedValue: { productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] },
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] },
     });
     const scenarios: Array<{
       proposal: ClassificationProposal;

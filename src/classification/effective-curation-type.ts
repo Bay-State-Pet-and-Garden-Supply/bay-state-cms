@@ -62,17 +62,18 @@ export function resolveEffectiveCurationType(
  * provenance-compatible reviewed facts, or null. Reimplements the reviewed-fact
  * loop of `getReviewedClassification` as a standalone additive helper
  * (snapshot-only; the in-run accepted branch is irrelevant mid-pipeline
- * because `runPipeline` seeds `acceptedProposals: []`). The first pair fact
- * (`product_classification`, then legacy `primary_product_type`) wins; the id
- * is extracted via `getProductTypeIdFromValue` (accepts `{ productTypeId }`
- * and string shapes).
+ * because `runPipeline` seeds `acceptedProposals: []`). The first canonical
+ * (`product_classification`) fact wins (ADR 0041: legacy
+ * `primary_product_type` facts are history-only); the id is extracted via
+ * `getProductTypeIdFromValue` (accepts `{ productTypeId }` and string shapes).
  */
 export function getReviewedTypeFromSnapshot(
   snapshot: RuntimeClassificationSnapshot | undefined,
 ): string | null {
   if (!snapshot?.reviewedFacts?.length) return null;
   for (const fact of snapshot.reviewedFacts) {
-    if (fact.proposalType !== 'primary_product_type' && fact.proposalType !== 'product_classification') continue;
+    // ADR 0041: legacy `primary_product_type` facts are history-only.
+    if (fact.proposalType !== 'product_classification') continue;
     const id = getProductTypeIdFromValue(fact.value);
     if (id && id.length > 0) return id;
   }
@@ -183,10 +184,9 @@ export interface EffectiveClassification {
 
 /**
  * Effective canonical classification for a stage (issue #351): the member's
- * own reviewed pair (accepted `product_classification`, then legacy
- * `primary_product_type` with its category resolved through the approved
- * mapping) or `none`. No execution fallback — missing own-SKU evidence
- * produces an unresolved result, never a family-level guess.
+ * own reviewed `product_classification` pair or `none` (ADR 0041: legacy
+ * `primary_product_type` is history-only). No execution fallback — missing
+ * own-SKU evidence produces an unresolved result, never a family-level guess.
  */
 export function getEffectiveClassification(
   input: StageInput,
@@ -200,10 +200,11 @@ export function getEffectiveClassification(
 }
 
 /**
- * Snapshot-only reviewed canonical pair (issue #350). Reimplements the
- * reviewed-fact loop of `getReviewedClassification` without the in-run
- * accepted branch (irrelevant mid-pipeline). The first pair fact wins; a
- * legacy type-only fact resolves its category through the snapshot mapping.
+ * Snapshot-only reviewed canonical pair (issue #350, ADR 0041). Reimplements
+ * the reviewed-fact loop of `getReviewedClassification` without the in-run
+ * accepted branch (irrelevant mid-pipeline). The first canonical
+ * (`product_classification`) fact wins; legacy `primary_product_type` facts
+ * are history-only and never confer live authority.
  */
 export function getReviewedClassificationPair(
   snapshot: RuntimeClassificationSnapshot | undefined,
@@ -211,7 +212,8 @@ export function getReviewedClassificationPair(
   if (!snapshot?.reviewedFacts?.length) return { categoryId: null, productTypeId: null };
   const productTypes = snapshot.productTypes ?? [];
   for (const fact of snapshot.reviewedFacts) {
-    if (fact.proposalType !== 'product_classification' && fact.proposalType !== 'primary_product_type') continue;
+    // ADR 0041: legacy `primary_product_type` facts are history-only.
+    if (fact.proposalType !== 'product_classification') continue;
     const typeId = getProductTypeIdFromValue(fact.value);
     const rawCategory = (fact.value as { categoryId?: unknown } | null)?.categoryId;
     const factCategory = typeof rawCategory === 'string' && rawCategory.length > 0 ? rawCategory : null;

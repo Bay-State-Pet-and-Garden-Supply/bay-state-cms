@@ -175,8 +175,10 @@ export async function findSimilarApprovedProducts(
             ? decision.revisedTargetId
             : (typeof proposal.targetId === 'string' ? proposal.targetId : '');
 
-          if (proposal.proposalType === 'primary_product_type') {
-            productType = val;
+          // ADR 0041: legacy `primary_product_type` rows are history-only;
+          // only the canonical pair contributes the live display value.
+          if (proposal.proposalType === 'product_classification') {
+            productType = val !== '' ? val : (typeof proposal.targetId === 'string' ? proposal.targetId : null);
           } else if (proposal.proposalType === 'category_page') {
             // Display name from the effective value — never the Page ID
             // (issue #17 D1).

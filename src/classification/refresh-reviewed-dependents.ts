@@ -31,7 +31,9 @@ export async function refreshReviewedDependents(input: {
   // singleton page execution. The cohort worker must restart the parent instead.
   if (run.cohortRunId) throw new Error('Coordinated cohort review must refresh through its parent run; restart the cohort preparation.');
   const accepted = getAcceptedProposals(run.productSku, run.id);
-  const type = accepted.find(proposal => proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type');
+  // ADR 0041: refresh requires an accepted canonical pair; legacy
+  // `primary_product_type` rows are history-only and cannot authorize it.
+  const type = accepted.find(proposal => proposal.proposalType === 'product_classification');
   const pair = type ? getEffectiveClassificationPair(type) : { categoryId: null, productTypeId: null };
   const typeId = pair.productTypeId;
   const decision = type && getLiveDecisionsByRun(run.id).find(row => row.proposalId === type.id && row.decision === 'accepted');

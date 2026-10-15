@@ -402,7 +402,10 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
         };
         const priorProposal = getProposalsByRun(input.runId).find(proposal => proposal.id === d.proposalId);
         const priorKind = proposalTypeById.get(d.proposalId);
-        const priorType = priorKind === 'primary_product_type' || priorKind === 'product_classification' ? priorProposal : null;
+        // ADR 0041: only the canonical pair kind drives invalidation; legacy
+        // `primary_product_type` decisions are history-only (explicit restart
+        // or reclassification required before they confer authority again).
+        const priorType = priorKind === 'product_classification' ? priorProposal : null;
         const priorDecision = priorType ? getLiveDecisionsByRun(input.runId).find(decision => decision.id === priorType.currentDecisionId) : null;
         const hadHumanReviewedType = priorType?.status === 'accepted' && priorDecision?.decision === 'accepted' && priorDecision.decisionOrigin === 'human_review';
         const { decision, inserted, decisionId } = insertDecisionRow(db, rowInput);
@@ -471,7 +474,7 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
       const typeDecisionInserted = insertedDecisions.find(
         inserted => {
           const kind = proposalTypeById.get(inserted.proposalId);
-          return kind === 'primary_product_type' || kind === 'product_classification';
+          return kind === 'product_classification';
         },
       );
       if (typeDecisionInserted && refreshRequired) {

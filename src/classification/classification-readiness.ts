@@ -100,7 +100,8 @@ export function evaluateCanonicalReadiness(input: {
   let productTypeId: string | null = null;
   const accepted = getAcceptedProposals(run.product_sku, run.id);
   for (const proposal of accepted) {
-    if (proposal.proposalType !== 'product_classification' && proposal.proposalType !== 'primary_product_type') continue;
+    // ADR 0041: legacy `primary_product_type` rows are history-only.
+    if (proposal.proposalType !== 'product_classification') continue;
     const pair = getEffectiveClassificationPair(proposal);
     if (pair.categoryId || pair.productTypeId) {
       categoryId = pair.categoryId;

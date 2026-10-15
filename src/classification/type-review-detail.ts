@@ -52,11 +52,12 @@ export function computeTypeReviewDetail(
     onboardingItemId: itemId,
   });
 
-  // Find candidate proposal for Primary Product Type
+  // Find candidate proposal for the canonical Product Classification
+  // (ADR 0041: legacy `primary_product_type` rows are history-only).
   const topPrimaryProposal = db.query(
     `SELECT id, target_id, confidence, proposed_value_json
      FROM classification_proposals
-     WHERE run_id = ? AND proposal_type = 'primary_product_type' AND superseded_at IS NULL
+     WHERE run_id = ? AND proposal_type = 'product_classification' AND superseded_at IS NULL
      ORDER BY confidence DESC
      LIMIT 1`,
   ).get(activeRunId) as {
@@ -85,12 +86,12 @@ export function computeTypeReviewDetail(
     };
   }
 
-  // Find live decision for primary_product_type
+  // Find live decision for the canonical pair (ADR 0041: legacy kind is history-only).
   const liveDecision = db.query(
     `SELECT d.id, d.decision, d.revised_target_id, d.revised_value_json, p.target_id
      FROM classification_proposal_decisions d
      JOIN classification_proposals p ON d.proposal_id = p.id
-     WHERE p.run_id = ? AND p.proposal_type = 'primary_product_type' AND d.superseded_at IS NULL
+     WHERE p.run_id = ? AND p.proposal_type = 'product_classification' AND d.superseded_at IS NULL
      ORDER BY d.created_at DESC
      LIMIT 1`,
   ).get(activeRunId) as {

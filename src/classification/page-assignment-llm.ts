@@ -297,8 +297,6 @@ export function extractProductContext(
   // proposed pair — never a parent/sibling conclusion, never page-context.
   const typeProposal = allProposals.find(
     p => p.proposalType === 'product_classification',
-  ) ?? allProposals.find(
-    p => p.proposalType === 'primary_product_type',
   );
   const productType = typeProposal?.targetId ?? null;
 

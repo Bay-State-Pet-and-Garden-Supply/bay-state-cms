@@ -5,7 +5,9 @@
  * Review and Promotion gates.
  *
  * Invariants:
- * 1. An active, non-superseded 'accepted' decision on an active primary_product_type proposal.
+ * 1. An active, non-superseded 'accepted' decision on an active canonical
+ *    `product_classification` proposal (ADR 0041: legacy
+ *    `primary_product_type` rows are history-only).
  * 2. Server-derived decision origin must be 'human_review'. Automation (system_auto_accept,
  *    verifier, execution, migration, unknown) cannot qualify.
  * 3. Non-null effective target. Explicit clear returns 'reviewed_product_type_cleared'.
@@ -245,7 +247,8 @@ export function evaluateProductTypeCurrentness(
 
   // 3. Primary Product Type Proposal & Decision
   const proposal = input.primaryTypeProposal;
-  if (!proposal || (proposal.proposalType !== 'primary_product_type' && proposal.proposalType !== 'product_classification')) {
+  // ADR 0041: legacy `primary_product_type` rows are history-only.
+  if (!proposal || proposal.proposalType !== 'product_classification') {
     return {
       ok: false,
       code: 'missing_primary_product_type_proposal',
@@ -519,7 +522,7 @@ export function loadAndValidateProductTypeCurrentness(
      FROM classification_proposals p
      LEFT JOIN classification_proposal_decisions d
        ON d.proposal_id = p.id AND d.superseded_at IS NULL
-     WHERE p.run_id = ? AND p.proposal_type IN ('product_classification', 'primary_product_type') AND p.superseded_at IS NULL
+     WHERE p.run_id = ? AND p.proposal_type = 'product_classification' AND p.superseded_at IS NULL
      ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1`,
   ).get(activeRunId) as Record<string, any> | undefined;
 
@@ -538,7 +541,7 @@ export function loadAndValidateProductTypeCurrentness(
       id: String(typeProposalRow.id),
       runId: String(typeProposalRow.run_id),
       productSku: String(typeProposalRow.product_sku),
-      proposalType: (String(typeProposalRow.proposal_type) === 'product_classification' ? 'product_classification' : 'primary_product_type') as ClassificationProposal['proposalType'],
+      proposalType: 'product_classification' as ClassificationProposal['proposalType'],
       targetId: typeProposalRow.target_id ? String(typeProposalRow.target_id) : null,
       proposedValue: typeProposalRow.proposed_value_json
         ? JSON.parse(String(typeProposalRow.proposed_value_json))

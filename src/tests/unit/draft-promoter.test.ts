@@ -1289,8 +1289,8 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       `INSERT INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
         confidence, status, created_at)
-       VALUES ('proposal-type-corrected', ?, ?, 'primary_product_type', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
-      [runId, item.upc, JSON.stringify({ productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
+       VALUES ('proposal-type-corrected', ?, ?, 'product_classification', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
+      [runId, item.upc, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
     );
     db.run(
       `INSERT INTO classification_proposals
@@ -1382,8 +1382,8 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
         `INSERT INTO classification_proposals
          (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
           confidence, status, created_at)
-         VALUES (?, ?, ?, 'primary_product_type', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
-        [proposalId, runId, item.upc, JSON.stringify({ productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
+         VALUES (?, ?, ?, 'product_classification', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
+        [proposalId, runId, item.upc, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
       );
       const toysPageId = activateVerifiedPage('Toys', `history-${scenario.suffix}`);
       db.run(
@@ -1463,8 +1463,8 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       `INSERT INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
         confidence, status, created_at)
-       VALUES ('proposal-type-foreign', ?, ?, 'primary_product_type', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
-      [runId, item.upc, JSON.stringify({ productTypeId: 'dog-food-dry' }), now],
+       VALUES ('proposal-type-foreign', ?, ?, 'product_classification', 'dog-food-dry', ?, 0.9, 'accepted', ?)`,
+      [runId, item.upc, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }), now],
     );
 
     // A present run pointer that fails ownership validation blocks promotion

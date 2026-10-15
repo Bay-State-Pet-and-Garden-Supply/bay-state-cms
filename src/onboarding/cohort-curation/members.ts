@@ -448,10 +448,11 @@ export async function executePreparedMembers(args: {
         // (reviewed first, then the provisional pair from this same pass) —
         // mirroring the stages' effective-type resolution. The frozen
         // snapshot's reviewed fact alone would miss the provisional pair and
-        // falsely block supported members.
+        // falsely block supported members. ADR 0041: legacy
+        // `primary_product_type` rows are history-only, never live authority.
         const semanticPair = (() => {
           for (const proposal of curationData.classificationProposals) {
-            if ((proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type') && proposal.status === 'accepted') {
+            if (proposal.proposalType === 'product_classification' && proposal.status === 'accepted') {
               const value = (proposal as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
                 ? (proposal as { revisedValue?: unknown }).revisedValue
                 : proposal.proposedValue;
@@ -461,7 +462,7 @@ export async function executePreparedMembers(args: {
             }
           }
           const pending = [...curationData.classificationProposals]
-            .filter(proposal => (proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type') && !proposal.isStale && (proposal.status === 'pending' || proposal.status === 'deferred'))
+            .filter(proposal => proposal.proposalType === 'product_classification' && !proposal.isStale && (proposal.status === 'pending' || proposal.status === 'deferred'))
             .sort((a, b) => b.confidence - a.confidence)[0];
           if (pending) {
             const value = (pending as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
