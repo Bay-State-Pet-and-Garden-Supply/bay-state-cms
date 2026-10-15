@@ -897,7 +897,7 @@ describe('proposal-review-service (catalog product)', () => {
     expect(historyCount.count).toBe(2);
   });
 
-  it('queues a dependent refresh when a Primary Product Type decision changes', () => {
+  it('queues a dependent refresh when a Product Classification decision changes', () => {
     const run = createRun(workspaceId, 'SKU-TYPE-REFRESH', null, 'snap-hash', {
       sourceKind: 'catalog_product',
       sourceProductHash: 'abc123',
@@ -905,7 +905,7 @@ describe('proposal-review-service (catalog product)', () => {
 
     getDb().run(
       `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', 'dry-dog-food', '{"productTypeId":"dry-dog-food"}', 0.8, 'pending', ?)`,
+       VALUES (?, ?, ?, 'product_classification', 'dry-dog-food', '{"categoryId":"dog-food","productTypeId":"dry-dog-food"}', 0.8, 'pending', ?)`,
       ['prop-type', run.id, 'SKU-TYPE-REFRESH', new Date().toISOString()],
     );
 
