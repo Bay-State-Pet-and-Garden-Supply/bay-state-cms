@@ -512,14 +512,13 @@ describe('normalizePageAssignments', () => {
     expect(result[0].pageName).toBe('Dog Food Shop All');
   });
 
-  it('includes exact brand page when it exists and is not already present', () => {
+  it('never appends a brand page (issue #353: Brand placement is outside classifier ownership)', () => {
     const input = [
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.85 },
     ];
     const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, 'Acme Pet', [], 5);
-    expect(result).toHaveLength(2);
-    expect(result[1].pageName).toBe('Brand - Acme Pet');
-    expect(result[1].confidence).toBe(0.95);
+    expect(result).toEqual(input);
+    expect(result.some(p => p.pageName.startsWith('Brand -'))).toBe(false);
   });
 
   it('does not add a second page in single-selection mode', () => {
@@ -537,22 +536,18 @@ describe('normalizePageAssignments', () => {
     expect(result).toEqual(input);
   });
 
-  it('reserves a slot for an exact brand page when specific pages fill capacity', () => {
+  it('never reserves a slot for a brand page when at capacity (issue #353)', () => {
     const input = [
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.9 },
       { pageId: 'p7', pageName: 'Dog Food Wet', confidence: 0.8 },
       { pageId: 'p5', pageName: 'Dog Treats', confidence: 0.7 },
     ];
     const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, 'Acme Pet', [], 3);
-    expect(result).toHaveLength(3);
-    expect(result.map(p => p.pageName)).toEqual([
-      'Dog Food Dry',
-      'Dog Food Wet',
-      'Brand - Acme Pet',
-    ]);
+    expect(result).toEqual(input);
+    expect(result.some(p => p.pageName.startsWith('Brand -'))).toBe(false);
   });
 
-  it('does NOT add brand page when already present', () => {
+  it('preserves an already-present brand page without duplicating (existing placement is out of scope)', () => {
     const input = [
       { pageId: 'p6', pageName: 'Brand - Acme Pet', confidence: 0.9 },
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.85 },
@@ -563,16 +558,14 @@ describe('normalizePageAssignments', () => {
     expect(brandEntries).toHaveLength(1);
   });
 
-  it('drops Shop All to make room for brand page when at capacity', () => {
+  it('drops Shop All at capacity without inventing a brand page (issue #353)', () => {
     const input = [
       { pageId: 'p1', pageName: 'Dog Food Dry', confidence: 0.85 },
       { pageId: 'p7', pageName: 'Dog Food Wet', confidence: 0.8 },
       { pageId: 'p2', pageName: 'Dog Food Shop All', confidence: 0.5 },
     ];
     const result = normalizePageAssignments(input, BASIC_PAGE_INDEX, 'Acme Pet', [], 3);
-    // After removing Shop All (2 remain), brand page fits
-    expect(result).toHaveLength(3);
-    expect(result.some(p => p.pageName === 'Brand - Acme Pet')).toBe(true);
+    expect(result.some(p => p.pageName === 'Brand - Acme Pet')).toBe(false);
   });
 
   it('clamps output to maxResults', () => {

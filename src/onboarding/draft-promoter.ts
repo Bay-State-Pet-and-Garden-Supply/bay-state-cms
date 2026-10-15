@@ -83,7 +83,7 @@ import {
   serializeAttributeValue,
 } from '../classification/assignment-projection';
 import type { Product } from '../shared/types';
-import { isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
+import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
 
 /**
  * Spec #136 ticket #142: promotion slot resolution through active
@@ -1795,6 +1795,16 @@ export async function prepareDraftPromotion(
           } else if (proposal.proposalType === 'category_page' && targetId) {
             const pageId = getPageIdentityId(proposal);
             const pageName = pageNameFromPageValue(getEffectiveProposalValue(proposal));
+            // Issue #353: Brand pages are outside classifier ownership —
+            // never promote one, even if review missed it (refused at review;
+            // defense-in-depth skip here). Existing Brand placement lives
+            // outside the classification draft, never inside it.
+            if (isBrandPageProposal(pageName)) {
+              const refusal = protectedTargetRefusal(targetId);
+              skippedPageRefs.push({ proposalId: proposal.id, pageName: pageName ?? '' });
+              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
+              continue;
+            }
             if (!pageId || !verifiedPageIds.has(pageId)) {
               skippedPageRefs.push({ proposalId: proposal.id, pageName: pageName ?? '' });
               continue;

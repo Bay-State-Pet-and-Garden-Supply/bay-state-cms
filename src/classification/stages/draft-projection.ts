@@ -1,8 +1,8 @@
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { getCachedAttributeMappings } from '../../db/repositories/classification-config-repo';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from '../assignment-projection';
-import { getPageDisplayName } from '../../shared/proposal-display';
-import { isProtectedTargetId } from '../classification-ownership';
+import { getPageDisplayName, isRemovalIntent, pageNameFromPageValue } from '../../shared/proposal-display';
+import { isBrandPageProposal, isProtectedTargetId } from '../classification-ownership';
 
 /**
  * Product Draft Projection Stage
@@ -115,12 +115,21 @@ export const productDraftProjectionStage: StageDefinition = {
 
     // Collect accepted category page assignments, then supplement with pending.
     // Page display names come from proposedValue.pageName (never the target
-    // Page ID — issue #17 D1).
+    // Page ID — issue #17 D1). Issue #353: accepted explicit removals are
+    // surfaced as `removedPages` (before names) so the accepted preview and
+    // the resulting draft agree; Brand pages never project (outside owned
+    // scope — refused at review, skipped here too).
     const pageAssignments: string[] = [];
+    const removedPages: string[] = [];
     for (const proposal of accepted) {
       if (proposal.proposalType !== 'category_page') continue;
-      const pageName = getPageDisplayName(proposal);
-      if (pageName) pageAssignments.push(pageName);
+      if (isRemovalIntent(proposal as unknown as { hasRevisedValue?: boolean; revisedValue?: unknown })) {
+        const beforeName = pageNameFromPageValue((proposal as unknown as { proposedValue?: unknown }).proposedValue);
+        if (beforeName && !isBrandPageProposal(beforeName) && !removedPages.includes(beforeName)) removedPages.push(beforeName);
+        continue;
+      }
+      const pageName = getPageDisplayName(proposal as unknown as Parameters<typeof getPageDisplayName>[0]);
+      if (pageName && !isBrandPageProposal(pageName)) pageAssignments.push(pageName);
     }
 
     const pendingPageAssignments: string[] = [];
@@ -128,8 +137,8 @@ export const productDraftProjectionStage: StageDefinition = {
       for (const proposal of allProposals) {
         if (proposal.proposalType !== 'category_page') continue;
         if (proposal.status !== 'pending' || proposal.isStale) continue;
-        const pageName = getPageDisplayName(proposal);
-        if (pageName) pendingPageAssignments.push(pageName);
+        const pageName = getPageDisplayName(proposal as unknown as Parameters<typeof getPageDisplayName>[0]);
+        if (pageName && !isBrandPageProposal(pageName)) pendingPageAssignments.push(pageName);
       }
     }
 
@@ -150,6 +159,7 @@ export const productDraftProjectionStage: StageDefinition = {
               pendingPageAssignments.length > 0
                 ? pendingPageAssignments
                 : pageAssignments,
+            removedPages,
             acceptedProposalCount: accepted.length,
             pendingSupplementCount: pendingSupplement.length,
             hasAcceptedAssignments: accepted.length > 0,

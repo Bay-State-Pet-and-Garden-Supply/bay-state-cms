@@ -2,6 +2,7 @@ import type { AttributeMappingConfig, ClassificationProposal, ProductAttributeCo
 import type { SerializationConfigV2 } from '../shared/schemas/classification';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import { resolveAlias } from './controlled-value-identity';
+import { isSilentNarrowing } from './attribute-grounding-guards';
 
 /** Return the reviewed correction when present, including an explicit null. */
 export function getEffectiveProposalValue(proposal: ClassificationProposal): unknown {
@@ -319,6 +320,13 @@ export function buildAssignmentProjection(
 
       const currentValue = currentCustomFields[mapping.catalogField] ?? null;
       const proposedValue = serializeAttributeValue(getEffectiveProposalValue(proposal), mapping.serialization);
+      // P1 #9: predicted silent multi→single narrowing is a visible skip,
+      // not a diff. An explicit reviewed revised value is human intent
+      // (issue #353) and bypasses the guard.
+      if (!proposal.hasRevisedValue && isSilentNarrowing(currentValue, proposedValue)) {
+        skipped.push({ proposalId: proposal.id, targetId, reason: 'No-narrowing guard: existing multi-value slot survives' });
+        continue;
+      }
       const isNoOp = currentValue === proposedValue;
       const isOverwrite = currentValue !== null && !isNoOp;
 

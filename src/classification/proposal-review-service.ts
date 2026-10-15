@@ -2,11 +2,12 @@ import { getDb } from '../db/connection';
 import { DecisionConflictError, getProposalsByRun, getLiveDecisionsByRun, insertDecisionRow, recordHistoryEvent, assertProposalReviewLiveness } from '../db/repositories/classification-run-repo';
 import { enqueueRefreshItem } from '../db/repositories/classification-refresh-repo';
 import type { ClassificationProposalDecision } from '../shared/types';
-import { getCategoryIdFromValue, getEffectiveClassificationPair, getProductTypeIdFromValue } from './assignment-projection';
+import { getCategoryIdFromValue, getEffectiveClassificationPair, getEffectiveProposalValue, getProductTypeIdFromValue } from './assignment-projection';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
 import { validateFrozenReviewCorrection } from './review-correction';
-import { isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { pageNameFromPageValue } from '../shared/proposal-display';
 
 export interface ProposalReviewInput {
   workspaceId: string;
@@ -262,11 +263,32 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
   // but can never gain review authority. Refuse accepted decisions on
   // protected targets — including protected revised targets — with an
   // attributable code instead of applying or silently rerouting them.
-  // Rejections/deferrals carry no write authority and pass through.
+  // Rejections/deferrals carry no write authority and pass through. Issue
+  // #353: the same refusal covers Brand pages — a category_page proposal
+  // whose effective display name carries the `Brand -` prefix is outside
+  // classifier ownership (verified identity or not) and can never gain
+  // review authority, including via a revised value/target.
   for (const decision of input.decisions) {
     if (decision.decision !== 'accepted') continue;
     const original = originalProposals.find(proposal => proposal.id === decision.proposalId);
-    if (!original || original.proposalType !== 'field_assignment') continue;
+    if (!original) continue;
+    if (original.proposalType === 'category_page') {
+      const revisedValue = hasOwn(decision, 'revisedValue') ? decision.revisedValue : undefined;
+      const revisedTarget = hasOwn(decision, 'revisedTargetId')
+        ? (decision.revisedTargetId ?? null)
+        : hasOwn(decision, 'targetId')
+          ? (decision.targetId ?? null)
+          : original.targetId;
+      const effectiveName = revisedValue !== undefined
+        ? pageNameFromPageValue(revisedValue)
+        : pageNameFromPageValue(getEffectiveProposalValue(original));
+      if (isBrandPageProposal(effectiveName)) {
+        const refusal = protectedTargetRefusal(revisedTarget ?? original.targetId);
+        return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+      }
+      continue;
+    }
+    if (original.proposalType !== 'field_assignment') continue;
     const revisedTarget = hasOwn(decision, 'revisedTargetId')
       ? (decision.revisedTargetId ?? null)
       : hasOwn(decision, 'targetId')

@@ -116,7 +116,7 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
     try {
       const result = await applyCatalogClassification(sku, detail.run.id);
       setChangeSetId(result.changeSetId);
-      setMessage(`Created update draft in change set ${result.changeSetId.slice(0, 8)}. ${result.appliedFields.length} field(s), ${result.appliedPages.length} page(s) applied.`);
+      setMessage(`Created update draft in change set ${result.changeSetId.slice(0, 8)}. ${result.appliedFields.length} field(s), ${result.appliedPages.length} page(s) applied${(result.removedPages?.length ?? 0) > 0 ? `, ${result.removedPages.length} page(s) removed` : ''}.`);
       if (result.skipped.length > 0) {
         setMessage(prev => prev + ` ${result.skipped.length} skipped.`);
       }
@@ -222,25 +222,34 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <strong style={{ color: '#0f172a' }}>{p.proposalType.replace(/_/g, ' ')}</strong>
-                  <span style={{
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: p.confidence > 0.7 ? '#dcfce7' : p.confidence > 0.4 ? '#fef9c3' : '#fee2e2',
-                    color: p.confidence > 0.7 ? '#166534' : p.confidence > 0.4 ? '#92400e' : '#991b1b',
-                  }}>
-                    {Math.round(p.confidence * 100)}%
+                  <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {(p.hasRevisedValue && (p as { revisedValue?: unknown }).revisedValue === null) && (
+                      <span title="Reviewed removal: accepting clears this value (the before value is shown below)" style={{ padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>
+                        Removal
+                      </span>
+                    )}
+                    <span style={{
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: p.confidence > 0.7 ? '#dcfce7' : p.confidence > 0.4 ? '#fef9c3' : '#fee2e2',
+                      color: p.confidence > 0.7 ? '#166534' : p.confidence > 0.4 ? '#92400e' : '#991b1b',
+                    }}>
+                      {Math.round(p.confidence * 100)}%
+                    </span>
                   </span>
                 </div>
                 <div style={{ color: '#334155', marginBottom: 4 }}>
                   <strong>Target:</strong> {(p.hasRevisedTargetId ? p.revisedTargetId : p.targetId) || '-'}
                 </div>
                 <div style={{ color: '#475569', fontSize: 12, marginBottom: 8, fontFamily: 'monospace', wordBreak: 'break-word' }}>
-                  <strong>Value:</strong> {(() => {
-                    const value = p.hasRevisedValue ? p.revisedValue : p.proposedValue;
-                    return typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-');
-                  })()}
+                  {(p.hasRevisedValue && (p as { revisedValue?: unknown }).revisedValue === null)
+                    ? (<><strong>Before:</strong> {typeof p.proposedValue === 'object' ? JSON.stringify(p.proposedValue) : String(p.proposedValue ?? '-')} <strong>→ After:</strong> (cleared)</>)
+                    : (<><strong>Value:</strong> {(() => {
+                      const value = p.hasRevisedValue ? p.revisedValue : p.proposedValue;
+                      return typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-');
+                    })()}</>)}
                 </div>
                 {(() => {
                   const liveDecision = (detail?.decisions || []).find(

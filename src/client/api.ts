@@ -287,6 +287,7 @@ export function applyCatalogClassification(sku: string, runId: string) {
     changeSetId: string;
     appliedFields: string[];
     appliedPages: string[];
+    removedPages: string[];
     skipped: Array<{ proposalId: string; reason: string }>;
   }>(`/products/${encodeURIComponent(sku)}/classification/runs/${encodeURIComponent(runId)}/apply`, {
     method: 'POST',

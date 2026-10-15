@@ -431,29 +431,29 @@ export function validatePageResponseEntries(
  * 1. Deduplicate by page ID (first occurrence wins)
  * 2. If any specific (non-"Shop All") category is present, remove generic
  *    pages whose name ends with "Shop All" (case-insensitive).
- * 3. In multiple-selection mode, if an exact configured brand page named
- *    "Brand - <resolvedBrand>" exists (case-insensitive), include it
- *    deterministically without exceeding maxResults. Drop a Shop All first
- *    if present; otherwise use one slot for the brand page.
- * 4. Cross-species safety: if the product context includes species evidence
+ * 3. Cross-species safety: if the product context includes species evidence
  *    for a specific non-empty species, remove pages whose name contains
  *    a conflicting species term (e.g. "Cat Food" for a dog product).
- * 5. Clamp output to maxResults.
+ * 4. Clamp output to maxResults.
+ *
+ * Issue #353: the classifier never appends Brand pages — Brand placement is
+ * outside classifier ownership (ADR 0041). `resolvedBrand` is accepted but
+ * ignored so existing callers keep compiling; it authorizes nothing.
  *
  * @param pages - Validated page entries (validated against known page list)
  * @param pageIndex - Map of page name → { id, name } for all known pages
- * @param resolvedBrand - The resolved brand name (from extractProductContext)
+ * @param resolvedBrand - Ignored (Brand pages are never appended; param kept for call-site stability)
  * @param species   - Species evidence strings from OCR/evidence
  * @param maxResults - Maximum number of pages to return
  * @returns Normalized page assignment results
  */
 export function normalizePageAssignments(
   pages: Array<{ pageId: string; pageName: string; confidence: number; isBrandShortcut?: boolean }>,
-  pageIndex: Map<string, { id: string; name: string }>,
-  resolvedBrand: string | null,
+  _pageIndex: Map<string, { id: string; name: string }>,
+  _resolvedBrand: string | null,
   species: string[],
   maxResults: number,
-  selectionMode: 'single' | 'multiple' = 'multiple',
+  _selectionMode: 'single' | 'multiple' = 'multiple',
 ): Array<{ pageId: string; pageName: string; confidence: number; isBrandShortcut?: boolean }> {
   if (pages.length === 0) return [];
 
@@ -470,58 +470,18 @@ export function normalizePageAssignments(
   if (result.length === 0) return [];
 
   // 2. If any specific category exists, remove "Shop All" pages.
-  // A brand landing page alone is not a more-specific category.
   const hasSpecificPage = result.some(p => {
     const name = p.pageName.toLowerCase();
-    return !name.endsWith('shop all') && !name.startsWith('brand -');
+    return !name.endsWith('shop all');
   });
   if (hasSpecificPage) {
     result = result.filter(p => p.pageName.toLowerCase().endsWith('shop all') === false);
   }
 
-  // 3. Include exact brand page only when multiple selections are allowed.
-  if (selectionMode === 'multiple' && resolvedBrand) {
-    const brandPageName = `Brand - ${resolvedBrand}`;
-    // Check if this brand page exists in the page index
-    let brandPageInfo: { id: string; name: string } | null = null;
-    for (const [, info] of pageIndex) {
-      if (info.name.toLowerCase() === brandPageName.toLowerCase()) {
-        brandPageInfo = info;
-        break;
-      }
-    }
+  // Issue #353: no Brand-page append. A Brand landing page in the input is
+  // preserved as-is (existing placement is outside classifier scope), but
+  // the classifier never invents one — `resolvedBrand` authorizes nothing.
 
-    if (brandPageInfo) {
-      // Only add if not already present
-      const alreadyPresent = result.some(
-        p => p.pageId === brandPageInfo!.id,
-      );
-      if (!alreadyPresent) {
-        // Reserve one slot for the exact brand page. Shop All pages are
-        // discarded first; otherwise drop the lowest-ranked trailing result.
-        if (result.length >= maxResults && maxResults > 0) {
-          const shopAllIdx = result.findIndex(
-            p => p.pageName.toLowerCase().endsWith('shop all'),
-          );
-          if (shopAllIdx !== -1) result.splice(shopAllIdx, 1);
-          if (result.length >= maxResults) {
-            result = result.slice(0, Math.max(0, maxResults - 1));
-          }
-        }
-
-        if (maxResults > 0) {
-          result.push({
-            pageId: brandPageInfo.id,
-            pageName: brandPageInfo.name,
-            confidence: 0.95,
-            isBrandShortcut: true,
-          });
-        }
-      }
-    }
-  }
-
-  // 4. Cross-species safety
   // Determine the primary species from evidence
   const speciesLower = species.map(s => s.toLowerCase());
   const hasDog = speciesLower.some(s => s.includes('dog') || s.includes('canine'));

@@ -441,6 +441,12 @@ function ReviewProposalRow({
       <div className="rv-proposal-head">
         <span className="rv-proposal-type">
           {PROPOSAL_TYPE_LABELS[proposal.proposalType] ?? proposal.proposalType}
+          {(proposal as unknown as { hasRevisedValue?: boolean }).hasRevisedValue === true &&
+            (proposal as unknown as { revisedValue?: unknown }).revisedValue === null && (
+            <span className="rv-conf-chip" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', marginLeft: 6 }} title="Reviewed removal: accepting clears this value (the before value is shown below)">
+              Removal
+            </span>
+          )}
           {uniqueLabels.length > 0 && proposal.proposalType !== 'primary_product_type' && proposal.proposalType !== 'product_classification' && (
             <span className="rv-proposal-target"> · {uniqueLabels.join(' & ')}</span>
           )}

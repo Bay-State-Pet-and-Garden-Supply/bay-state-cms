@@ -13,8 +13,10 @@
  * - Multiple mode: One Noul per eligible verified page with independent P(yes) probabilities.
  * - Candidate limit checks (>253 produces candidate_limit_exceeded without clipping in single mode).
  * - Bounded requests: batches of <= 32 questions for multiple mode, fail-closed on incomplete batches.
- * - Preserves deterministic rules: specificity (Shop All suppression), brand-page shortcut (isBrandShortcut: true),
+ * - Preserves deterministic rules: specificity (Shop All suppression),
  *   species safety, max-count limits, and category correctness validation.
+ *   No brand-page shortcut (issue #353: Brand placement is outside classifier
+ *   ownership; `isBrandShortcut` survives in types only and is never set).
  * - Restricted page evidence packets reused (no unrelated claims or broad run evidence).
  * - Stored selected probability and vendor concentration confidence separated with explicit basis.
  * - Development-fitted threshold (0.50 floor for single, 0.70 for multiple); no clamps or probability boosting.
@@ -179,6 +181,28 @@ export interface PageDecisionResult {
   derivation?: ProposalDerivation;
 }
 
+export interface BackfillPageFilter {
+  verifiedPageIds: Set<string>;
+  assignedPageNames: string[];
+  resolvedBrand?: string | null;
+  backfillBrandPagesOff: boolean;
+}
+
+export function filterPageCandidatesForBackfill(
+  candidates: PageCandidateItem[],
+  filter: BackfillPageFilter,
+): PageCandidateItem[] {
+  const assigned = new Set(filter.assignedPageNames.map(n => n.toLocaleLowerCase()));
+  return candidates.filter(c => {
+    if (!filter.verifiedPageIds.has(c.pageId)) return false;
+    if (assigned.has(c.pageName.toLocaleLowerCase())) return false;
+    const lower = c.pageName.toLocaleLowerCase();
+    if (filter.backfillBrandPagesOff && lower.startsWith('brand -')) return false;
+    if (filter.resolvedBrand && lower.startsWith('brand -') && !lower.includes(filter.resolvedBrand.toLocaleLowerCase())) return false;
+    return true;
+  });
+}
+
 export interface ResolvePageDecisionParams {
   target: ResolvedTarget;
   evidence: ClassificationEvidence[];
@@ -192,6 +216,8 @@ export interface ResolvePageDecisionParams {
   productContext?: PageDecisionProductContext;
   reviewedProductTypeId?: string | null;
   protectedOperation?: ProtectedOperation;
+  /** P1 #15: backfill page filter — candidates filtered BEFORE ranking. Null skips (legacy behavior). */
+  backfillPageFilter?: BackfillPageFilter | null;
 }
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
@@ -2050,9 +2076,15 @@ export async function resolvePageDecision(
   if (gating.abstained) return gating.abstained;
   const { verifiedRecords } = gating;
 
-  // Build page hierarchy purely over frozen verified snapshot records
-  const { rawHierarchy, candidates } = buildPageCandidates({ target, verifiedRecords });
-
+// Build page hierarchy purely over frozen verified snapshot records.
+// P1 #15: filter BEFORE ranking when a backfill filter is present.
+  const built = buildPageCandidates({ target, verifiedRecords });
+  const candidates = params.backfillPageFilter
+    ? filterPageCandidatesForBackfill(built.candidates, params.backfillPageFilter)
+    : built.candidates;
+  const rawHierarchy = params.backfillPageFilter
+    ? built.rawHierarchy.filter(p => candidates.some(c => c.pageId === p.id))
+    : built.rawHierarchy;
   // SKU-local decision context: own evidence minus prior placements, plus
   // structured product context (real proposals carry no page-context ids)
   const assembled = assemblePageDecisionContext({
@@ -2168,9 +2200,17 @@ export function buildProposalsFromPageDecision(
   sku: string,
   runId: string,
   snapshotHash?: string | null,
+  backfillPageFilter?: BackfillPageFilter | null,
 ): ClassificationProposal[] {
   if (decision.status === 'succeeded' && decision.pages.length > 0) {
-    return decision.pages.map(p =>
+    const pages = backfillPageFilter
+      ? filterPageCandidatesForBackfill(
+        decision.pages.map(p => ({ pageId: p.pageId, pageName: p.pageName, parentId: null, parentName: null, path: p.pageName })),
+        backfillPageFilter,
+      ).map(f => decision.pages.find(p => p.pageId === f.pageId)!).filter(Boolean)
+      : decision.pages;
+    if (pages.length === 0) return [];
+    return pages.map(p =>
       buildCategoryPageProposal({
         runId,
         sku,
@@ -3097,37 +3137,22 @@ function qualifyCohortMemberEvaluations(input: {
 }
 
 /**
- * Build one cohort member's initial page list: selected pages plus the brand
- * landing page shortcut when applicable.
+ * Build one cohort member's initial page list: the selected pages only.
+ * Issue #353: no Brand-page shortcut — Brand placement is outside
+ * classifier ownership, so the selected pages pass through unchanged.
  */
 function buildCohortInitialPages(input: {
   selected: Array<{ pageId: string; pageName: string; prob: number; candidateIndex: number }>;
   product: ProductLineItemSnapshot;
   pageIndex: Map<string, { id: string; name: string }>;
 }): Array<{ pageId: string; pageName: string; confidence: number; isBrandShortcut: boolean }> {
-  const { selected, product, pageIndex } = input;
-  const initialPages = selected.map(s => ({
+  const { selected } = input;
+  return selected.map(s => ({
     pageId: s.pageId,
     pageName: s.pageName,
     confidence: s.prob,
     isBrandShortcut: false,
   }));
-
-  // Check brand landing page shortcut rule
-  if (product.brand) {
-    const brandPageName = `Brand - ${product.brand}`;
-    const exactBrandPage = pageIndex.get(brandPageName);
-    if (exactBrandPage && !initialPages.some(p => p.pageId === exactBrandPage.id)) {
-      initialPages.push({
-        pageId: exactBrandPage.id,
-        pageName: exactBrandPage.name,
-        confidence: 0.99,
-        isBrandShortcut: true,
-      });
-    }
-  }
-
-  return initialPages;
 }
 
 function evaluateCohortMultiMember(input: {

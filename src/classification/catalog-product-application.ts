@@ -16,7 +16,7 @@ import { findConnection } from '../db/repositories/connection-repo';
 import { resolveProductImageUrl } from '../shopsite/url-utils';
 import type { Product } from '../shared/types';
 import { isSilentNarrowing } from './attribute-grounding-guards';
-import { isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 
 /**
  * A2: re-hash the image bytes behind the run's recorded OCR image refs and
@@ -70,6 +70,8 @@ export interface ApplyClassificationResult {
   changeSetId: string;
   appliedFields: string[];
   appliedPages: string[];
+  /** Accepted reviewed removals applied in this draft (issue #353). */
+  removedPages: string[];
   skipped: Array<{ proposalId: string; reason: string }>;
 }
 
@@ -78,8 +80,10 @@ export interface ApplyClassificationResult {
  *
  * 1. Re-reads the product and verifies source/config hashes match
  * 2. Creates an update change-set draft (never writes directly)
- * 3. Merges accepted field assignments into customFields
- * 4. Adds accepted pages to ProductOnPages (additive only)
+ * 3. Merges accepted field assignments into customFields (explicit reviewed
+ *    null clears the slot; reviewed reduced arrays remove only named values)
+ * 4. Adds accepted pages to ProductOnPages and removes accepted reviewed
+ *    taxonomy-page removals (other pages — including Brand pages — survive)
  * 5. Returns change-set ID for the user to approve
  */
 export async function applyCatalogClassification(
@@ -207,11 +211,12 @@ export async function applyCatalogClassification(
 
     const effectiveValue = getEffectiveProposalValue(proposal);
     const value = serializeAttributeValue(effectiveValue, mapping.serialization);
-    // P1 #9 apply-time no-narrowing: a revised single value can never
-    // bypass the guard — silently replacing an existing multi-value slot
-    // (e.g. Salmon|Venison|Lamb → Salmon) is skipped visibly; intentional
-    // reduction needs a separate explicit catalog edit.
-    if (isSilentNarrowing(product.customFields?.[mapping.catalogField] ?? null, value)) {
+    // P1 #9 apply-time no-narrowing: a PREDICTED single value can never
+    // silently replace an existing multi-value slot (e.g. Salmon|Venison|Lamb
+    // → Salmon) — skipped visibly. An EXPLICIT reviewed revised value is
+    // human intent (issue #353 targeted multi-value removal), so it bypasses
+    // the guard; an explicit null clears via the gate below.
+    if (!proposal.hasRevisedValue && isSilentNarrowing(product.customFields?.[mapping.catalogField] ?? null, value)) {
       skipped.push({ proposalId: proposal.id, reason: 'No-narrowing guard: existing multi-value slot survives; intentional reduction needs a separate explicit edit' });
       continue;
     }
@@ -220,17 +225,38 @@ export async function applyCatalogClassification(
       appliedFields.push(mapping.catalogField);
     }
   }
-  // Apply page assignments (additive only) — the identity of every accepted
-  // page MUST be verified in the currently active import. Name-only or
-  // out-of-import identities are skipped visibly and never serialized into
-  // ProductOnPages.
+  // Apply page assignments and reviewed removals. The identity of every
+  // accepted page MUST be verified in the currently active import. Name-only
+  // or out-of-import identities are skipped visibly and never serialized
+  // into ProductOnPages. An accepted explicit removal (null target + null
+  // value, issue #353) removes the PROPOSED page from the existing set while
+  // preserving every other assignment — including Brand/non-taxonomy pages,
+  // which are outside classifier ownership and never removal targets
+  // (refused at review; defense-in-depth skips them here too).
   const verifiedPageIds = getActiveVerifiedPageIds(workspaceId);
   const additionalPages: string[] = [];
+  const removedPages: string[] = [];
   for (const proposal of acceptedProposals) {
     if (proposal.proposalType !== 'category_page') continue;
     const targetId = getEffectiveProposalTargetId(proposal);
-    if (!targetId) continue;
     const pv = getEffectiveProposalValue(proposal) as Record<string, unknown> | undefined;
+    if (!targetId && pv == null && proposal.hasRevisedValue && proposal.hasRevisedTargetId) {
+      // Reviewed removal: the PROPOSED (before) value names the assignment
+      // to drop. Brand pages can never be removed — skip visibly.
+      const beforeName = pageNameFromPageValue(proposal.proposedValue);
+      if (!beforeName) {
+        skipped.push({ proposalId: proposal.id, reason: 'Page removal names no existing assignment' });
+        continue;
+      }
+      if (isBrandPageProposal(beforeName)) {
+        const refusal = protectedTargetRefusal(proposal.targetId);
+        skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
+        continue;
+      }
+      if (!removedPages.includes(beforeName)) removedPages.push(beforeName);
+      continue;
+    }
+    if (!targetId) continue;
     // Display name comes from the value only — never the Page ID (the target
     // is the stable identity for new proposals).
     const pageName = pageNameFromPageValue(pv);
@@ -248,15 +274,23 @@ export async function applyCatalogClassification(
       skipped.push({ proposalId: proposal.id, reason: 'Page display name missing' });
       continue;
     }
+    if (isBrandPageProposal(pageName)) {
+      const refusal = protectedTargetRefusal(targetId);
+      skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
+      continue;
+    }
     if (!additionalPages.includes(pageName)) {
       additionalPages.push(pageName);
     }
   }
 
-  // Merge into first-class core.productOnPages (additive only). Any stale
+  // Merge into first-class core.productOnPages: accepted additions join,
+  // accepted reviewed removals leave (only the named taxonomy assignment —
+  // every other existing page survives, Brand pages included). Any stale
   // ProductOnPages fragment in preserved state is dropped — the codec
   // serializes core.productOnPages to DTD-compliant XML at export.
-  const mergedPages = [...(product.core.productOnPages ?? [])];
+  const removedSet = new Set(removedPages);
+  const mergedPages = [...(product.core.productOnPages ?? [])].filter(p => !removedSet.has(p));
   for (const pageName of additionalPages) {
     if (!mergedPages.includes(pageName)) mergedPages.push(pageName);
   }
@@ -312,10 +346,12 @@ export async function applyCatalogClassification(
 
   // Track applied page names for the result (page data is embedded in the
   // ProductOnPages draft — product_pages table is updated when the change
-  // set is approved, not during draft creation)
+  // set is approved, not during draft creation). Removals are tracked
+  // separately so review surfaces can distinguish them from additions.
   for (const pageName of additionalPages) {
     appliedPages.push(pageName);
   }
+  const removedPageNames: string[] = [...removedPages];
 
   // Record history
   try {
@@ -324,11 +360,12 @@ export async function applyCatalogClassification(
       changeSetId: changeSet.id,
       appliedFields,
       appliedPages,
+      removedPages: removedPageNames,
       skippedCount: skipped.length,
     });
   } catch {
     // non-blocking
   }
 
-  return { changeSetId: changeSet.id, appliedFields, appliedPages, skipped };
+  return { changeSetId: changeSet.id, appliedFields, appliedPages, removedPages: removedPageNames, skipped };
 }

@@ -54,6 +54,15 @@ export function isProtectedTargetId(
   if (mapped && !mapped.isStale && mapped.catalogField && targetId === mapped.catalogField) return true;
   return targetId.toLowerCase().includes('brand');
 }
+/**
+ * True when a category_page proposal addresses a Brand page: the display
+ * name starts with the `Brand -` prefix (the classifier never owns Brand
+ * placement — verified identity or not, Brand pages are outside owned
+ * scope). Reads the effective display name; identity alone never qualifies.
+ */
+export function isBrandPageProposal(pageName: string | null | undefined): boolean {
+  return !!pageName && pageName.toLowerCase().startsWith('brand -');
+}
 
 /**
  * Attributable refusal for a protected write: returns the code + reason

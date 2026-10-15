@@ -215,7 +215,7 @@ RULES:
 3. Choose ${params.selectionMode === 'multiple' ? `up to ${params.maxPages}` : 'exactly one'} page(s) per SKU.
 4. Do not infer species without explicit OCR species. Never assign a conflicting species page.
 5. Prefer a specific child page. Use Shop All only when no real specific category fits.
-6. When an exact configured page named "Brand - <Brand>" exists, include it as a secondary assignment in multiple mode.
+6. Never propose a "Brand - <Brand>" page: Brand placement is outside classifier ownership.
 7. Siblings may legitimately differ when their own evidence warrants it. Do not copy, union, or majority-vote assignments.
 8. If any SKU cannot be assigned safely, still return an empty array for it; the caller will abstain the whole group.
 
