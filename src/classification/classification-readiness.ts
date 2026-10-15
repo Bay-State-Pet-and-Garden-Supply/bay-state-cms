@@ -14,8 +14,7 @@
  * - Brand and images stay optional to classification; separate listing,
  *   identity, commerce, and image-rights requirements are untouched.
  */
-import { getDb } from '../db/connection';
-import { getAcceptedProposals } from '../db/repositories/classification-run-repo';
+import { findGateRunById, getAcceptedProposals } from '../db/repositories/classification-run-repo';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
@@ -56,14 +55,11 @@ export function evaluateCanonicalReadiness(input: {
   workspaceId: string;
   runId: string;
 }): CanonicalReadinessResult {
-  const db = getDb();
-  const run = db.query(
-    `SELECT id, status, workspace_id, product_sku, config_snapshot_hash
-     FROM classification_runs WHERE id = ?`,
-  ).get(input.runId) as {
-    id: string; status: string; workspace_id: string;
-    product_sku: string; config_snapshot_hash: string | null;
-  } | undefined;
+  const gateRun = findGateRunById(input.runId);
+  const run = gateRun ? {
+    id: gateRun.id, status: gateRun.status, workspace_id: gateRun.workspaceId,
+    product_sku: gateRun.productSku, config_snapshot_hash: gateRun.configSnapshotHash,
+  } : undefined;
 
   if (!run || run.workspace_id !== input.workspaceId) {
     return {

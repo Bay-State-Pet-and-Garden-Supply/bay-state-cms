@@ -298,6 +298,20 @@ export function getActiveManualEvidenceAttestationForItem(
   return row ?? null;
 }
 
+/**
+ * Liveness probe for one attestation id scoped to its item (review-gate
+ * seam): true only when a non-superseded row still links the two. SELECT
+ * matches the gate's former inline query; the pre-foundation try/catch
+ * stays with the gate caller (returns false here when the table is absent).
+ */
+export function isManualEvidenceAttestationActive(attestationId: string, itemId: string): boolean {
+  const row = getDb().query(
+    `SELECT attestation_id FROM onboarding_manual_evidence_attestations
+     WHERE attestation_id = ? AND item_id = ? AND superseded_at IS NULL LIMIT 1`,
+  ).get(attestationId, itemId) as { attestation_id: string } | undefined;
+  return Boolean(row);
+}
+
 /** All attestations for an item, newest first (includes superseded). */
 export function listManualEvidenceAttestationsForItem(
   itemId: string,

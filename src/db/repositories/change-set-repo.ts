@@ -345,6 +345,44 @@ export function deleteChangeSet(id: string): void {
   db.run('DELETE FROM change_sets WHERE id = ?', [id]);
 }
 
+/**
+ * Create an update change-set draft with its single item atomically (issue
+ * #354): a failure between the two writes must never orphan an empty change
+ * set — either both persist or neither does. Transaction ownership lives
+ * here; callers pass only data, never SQL.
+ */
+export function createUpdateDraftWithItem(input: {
+  workspaceId: string;
+  title: string;
+  description: string;
+  baseCommit: string;
+  sku: string;
+  draftJson: string;
+  baseJson: string;
+  draftHash: string;
+  classificationRunId: string;
+}): ChangeSetRow {
+  const db = getDb();
+  return db.transaction(() => {
+    const created = createChangeSet({
+      workspaceId: input.workspaceId,
+      title: input.title,
+      description: input.description,
+      baseCommit: input.baseCommit,
+    });
+    upsertChangeSetItem({
+      changeSetId: created.id,
+      sku: input.sku,
+      operation: 'update',
+      draftJson: input.draftJson,
+      baseJson: input.baseJson,
+      draftHash: input.draftHash,
+      classificationRunId: input.classificationRunId,
+    });
+    return created;
+  })();
+}
+
 export function setItemValidationStatus(changeSetId: string, sku: string, status: string): void {
   const db = getDb();
   db.run(

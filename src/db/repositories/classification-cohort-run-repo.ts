@@ -1097,6 +1097,18 @@ export function getCohortRunById(id: string): CohortRun | null {
 }
 
 /**
+ * Gate projection of one cohort parent run (id + status + workspace; the
+ * exact inline SELECT the review gate ran). Null when no row matches.
+ */
+export function findCohortParentGateRow(id: string): { id: string; status: string; workspaceId: string } | null {
+  const row = getDb().query(
+    'SELECT id, status, workspace_id FROM classification_cohort_runs WHERE id = ?',
+  ).get(id) as { id: string; status: string; workspace_id: string } | undefined;
+  if (!row) return null;
+  return { id: String(row.id), status: String(row.status), workspaceId: String(row.workspace_id) };
+}
+
+/**
  * The LATEST superseded run for a cohort (PR13 C2, issue #30) — the
  * cross-parent title-reuse candidate: `SELECT ... WHERE cohort_id = ? AND
  * status = 'superseded' ORDER BY superseded_at DESC, id DESC LIMIT 1` (the

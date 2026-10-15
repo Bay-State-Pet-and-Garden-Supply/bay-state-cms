@@ -404,3 +404,35 @@ export function getLatestExtractionBindingsByItemIds(itemIds: string[]): Map<str
   }
   return bindings;
 }
+
+/**
+ * Latest extraction gate columns for the manual-evidence review backstop.
+ * SELECT-only projection of the exact inline query (ordering included);
+ * manual_attestation_id may be absent on pre-foundation rows (reads null).
+ */
+export interface LatestExtractionGateRow {
+  extractionMethod: string;
+  manualAttestationId: string | null;
+  extractionDataJson: string | null;
+}
+
+export function findLatestExtractionGateRow(itemId: string): LatestExtractionGateRow | null {
+  let row: Record<string, unknown> | undefined;
+  try {
+    row = getDb().query(
+      `SELECT extraction_method, manual_attestation_id, extraction_data_json FROM onboarding_extractions
+       WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    ).get(itemId) as Record<string, unknown> | undefined;
+  } catch {
+    // Pre-foundation databases (no attestation store): manual rows cannot
+    // exist (their insert requires the same columns), so there is nothing
+    // to refuse. Legacy fixtures keep byte-identical behavior.
+    return null;
+  }
+  if (!row) return null;
+  return {
+    extractionMethod: String(row.extraction_method),
+    manualAttestationId: row.manual_attestation_id ? String(row.manual_attestation_id) : null,
+    extractionDataJson: row.extraction_data_json ? String(row.extraction_data_json) : null,
+  };
+}
