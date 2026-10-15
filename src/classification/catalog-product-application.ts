@@ -8,6 +8,7 @@ import { findWorkspace } from '../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from './config-loader';
 import { authorityConfigHashMatches, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
 import { getActiveVerifiedPageIds } from '../shopsite/page-import-service';
+import { getActivePageImportHash } from '../db/repositories/page-repo';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from './assignment-projection';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import { computeProductHash } from './catalog-product-source';
@@ -166,6 +167,30 @@ export async function applyCatalogClassification(
     throw new Error('No accepted proposals to apply.');
   }
 
+  // Issue #354 pre-draft page-authority recheck: when the run carries accepted
+  // page proposals or removals, the frozen page import must still be active.
+  // A rotated import means accepted page identities are stale authority —
+  // fail attributably with no partial write instead of silently skipping or
+  // (worse) applying colliding IDs from the new import.
+  if (acceptedProposals.some(p => p.proposalType === 'category_page')) {
+    const snapshotRow = run.config_snapshot_hash
+      ? db.query(`SELECT config_json FROM classification_config_snapshots WHERE workspace_id = ? AND snapshot_hash = ?`).get(workspaceId, String(run.config_snapshot_hash)) as { config_json: string | null } | undefined
+      : undefined;
+    let frozenImportHash: string | null = null;
+    try {
+      const snap = snapshotRow?.config_json ? JSON.parse(snapshotRow.config_json) as { pageImportHash?: unknown } : null;
+      if (snap && typeof snap.pageImportHash === 'string') frozenImportHash = snap.pageImportHash;
+    } catch {
+      frozenImportHash = null;
+    }
+    if (frozenImportHash) {
+      const activeHash = getActivePageImportHash(workspaceId);
+      if (activeHash !== frozenImportHash) {
+        throw new Error('Page import has changed since classification (page_decision_stale). Re-resolve page assignments against the active verified import before applying.');
+      }
+    }
+  }
+
   // A2: re-verify image byte identity for image-backed runs. The run's
   // evidence_extraction stage metadata carries per-image byte digests; the
   // current bytes behind the same refs are re-hashed and any change/absence
@@ -318,31 +343,34 @@ export async function applyCatalogClassification(
     },
   };
 
-  // Create change set
+  // Create change set + item atomically (issue #354): a failure between the
+  // two writes must never orphan an empty change set — either both persist
+  // or neither does. All fallible validation already ran above; only
+  // serialization (pure) and these two inserts remain.
   const workspace = findWorkspace();
   const baseCommit = workspace?.baselineCommit ?? 'unknown';
   const dateStr = new Date().toLocaleDateString();
-
-  const changeSet = createChangeSet({
-    workspaceId,
-    title: `Classification: ${sku} (${dateStr})`,
-    description: `Applied accepted classification proposals for product ${sku}.`,
-    baseCommit,
-  });
-
   const draftJsonStr = deterministicStringify(updatedProduct);
   const draftHash = hashJson(updatedProduct);
   const baseJsonStr = deterministicStringify(product);
-
-  upsertChangeSetItem({
-    changeSetId: changeSet.id,
-    sku,
-    operation: 'update',
-    draftJson: draftJsonStr,
-    baseJson: baseJsonStr,
-    draftHash,
-    classificationRunId: runId,
-  });
+  const changeSet = db.transaction(() => {
+    const created = createChangeSet({
+      workspaceId,
+      title: `Classification: ${sku} (${dateStr})`,
+      description: `Applied accepted classification proposals for product ${sku}.`,
+      baseCommit,
+    });
+    upsertChangeSetItem({
+      changeSetId: created.id,
+      sku,
+      operation: 'update',
+      draftJson: draftJsonStr,
+      baseJson: baseJsonStr,
+      draftHash,
+      classificationRunId: runId,
+    });
+    return created;
+  })();
 
   // Track applied page names for the result (page data is embedded in the
   // ProductOnPages draft — product_pages table is updated when the change

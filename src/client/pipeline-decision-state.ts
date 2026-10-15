@@ -1,9 +1,5 @@
 import type { ClassificationProposal } from '../shared/schemas/classification';
 import type { CurationData } from '../shared/schemas/onboarding';
-import {
-  getEffectivePrimaryProductTypeId,
-  getProductTypeIdFromValue,
-} from '../classification/assignment-projection';
 
 export type ReviewDecision = 'accepted' | 'rejected' | 'deferred';
 
@@ -73,53 +69,11 @@ function proposalValuesEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(normalizeJson(left)) === JSON.stringify(normalizeJson(right));
 }
 
-export function getEffectiveProposalValue(proposal: ClassificationProposal): unknown {
-  return proposal.hasRevisedValue ? proposal.revisedValue : proposal.proposedValue;
-}
-
-export function getEffectiveProposalTargetId(proposal: ClassificationProposal): string | null {
-  return proposal.hasRevisedTargetId
-    ? proposal.revisedTargetId ?? null
-    : proposal.targetId ?? null;
-}
-
-export function getEffectiveProductTypeId(proposal: ClassificationProposal): string {
-  return getEffectivePrimaryProductTypeId(proposal) ?? '';
-}
-
-/**
- * Change a Primary Product Type as one semantic correction. Product Type
- * proposals historically store the ID in both targetId and proposedValue;
- * both effective fields must move together. Comparing IDs rather than whole
- * objects lets reselecting a prediction with metadata remove the correction.
- */
-export function withReviewedProductTypeId(
-  proposal: ClassificationProposal,
-  reviewedProductTypeId: string | null,
-): ClassificationProposal {
-  const normalized = reviewedProductTypeId && reviewedProductTypeId.length > 0
-    ? reviewedProductTypeId
-    : null;
-  const predictionValueId = getProductTypeIdFromValue(proposal.proposedValue);
-  const reviewed = { ...proposal };
-
-  if (normalized === predictionValueId) {
-    delete reviewed.revisedValue;
-    reviewed.hasRevisedValue = false;
-  } else {
-    reviewed.revisedValue = normalized === null ? null : { productTypeId: normalized };
-    reviewed.hasRevisedValue = true;
-  }
-
-  if (normalized === (proposal.targetId ?? null)) {
-    delete reviewed.revisedTargetId;
-    reviewed.hasRevisedTargetId = false;
-  } else {
-    reviewed.revisedTargetId = normalized;
-    reviewed.hasRevisedTargetId = true;
-  }
-  return reviewed;
-}
+// Issue #354: the legacy type-only client mirrors
+// (`getEffectiveProposalValue/TargetId`, `getEffectiveProductTypeId`,
+// `withReviewedProductTypeId`) lived here with zero consumers — the server
+// owns effective-value resolution and the canonical pair. Removed; the
+// generic correction builders below stay.
 
 /**
  * Return a proposal draft with a reviewer value correction. Selecting the

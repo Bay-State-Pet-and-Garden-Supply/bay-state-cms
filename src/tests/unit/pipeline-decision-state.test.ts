@@ -5,17 +5,17 @@ import {
   SequentialActionQueue,
   canApplyProposalEdit,
   editableCurationData,
-  getEffectiveProductTypeId,
-  getEffectiveProposalTargetId,
-  getEffectiveProposalValue,
   isCurrentReviewGeneration,
   isCurrentReviewVersion,
   prepareDecisionAction,
   proposalDecisionSnapshot,
-  withReviewedProductTypeId,
   withReviewedProposalTarget,
   withReviewedProposalValue,
 } from '../../client/pipeline-decision-state';
+import {
+  getEffectiveProposalTargetId,
+  getEffectiveProposalValue,
+} from '../../classification/assignment-projection';
 
 function proposal(overrides: Partial<ClassificationProposal> = {}): ClassificationProposal {
   return {
@@ -59,39 +59,9 @@ describe('pipeline decision effective state', () => {
     expect(hydrated.targetId).toBe('page-original');
   });
 
-  it('moves product type value and target together and removes metadata-insensitive corrections', () => {
-    const original = proposal({
-      proposalType: 'primary_product_type',
-      targetId: 'dog-food-dry',
-      proposedValue: { productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] },
-    });
-
-    const corrected = withReviewedProductTypeId(original, 'cat-food-wet');
-    expect(corrected).toMatchObject({
-      proposedValue: original.proposedValue,
-      targetId: 'dog-food-dry',
-      revisedValue: { productTypeId: 'cat-food-wet' },
-      revisedTargetId: 'cat-food-wet',
-      hasRevisedValue: true,
-      hasRevisedTargetId: true,
-    });
-    expect(getEffectiveProductTypeId(corrected)).toBe('cat-food-wet');
-
-    const restored = withReviewedProductTypeId(corrected, 'dog-food-dry');
-    expect(restored.hasRevisedValue).toBe(false);
-    expect(restored.hasRevisedTargetId).toBe(false);
-    expect(restored).not.toHaveProperty('revisedValue');
-    expect(restored).not.toHaveProperty('revisedTargetId');
-
-    const cleared = withReviewedProductTypeId(original, null);
-    expect(cleared).toMatchObject({
-      revisedValue: null,
-      revisedTargetId: null,
-      hasRevisedValue: true,
-      hasRevisedTargetId: true,
-    });
-    expect(getEffectiveProductTypeId(cleared)).toBe('');
-  });
+  // Issue #354: the client type-only mirrors are removed — the server owns
+  // the canonical pair. Pair corrections move through the validated review
+  // model (review-correction), not client mirrors.
 
   it('uses one Product Type precedence rule for historical one-sided and conflicting corrections', () => {
     const original = proposal({
@@ -143,7 +113,6 @@ describe('pipeline decision effective state', () => {
 
     for (const scenario of scenarios) {
       expect(getEffectivePrimaryProductTypeId(scenario.proposal)).toBe(scenario.expected);
-      expect(getEffectiveProductTypeId(scenario.proposal)).toBe(scenario.expected ?? '');
     }
   });
 

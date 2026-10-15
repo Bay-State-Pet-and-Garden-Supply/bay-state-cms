@@ -85,7 +85,11 @@ export function validateClassificationCorrection(
   correction: ReviewCorrection,
   snapshot: Pick<RuntimeClassificationSnapshot, 'productTypes' | 'categories'>,
 ): ReviewCorrection {
-  if (proposal.proposalType === 'primary_product_type' && !correction.hasRevisedValue && correction.hasRevisedTargetId) {
+  if (!correction.hasRevisedValue && correction.hasRevisedTargetId) {
+    // Target-only correction on either pair kind (issue #354): the category
+    // resolves through the approved type→category mapping — an unmapped type
+    // is a configuration gap, never silent invention. A null target is an
+    // explicit clear and passes through (invalidation treats it as cleared).
     const typeId = correction.revisedTargetId;
     if (typeId) {
       const type = snapshot.productTypes.find(candidate => candidate.id === typeId);

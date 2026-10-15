@@ -84,6 +84,7 @@ import {
 } from '../classification/assignment-projection';
 import type { Product } from '../shared/types';
 import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
+import { evaluateCanonicalReadiness } from '../classification/classification-readiness';
 
 /**
  * Spec #136 ticket #142: promotion slot resolution through active
@@ -469,6 +470,22 @@ export function computePromotionGate(
       return {
         ok: false,
         reason: `duplicate_filename: "${foreign.name}" is owned by ${foreign.sku} (${foreign.origin})`,
+        activeRun,
+        activeProposals,
+      };
+    }
+  }
+
+  // Issue #354: shared canonical readiness (pair + profile + required values)
+  // for run-pointer items — the same result catalog apply enforces. Legacy
+  // items (no run) skip: no classification ran, nothing to resolve. Runs in
+  // BOTH phases since both share this function (phase-c is the final recheck).
+  if (runPointer && activeRunId) {
+    const readiness = evaluateCanonicalReadiness({ workspaceId, runId: activeRunId });
+    if (!readiness.ok) {
+      return {
+        ok: false,
+        reason: `${readiness.code}: ${readiness.reason}`,
         activeRun,
         activeProposals,
       };

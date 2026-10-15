@@ -123,6 +123,20 @@ function resolveCorrection(
     if (hasRevisedValue && hasRevisedTargetId && valueTypeId !== effectiveTypeId) {
       return { ok: false, reason: `Decision ${decision.proposalId} has conflicting Product Classification value and target IDs.` };
     }
+    // Target-only correction (issue #354): pass through cleanly with
+    // hasRevisedValue=false so validation resolves the category through the
+    // approved mapping (never invented here). A null target is an explicit
+    // clear. A supplied value still requires both members here.
+    if (!hasRevisedValue && hasRevisedTargetId) {
+      return {
+        ok: true,
+        correction: {
+          hasRevisedValue: false,
+          hasRevisedTargetId: true,
+          revisedTargetId: effectiveTypeId ?? null,
+        },
+      };
+    }
     return {
       ok: true,
       correction: {
