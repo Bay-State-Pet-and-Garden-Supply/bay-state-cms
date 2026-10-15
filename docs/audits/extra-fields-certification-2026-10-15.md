@@ -2,10 +2,13 @@
 
 ## Provenance
 
-User-supplied authenticated Extra Product Fields (Extra Fields settings) screenshot,
-received 2026-10-15. It IS the authenticated source for this certification (issue #355
-criterion 1). No live ShopSite calls were made; no credentials were handled. PF1–PF15
-were **not shown** in the screenshot and remain **uncertified**.
+Two user-supplied authenticated Extra Product Fields (Extra Fields settings) screenshots,
+received 2026-10-15 (issue #355 criterion 1). Both are committed in this directory:
+- `extra-fields-pf16-32-2026-10-15.png` (sha256 `8f4a5673b96fe249f13eb1011da1780d2cb76c341bc00d50ac3a10ce7c97260f`;
+  ShopSite "Field Display Name (optional)" view; PF16–PF32 visible) — read directly to verify.
+- `extra-fields-pf1-15-2026-10-15.png` (sha256 `99c33891cdea4b1d61826f2a9c27a3750d38ed4c4f79f46f8d5808621472f288`;
+  same view; PF1–PF15 visible, ~02:11) — read directly to verify.
+No live ShopSite calls were made; no credentials were handled.
 
 ## Transcription (verified by direct read of the screenshot file)
 
@@ -76,10 +79,12 @@ occupied-live-only: certified label, no CMS write path.
   (11 profiles) and the frozen reviewed seed still maps PF32. Proposals without
   mapping authority cannot write; seed/v10 alignment is #350+ work.
 
-## PF1–PF15 verdict (supersedes the pre-screenshot verdict below): ALL SLOTS CERTIFIED 2026-10-15
+## PF1–PF15 verdict (supersedes the pre-screenshot verdict below): LABELS CERTIFIED, PF1–4/PF14 EXPLICITLY UNCERTIFIED-UNNAMED 2026-10-15
 
-Second user-supplied authenticated Extra Fields screenshot (2026-10-15 ~02:11,
-read directly to verify). Transcription (exact text; PF1–4 and PF14 empty):
+Second user-supplied authenticated Extra Fields screenshot
+(`extra-fields-pf1-15-2026-10-15.png`, 2026-10-15 ~02:11, read directly to
+verify). Transcription (exact text; PF1–4 and PF14 empty — these five slots
+are NOT certified to any purpose; emptiness is not a purpose):
 
 | Slot | Exact live label |
 |---|---|
@@ -108,7 +113,7 @@ uncertified-unnamed, NOT as confirmed-empty-purpose.
 | Slot | Live purpose | Classification write path | Verdict |
 |---|---|---|---|
 | PF1 (unnamed) | Uncertified-unnamed | Promoter arrival-date fallback stamps `newMMDDYY` on every new draft (`draft-promoter.ts`) | **MISROUTED — BLOCKED**: `MISROUTED_CATALOG_SLOTS` guard refuses PF1; promoter skips the stamp when unmapped (listing/commerce-owned behavior, owner `draft-promoter.ts`; no `arrival_date` mapping exists in any authority, so the stamp is now inert) |
-| PF2–4 (unnamed) | Uncertified-unnamed | No mapping, target, or literal in any authority (test/code refs are synthetic fixtures) | **OUT OF SCOPE** — no classification write path; not shown as purpose, only as unnamed |
+| PF2–4 (unnamed) | Uncertified-unnamed | No mapping, target, or literal in any authority (test/code refs are synthetic fixtures) | **BLOCKED (reserved-unnamed)**: `MISROUTED_CATALOG_SLOTS` refuses PF2/PF3/PF4 at edit + apply time alongside PF1/PF8/PF13/PF14 — enforced, not merely absent |
 | PF5 `Banner - Overlay Text` | Listing/commerce display | None (no mapping/target/proposal; test refs synthetic) | **OUT OF SCOPE** |
 | PF6 `MAP Pricing` | Listing/commerce pricing | None | **OUT OF SCOPE** |
 | PF7 `Child - Short Name` | Listing/commerce identity | None in production (only test-seeded `arrival_date→PF7` fixtures) | **OUT OF SCOPE** |
@@ -133,10 +138,13 @@ KEEP-OPEN ruling. The screenshot + guard above resolve it.
 
 ## Closure verdict: criterion 1 SATISFIED — every classification-reachable slot certified or blocked
 
-- PF16–32: 17/17 labels match live (first screenshot).
-- PF1–15: all 15 labels certified (second screenshot; PF1–4/PF14
-  uncertified-unnamed). Of the four classifier-reachable slots, PF13/PF14/PF8/PF1
-  are now refused by `MISROUTED_CATALOG_SLOTS` (edit + apply time, covered by
+- PF16–32: 17/17 labels match live (first screenshot,
+  `extra-fields-pf16-32-2026-10-15.png`).
+- PF1–15: 10 of 15 labels certified (second screenshot,
+  `extra-fields-pf1-15-2026-10-15.png`); PF1–4/PF14 are explicitly
+  UNCERTIFIED-UNNAMED (empty inputs — no purpose established, never cited as
+  certified). Of the classifier-reachable slots, PF13/PF14/PF8/PF1/PF2/PF3/PF4
+  are now refused by the protected-slot guard (edit + apply time, covered by
   seam + promoter tests); all other PF1–15 slots have no classification write
   path (out of scope).
 

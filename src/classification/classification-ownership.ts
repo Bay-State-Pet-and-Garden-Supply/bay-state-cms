@@ -115,6 +115,11 @@ export const NATIVE_CATALOG_SLOTS = [
  *   an unnamed slot. Refused as a classification write; the owning module
  *   (`src/onboarding/draft-promoter.ts`) must resolve an `arrival_date`
  *   mapping or skip the stamp.
+ * - `ProductField2`, `ProductField3`, `ProductField4` have no configured
+ *   display name either (uncertified-unnamed — same screenshot, empty
+ *   inputs). No mapping, target, or literal exists in any authority today,
+ *   but absence is not enforcement: a future mapping could target them, so
+ *   they are refused alongside the other unnamed slots.
  *
  * Like the Brand slot, these refuse at edit time (field-mapping-editor) and
  * apply time (catalog application + promoter) — never silently rerouted.
@@ -124,6 +129,9 @@ export const MISROUTED_CATALOG_SLOTS = [
   'ProductField14',
   'ProductField8',
   'ProductField1',
+  'ProductField2',
+  'ProductField3',
+  'ProductField4',
 ] as const;
 
 /**

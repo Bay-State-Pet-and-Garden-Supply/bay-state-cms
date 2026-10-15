@@ -35,9 +35,11 @@ import type { CatalogEvidence } from '../src/classification/catalog-evidence';
 import { listRegistry, upsertRegistryEntry } from '../src/db/repositories/field-registry-repo';
 
 /**
- * ShopSite Extra Fields names (PF16–PF32 CERTIFIED against the authenticated
- * Extra Fields screenshot, 2026-10-15 — see
- * docs/audits/extra-fields-certification-2026-10-15.md; PF1–PF15 uncertified).
+ * ShopSite Extra Fields names (PF16–PF32 CERTIFIED against
+ * docs/audits/extra-fields-pf16-32-2026-10-15.png; PF5–13/PF15 CERTIFIED
+ * against docs/audits/extra-fields-pf1-15-2026-10-15.png; PF1–4/PF14
+ * explicitly UNCERTIFIED-UNNAMED — see
+ * docs/audits/extra-fields-certification-2026-10-15.md).
  */
 const SHOP_SITE_FIELD_LABELS: Record<string, string> = {
   ProductField16: 'Facet - Brand',

@@ -218,6 +218,12 @@ describe('issue #355 export seam: mapping-layer non-rerouting', () => {
     for (const slot of ['ProductField13', 'ProductField14', 'ProductField8', 'ProductField1']) {
       expect(isProtectedCatalogField(slot, 'category', [])).toBe(true);
     }
+    // PF2–PF4 are uncertified-unnamed (2026-10-15 PF1–15 screenshot shows
+    // empty inputs — no purpose established): refused alongside the other
+    // unnamed slots, enforced rather than merely unwritten.
+    for (const slot of ['ProductField2', 'ProductField3', 'ProductField4']) {
+      expect(isProtectedCatalogField(slot, 'flavor', [])).toBe(true);
+    }
     // Certified PF16–32 slots stay writable (guard is slot-scoped, not blanket).
     expect(isProtectedCatalogField('ProductField24', 'category', [])).toBe(false);
   });
