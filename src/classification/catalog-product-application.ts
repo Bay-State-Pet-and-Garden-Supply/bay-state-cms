@@ -6,7 +6,7 @@ import { getCachedAttributeMappings } from '../db/repositories/classification-co
 import { createChangeSet, upsertChangeSetItem } from '../db/repositories/change-set-repo';
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from './config-loader';
-import { authorityConfigHashMatches, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
+import { authorityConfigHashMatches, getRuntimeSnapshotByHash, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
 import { getActiveVerifiedPageIds } from '../shopsite/page-import-service';
 import { getActivePageImportHash } from '../db/repositories/page-repo';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from './assignment-projection';
@@ -17,7 +17,7 @@ import { findConnection } from '../db/repositories/connection-repo';
 import { resolveProductImageUrl } from '../shopsite/url-utils';
 import type { Product } from '../shared/types';
 import { isSilentNarrowing } from './attribute-grounding-guards';
-import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 
 /**
  * A2: re-hash the image bytes behind the run's recorded OCR image refs and
@@ -199,6 +199,13 @@ export async function applyCatalogClassification(
   await verifyRunImageBytesUnchanged(workspacePath, workspaceId, sku, runId, product);
 
   const mappings = getCachedAttributeMappings(workspaceId);
+  // Issue #355: frozen mapping authority for the currency check below. Null
+  // when the run has no resolvable snapshot (legacy passthrough — no
+  // authority to compare, same as readiness).
+  const frozenSnapshot = run.config_snapshot_hash
+    ? getRuntimeSnapshotByHash(workspaceId, run.config_snapshot_hash)
+    : null;
+  const frozenMappings = frozenSnapshot?.attributeMappings ?? null;
   const appliedFields: string[] = [];
   const appliedPages: string[] = [];
   const skipped: Array<{ proposalId: string; reason: string }> = [];
@@ -233,7 +240,27 @@ export async function applyCatalogClassification(
       skipped.push({ proposalId: proposal.id, reason: 'No catalog field in mapping' });
       continue;
     }
-
+    // Issue #355: a semantic target cannot reroute into Brand, identity,
+    // operational, or native fulfillment data through its mapping. The
+    // resolved catalog field is checked — not just the attribute target —
+    // so a mapping that points flavor (or any non-Brand attribute) at the
+    // Brand slot or a native slot refuses attributably instead of writing.
+    if (isProtectedCatalogField(mapping.catalogField, targetId, mappings)) {
+      const refusal = protectedTargetRefusal(mapping.catalogField);
+      skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
+      continue;
+    }
+    // Issue #355: the live mapping must still match the run's frozen mapping
+    // authority — a re-pointed field or changed serialization since review
+    // cannot replay a frozen accepted value into another field or format.
+    // Mismatch refuses attributably with no write for that proposal.
+    const frozenMapping = frozenMappings?.find(m => m.attributeId === targetId);
+    if (frozenMappings && (!frozenMapping
+      || frozenMapping.catalogField !== mapping.catalogField
+      || deterministicStringify(frozenMapping.serialization ?? null) !== deterministicStringify(mapping.serialization ?? null))) {
+      skipped.push({ proposalId: proposal.id, reason: 'Mapping changed since classification (mapping_changed). Re-review under the current mapping before applying.' });
+      continue;
+    }
     const effectiveValue = getEffectiveProposalValue(proposal);
     const value = serializeAttributeValue(effectiveValue, mapping.serialization);
     // P1 #9 apply-time no-narrowing: a PREDICTED single value can never

@@ -46,6 +46,7 @@ import {
   type VerifiedActivationContext,
 } from './config-loader';
 import { commitClassificationScope } from './config-store';
+import { isProtectedCatalogField } from './classification-ownership';
 import {
   syncConfigToCache,
   upsertConfigSnapshot,
@@ -151,6 +152,16 @@ function applyEditsToBundle(
   for (const edit of edits) {
     if (!edit || typeof edit.catalogField !== 'string' || edit.catalogField.trim() === '') {
       throw new FieldMappingEditError('invalid_edit', 'Each edit requires a non-empty catalogField.');
+    }
+    // Issue #355: a semantic target cannot be rerouted into Brand, identity,
+    // operational, or native fulfillment data through a mapping. The Brand
+    // slot resolves from the current bundle mappings (pre-edit authority).
+    if (edit.attributeId !== null && edit.attributeId !== undefined
+      && isProtectedCatalogField(edit.catalogField, edit.attributeId, bundle.attributeMappings)) {
+      throw new FieldMappingEditError(
+        'invalid_edit',
+        `Cannot map ${edit.catalogField} to "${edit.attributeId}": the field is Brand, identity, operational, or native fulfillment data outside classification ownership.`,
+      );
     }
     if (edit.attributeId !== null && typeof edit.attributeId === 'string' && edit.attributeId.trim() === '') {
       throw new FieldMappingEditError('invalid_edit', 'attributeId must be null or a non-empty configured attribute id.');

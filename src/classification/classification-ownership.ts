@@ -75,3 +75,45 @@ export function protectedTargetRefusal(targetId: string | null): { code: string;
     reason: `Classification cannot assign, replace, or remove protected target "${targetId ?? 'null'}" (Brand / Protected Product Data are never classifier-owned outputs).`,
   };
 }
+
+/**
+ * Native ShopSite slots the classifier must never write through a mapping
+ * (issue #355, criterion 4). These are built-in output fields with dedicated
+ * codec emitters (delivery-relevant defaults, identity, operational data) —
+ * a mapping that points a semantic attribute at one would reroute business
+ * classification into native fulfillment/identity data. `ProductField*`
+ * slots are the only mapping-eligible targets (Brand slot included — it is
+ * refused separately as protected, never eligible).
+ */
+export const NATIVE_CATALOG_SLOTS = [
+  'ProductType',
+  'MinimumQuantity',
+  'GTIN',
+  'GoogleGTIN',
+  'Google_GTIN',
+] as const;
+
+/**
+ * True when a RESOLVED catalog field is off-limits for classification output
+ * (issue #355): the Brand identity slot (unless the attribute itself is the
+ * Brand attribute, which never reaches output anyway) or a native
+ * built-in slot. Guards the mapping layer against rerouting a semantic
+ * target into Brand/identity/operational/fulfillment data.
+ */
+export function isProtectedCatalogField(
+  catalogField: string | null | undefined,
+  attributeId?: string | null,
+  mappings?: Array<{ attributeId: string; catalogField?: string | null; isStale?: boolean }>,
+): boolean {
+  if (!catalogField) return false;
+  if ((NATIVE_CATALOG_SLOTS as readonly string[]).includes(catalogField)) return true;
+  if (attributeId === BRAND_ATTRIBUTE_ID) return false;
+  // Brand slot from the supplied mappings (v1 or v2 shape — structural read);
+  // stale/empty falls closed to the documented fallback, mirroring
+  // resolveBrandCatalogField without its v1-only type.
+  const brandMapping = mappings?.find(m => m.attributeId === BRAND_ATTRIBUTE_ID);
+  const brandField = brandMapping && !brandMapping.isStale && brandMapping.catalogField?.trim()
+    ? brandMapping.catalogField.trim()
+    : FALLBACK_BRAND_CATALOG_FIELD;
+  return catalogField === brandField;
+}

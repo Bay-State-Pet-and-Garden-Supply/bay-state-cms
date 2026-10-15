@@ -702,10 +702,15 @@ export class ShopSiteProductCodec {
     const fileName = normalizeFileName(options?.fileName) ?? resolveBaseFileName(product);
     lines.push(`  <FileName>${escapeXml(fileName)}</FileName>`);
 
-    // 20. Custom fields ProductField1..32 in natural numeric order
+    // 20. Custom fields ProductField1..32 in natural numeric order.
+    // Issue #355: an explicit empty string is a reviewed clear, not an
+    // omission — it emits `<Field></Field>` so the clear is ON THE WIRE and
+    // round-trips back to '' (never resurrected from preserved/defaults).
+    // Null/undefined stay omitted (no value asserted). Built-in and
+    // non-ProductField slots never route through here.
     const customFieldEntries = Object.entries(product.customFields)
       .filter(([field, value]) => {
-        if (!value) return false;
+        if (value == null) return false;
         if (isBuiltInOutputField(field)) return false;
         if (!field.startsWith('ProductField')) return false;
         if (!isValidXmlTagName(field)) {

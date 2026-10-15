@@ -83,7 +83,7 @@ import {
   serializeAttributeValue,
 } from '../classification/assignment-projection';
 import type { Product } from '../shared/types';
-import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
+import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
 import { evaluateCanonicalReadiness } from '../classification/classification-readiness';
 
 /**
@@ -1802,6 +1802,12 @@ export async function prepareDraftPromotion(
               skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'stale_mapping' });
             } else if (!mapping.catalogField) {
               skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'empty_catalog_field' });
+            } else if (isProtectedCatalogField(mapping.catalogField, targetId, mappings)) {
+              // Issue #355: the resolved catalog field is Brand/identity/
+              // operational/native data — refuse attributably, never reroute.
+              const refusal = protectedTargetRefusal(mapping.catalogField);
+              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'protected_target_refused' });
+              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
             } else {
               const value = getEffectiveProposalValue(proposal);
               const str = serializeAttributeValue(value, mapping.serialization);

@@ -231,6 +231,8 @@ All quantity pricing fields are **pass-through only**:
 
 **Important:** Decode captures any tag starting with `ProductField` (not limited to 1–25). Invalid XML tag names in `customFields` produce a warning during encode and the field is skipped.
 
+**Binding certification status (issue #355):** tag↔path transport above is NOT a live purpose attestation. Which `ProductFieldN` carries which business meaning (Category, Product Type, flavor, …) is established only through governed Attribute Mappings; live Extra Fields/settings certification is still pending authenticated read-only evidence, so no field purpose here is live-certified. Enforced safeguards: explicit `''` clears emit `<Field></Field>` and round-trip (never omitted/resurrected); mappings into Brand/identity/operational/native slots refuse at edit and apply time (`isProtectedCatalogField`); live-vs-frozen mapping drift refuses with `mapping_changed` instead of replaying into another field.
+
 ---
 
 ## Fields NOT Present in KNOWN_FIELD_LABELS
