@@ -1165,8 +1165,8 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
         { id: 'dog-toys', name: 'Dog Toys', description: null },
       ],
       productTypes: [
-        { id: 'dog-food-dry', name: 'Dry Dog Food', description: 'Dry dog food kibble.', categoryId: 'dog-food' },
-        { id: 'dog-toy', name: 'Dog Toy', description: 'Dog toy.', categoryId: 'dog-toys' },
+        { id: 'dog-food-dry', name: 'Dry Dog Food', description: 'Dry dog food kibble.', categoryId: 'dog-food', websiteValues: { category: 'QA/test-only Dog Food', productType: 'QA/test-only Dry Dog Food' } },
+        { id: 'dog-toy', name: 'Dog Toy', description: 'Dog toy.', categoryId: 'dog-toys', websiteValues: { category: 'QA/test-only Dog Toys', productType: 'QA/test-only Dog Toy' } },
       ],
       attributes: [
         { ...V1_CONFIG.attributes[0], allowedValues: ['Chicken', 'Beef'], isUniversal: false },
@@ -1210,6 +1210,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
     const manifest = ClassificationManifestV2Schema.parse({ ...manifestInput, bundleHash: computeClassificationBundleHash(manifestInput) });
     fs.writeFileSync(path.join(wsPath, 'store', 'classification', 'manifest.json'), canonicalJsonFileString(manifest));
     upsertConfigSnapshot(workspaceId, { ...bundle, manifest });
+    syncConfigToCache(workspaceId, { ...bundle, manifest } as unknown as ClassificationConfig);
 
     activatePageImportFromRecords({
       workspaceId, sourceHash: sha256Hex('actual-onboarding-food-page'), parserFormatVersion: 'pages-xml-1', activatedBy: 'fixture',

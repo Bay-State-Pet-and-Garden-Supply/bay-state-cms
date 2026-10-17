@@ -19,7 +19,7 @@
  *   overlaid on compatible reviewed facts captured in the run snapshot.
  */
 import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun } from '../db/repositories/classification-run-repo';
-import type { ReviewedFact } from './reviewed-facts';
+import { composeEffectiveReviewedFacts } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
 import { getEffectiveClassificationPair, getEffectiveProposalTargetId, getEffectiveProposalValue, validateSerializableValue } from './assignment-projection';
@@ -120,41 +120,7 @@ export function evaluateCanonicalReadiness(input: {
     };
   }
 
-  const replacedFactTargets = new Set<string>();
-  const currentApplicabilityFacts: ReviewedFact[] = [];
-  for (const proposal of currentAccepted) {
-    if (proposal.proposalType !== 'field_assignment' || !proposal.currentDecisionId) continue;
-    const targetId = getEffectiveProposalTargetId(proposal);
-    if (proposal.targetId) replacedFactTargets.add(proposal.targetId);
-    if (targetId) replacedFactTargets.add(targetId);
-    const value = getEffectiveProposalValue(proposal);
-    if (
-      value !== null
-      && value !== undefined
-      && !(typeof value === 'string' && value.trim().length === 0)
-      && !(Array.isArray(value) && value.length === 0)
-    ) {
-      currentApplicabilityFacts.push({
-        proposalId: proposal.id,
-        decisionId: proposal.currentDecisionId,
-        runId: run.id,
-        workspaceId: run.workspace_id,
-        productSku: run.product_sku,
-        proposalType: proposal.proposalType,
-        targetId,
-        value,
-        configSnapshotHash: run.config_snapshot_hash,
-        sourceHash: snapshot.sourceProductHash,
-        createdAt: proposal.createdAt,
-      });
-    }
-  }
-  const applicabilityFacts = [
-    ...currentApplicabilityFacts,
-    ...snapshot.reviewedFacts.filter(fact =>
-      fact.proposalType !== 'field_assignment' || !fact.targetId || !replacedFactTargets.has(fact.targetId),
-    ),
-  ];
+  const applicabilityFacts = composeEffectiveReviewedFacts(snapshot, currentAccepted, run.id);
   const plan = resolveAttributeProfilePlan(snapshot, { categoryId, productTypeId }, applicabilityFacts);
   if (plan.status !== 'ready') {
     return {

@@ -12,6 +12,7 @@ import { resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { processProductFieldTargetsBatch } from '../curation-target-processor';
 import { getEffectiveClassification } from '../effective-curation-type';
 import { resolveAttributeProfilePlan } from '../attribute-profile-plan';
+import { composeEffectiveReviewedFacts } from '../reviewed-facts';
 import { resolveProductTypeInvariants } from '../product-type-invariants';
 import { isUniversalAttribute } from '../applicability-evaluator';
 
@@ -41,7 +42,7 @@ export const productAttributeProposalsStage: StageDefinition = {
     const plan = resolveAttributeProfilePlan(context.snapshot, {
       categoryId: classification.effectiveCategoryId,
       productTypeId: classification.effectiveTypeId,
-    });
+    }, composeEffectiveReviewedFacts(context.snapshot, input.acceptedProposals, context.runId));
     if (!context.snapshot) return { status: 'abstained', reason: plan.reason! };
     const resolved = resolveTargetsFromSnapshot(context.snapshot);
     const entriesById = new Map(plan.entries.map(entry => [entry.attribute.id, entry]));

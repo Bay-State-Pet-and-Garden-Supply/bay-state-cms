@@ -11,6 +11,9 @@
  * dimension still matches the current snapshot. Drift invalidates a fact
  * rather than silently reusing it.
  */
+import type { ClassificationProposal } from '../shared/types';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './assignment-projection';
+import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { getDb } from '../db/connection';
 
 export interface ReviewedFact {
@@ -120,4 +123,62 @@ export function filterCompatibleFacts(
   currentSourceHash: string | null,
 ): ReviewedFact[] {
   return facts.filter(fact => isFactCompatible(fact, currentConfigHash, currentSourceHash));
+}
+
+/**
+ * Overlay this run's accepted field decisions on the compatible facts captured
+ * by its snapshot. Cleared values still replace their prior target fact.
+ */
+export function composeEffectiveReviewedFacts(
+  snapshot: RuntimeClassificationSnapshot | undefined,
+  currentRunProposals: readonly ClassificationProposal[],
+  runId: string,
+): ReviewedFact[] {
+  if (!snapshot) return [];
+
+  const replacedTargets = new Set<string>();
+  const currentFacts: ReviewedFact[] = [];
+  for (const proposal of currentRunProposals) {
+    if (
+      proposal.runId !== runId
+      || proposal.productSku !== snapshot.productSku
+      || proposal.proposalType !== 'field_assignment'
+      || proposal.status !== 'accepted'
+      || proposal.isStale
+      || !proposal.currentDecisionId
+    ) continue;
+
+    const targetId = getEffectiveProposalTargetId(proposal);
+    if (proposal.targetId) replacedTargets.add(proposal.targetId);
+    if (targetId) replacedTargets.add(targetId);
+    const value = getEffectiveProposalValue(proposal);
+    if (
+      targetId
+      && value !== null
+      && value !== undefined
+      && !(typeof value === 'string' && value.trim().length === 0)
+      && !(Array.isArray(value) && value.length === 0)
+    ) {
+      currentFacts.push({
+        proposalId: proposal.id,
+        decisionId: proposal.currentDecisionId,
+        runId,
+        workspaceId: snapshot.workspaceId,
+        productSku: snapshot.productSku,
+        proposalType: proposal.proposalType,
+        targetId,
+        value,
+        configSnapshotHash: snapshot.configSnapshotRef.hash,
+        sourceHash: snapshot.sourceProductHash,
+        createdAt: proposal.createdAt,
+      });
+    }
+  }
+
+  return [
+    ...currentFacts,
+    ...snapshot.reviewedFacts.filter(fact =>
+      fact.proposalType !== 'field_assignment' || !fact.targetId || !replacedTargets.has(fact.targetId),
+    ),
+  ];
 }

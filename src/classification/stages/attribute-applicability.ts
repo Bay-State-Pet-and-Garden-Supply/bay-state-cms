@@ -10,6 +10,7 @@ import type { StageDefinition, StageContext, StageInput, StageResult } from '../
 import { resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { getEffectiveClassification } from '../effective-curation-type';
 import { resolveAttributeProfilePlan } from '../attribute-profile-plan';
+import { composeEffectiveReviewedFacts } from '../reviewed-facts';
 
 export const attributeApplicabilityStage: StageDefinition = {
   name: 'attribute_applicability',
@@ -20,7 +21,7 @@ export const attributeApplicabilityStage: StageDefinition = {
     const plan = resolveAttributeProfilePlan(context.snapshot, {
       categoryId: classification.effectiveCategoryId,
       productTypeId: classification.effectiveTypeId,
-    });
+    }, composeEffectiveReviewedFacts(context.snapshot, input.acceptedProposals, context.runId));
     const resolved = context.snapshot ? resolveTargetsFromSnapshot(context.snapshot) : null;
     const targetIds = new Set(resolved?.productFields.map(target => target.attribute?.id) ?? []);
     const evaluations = plan.entries.filter(entry => targetIds.has(entry.attribute.id)).map(entry => entry.applicability);
