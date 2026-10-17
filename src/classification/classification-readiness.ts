@@ -15,8 +15,11 @@
  *   attributes do not become universal requirements.
  * - Brand and images stay optional to classification; separate listing,
  *   identity, commerce, and image-rights requirements are untouched.
+ * - Profile applicability uses current accepted effective field decisions
+ *   overlaid on compatible reviewed facts captured in the run snapshot.
  */
 import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun } from '../db/repositories/classification-run-repo';
+import type { ReviewedFact } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
 import { getEffectiveClassificationPair, getEffectiveProposalTargetId, getEffectiveProposalValue, validateSerializableValue } from './assignment-projection';
@@ -78,6 +81,12 @@ export function evaluateCanonicalReadiness(input: {
   }
 
   const accepted = getAcceptedProposals(run.product_sku, run.id);
+  const decisions = getLiveDecisionsByRun(run.id);
+  const currentAccepted = accepted.filter(proposal =>
+    proposal.status === 'accepted' && !proposal.isStale &&
+    decisions.some(decision => decision.proposalId === proposal.id && decision.decision === 'accepted' &&
+      decision.id === proposal.currentDecisionId),
+  );
   const acceptedPairs = accepted.filter(proposal =>
     proposal.proposalType === 'product_classification' && proposal.status === 'accepted' && !proposal.isStale,
   );
@@ -111,7 +120,34 @@ export function evaluateCanonicalReadiness(input: {
     };
   }
 
-  const plan = resolveAttributeProfilePlan(snapshot, { categoryId, productTypeId }, snapshot.reviewedFacts);
+  const replacedFactTargets = new Set<string>();
+  const currentApplicabilityFacts: ReviewedFact[] = [];
+  for (const proposal of currentAccepted) {
+    if (proposal.proposalType !== 'field_assignment' || !proposal.currentDecisionId) continue;
+    const targetId = getEffectiveProposalTargetId(proposal);
+    if (proposal.targetId) replacedFactTargets.add(proposal.targetId);
+    if (targetId) replacedFactTargets.add(targetId);
+    currentApplicabilityFacts.push({
+      proposalId: proposal.id,
+      decisionId: proposal.currentDecisionId,
+      runId: run.id,
+      workspaceId: run.workspace_id,
+      productSku: run.product_sku,
+      proposalType: proposal.proposalType,
+      targetId,
+      value: getEffectiveProposalValue(proposal),
+      configSnapshotHash: run.config_snapshot_hash,
+      sourceHash: snapshot.sourceProductHash,
+      createdAt: proposal.createdAt,
+    });
+  }
+  const applicabilityFacts = [
+    ...currentApplicabilityFacts,
+    ...snapshot.reviewedFacts.filter(fact =>
+      fact.proposalType !== 'field_assignment' || !fact.targetId || !replacedFactTargets.has(fact.targetId),
+    ),
+  ];
+  const plan = resolveAttributeProfilePlan(snapshot, { categoryId, productTypeId }, applicabilityFacts);
   if (plan.status !== 'ready') {
     return {
       ok: false, code: 'profile_unresolved',
@@ -119,14 +155,9 @@ export function evaluateCanonicalReadiness(input: {
       details: { categoryId, productTypeId, profileId: plan.profileId, requiredValues: [] },
     };
   }
-
-  const decisions = getLiveDecisionsByRun(run.id);
-  const currentAccepted = accepted.filter(proposal =>
-    proposal.status === 'accepted' && !proposal.isStale &&
-    decisions.some(decision => decision.proposalId === proposal.id && decision.decision === 'accepted' &&
-      decision.id === proposal.currentDecisionId),
-  );
   const requiredValues: RequiredValueGap[] = [];
+
+
   let missingRequired = 0;
   for (const entry of plan.entries) {
     if (entry.applicability.state === 'unknown') {

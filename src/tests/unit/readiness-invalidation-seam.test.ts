@@ -191,6 +191,31 @@ function acceptSeededProposals(sku: string, runId: string, proposalPrefix = 'pro
   return result;
 }
 
+function seedPriorReviewedFieldFact(sku: string, attributeId: string, value: string): void {
+  const run = createRepositoryRun(
+    WS_ID,
+    sku,
+    activeSnapshotRef.id,
+    activeSnapshotRef.hash,
+    { sourceKind: 'catalog_product', sourceProductHash: null },
+  );
+  const proposalId = `prior-${sku}-${attributeId}`;
+  const now = new Date().toISOString();
+  getDb().run(
+    `INSERT INTO classification_proposals
+     (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+     VALUES (?, ?, ?, 'field_assignment', ?, ?, 0.9, 'accepted', ?)`,
+    [proposalId, run.id, sku, attributeId, JSON.stringify(value), now],
+  );
+  getDb().run(
+    `INSERT INTO classification_proposal_decisions
+     (id, proposal_id, decision, created_at, decision_origin)
+     VALUES (?, ?, 'accepted', ?, 'human_review')`,
+    [`decision-${proposalId}`, proposalId, now],
+  );
+  completeRun(run.id, 'completed');
+}
+
 function replaceActiveFixtureBundle(bundle: typeof activeAuthority.bundle): void {
   activeAuthority = { ...activeAuthority, bundle };
   activeSnapshotRef = upsertConfigSnapshot(WS_ID, bundle, null);
@@ -477,6 +502,42 @@ describe('issue #354 workflow seam: canonical readiness', () => {
     if (readiness.ok) {
       expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('valued');
       expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('optional_unvalued');
+    }
+  });
+
+  it('uses current accepted discriminator values when evaluating frozen required-field applicability', () => {
+    const sku = 'SKU-CURRENT-APPLICABILITY-FACT';
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogProfile = bundle.attributeProfiles.find(profile => profile.id === 'dry-dog-food-profile')!;
+    const flavorRule = dogProfile.attributes.find(attribute => attribute.attributeId === 'flavor')!;
+    flavorRule.applicabilityConditions = [{
+      operator: 'equals',
+      attributeId: 'product-feature',
+      value: 'Dog-only',
+      factSource: 'accepted_reviewed',
+    }];
+    replaceActiveFixtureBundle(bundle);
+    seedPriorReviewedFieldFact(sku, 'product-feature', 'Cat-only');
+    const run = seedRun(sku);
+    const decision = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'accepted', revisedValue: 'Dog-only' },
+      ],
+    });
+    expect(decision.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('valued');
     }
   });
 

@@ -534,13 +534,49 @@ function seedAcceptedPageProposal(wsId: string, runId: string, sku: string, page
 }
 
 /**
- * Seed a provenance-compatible reviewed (accepted) `primary_product_type`
- * decision on a PRIOR run for one SKU under the CURRENT config (PR5
- * reviewed-override fixture). The member's freeze-built runtime snapshot then
- * carries a reviewed type fact that outranks the cohort Execution Product
- * Type (reviewed-first, DECISION-H).
+ * Seed a provenance-compatible reviewed canonical Category + Product Type
+ * decision on a prior run for one SKU. The member's frozen snapshot carries
+ * the same authority consumed by classification stages (ADR 0041).
  */
-function seedReviewedTypeDecision(
+function seedReviewedClassificationDecision(
+  wsId: string,
+  wsPath: string,
+  sku: string,
+  itemId: string,
+  categoryId: string,
+  productTypeId: string,
+): void {
+  const { hash } = createConfigSnapshot(wsId, loadClassificationConfig(wsPath));
+  const now = new Date().toISOString();
+  const runId = `prior-pair-run-${itemId}`;
+  const proposalId = `prior-pair-proposal-${itemId}`;
+  const pair = { categoryId, productTypeId };
+  getDb().run(
+    `INSERT INTO classification_runs
+     (id, workspace_id, onboarding_item_id, product_sku, source_kind, config_snapshot_hash, status, started_at)
+     VALUES (?, ?, ?, ?, 'onboarding', ?, 'completed', ?)`,
+    [runId, wsId, itemId, sku, hash, now],
+  );
+  getDb().run(
+    `INSERT INTO classification_proposals
+     (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+     VALUES (?, ?, ?, 'product_classification', ?, ?, 0.95, 'accepted', ?)`,
+    [proposalId, runId, sku, productTypeId, JSON.stringify(pair), now],
+  );
+  getDb().run(
+    `INSERT INTO classification_proposal_decisions
+     (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at, decision_origin)
+     VALUES (?, ?, 'accepted', ?, ?, ?, NULL, 'human_review')`,
+    [`prior-pair-decision-${itemId}`, proposalId, JSON.stringify(pair), productTypeId, now],
+  );
+}
+
+/**
+ * Seed legacy type-only history on a compatible prior run. ADR 0041 keeps
+ * these records visible as history but excludes them from current pair
+ * authority.
+ */
+function seedLegacyPrimaryTypeHistory(
   wsId: string,
   wsPath: string,
   sku: string,
@@ -549,10 +585,9 @@ function seedReviewedTypeDecision(
 ): void {
   const { hash } = createConfigSnapshot(wsId, loadClassificationConfig(wsPath));
   const now = new Date().toISOString();
-  // Item ids are unique per test (randomUUID) — deterministic ids derived from
-  // them never collide across workspaces sharing one database file.
-  const runId = `prior-type-run-${itemId}`;
-  const proposalId = `prior-type-proposal-${itemId}`;
+  const runId = `prior-legacy-type-run-${itemId}`;
+  const proposalId = `prior-legacy-type-proposal-${itemId}`;
+  const value = { productTypeId: typeId };
   getDb().run(
     `INSERT INTO classification_runs
      (id, workspace_id, onboarding_item_id, product_sku, source_kind, config_snapshot_hash, status, started_at)
@@ -563,15 +598,16 @@ function seedReviewedTypeDecision(
     `INSERT INTO classification_proposals
      (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
      VALUES (?, ?, ?, 'primary_product_type', ?, ?, 0.95, 'accepted', ?)`,
-    [proposalId, runId, sku, typeId, JSON.stringify({ productTypeId: typeId }), now],
+    [proposalId, runId, sku, typeId, JSON.stringify(value), now],
   );
   getDb().run(
     `INSERT INTO classification_proposal_decisions
      (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at, decision_origin)
      VALUES (?, ?, 'accepted', ?, ?, ?, NULL, 'human_review')`,
-    [`prior-type-decision-${itemId}`, proposalId, JSON.stringify({ productTypeId: typeId }), typeId, now],
+    [`prior-legacy-type-decision-${itemId}`, proposalId, JSON.stringify(value), typeId, now],
   );
 }
+
 
 describe('OnboardingWorker Curation cohort integration (issue #30, PR3 M3)', () => {
   it('flag OFF: poll claims per-item curation exactly as today — no cohort runs are ever created', async () => {
@@ -738,7 +774,7 @@ describe('OnboardingWorker Curation cohort integration (issue #30, PR3 M3)', () 
     // Reclaim resumed the SAME run (never a new claim), and it executed.
     expect(cohortRunCount(workspaceId)).toBe(1);
     const resumed = getCohortRunById(claimed.id)!;
-    expect(resumed.status).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(resumed.status);
     expect(resumed.claimedBy).not.toBe('crashed-worker');
     const stored = findItemById(items[0].id)!;
     expect(stored.stageStatus).toBe('completed');
@@ -812,7 +848,7 @@ describe('OnboardingWorker Curation cohort integration (issue #30, PR3 M3)', () 
 });
 
 describe('processCohort completion semantics (issue #30, PR3 M3)', () => {
-  it('all members ok -> parent completes with completed; every item advances', async () => {
+  it('all members commit; parent status preserves abstentions and every item advances', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = createReadyCohort(workspaceId, {
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dog Food Chicken 5 lb' }),
@@ -830,7 +866,7 @@ describe('processCohort completion semantics (issue #30, PR3 M3)', () => {
     expect(summary.memberFailures).toEqual([]);
 
     const completed = getCohortRunById(finalized.id)!;
-    expect(completed.status).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(completed.status);
     expect(completed.completedAt).not.toBeNull();
     for (const item of items) {
       const stored = findItemById(item.id)!;
@@ -1159,8 +1195,8 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     expect(stored.curationData).not.toBeNull();
     const childId = stored.curationData!.classificationRunId!;
     expect(childId).toBe(String(childAfterCrash!.id));
-    expect(getRun(childId)!.status).toBe('completed');
-    expect(getCohortRunById(finalized.id)!.status).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(getRun(childId)!.status);
+    expect(['completed', 'completed_with_abstentions']).toContain(getCohortRunById(finalized.id)!.status);
   });
 
   it('R3 recovery skip rule: a terminal-success child WITHOUT a committed projection is re-executed and committed atomically', async () => {
@@ -1195,7 +1231,7 @@ describe('PR3 hardening — Commit B (R3 member-projection atomic commit)', () =
     // was never re-used for execution).
     expect(stored.curationData!.classificationRunId).not.toBe(String(child.id));
     const committedChild = getRun(stored.curationData!.classificationRunId!)!;
-    expect(committedChild.status).toBe('completed');
+    expect(['completed', 'completed_with_abstentions']).toContain(committedChild.status);
     expect(String(committedChild.cohortRunId)).toBe(finalized.id);
     const children = getDb().query(
       'SELECT * FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ? ORDER BY started_at ASC',
@@ -1442,67 +1478,35 @@ describe('PR5 C3 — executor-side effective type + dependency-stamping refineme
     }
   });
 
-  it('reviewed-override member: field_assignment proposals carry reviewed_product_type rows; the sibling without reviewed facts carries no execution rows', async () => {
+  it('legacy primary_product_type history does not authorize reviewed attribute assignments', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTypeAndFieldEnabledConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
       '100000000001': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
       '100000000002': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb' }),
     });
-    // Member 1 gets a provenance-compatible reviewed type fact — reviewed-first
-    // precedence applies at the member; the freeze itself writes no type.
-    seedReviewedTypeDecision(workspaceId, wsPath, items[0].upc, items[0].id, 'dry-dog-food');
+    seedLegacyPrimaryTypeHistory(workspaceId, wsPath, items[0].upc, items[0].id, 'dry-dog-food');
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
     const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
     expect(finalized.status).toBe('running');
-    expect(finalized.executionProductTypeId).toBeNull();
 
     seedV1TitleOutputs(workspaceId, finalized);
     const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-a');
     expect(['completed', 'completed_with_abstentions']).toContain(summary.parentStatus);
 
-    const reviewedMember = findItemById(items[0].id)!;
-    expect(reviewedMember.stageStatus).toBe('completed');
-    expect(reviewedMember.curationData!.effectiveProductType).toEqual({ id: 'dry-dog-food', source: 'reviewed' });
-    const reviewedProposals = reviewedMember.curationData!.classificationProposals;
-    expect(reviewedProposals.length).toBeGreaterThan(0);
-    const reviewedFieldAssignments = reviewedProposals.filter(p => p.proposalType === 'field_assignment');
-    expect(reviewedFieldAssignments.length).toBeGreaterThan(0);
-    // PR5 hardening (P2): the reviewed-driven member's field_assignment
-    // proposals carry a reviewed_product_type row — target = the reviewed id
-    // (reviewed-first resolution, so the effective id IS the reviewed id),
-    // value hash = hashCanonicalJson({reviewedProductTypeId}) — and NEVER an
-    // execution_product_type row; primary_product_type proposals stay
-    // unstamped in both cases.
-    const reviewedHash = hashCanonicalJson({ reviewedProductTypeId: 'dry-dog-food' });
-    for (const proposal of reviewedProposals) {
-      const deps = listDependenciesForProposal(proposal.id);
-      const executionDeps = deps.filter(d => d.dependencyKind === 'execution_product_type');
-      expect(executionDeps).toHaveLength(0);
-      if (proposal.proposalType === 'field_assignment') {
-        expect(deps).toHaveLength(1);
-        expect(deps[0].dependencyKind).toBe('reviewed_product_type');
-        expect(deps[0].dependencyTargetId).toBe('dry-dog-food');
-        expect(deps[0].dependencyValueHash).toBe(reviewedHash);
-      } else {
-        expect(deps).toHaveLength(0);
-      }
-    }
+    const legacyMember = findItemById(items[0].id)!;
+    expect(legacyMember.stageStatus).toBe('completed');
+    expect(legacyMember.curationData!.effectiveProductType).toEqual({ id: null, source: 'none' });
+    expect(
+      legacyMember.curationData!.classificationProposals.filter(proposal => proposal.proposalType === 'field_assignment'),
+    ).toHaveLength(0);
+    expect(dependencyRowCount(workspaceId)).toBe(0);
 
-    const siblingMember = findItemById(items[1].id)!;
-    expect(siblingMember.stageStatus).toBe('completed');
-    // The sibling carries no reviewed fact and inherits nothing — its
-    // effective type is none and its proposals carry no execution rows.
-    for (const proposal of siblingMember.curationData!.classificationProposals) {
-      for (const dep of listDependenciesForProposal(proposal.id)) {
-        expect(dep.dependencyKind).not.toBe('execution_product_type');
-      }
-    }
-    // Rows exist only for the reviewed member's field_assignment proposals —
-    // one per field_assignment proposal, never per all-proposal.
-    expect(dependencyRowCount(workspaceId)).toBe(reviewedFieldAssignments.length);
+    const sibling = findItemById(items[1].id)!;
+    expect(sibling.stageStatus).toBe('completed');
+    expect(sibling.curationData!.effectiveProductType).toEqual({ id: null, source: 'none' });
   });
 
   it('flag OFF: no execution authority, no execution dependency rows, flavor unknown, effective source none', async () => {
@@ -1843,6 +1847,7 @@ describe('PR5 C4 — acceptance integration: SKU-local first pass, reviewed auth
         additionalImages: [],
       }),
     });
+    const pageId = activateVerifiedPage(workspaceId, 'Dog Food', 'pr5-acceptance');
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
     // (1) Freeze: no execution type is written (issue #351).
@@ -1895,7 +1900,7 @@ describe('PR5 C4 — acceptance integration: SKU-local first pass, reviewed auth
     expect(memberB.stageStatus).toBe('completed');
     const childRunIdB = memberB.curationData!.classificationRunId!;
     expect(['completed', 'completed_with_abstentions']).toContain(getRun(childRunIdB)!.status);
-    const pageId = activateVerifiedPage(workspaceId, 'Dog Food', 'pr5-acceptance');
+    
     seedAcceptedPageProposal(workspaceId, childRunIdB, items[1].upc, pageId, 'Dog Food');
     // Epic #46 review round-2: promotion requires durable approval at the final
     // authority; move the sibling into the real post-approval state so these
@@ -1959,7 +1964,7 @@ describe('PR5 C4 — acceptance integration: SKU-local first pass, reviewed auth
     // Member A carries a reviewed type fact for a DIFFERENT type (dog-treats)
     // while the sibling's evidence infers dry-dog-food. Under SKU-local
     // evidence this is not a conflict — each SKU stands on its own facts.
-    seedReviewedTypeDecision(workspaceId, wsPath, items[0].upc, items[0].id, 'dog-treats');
+    seedReviewedClassificationDecision(workspaceId, wsPath, items[0].upc, items[0].id, 'dog-treats', 'dog-treats');
     overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
 
     const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);

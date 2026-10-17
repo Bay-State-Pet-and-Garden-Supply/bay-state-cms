@@ -42,8 +42,7 @@ import {
   deepFreeze,
 } from '../../classification/runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
-import { getEffectiveCurationTypeForSnapshot } from '../../classification/effective-curation-type';
-import { getEffectiveClassificationPair } from '../../classification/assignment-projection';
+import { getEffectiveClassification, getEffectiveCurationTypeForSnapshot } from '../../classification/effective-curation-type';
 import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
 import {
@@ -443,30 +442,29 @@ export async function executePreparedMembers(args: {
         // never pass it.
         hooks?.beforeSemanticValidation?.(curationData);
         const memberSkuForSemantic = memberSku;
-        // Issue #352: the semantic check uses the member's OWN pipeline pair
-        // (reviewed first, then the provisional pair from this same pass) —
-        // mirroring the stages' effective-type resolution. The frozen
-        // snapshot's reviewed fact alone would miss the provisional pair and
-        // falsely block supported members. ADR 0041: legacy
-        // `primary_product_type` rows are history-only, never live authority.
-        const ownClassificationProposals = curationData.classificationProposals.filter(
-          proposal =>
-            proposal.proposalType === 'product_classification'
-            && proposal.productSku === memberSkuForSemantic
-            && proposal.runId === childRun.id,
+        // ADR 0041: resolve the member's canonical pair through the same
+        // reviewed-first, own-SKU authority used by classification stages.
+        // This preserves a compatible frozen pair when the current pass
+        // abstains, while never borrowing a sibling or execution pair.
+        const effectiveClassificationForSemantic = getEffectiveClassification(
+          {
+            sku: memberSkuForSemantic,
+            evidence: [],
+            acceptedProposals: curationData.classificationProposals,
+            allProposals: curationData.classificationProposals,
+          },
+          {
+            workspacePath,
+            workspaceId,
+            configSnapshotRef: memberSnapshotForSemantic.configSnapshotRef,
+            runId: childRun.id,
+            snapshot: memberSnapshotForSemantic,
+          },
         );
-        const semanticPairProposal = ownClassificationProposals.find(
-          proposal => proposal.status === 'accepted' && !proposal.isStale,
-        ) ?? ownClassificationProposals
-          .filter(
-            proposal =>
-              !proposal.isStale
-              && (proposal.status === 'pending' || proposal.status === 'deferred'),
-          )
-          .sort((a, b) => b.confidence - a.confidence)[0];
-        const semanticPair = semanticPairProposal
-          ? getEffectiveClassificationPair(semanticPairProposal)
-          : { categoryId: null, productTypeId: null };
+        const semanticPair = {
+          categoryId: effectiveClassificationForSemantic.effectiveCategoryId,
+          productTypeId: effectiveClassificationForSemantic.effectiveTypeId,
+        };
         const effectiveTypeIdForSemantic = semanticPair.productTypeId;
         const profilePlanForSemantic = resolveAttributeProfilePlan(
           memberSnapshotForSemantic,

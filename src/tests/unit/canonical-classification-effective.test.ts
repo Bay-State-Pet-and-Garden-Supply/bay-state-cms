@@ -63,6 +63,31 @@ describe('effective pair + readiness (issue #350)', () => {
     expect(effective.source).toBe('reviewed');
   });
 
+  it('uses the frozen reviewed canonical pair when the current pass has no pair proposal', () => {
+    const effective = getEffectiveClassification(
+      { sku: 'S', evidence: [], acceptedProposals: [], allProposals: [] } as any,
+      {
+        runId: 'new-run',
+        workspaceId: 'ws',
+        snapshot: {
+          productSku: 'S',
+          workspaceId: 'ws',
+          reviewedFacts: [{
+            proposalType: 'product_classification',
+            productSku: 'S',
+            workspaceId: 'ws',
+            value: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+          }],
+        },
+      } as any,
+    );
+    expect(effective).toEqual({
+      effectiveTypeId: 'dog-food-dry',
+      effectiveCategoryId: 'dog-food',
+      source: 'reviewed',
+    });
+  });
+
   it('no reviewed pair yields none provenance', () => {
     const effective = getEffectiveClassification({ sku: 'S', evidence: [], acceptedProposals: [], allProposals: [] } as any, {} as any);
     expect(effective.source).toBe('none');
