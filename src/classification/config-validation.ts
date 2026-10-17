@@ -13,6 +13,7 @@ import {
   findCanonicalCollisions,
   validateCanonicalValue,
 } from './controlled-value-identity';
+import { isCanonicalClassificationAttributeId } from './classification-ownership';
 
 export type ClassificationConfigFindingSeverity = 'error' | 'warning';
 
@@ -76,6 +77,20 @@ export interface ClassificationConfigValidationReport {
 }
 
 type MappingV2 = ClassificationConfigBundleV2['attributeMappings'][number];
+
+function addCanonicalPairAttributeFinding(
+  findings: ClassificationConfigFinding[],
+  path: string,
+  attributeId: string,
+): void {
+  if (!isCanonicalClassificationAttributeId(attributeId)) return;
+  findings.push({
+    severity: 'error',
+    code: 'canonical_pair_attribute_retired',
+    path,
+    message: `Attribute "${attributeId}" is reserved for the single canonical Product Classification pair.`,
+  });
+}
 
 /**
  * Content digest of the exact unresolved-migration finding list so the
@@ -573,6 +588,58 @@ export function validateClassificationConfigBundle(
       });
     }
   });
+  const websitePairs = new Map<string, number>();
+  const websiteCategoryByCategoryId = new Map<string, string>();
+  config.productTypes.forEach((type, index) => {
+    const values = type.websiteValues;
+    const path = `$.productTypes[${index}].websiteValues`;
+    if (!values) {
+      findings.push({
+        severity: 'warning',
+        code: 'missing_website_classification_mapping',
+        path,
+        message: `Product Type "${type.id}" has no approved website classification mapping; core website projection remains unavailable until governed values are assigned.`,
+      });
+      return;
+    }
+    if (!values.category.trim() || !values.productType.trim()) {
+      findings.push({
+        severity: 'error',
+        code: 'invalid_website_classification_mapping',
+        path,
+        message: `Product Type "${type.id}" must have non-empty website Category and Product Type values.`,
+      });
+      return;
+    }
+
+    const pairKey = JSON.stringify([values.category, values.productType]);
+    const priorIndex = websitePairs.get(pairKey);
+    if (priorIndex !== undefined) {
+      findings.push({
+        severity: 'error',
+        code: 'duplicate_website_classification_mapping',
+        path,
+        message: `Product Type "${type.id}" duplicates the website mapping at productTypes[${priorIndex}].`,
+      });
+    } else {
+      websitePairs.set(pairKey, index);
+    }
+
+    const categoryId = type.categoryId;
+    if (categoryId) {
+      const priorWebsiteCategory = websiteCategoryByCategoryId.get(categoryId);
+      if (priorWebsiteCategory !== undefined && priorWebsiteCategory !== values.category) {
+        findings.push({
+          severity: 'error',
+          code: 'inconsistent_website_category_mapping',
+          path: `${path}.category`,
+          message: `Product Type "${type.id}" maps Category "${categoryId}" to a different website Category value.`,
+        });
+      } else {
+        websiteCategoryByCategoryId.set(categoryId, values.category);
+      }
+    }
+  });
 
   config.productTypes.forEach((type, index) => {
     const profileEntry = type.attributeProfileId ? profiles.get(type.attributeProfileId) : undefined;
@@ -597,6 +664,7 @@ export function validateClassificationConfigBundle(
     if (type.invariantAttributes) {
       const invariantEntries = Object.entries(type.invariantAttributes);
       for (const [attrId, rawVal] of invariantEntries) {
+        addCanonicalPairAttributeFinding(findings, `$.productTypes[${index}].invariantAttributes.${attrId}`, attrId);
         const attrRecord = attributes.get(attrId);
         if (!attrRecord) {
           findings.push({
@@ -656,6 +724,7 @@ export function validateClassificationConfigBundle(
   });
 
   config.attributes.forEach((attribute, index) => {
+    addCanonicalPairAttributeFinding(findings, `$.attributes[${index}].id`, attribute.id);
     if (attribute.valueMode === 'measured' && !attribute.canonicalUnit) {
       findings.push({
         severity: 'error',
@@ -856,6 +925,7 @@ export function validateClassificationConfigBundle(
         });
       }
       localAttributes.add(profileAttribute.attributeId);
+      addCanonicalPairAttributeFinding(findings, `${basePath}.attributeId`, profileAttribute.attributeId);
       const attribute = attributes.get(profileAttribute.attributeId)?.entry;
       if (!attribute) {
         findings.push({
@@ -1009,6 +1079,7 @@ export function validateClassificationConfigBundle(
   const mappedCatalogFields = new Map<string, number>();
   const attestedFields = options.catalogFields ? new Set(options.catalogFields) : null;
   config.attributeMappings.forEach((mapping, index) => {
+    addCanonicalPairAttributeFinding(findings, `$.attributeMappings[${index}].attributeId`, mapping.attributeId);
     const priorAttribute = mappedAttributes.get(mapping.attributeId);
     if (priorAttribute !== undefined) {
       findings.push({
@@ -1106,6 +1177,7 @@ export function validateClassificationConfigBundle(
     const effective = isEffectiveTarget(target);
     if (target.kind === 'product_field') {
       if (effective && target.attributeId) {
+        addCanonicalPairAttributeFinding(findings, `${basePath}.attributeId`, target.attributeId);
         const priorAttributeTarget = effectiveProductFieldAttributes.get(target.attributeId);
         if (priorAttributeTarget !== undefined) {
           findings.push({

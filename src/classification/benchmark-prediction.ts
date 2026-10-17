@@ -13,11 +13,11 @@
  *   (`proposedValue`, `targetId`, `confidence`, `modelCallIds`) plus run /
  *   evidence / model-call provenance. NEVER reads
  *   `classification_proposal_decisions` (accepted revised values/targets), so
- *   later review edits cannot alter a captured bundle. Exact canonical
- *   Product Type IDs come from `getProductTypeIdFromValue(proposedValue) ??
- *   targetId`. Semantic abstention (`reviewable_abstention`) is distinct from
- *   service/validation failure (failed runs/stages/calls, unresolvable
- *   predictions): failures earn no abstention credit.
+ * later review edits cannot alter a captured bundle. Canonical Product Type
+ * IDs are extracted from a complete immutable Product Classification pair.
+ * Semantic abstention (`reviewable_abstention`) is distinct from
+ * service/validation failure (failed runs/stages/calls, unresolvable
+ * predictions): failures earn no abstention credit.
  *
  * Fail-closed rules (both sources):
  * - Missing predictions for any gold example → error.
@@ -41,6 +41,11 @@ import {
   effectiveReviewedValue,
   type QualificationGoldCore,
 } from './benchmark-scoring-helpers';
+import {
+  getCategoryIdFromValue,
+  getEffectiveClassificationPair,
+  getProductTypeIdFromValue,
+} from './assignment-projection';
 
 /**
  * Explicit prediction-source contract. New raw bundles carry
@@ -200,22 +205,11 @@ export function adjudicateGoldProductType(value: unknown): AdjudicatedGoldType {
   return { kind: GOLD_KIND_UNLABELED, typeId: null };
 }
 
-/**
- * Exact canonical Product Type ID from an IMMUTABLE proposal (never a
- * reviewer decision): `proposedValue { productTypeId }` wins, then a plain
- * string `proposedValue`, then `targetId`. Mirrors
- * `getEffectivePrimaryProductTypeId` for legacy `targetId`-carried IDs but
- * without the revised-value/target branches — decisions are answers, not
- * predictions. Returns null when the proposal carries no usable ID.
- */
-export function canonicalPreReviewTypeId(proposal: { proposedValue?: unknown; targetId?: string | null }): string | null {
-  const pv: unknown = proposal.proposedValue;
-  if (pv && typeof pv === 'object' && !Array.isArray(pv) && 'productTypeId' in pv) {
-    const id: unknown = pv.productTypeId;
-    if (typeof id === 'string' && id.length > 0) return id;
-  }
-  if (typeof pv === 'string' && pv.length > 0) return pv;
-  return typeof proposal.targetId === 'string' && proposal.targetId.length > 0 ? proposal.targetId : null;
+/** Exact Product Type ID from an immutable, complete Product Classification pair. */
+export function canonicalPreReviewTypeId(proposal: { proposedValue?: unknown }): string | null {
+  const categoryId = getCategoryIdFromValue(proposal.proposedValue);
+  const productTypeId = getProductTypeIdFromValue(proposal.proposedValue);
+  return categoryId && productTypeId ? productTypeId : null;
 }
 
 export interface GoldExampleForPrediction {
@@ -255,13 +249,13 @@ function emptyReviewedOutcomeAccumulator(): ReviewedOutcomeAccumulator {
 type ReviewedRunProposal = ReturnType<typeof classRunRepo.getProposalsByRun>[number];
 type ReviewedRunDecision = ReturnType<typeof classRunRepo.getLiveDecisionsByRun>[number];
 
-/** Apply one accepted primary-product-type proposal to the accumulator. */
+/** Apply one complete accepted Product Classification pair to the accumulator. */
 function applyReviewedTypeProposal(
   acc: ReviewedOutcomeAccumulator,
   proposal: ReviewedRunProposal,
-  value: string | null,
+  productTypeId: string | null,
 ): void {
-  acc.productType = value;
+  acc.productType = productTypeId;
   acc.confidence = proposal.confidence;
 }
 
@@ -300,10 +294,21 @@ function scoreReviewedOutcomeProposal(
   }
   const decision = decisions.find(d => d.proposalId === proposal.id);
   if (!decision || decision.decision !== 'accepted') return;
-  const value = effectiveReviewedValue(decision, proposal);
   const effectiveTarget = effectiveReviewedTargetId(decision, proposal);
-  if (proposal.proposalType === 'primary_product_type' || proposal.proposalType === 'product_classification') {
-    applyReviewedTypeProposal(acc, proposal, value);
+  const value = effectiveReviewedValue(decision, proposal);
+  if (proposal.proposalType === 'product_classification') {
+    const pair = getEffectiveClassificationPair({
+      ...proposal,
+      hasRevisedValue: decision.hasRevisedValue,
+      revisedValue: decision.revisedValue,
+      hasRevisedTargetId: decision.hasRevisedTargetId,
+      revisedTargetId: decision.revisedTargetId,
+    });
+    applyReviewedTypeProposal(
+      acc,
+      proposal,
+      pair.categoryId && pair.productTypeId ? pair.productTypeId : null,
+    );
   } else if (proposal.proposalType === 'category_page') {
     // Page labels use the display name from the effective value — never the
     // stable Page ID (issue #17 D1).
@@ -407,13 +412,13 @@ function evidenceFingerprint(evidence: Array<{ source: unknown; snippet: unknown
  * `classification_proposal_decisions` — reviewer revised values/targets and
  * later review edits cannot alter the result.
  *
- * Product Type resolution: among non-stale `primary_product_type` proposals,
+ * Product Classification resolution: among non-stale canonical pair proposals,
  * the single highest-confidence entry wins (`confidence`, then `createdAt`,
- * then `id` for determinism) and its exact canonical ID comes from
- * `canonicalPreReviewTypeId`. Zero such proposals → semantic abstention when
- * a `reviewable_abstention` names the product-type stage, else a
- * `no_prediction` service failure. Two+ winners with distinct IDs (a tie the
- * deterministic order cannot break) → `ambiguous_prediction` failure.
+ * then `id` for determinism) and its Product Type ID is read from the complete
+ * pair. Zero such proposals → semantic abstention when a `reviewable_abstention`
+ * names the classification stage, else a `no_prediction` service failure.
+ * Two+ winners with distinct IDs (a tie the deterministic order cannot break) →
+ * `ambiguous_prediction` failure.
  * Semantic abstention is an explicit outcome; every `failed` outcome earns no
  * abstention credit downstream.
  */
@@ -674,7 +679,7 @@ function collectPreReviewPages(
 /** Deterministic type-proposal order: confidence, then createdAt, then id. */
 function sortPreReviewTypeProposals(proposals: PreReviewProposal[]): PreReviewProposal[] {
   return proposals
-    .filter(p => p.proposalType === 'primary_product_type')
+    .filter(p => p.proposalType === 'product_classification')
     .sort((a, b) =>
       b.confidence - a.confidence
       || (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0)

@@ -24,7 +24,7 @@ import {
   computeLegacyConfigHash,
   configHashMatches,
 } from '../../db/repositories/classification-config-repo';
-import { createRun, completeRun, getProposalsByRun, getStageResults, getEvidenceByRun, recordDecision, getAcceptedProposals } from '../../db/repositories/classification-run-repo';
+import { createRun, completeRun, getProposalsByRun, getStageResults, getEvidenceByRun, recordDecision } from '../../db/repositories/classification-run-repo';
 import { setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
 import { runPipeline } from '../../classification/pipeline-runner';
 import type { ClassificationStageName } from '../../classification/types';
@@ -169,7 +169,15 @@ describe('Classification Pipeline Integration', () => {
     app.route('/api', catalogClassificationRoutes);
     const detail = await app.request(`/api/products/${sku}/classification`);
     expect(detail.status).toBe(200);
-    expect((await detail.json() as { configDrift: boolean }).configDrift).toBe(false);
+    const detailBody = await detail.json() as {
+      configDrift: boolean;
+      classificationReadiness: { ok: boolean; code: string; reason: string };
+    };
+    expect(detailBody.configDrift).toBe(false);
+    expect(detailBody.classificationReadiness).toMatchObject({
+      ok: false,
+      code: 'profile_unresolved',
+    });
 
     writeProductFile(workspacePath, {
       sku,
@@ -198,7 +206,7 @@ describe('Classification Pipeline Integration', () => {
     expect(abstentions.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('produces attribute proposals via alias matching', async () => {
+  it('does not generate attributes from a legacy accepted pair without frozen V2 authority', async () => {
     const config = loadClassificationConfig(workspacePath);
     const { id: snapId, hash: snapHash } = createConfigSnapshot(workspaceId, config);
     const run = createRun(workspaceId, 'TEST-SKU-2', snapId, snapHash);
@@ -210,9 +218,10 @@ describe('Classification Pipeline Integration', () => {
     persistFixtureEvidence(run.id, evidence);
     const result = await runPipeline([evidenceExtractionStage, primaryProductTypeStage, attributeApplicabilityStage, productAttributeProposalsStage], { workspacePath, workspaceId, runId: run.id, configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() } }, { sku: 'TEST-SKU-2', evidence, acceptedProposals: [acceptedType], allProposals: [] });
     const fieldProposals = result.proposals.filter(p => p.proposalType === 'field_assignment');
-    expect(fieldProposals.length).toBeGreaterThan(0);
-    recordDecision({ id: randomUUID(), proposalId: fieldProposals[0].id, decision: 'accepted', revisedFromId: null, reviewerId: null, reviewerNote: null, revisedValue: null, revisedTargetId: null, decisionKey: null, supersededAt: null, createdAt: new Date().toISOString() });
-    expect(getAcceptedProposals('TEST-SKU-2', run.id).length).toBeGreaterThan(0);
+    expect(fieldProposals).toEqual([]);
+    expect(result.proposals.some(
+      proposal => proposal.proposalType === 'reviewable_abstention' && proposal.targetId === 'product_attribute_proposals',
+    )).toBe(true);
   });
 
   it('distributor evidence passes through reviewable classification without official labeling or null-URL violation', async () => {
@@ -372,7 +381,7 @@ describe('Classification Pipeline Integration', () => {
     expect(flavorProposal).toBeUndefined();
   });
 
-  it('produces type-gated attribute proposals only after the Product Type is accepted (reviewed facts carry forward)', async () => {
+  it('does not execute legacy reviewed-type history without frozen V2 authority', async () => {
     const config = loadClassificationConfig(workspacePath);
     const { id: snapId, hash: snapHash } = createConfigSnapshot(workspaceId, config);
     const run = createRun(workspaceId, 'TEST-SKU-REVIEWED', snapId, snapHash, {
@@ -408,14 +417,13 @@ describe('Classification Pipeline Integration', () => {
     );
 
     const fieldProposals = result.proposals.filter(p => p.proposalType === 'field_assignment');
-    expect(fieldProposals.length).toBeGreaterThanOrEqual(1);
-    const flavorProposal = fieldProposals.find(p => p.targetId === 'flavor');
-    expect(flavorProposal).toBeDefined();
-    expect(flavorProposal!.status).toBe('pending');
-    expect(flavorProposal!.snapshotHash).toBe(runtime.snapshotHash);
+    expect(fieldProposals).toEqual([]);
+    expect(result.proposals.some(
+      proposal => proposal.proposalType === 'reviewable_abstention' && proposal.targetId === 'product_attribute_proposals',
+    )).toBe(true);
   });
 
-  it('uses live-store curation target options for a selected ProductField', async () => {
+  it('does not use live field-option caches as classification authority without a frozen snapshot', async () => {
     const db = getDb();
     const now = new Date().toISOString();
     upsertRegistryEntry({
@@ -478,8 +486,10 @@ describe('Classification Pipeline Integration', () => {
       { sku: 'TEST-SKU-24', evidence, acceptedProposals: [], allProposals: [] },
     );
 
-    const proposal = result.proposals.find(p => p.proposalType === 'field_assignment' && p.targetId === 'field-productfield24');
-    expect(proposal?.proposedValue).toBe('Cat Toys');
+    expect(result.proposals.filter(proposal => proposal.proposalType === 'field_assignment')).toEqual([]);
+    expect(result.proposals.some(
+      proposal => proposal.proposalType === 'reviewable_abstention' && proposal.targetId === 'product_attribute_proposals',
+    )).toBe(true);
   });
 
   it('discovers ProductField candidates from product_index even when field_registry is incomplete', () => {
@@ -582,7 +592,7 @@ describe('Classification Pipeline Integration', () => {
     syncConfigToCache(workspaceId, loadClassificationConfig(workspacePath));
   });
 
-  it('product field proposals work without product type target', async () => {
+  it('requires a frozen canonical pair before producing product-field proposals', async () => {
     // Save an explicit config with product_field target but no product_type,
     // so we are not affected by any prior test's config mutations.
     const now = new Date().toISOString();
@@ -621,7 +631,10 @@ describe('Classification Pipeline Integration', () => {
     );
 
     const fieldProposals = result.proposals.filter(p => p.proposalType === 'field_assignment');
-    expect(fieldProposals.length).toBeGreaterThanOrEqual(1);
+    expect(fieldProposals).toEqual([]);
+    expect(result.proposals.some(
+      proposal => proposal.proposalType === 'reviewable_abstention' && proposal.targetId === 'product_attribute_proposals',
+    )).toBe(true);
   });
 
   // ─── Fail-closed tests ─────────────────────────────────────────────────
@@ -931,7 +944,7 @@ describe('Classification Pipeline Integration', () => {
     if (!gate.ok) expect(gate.code).toBe('pending_proposals');
   });
 
-  it('allows an exact completed active run only after every proposal has a decision', () => {
+  it('rejects a legacy run after every proposal is decided when frozen V2 authority is missing', () => {
     const item = createReviewGateItem('PASS');
     const run = createRun(workspaceId, item.upc, null, null, item.id);
     completeRun(run.id, 'completed_with_abstentions');
@@ -941,12 +954,14 @@ describe('Classification Pipeline Integration', () => {
     // assignment resolving into the active verified import.
     writeCurationData(item.id, { suggestedPages: ['Dog Food'] });
 
-    expect(validateReviewCompletionGate({
+    const gate = validateReviewCompletionGate({
       workspaceId,
       onboardingItemId: item.id,
       productSku: item.upc,
       activeRunId: run.id,
-    })).toEqual({ ok: true, proposalCount: 2 });
+    });
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.code).toBe('profile_unresolved');
   });
 
   it('fails closed for null or wrong onboarding item ownership', () => {
@@ -1013,11 +1028,11 @@ describe('Classification Pipeline Integration', () => {
     expect(gate.ok).toBe(false);
     if (!gate.ok) {
       expect(gate.code).toBe('semantic_validation_blocked');
-      expect(gate.reason).toContain('family invariant');
+      expect(gate.reason).toContain('Brand conflict.');
     }
   });
 
-  it('passes an item whose semanticValidation is passed', () => {
+  it('semantic validation pass does not bypass missing frozen V2 classification authority', () => {
     const item = createReviewGateItem('PASSED-SEM');
     const run = createRun(workspaceId, item.upc, null, null, item.id);
     completeRun(run.id, 'completed');
@@ -1030,7 +1045,8 @@ describe('Classification Pipeline Integration', () => {
     });
 
     const gate = validateReviewCompletionGate({ workspaceId, onboardingItemId: item.id, productSku: item.upc, activeRunId: run.id });
-    expect(gate.ok).toBe(true);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.code).toBe('profile_unresolved');
   });
 
   it('fails closed on corrupt curation data JSON (never review-ready)', () => {
@@ -1051,7 +1067,7 @@ describe('Classification Pipeline Integration', () => {
     }
   });
 
-  it('passes a legacy item with curation data but no semanticValidation key', () => {
+  it('legacy curation data without semanticValidation remains blocked without frozen V2 authority', () => {
     const item = createReviewGateItem('LEGACY-SEM');
     const run = createRun(workspaceId, item.upc, null, null, item.id);
     completeRun(run.id, 'completed');
@@ -1063,7 +1079,8 @@ describe('Classification Pipeline Integration', () => {
     });
 
     const gate = validateReviewCompletionGate({ workspaceId, onboardingItemId: item.id, productSku: item.upc, activeRunId: run.id });
-    expect(gate.ok).toBe(true);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.code).toBe('profile_unresolved');
   });
 
   it('defaults isBulkAcceptable to false on all proposals even with high confidence (Issue #10)', async () => {
@@ -2327,7 +2344,7 @@ describe('Classification Pipeline Integration', () => {
     expect(JSON.parse(hydrated.contradicting_evidence_ids_json)).toEqual(['ev-contradict']);
   });
 
-  it('persists a reviewable brand proposal with DISJOINT roles when brand assertions disagree by case (issue #17 pass 5c)', async () => {
+  it('never emits or persists a Brand assignment even when source assertions conflict (ADR 0041)', async () => {
     const baseConfig = loadClassificationConfig(workspacePath);
     const brandAttribute = {
       id: 'brand',
@@ -2421,32 +2438,14 @@ describe('Classification Pipeline Integration', () => {
       configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() },
     }, { sku: 'SKU-BRAND-CASE', evidence, acceptedProposals: [], allProposals: [] });
 
-    // No rollback: exactly one persisted proposal.
-    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals).toEqual([]);
     const persisted = getDb().query(
       'SELECT COUNT(*) AS c FROM classification_proposals WHERE run_id = ?',
     ).get(run.id) as { c: number };
-    expect(persisted.c).toBe(1);
-
-    // Disjoint roles: case-distinct disagreement is a visible conflict with
-    // ONLY contradicting ids — the selected assertion is never also supporting.
-    const proposal = result.proposals[0];
-    const support = proposal.supportingEvidenceIds ?? [];
-    const conflict = proposal.contradictingEvidenceIds ?? [];
-    expect(support).toEqual([]);
-    expect([...conflict].sort()).toEqual(['brand-ev-one', 'brand-ev-two']);
-    expect(proposal.isBulkAcceptable).toBe(false);
-
-    const links = getDb().query(
-      'SELECT evidence_id, relation FROM classification_proposal_evidence WHERE proposal_id = ? ORDER BY evidence_id',
-    ).all(proposal.id) as Array<{ evidence_id: string; relation: string }>;
-    expect(links).toEqual([
-      { evidence_id: 'brand-ev-one', relation: 'contradicting' },
-      { evidence_id: 'brand-ev-two', relation: 'contradicting' },
-    ]);
+    expect(persisted.c).toBe(0);
   });
 
-  it('I7: a mapping move through the editor makes an earlier run config-drifted', async () => {
+  it('an approved serialization edit through the mapping editor makes an earlier run config-drifted', async () => {
     // The mapping editor operates only on an ACTIVE v2 bundle, but this
     // suite's shared workspace is v1, so this test builds its own v2
     // workspace (same shared DB; workspace-scoped reads keep it isolated).
@@ -2558,14 +2557,14 @@ describe('Classification Pipeline Integration', () => {
     };
     expect(configDrift()).toBe(false);
 
-    // Apply a legal mapping move via the mapping editor (in-batch unmap + map;
-    // ProductField4 is free so no D3 collision).
-    applyFieldMappingEdits(v2Path, v2WorkspaceId, [
-      { catalogField: 'ProductField26', attributeId: null },
-      { catalogField: 'ProductField4', attributeId: 'product-feature' },
-    ], { gitEnabled: false });
+    // A legal serialization change keeps the attribute bound to its
+    // authenticated classification role while changing frozen output meaning.
+    applyFieldMappingEdits(v2Path, v2WorkspaceId, [{
+      catalogField: 'ProductField26',
+      attributeId: 'product-feature',
+      serialization: { kind: 'scalar', prefix: 'Feature: ', suffix: '' },
+    }], { gitEnabled: false });
 
-    // The prior run's config snapshot no longer matches the active authority.
     expect(configDrift()).toBe(true);
   });
 

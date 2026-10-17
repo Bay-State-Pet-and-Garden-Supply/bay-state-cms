@@ -22,7 +22,7 @@ import { extractProtectedTokens } from './title-prompt-template';
 
 import { getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
-import { clearProductPages, assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions } from '../db/repositories/page-repo';
+import { assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions, getActivePageImportHash } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
 import { normalizeFileName, slugifyFileName, uniquifyFileNames, FILE_NAME_EXTENSION } from '../shopsite/file-name';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
@@ -75,15 +75,12 @@ import type { ClassificationProposal } from '../shared/schemas/classification';
 import { getCachedAttributeMappings, getCachedBrands } from '../db/repositories/classification-config-repo';
 import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import { resolveBrand } from '../classification/brand-resolution';
-import { getPageIdentityId, pageNameFromPageValue } from '../shared/proposal-display';
 import {
   getEffectivePrimaryProductTypeId,
-  getEffectiveProposalTargetId,
-  getEffectiveProposalValue,
-  serializeAttributeValue,
+  buildAssignmentProjection,
 } from '../classification/assignment-projection';
 import type { Product } from '../shared/types';
-import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
+import { isProtectedCatalogField } from '../classification/classification-ownership';
 import { evaluateCanonicalReadiness } from '../classification/classification-readiness';
 
 /**
@@ -310,7 +307,8 @@ async function downloadAndProcessImages(
  * P2, preserved), and phase (c) re-runs the same computation inside the
  * transaction as the FINAL authority (failure recording). Deterministic and
  * cheap — the DB state is re-read on every invocation.
- * Legacy items (no run pointer) pass with `ok: true` and empty proposals.
+ * Historical items without a run pointer have no classification authority;
+ * embedded proposal history is never an executable promotion fallback.
  * Issue #106 C3: for run-pointer (pipeline) items the filename ownership
  * snapshot is REQUIRED — a null snapshot fails closed with
  * `naming_snapshot_missing` instead of silently skipping the ownership
@@ -344,11 +342,7 @@ export function computePromotionGate(
   const activeRunId = activeRun?.id ?? null;
   // Accepted-only: a valid run contributes only proposals whose latest live
   // decision is 'accepted' (never deferred/rejected/pending/decisionless).
-  const activeProposals = activeRunId
-    ? getAcceptedProposals(item.upc, activeRunId)
-    : (item.curationData?.classificationProposals || []).filter(
-        (p: any) => p.status === 'accepted',
-      );
+  const activeProposals = activeRunId ? getAcceptedProposals(item.upc, activeRunId) : [];
   const parentRun: CohortRun | null = activeRun?.cohortRunId
     ? getCohortRunById(activeRun.cohortRunId)
     : null;
@@ -361,6 +355,33 @@ export function computePromotionGate(
     activeRun && activeRun.configSnapshotHash
       ? getRuntimeSnapshotByHash(workspaceId, activeRun.configSnapshotHash)
       : null;
+  if ((activeRun || activeProposals.length > 0) && !snapshot) {
+    return { ok: false, reason: 'Classification snapshot authority is unavailable. Reclassify before promotion.', activeRun, activeProposals };
+  }
+  if (snapshot) {
+    const verifiedPages = listVerifiedPageOptions(workspaceId);
+    if (activeProposals.some(proposal => proposal.proposalType === 'category_page')) {
+      const frozenImportHash = snapshot.pageImportHash;
+      if (!frozenImportHash || frozenImportHash !== getActivePageImportHash(workspaceId)) {
+        return { ok: false, reason: 'Page import authority changed or is unavailable (page_decision_stale). Re-review before promotion.', activeRun, activeProposals };
+      }
+    }
+    // Shared interpretation also verifies the original identity of removals.
+    // The final draft repeats it against the actual existing product values.
+    const projection = buildAssignmentProjection(activeProposals, {}, [], getCachedAttributeMappings(workspaceId),
+      new Set(verifiedPages.map(page => page.id)), {
+        attributes: snapshot.attributes,
+        frozenMappings: snapshot.attributeMappings,
+        verifiedPageNames: new Map(verifiedPages.map(page => [page.id, page.name])),
+        categories: snapshot.categories,
+        productTypes: snapshot.productTypes,
+      });
+    if (projection.skipped.length > 0) {
+      return { ok: false,
+        reason: `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`,
+        activeRun, activeProposals };
+    }
+  }
   const effectiveTypeId = resolvePromotionEffectiveTypeId(parentRun, activeProposals, snapshot);
   // Ticket #124: an unresolved Listing Evidence Gap refuses promotion
   // BEFORE any image side effects (phase-a gate), mirroring the approve
@@ -406,11 +427,8 @@ export function computePromotionGate(
     acceptedProposals: activeProposals,
     dependencyLookup: (proposalId: string) => listDependenciesForProposal(proposalId),
     currentAuthorityHashes,
-    // e09 B3 (P11): CURRENT verified Page identities of the active import —
-    // an accepted category_page proposal that no longer resolves into this
-    // set refuses the item before any draft write. Legacy items (no run
-    // pointer) never reach the check inside the gate.
-    verifiedPageIds: new Set(listVerifiedPageOptions(workspaceId).map(page => page.id)),
+    // Verified page addition/removal authority is checked by the shared
+    // projection above, not independently reinterpreted by this gate.
   });
   if (!gate.ok) {
     return {
@@ -437,14 +455,10 @@ export function computePromotionGate(
     };
   }
 
-  // Issue #106 SEQUENCE 2a: naming-invariant gate — the non-bypassable
-  // guarantee point runs in phase (a) (before image side effects) AND in
-  // phase (c) (final authority), because both phases share this function.
-  // Assesses the ACTUAL FINAL draft title (never 'applied' metadata).
-  // Legacy compat (PR11 C4 byte-identical): items with no classification
-  // run pointer promote exactly as before — the naming guarantee applies
-  // only to run-pointer (pipeline) items, mirroring validatePromotionGate's
-  // legacy passthrough.
+  // Issue #106 SEQUENCE 2a: naming invariants remain non-bypassable before
+  // image side effects and at final authority. The gate above refuses items
+  // without a current classification run; this condition only narrows the
+  // pointer for TypeScript.
   if (runPointer) {
     const namingInput = buildNamingAssessmentInput(item, workspaceId, activeRun?.cohortRunId ?? null);
     const naming = assessNamingInvariants(namingInput);
@@ -476,10 +490,9 @@ export function computePromotionGate(
     }
   }
 
-  // Issue #354: shared canonical readiness (pair + profile + required values)
-  // for run-pointer items — the same result catalog apply enforces. Legacy
-  // items (no run) skip: no classification ran, nothing to resolve. Runs in
-  // BOTH phases since both share this function (phase-c is the final recheck).
+  // Issue #354: the same canonical pair/profile/required-value result used by
+  // catalog apply is checked in both phases. Missing or legacy run authority
+  // was already refused by the shared promotion gate above.
   if (runPointer && activeRunId) {
     const readiness = evaluateCanonicalReadiness({ workspaceId, runId: activeRunId });
     if (!readiness.ok) {
@@ -1730,21 +1743,9 @@ export async function prepareDraftPromotion(
         productOnPages: [] as string[],
       };
 
-      // --- Apply accepted classification proposals ---
-      // Build custom fields from accepted field assignment proposals
+      // Accepted classification changes are interpreted by the same module
+      // as approved preview and catalog application; persistence stays here.
       const classificationCustomFields: Record<string, string> = {};
-      const classificationPageNames: string[] = [];
-      const classificationPageProposals: Array<{ pageId: string | null; pageName: string }> = [];
-      // Accepted page proposals whose identity is not verified in the active
-      // import. Visible and non-blocking: they are never serialized into
-      // ProductOnPages, but they do not block the rest of the draft.
-      const skippedPageRefs: Array<{ proposalId: string; pageName: string }> = [];
-      // story: e04s02 — stale/missing field mappings are visible and non-blocking: field is dropped, history records skippedFields
-      const skippedFieldRefs: Array<{ proposalId: string; attributeId: string; reason: 'stale_mapping' | 'missing_mapping' | 'empty_catalog_field' | 'protected_target_refused' }> = [];
-      // ADR 0041 / issue #349: attributable refusals for protected targets.
-      const classificationRefusals: Array<{ proposalId: string; code: string; reason: string }> = [];
-      let acceptedProductType: string | null = null;
-
       // ── PR11 Promotion gate (semantic / parent-currentness / stale) ────
       // Deterministic per-item fail-closed check AFTER the run-pointer
       // validation and BEFORE any proposal/draft work (the SAME computation
@@ -1767,124 +1768,55 @@ export async function prepareDraftPromotion(
       }
       const activeProposals = gateInfo.activeProposals;
 
-      // Only identities verified in the currently active Page import are
-      // serializable, and the verified catalog is the DISPLAY-NAME authority:
-      // a verified Page ID always resolves to the verified page's canonical
-      // name (never the proposal's variant text, never the raw Page ID).
-      // Without an active import the set is empty — fail closed.
-      const verifiedPageOptions = listVerifiedPageOptions(batch.workspaceId);
-      const verifiedPageIds = new Set(verifiedPageOptions.map(p => p.id));
-      const verifiedNameById = new Map(verifiedPageOptions.map(p => [p.id, p.name]));
-      // #142: semantic promotion slots resolve through the workspace's
-      // active Attribute Mappings; physical slots are fallback-only.
+      const verifiedPageOptions = listVerifiedPageOptions(workspaceId);
+      const verifiedPageIds = new Set(verifiedPageOptions.map(page => page.id));
+      const verifiedNameById = new Map(verifiedPageOptions.map(page => [page.id, page.name]));
       const mappings = getCachedAttributeMappings(workspaceId);
       const brandCatalogField = resolveBrandCatalogField(mappings);
       const arrivalDateCatalogField = resolveArrivalDateCatalogField(mappings);
-      if (activeProposals.length > 0) {
-        for (const proposal of activeProposals) {
-          // Effective reviewed target/value win over the immutable prediction.
-          const targetId = getEffectiveProposalTargetId(proposal);
-          if (proposal.proposalType === 'field_assignment' && targetId) {
-            // ADR 0041 / issue #349: classification never writes Brand or
-            // other Protected Product Data — including via revised targets.
-            // A revised/historical Brand proposal cannot authorize a
-            // protected write; refuse attributably instead of applying it.
-            if (isProtectedTargetId(targetId, mappings) || isProtectedTargetId(proposal.targetId, mappings)) {
-              const refusal = protectedTargetRefusal(targetId ?? proposal.targetId);
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'protected_target_refused' });
-              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
-              continue;
-            }
-            const mapping = mappings.find(m => m.attributeId === targetId);
-            if (!mapping) {
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'missing_mapping' });
-            } else if (mapping.isStale) {
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'stale_mapping' });
-            } else if (!mapping.catalogField) {
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'empty_catalog_field' });
-            } else if (isProtectedCatalogField(mapping.catalogField, targetId, mappings)) {
-              // Issue #355: the resolved catalog field is Brand/identity/
-              // operational/native data — refuse attributably, never reroute.
-              const refusal = protectedTargetRefusal(mapping.catalogField);
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'protected_target_refused' });
-              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
-            } else {
-              const value = getEffectiveProposalValue(proposal);
-              const str = serializeAttributeValue(value, mapping.serialization);
-              if (str || (proposal.hasRevisedValue && value === null)) {
-                classificationCustomFields[mapping.catalogField] = str;
-              }
-            }
-          } else if (proposal.proposalType === 'category_page' && targetId) {
-            const pageId = getPageIdentityId(proposal);
-            const pageName = pageNameFromPageValue(getEffectiveProposalValue(proposal));
-            // Issue #353: Brand pages are outside classifier ownership —
-            // never promote one, even if review missed it (refused at review;
-            // defense-in-depth skip here). Existing Brand placement lives
-            // outside the classification draft, never inside it.
-            if (isBrandPageProposal(pageName)) {
-              const refusal = protectedTargetRefusal(targetId);
-              skippedPageRefs.push({ proposalId: proposal.id, pageName: pageName ?? '' });
-              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
-              continue;
-            }
-            if (!pageId || !verifiedPageIds.has(pageId)) {
-              skippedPageRefs.push({ proposalId: proposal.id, pageName: pageName ?? '' });
-              continue;
-            }
-            // The verified catalog is the display-name authority: a verified
-            // Page ID with a missing/unusable proposal name still resolves to
-            // the verified page's canonical name. The Page ID is NEVER
-            // serialized as a page name.
-            const verifiedName = verifiedNameById.get(pageId) ?? '';
-            if (!verifiedName) {
-              skippedPageRefs.push({
-                proposalId: proposal.id,
-                pageName: `[page ${pageId} missing display name]`,
-              });
-              continue;
-            }
-            classificationPageNames.push(verifiedName);
-            classificationPageProposals.push({ pageId, pageName: verifiedName });
-          } else if (proposal.proposalType === 'product_classification') {
-            // ADR 0041: legacy `primary_product_type` rows are history-only.
-            acceptedProductType = getEffectivePrimaryProductTypeId(proposal);
-          }
-        }
+      const frozenSnapshot = gateInfo.activeRun?.configSnapshotHash
+        ? getRuntimeSnapshotByHash(workspaceId, gateInfo.activeRun.configSnapshotHash) : null;
+      const currentPageAssignments = getProductPageAssignments(item.upc);
+      const currentPageNames = [...new Set([
+        ...(existingApproved?.core.productOnPages ?? []),
+        ...currentPageAssignments.map(page => page.pageName),
+      ])];
+      const projection = buildAssignmentProjection(
+        activeProposals,
+        existingApproved?.customFields ?? {},
+        currentPageNames,
+        mappings,
+        verifiedPageIds,
+        {
+          attributes: frozenSnapshot?.attributes,
+          frozenMappings: frozenSnapshot?.attributeMappings,
+          verifiedPageNames: verifiedNameById,
+          categories: frozenSnapshot?.categories,
+          productTypes: frozenSnapshot?.productTypes,
+        },
+      );
+      if (projection.skipped.length > 0) {
+        const errMsg = `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`;
+        completePromotionStage(item.id, false, errMsg);
+        failures.push({ itemId: item.id, error: errMsg });
+        continue;
       }
+      for (const field of projection.fields) classificationCustomFields[field.catalogField] = field.proposedValue;
+      const classificationPageNames = projection.pages.final;
+      const removedPageIds = new Set(projection.pages.removals.map(page => page.pageId));
+      const classificationPageProposals = [
+        ...currentPageAssignments.filter(page => page.pageId && verifiedPageIds.has(page.pageId)
+          && !removedPageIds.has(page.pageId) && classificationPageNames.includes(page.pageName)),
+        ...verifiedPageOptions.filter(page => classificationPageNames.includes(page.name)
+          && !removedPageIds.has(page.id)).map(page => ({ pageId: page.id, pageName: page.name })),
+        ...projection.pages.additions,
+      ];
+      const acceptedProductType = activeProposals.find(proposal => proposal.proposalType === 'product_classification');
 
-
-      // Explicit/manual persisted page assignments are the fallback if we still
-      // have nothing. Only verified identities qualify; the display name again
-      // comes from the verified catalog. Name-only rows are review context and
-      // are tracked as skipped — they never satisfy the mandatory Pages gate.
+      // Listing readiness still requires an existing verified page. Classification
+      // only adds/removes reviewed taxonomy pages; all other placements survive.
       if (classificationPageProposals.length === 0) {
-        try {
-          const dbPages = getProductPageAssignments(item.upc);
-          for (const p of dbPages) {
-            if (p.pageName) {
-              if (p.pageId && verifiedPageIds.has(p.pageId)) {
-                const verifiedName = verifiedNameById.get(p.pageId) ?? p.pageName;
-                classificationPageNames.push(verifiedName);
-                classificationPageProposals.push({ pageId: p.pageId, pageName: verifiedName });
-              } else {
-                skippedPageRefs.push({ proposalId: `db:${p.pageName}`, pageName: p.pageName });
-              }
-            }
-          }
-        } catch { /* ignore */ }
-      }
-
-      // Mandatory Pages gate (fail closed): at least one VERIFIED page
-      // assignment is required. Unverified accepted proposals and name-only
-      // manual rows are visible skips (reported in the failure payload) but
-      // they never satisfy the gate — a product must never promote with zero
-      // verified Category Page assignments.
-      if (classificationPageProposals.length === 0) {
-        const errMsg = skippedPageRefs.length > 0
-          ? 'No verified page assignments exist for this item (accepted page proposals were unverified or lacked a usable display name)'
-          : 'No accepted product page proposals or manual page assignments exist for this item';
-        console.warn(`[DraftPromoter] Skipping item ${item.name} (${item.upc}) - ${errMsg}`);
+        const errMsg = 'No verified page assignments remain after reviewed classification changes.';
         completePromotionStage(item.id, false, errMsg);
         failures.push({ itemId: item.id, error: errMsg });
         continue;
@@ -2000,19 +1932,12 @@ export async function prepareDraftPromotion(
         },
       };
 
-      // ── First-class Category Page assignments (#142) ─────────────────
-      // Write ONLY the verified assignments (they carry the verified
-      // catalog's display names) directly to core.productOnPages, deduped.
-      // Never re-read unverified/name-only DB rows: an unchecked persisted
-      // name must not reach productOnPages. The codec serializes this array
-      // to DTD-compliant ProductOnPages XML at export — no XML strings here.
-      const pageNames: string[] = [];
-      for (const pp of classificationPageProposals) {
-        if (pp.pageName && !pageNames.includes(pp.pageName)) {
-          pageNames.push(pp.pageName);
-        }
-      }
-      coreProduct.productOnPages = pageNames;
+      // Preserve every existing placement except the explicit reviewed
+      // taxonomy removals. The codec owns ProductOnPages serialization.
+      coreProduct.productOnPages = classificationPageNames;
+      const preservedUnknown = { ...(product.shopsite.preserved.unknownElements ?? {}) };
+      delete preservedUnknown['ProductOnPages'];
+      product.shopsite.preserved = { ...product.shopsite.preserved, unknownElements: preservedUnknown };
 
       // Persist the originating item on receipt-created catalog drafts. This
       // is record linkage (not a receipt-derived success projection), retained
@@ -2073,30 +1998,24 @@ export async function prepareDraftPromotion(
         // Audit persistence never blocks promotion.
       }
 
-      // Assign product to verified pages from classification proposals.
-      // Every proposal in classificationPageProposals has a verified identity
-      // (name-only rows were filtered above and recorded as skipped).
-      const finalPages = classificationPageNames;
-      if (finalPages.length > 0) {
-        clearProductPages(item.upc);
-
-        for (const pp of classificationPageProposals) {
-          if (pp.pageId) {
-            assignProductToPageId(item.upc, pp.pageId, pp.pageName);
-          }
-        }
+      // Persist only the reviewed delta; never clear unrelated/manual or
+      // Brand assignments as a side effect of classification promotion.
+      for (const page of projection.pages.removals) {
+        getDb().query('DELETE FROM product_pages WHERE product_sku = ? AND (page_id = ? OR page_name = ?)')
+          .run(item.upc, page.pageId, page.pageName);
+      }
+      for (const page of projection.pages.additions) {
+        assignProductToPageId(item.upc, page.pageId, page.pageName);
       }
 
       // Record classification history for the promotion action
       try {
         recordHistoryEvent(workspaceId, item.upc, 'promotion', {
           acceptedProposalCount: classificationPageNames.length + Object.keys(classificationCustomFields).length,
-          acceptedProductType,
+          acceptedProductType: acceptedProductType ? getEffectivePrimaryProductTypeId(acceptedProductType) : null,
           appliedFields: Object.keys(classificationCustomFields),
-          appliedPages: classificationPageNames,
-          skippedPages: skippedPageRefs.map(s => s.pageName),
-          skippedFields: skippedFieldRefs.map(s => `${s.attributeId}:${s.reason}`),
-          refusedProtected: classificationRefusals.map(s => `${s.proposalId}:${s.code}`),
+          appliedPages: projection.pages.additions.map(page => page.pageName),
+          removedPages: projection.pages.removed,
         } as Record<string, unknown>);
       } catch {
         // Non-blocking

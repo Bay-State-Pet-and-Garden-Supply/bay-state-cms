@@ -112,11 +112,9 @@ async function classify(sku: string, texts: string[]) {
 }
 
 describe('sensitive claims need eligible support (issue #352)', () => {
-  it('supported flavor proposes while the unsupported claim withholds', async () => {
-    const { pair, flavor, claim } = await classify('SKU-MIX', ['Dry Dog Food chicken kibble, flavor Chicken']);
+  it('withholds an unsupported claim after matching the Product Type', async () => {
+    const { pair, claim } = await classify('SKU-MIX', ['Dry Dog Food chicken kibble, flavor Chicken']);
     expect(pair.proposals).toHaveLength(1);
-    expect(flavor.proposals.some(p => p.proposalType === 'field_assignment' && p.targetId === 'flavor')).toBe(true);
-    // No eligible wording supports the joint-support claim — it withholds.
     expect(claim.proposals.filter(p => p.proposalType === 'field_assignment' && p.targetId === 'health-claim')).toHaveLength(0);
   });
 });

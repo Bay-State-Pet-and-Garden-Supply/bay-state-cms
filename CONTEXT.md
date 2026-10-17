@@ -69,7 +69,7 @@ A Product Classification whose Category or Product Type is missing, conflicting,
 _Avoid_: Forced type, successful classification, guessed fallback
 
 **Classification Readiness**:
-A reviewed Product Classification with its configured Attribute Profile and applicable required values resolved. An unresolved required classification or profile requirement is not ready for product draft creation.
+Classification Readiness is achieved when a reviewed Product Classification has approved storefront values, its Attribute Profile is resolved, and every applicable required Classification Attribute has a current valid reviewed value. Optional unvalued or confirmed non-applicable attributes do not block; unresolved profile authority or unknown applicability for a required attribute keeps the product in Review and blocks draft creation.
 _Avoid_: Run completed, model confidence, hidden internal-type gate
 
 **Assistant**:
@@ -495,14 +495,16 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - Each configured **Product Classification** selects its **Attribute Profile**; profiles and identifiers are not additional types to predict or review.
 - A provisional **Product Classification** may drive dependent attribute and taxonomy-page proposals in one pass without making them catalog truth.
 - **Universal Classification Attributes** may be proposed from the SKU's own evidence under explicit configuration, without establishing **Classification Readiness**.
+- A **Universal Classification Attribute** may be proposed without a **Product Classification**, but it cannot resolve or bypass a missing or invalid **Attribute Profile** selected by an established **Product Classification**.
 - An **Unresolved Product Classification** is an explicit incomplete result, never a forced label or successful completed assignment.
 - Changing **Category** or **Product Type** is a **Proposal Decision Revision** that invalidates dependent proposals, applicability, page placement, and readiness before application.
 - Missing required **Category**, **Product Type**, profile configuration, or applicable required values keeps the product in **Review** before draft creation.
+- An explicitly empty **Attribute Profile** is resolved with no attribute requirements; a missing or invalid declared profile is unresolved.
 - An **Unmapped Product Type** or unsupported classification combination requires **Configuration Review**, not an invented assignment.
 - An **Attribute Profile** may be shared by multiple **Product Classifications**.
 - **Brand** is optional input context and never a classification assignment, replacement, removal, or brand-page proposal.
 - **Protected Product Data** cannot become a classifier target through an Attribute Mapping, profile, model output, or reviewed target revision.
-- Runtime enforcement lives in `src/classification/classification-ownership.ts` (shared allowlist/refusal contract consumed at proposal production, review validation, projection, and application).
+- Only a verified classification purpose authorizes a **Catalog Field** as an output; an **Attribute Mapping**, example values, or an empty slot cannot establish that ownership.
 - An **Attribute Profile** may define **Attribute Constraints** for each included **Product Attribute**.
 - An **Attribute Profile** may define **Attribute Applicability Conditions** for each included **Product Attribute**.
 - An **Attribute Applicability Condition** may use unreviewed proposals only for **Applicability Previews**.
@@ -551,7 +553,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A product can only be assigned to existing **Category Pages**.
 - A **Category Page** has one **Category Page Identity**.
 - An accepted Category Page assignment is validated by **Category Page Identity** before product draft creation.
-- An **Unavailable Category Page Assignment** becomes a **Skipped Draft Assignment**.
+- An accepted **Unavailable Category Page Assignment** requires resolution before product draft creation, not silent omission from a successful partial draft.
 - A product may have zero or more **Field Assignments**.
 - A **Field Assignment** records the value of one **Product Attribute** for one product.
 - A **Classification Removal Proposal** requires an explicit **Proposal Decision** before clearing an existing classification value or taxonomy-page assignment.
@@ -999,7 +1001,7 @@ _Avoid_: Table view, item list, batch detail view
 
 Catalog Product Classification extends the classification pipeline to existing ShopSite products (not just onboarding pipeline items).
 
-The domain terms above and ADR 0041 govern the desired single-classification contract. The architecture and operational details below describe the pre-cutover implementation, not a second business Product Type or an exception to reviewed removals.
+The domain terms above and ADR 0041 govern the active single-classification contract. Current implementation ownership is recorded in ADR 0041's Shared interpretations section. The architecture and operational details below are historical pre-cutover snapshots; they do not define a parallel business Product Type, live-cache fallback, or alternate review gate.
 
 ### Key Concepts
 

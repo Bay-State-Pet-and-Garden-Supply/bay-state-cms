@@ -1,15 +1,11 @@
 /**
- * Issue #350 slice 5 — effective pair + readiness seam (TDD).
+ * Issue #350 — own-SKU classification pair selection.
  *
- * The effective classification carries Category + Type with provenance;
- * readiness blocks drafts on unresolved Category, unresolved Type, missing
- * profile, or invalid combination — with a precise reason per gap. A
- * deliberately empty profile is valid (universal-only); a missing profile
- * is a gap, never silent universal-only success.
+ * Reviewed in-run decisions and compatible frozen facts precede provisional
+ * output; missing execution identity is never borrowed.
  */
 import { describe, it, expect } from 'bun:test';
 import { getEffectiveClassification } from '../../classification/effective-curation-type';
-import { evaluateClassificationReadiness } from '../../classification/config-validation';
 
 describe('effective pair + readiness (issue #350)', () => {
   it('reviewed pair yields both members with reviewed provenance', () => {
@@ -26,7 +22,7 @@ describe('effective pair + readiness (issue #350)', () => {
         } as any],
         allProposals: [],
       } as any,
-      {} as any,
+      { runId: 'r', workspaceId: 'ws' } as any,
     );
     expect(effective.effectiveTypeId).toBe('dog-food-dry');
     expect(effective.effectiveCategoryId).toBe('dog-food');
@@ -48,7 +44,18 @@ describe('effective pair + readiness (issue #350)', () => {
         allProposals: [],
       } as any,
       {
-        snapshot: { productTypes: [{ id: 'dog-food-dry', categoryId: 'dog-food' }] },
+        runId: 'later-run',
+        workspaceId: 'ws',
+        snapshot: {
+          productSku: 'S',
+          workspaceId: 'ws',
+          reviewedFacts: [{
+            proposalType: 'product_classification',
+            productSku: 'S',
+            workspaceId: 'ws',
+            value: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+          }],
+        },
       } as any,
     );
     expect(effective.effectiveTypeId).toBe('dog-food-dry');
@@ -63,7 +70,4 @@ describe('effective pair + readiness (issue #350)', () => {
     expect(effective.effectiveCategoryId).toBeNull();
   });
 
-  it('readiness reports precise codes (not silent success)', () => {
-    expect(typeof evaluateClassificationReadiness).toBe('function');
-  });
 });

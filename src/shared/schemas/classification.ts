@@ -460,6 +460,15 @@ export const ProductTypeConfigV2Schema = z.object({
    * Category side and validate with an explicit gap finding instead.
    */
   categoryId: ClassificationSlugSchema.nullable().optional(),
+  /**
+   * Exact approved ShopSite Facet Category / Facet Product Type values.
+   * Optional only so historic bundles remain parseable; active validation
+   * requires this mapping before the bundle can be used for writes.
+   */
+  websiteValues: z.object({
+    category: z.string().min(1),
+    productType: z.string().min(1),
+  }).strict().optional(),
   /** Invariant attribute values deterministically implied by this Product Type. */
   invariantAttributes: z
     .record(ClassificationSlugSchema, z.union([z.string(), z.array(z.string()).nonempty()]))
@@ -1085,6 +1094,49 @@ export const SubmitCatalogDecisionsRequestSchema = SubmitProposalDecisionsReques
 
 export type SubmitCatalogDecisionsRequest = z.infer<typeof SubmitCatalogDecisionsRequestSchema>;
 
+export const CanonicalReadinessCodeEnum = z.enum([
+  'ready',
+  'run_not_found',
+  'run_not_completed',
+  'pair_unresolved',
+  'core_mapping_unresolved',
+  'profile_unresolved',
+  'required_values_missing',
+]);
+export const RequiredValueStatusEnum = z.enum([
+  'missing',
+  'valued',
+  'not_applicable',
+  'optional_unvalued',
+  'required_unknown',
+  'optional_unknown',
+]);
+export const RequiredValueGapSchema = z.object({
+  attributeId: z.string(),
+  catalogField: z.string().nullable(),
+  status: RequiredValueStatusEnum,
+});
+/**
+ * Server-computed readiness for the reviewed Product Classification and its
+ * frozen Attribute Profile. Consumers display this result; they do not
+ * recompute classification rules.
+ */
+export const CanonicalClassificationReadinessSchema = z.object({
+  ok: z.boolean(),
+  code: CanonicalReadinessCodeEnum,
+  reason: z.string(),
+  details: z.object({
+    categoryId: z.string().nullable(),
+    productTypeId: z.string().nullable(),
+    profileId: z.string().nullable(),
+    requiredValues: z.array(RequiredValueGapSchema),
+  }),
+});
+export type CanonicalReadinessCode = z.infer<typeof CanonicalReadinessCodeEnum>;
+export type RequiredValueGap = z.infer<typeof RequiredValueGapSchema>;
+export type CanonicalClassificationReadinessResult = z.infer<typeof CanonicalClassificationReadinessSchema>;
+
+
 /**
  * Request body to apply accepted classification proposals as a change-set draft.
  */
@@ -1119,6 +1171,7 @@ export const CatalogClassificationRunDetailSchema = z.object({
     status: ClassificationStageStatusEnum,
     errorMessage: z.string().nullable(),
   })),
+  classificationReadiness: CanonicalClassificationReadinessSchema.nullable().optional(),
   projection: z.object({
     fields: z.array(z.object({
       catalogField: z.string(),
@@ -1135,6 +1188,7 @@ export const CatalogClassificationRunDetailSchema = z.object({
 });
 
 export type CatalogClassificationRunDetail = z.infer<typeof CatalogClassificationRunDetailSchema>;
+
 
 export const TypeReviewDetailSchema = z.object({
   reviewed: z.object({

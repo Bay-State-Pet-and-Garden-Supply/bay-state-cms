@@ -56,13 +56,12 @@ describe('canonical pair correction (issue #350)', () => {
     )).toThrow(/invalid_classification_pair/);
   });
 
-  it('a legacy type-only correction resolves through the approved mapping', () => {
+  it('keeps legacy type-only proposals history-only and refuses corrections', () => {
     const legacy = pairProposal({ proposalType: 'primary_product_type', targetId: 'dog-food-dry', proposedValue: { productTypeId: 'dog-food-dry' } });
-    const result = validateClassificationCorrection(
+    expect(() => validateClassificationCorrection(
       legacy,
       { hasRevisedValue: false, hasRevisedTargetId: true, revisedTargetId: 'cat-food-wet' },
       BUNDLE,
-    );
-    expect(result.hasRevisedTargetId).toBe(true);
+    )).toThrow(/canonical Product Classification proposal/);
   });
 });

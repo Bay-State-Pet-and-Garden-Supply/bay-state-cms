@@ -1,4 +1,4 @@
-import { findAcceptedPairDecision, listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById } from '../db/repositories/classification-run-repo';
+import { listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById } from '../db/repositories/classification-run-repo';
 import {
   getManualEvidenceAttestation,
   isManualEvidenceAttestationActive,
@@ -13,8 +13,7 @@ import {
   isManualFieldValueInherited,
 } from '../onboarding/manual-evidence-eligibility';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
-import { getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
-import { isUniversalAttribute } from './applicability-evaluator';
+import { evaluateCanonicalReadiness } from './classification-readiness';
 import {
   CohortSemanticValidationSchema,
   CorrectedCategoryPageRecordSchema,
@@ -26,92 +25,6 @@ import { getActivePageImportHash, listVerifiedPageOptions } from '../db/reposito
 export type ReviewCompletionGateResult =
   | { ok: true; proposalCount: number }
   | { ok: false; code: string; reason: string };
-
-/**
- * Fail-closed classification-gating check shared by both gates (issue #350).
- *
- * When a run is bound to a resolvable M4+ runtime snapshot that enables a
- * classification curation target, review may only complete if a reviewed
- * (accepted) canonical Category + Product Type pair exists — either as an
- * accepted pair decision in the same run or as a compatible reviewed fact
- * carried in the snapshot. An incomplete pair blocks with a precise code.
- * Pair-gated field assignments (any non-universal attribute) must never pass
- * review without a reviewed pair.
- *
- * Legacy runs (unresolvable or absent config snapshot) skip the check.
- */
-function assertReviewedProductTypeForRun(options: {
-  runId: string;
-  workspaceId: string;
-  configSnapshotHash: string | null;
-  reviewableProposals: Array<{ id: string; proposalType: string; targetId: string | null }>;
-}): ReviewCompletionGateResult | null {
-  const { runId, workspaceId, configSnapshotHash } = options;
-
-  // Snapshot is the only place that proves the config's gating intent.
-  const snapshot = configSnapshotHash
-    ? getRuntimeSnapshotByHash(workspaceId, configSnapshotHash)
-    : null;
-  if (!snapshot) return null;
-
-  const typeTargetEnabled = snapshot.curationTargets.some(
-    target => target.kind === 'product_type' && (target.enabled || target.mandatory),
-  );
-  if (!typeTargetEnabled) return null;
-  // In-run accepted canonical pair decision (ADR 0041: legacy
-  // `primary_product_type` rows are history-only, never gate authority).
-  const pairDecision = findAcceptedPairDecision(runId);
-  const acceptedRow = pairDecision ? {
-    proposal_type: pairDecision.proposalType, target_id: pairDecision.targetId,
-    proposed_value_json: pairDecision.proposedValueJson,
-    revised_value_json: pairDecision.revisedValueJson, revised_target_id: pairDecision.revisedTargetId,
-    has_revised_value: pairDecision.hasRevisedValue ? 1 : 0,
-    has_revised_target: pairDecision.hasRevisedTarget ? 1 : 0,
-  } : undefined;
-  const reviewedPairFact = snapshot.reviewedFacts.some(
-    // ADR 0041: legacy `primary_product_type` facts are history-only.
-    fact => fact.proposalType === 'product_classification',
-  );
-  if (acceptedRow ?? reviewedPairFact) {
-    // Presence alone is not enough: the pair must be complete.
-    if (reviewedPairFact && !acceptedRow) return null;
-    if (acceptedRow) {
-      let parsed: unknown;
-      try {
-        const raw = acceptedRow.has_revised_value ? acceptedRow.revised_value_json : acceptedRow.proposed_value_json;
-        parsed = raw ? JSON.parse(raw) : null;
-      } catch { parsed = null; }
-      const categoryId = getCategoryIdFromValue(parsed);
-      const typeId = acceptedRow.has_revised_target && acceptedRow.revised_target_id
-        ? acceptedRow.revised_target_id
-        : getProductTypeIdFromValue(parsed) ?? acceptedRow.target_id;
-      if (categoryId && typeId) return null;
-      return {
-        ok: false,
-        code: 'classification_incomplete',
-        reason: 'Review requires an accepted Category + Product Type pair; the current acceptance addresses only one member.',
-      };
-    }
-    return null;
-  }
-
-  // Any non-universal field assignment in this run is pair-gated. Unknown
-  // attributes fail closed.
-  const gatedFieldProposal = options.reviewableProposals.some(proposal => {
-    if (proposal.proposalType !== 'field_assignment') return false;
-    const attribute = snapshot.attributes.find(candidate => candidate.id === proposal.targetId);
-    if (!attribute) return true;
-    return !isUniversalAttribute(attribute);
-  });
-  if (!gatedFieldProposal) return null;
-
-  return {
-    ok: false,
-    code: 'type_gated_without_reviewed_type',
-    reason: 'Type-gated attribute proposals cannot complete review without a reviewed (accepted) Product Classification.',
-  };
-}
-
 
 export interface ReviewCompletionGateInput {
   workspaceId: string;
@@ -740,7 +653,21 @@ export function validateReviewCompletionGate(
   // them would permanently bar review whenever SKU-local evidence
   // withholds (the correct #351 semantic). Only decision-eligible
   // proposals block as pending.
-  const missingDecisions = proposals.filter(p => p.proposal_type !== 'reviewable_abstention' && !p.has_decision);
+  const pendingOrStale = proposals.filter(
+    proposal =>
+      proposal.proposal_type !== 'reviewable_abstention'
+      && (proposal.status === 'pending' || proposal.status === 'stale'),
+  );
+  if (pendingOrStale.length > 0) {
+    return {
+      ok: false,
+      code: 'pending_proposals',
+      reason: `Classification run has ${pendingOrStale.length} pending or stale proposal(s) that require review.`,
+    };
+  }
+  const missingDecisions = proposals.filter(
+    proposal => proposal.proposal_type !== 'reviewable_abstention' && !proposal.has_decision,
+  );
   if (missingDecisions.length > 0) {
     return {
       ok: false,
@@ -749,17 +676,13 @@ export function validateReviewCompletionGate(
     };
   }
 
-  const typeGate = assertReviewedProductTypeForRun({
-    runId: input.activeRunId,
+  const canonicalReadiness = evaluateCanonicalReadiness({
     workspaceId: input.workspaceId,
-    configSnapshotHash: run.config_snapshot_hash,
-    reviewableProposals: proposals.map(p => ({
-      id: p.id,
-      proposalType: p.proposal_type,
-      targetId: p.target_id,
-    })),
+    runId: input.activeRunId,
   });
-  if (typeGate) return typeGate;
+  if (!canonicalReadiness.ok) {
+    return { ok: false, code: canonicalReadiness.code, reason: canonicalReadiness.reason };
+  }
 
   // ── Universal Category Page assignment requirement ──
   // Checked LAST so run-integrity, semantic, decision, and type gates keep
@@ -868,17 +791,13 @@ export function validateCatalogReviewCompletionGate(
     };
   }
 
-  const typeGate = assertReviewedProductTypeForRun({
-    runId: input.runId,
+  const canonicalReadiness = evaluateCanonicalReadiness({
     workspaceId: input.workspaceId,
-    configSnapshotHash: run.config_snapshot_hash,
-    reviewableProposals: reviewableProposals.map(p => ({
-      id: p.id,
-      proposalType: p.proposal_type,
-      targetId: p.target_id,
-    })),
+    runId: input.runId,
   });
-  if (typeGate) return typeGate;
+  if (!canonicalReadiness.ok) {
+    return { ok: false, code: canonicalReadiness.code, reason: canonicalReadiness.reason };
+  }
 
   // A3: every accepted image-backed proposal must cite supporting same-run
   // OCR evidence explicitly in the reviewer decision evidenceIds, with a

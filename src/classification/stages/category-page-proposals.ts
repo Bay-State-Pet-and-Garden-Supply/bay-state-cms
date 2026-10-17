@@ -19,8 +19,7 @@
  * Dependencies: Evidence from evidence_extraction stage.
  */
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
-import { loadClassificationConfig } from '../config-loader';
-import { resolveEnabledTargets, resolveTargetsFromSnapshot } from '../curation-target-resolver';
+import { resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { processPageTarget, materializeCoordinatedPages } from '../curation-target-processor';
 
 export const categoryPageProposalsStage: StageDefinition = {
@@ -28,9 +27,13 @@ export const categoryPageProposalsStage: StageDefinition = {
   requires: ['evidence_extraction', 'primary_product_type_proposal'],
   evidenceFrom: ['evidence_extraction', 'primary_product_type_proposal'],
   execute: async (input: StageInput, context: StageContext): Promise<StageResult> => {
-    const resolved = context.snapshot
-      ? resolveTargetsFromSnapshot(context.snapshot)
-      : resolveEnabledTargets(loadClassificationConfig(context.workspacePath), context.workspaceId);
+    if (!context.snapshot) {
+      return {
+        status: 'abstained',
+        reason: 'Taxonomy Category Page assignment requires a frozen classification snapshot.',
+      };
+    }
+    const resolved = resolveTargetsFromSnapshot(context.snapshot);
 
     // If page assignment is not an enabled curation target, return
     // succeeded with empty proposals (not abstained).

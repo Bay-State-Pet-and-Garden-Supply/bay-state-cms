@@ -283,7 +283,7 @@ export function PreparationItemDetails({ batchId, workspaceId, item, summary, st
               </dl>}
               {group.key === 'product_type' && <>
                 {curation?.effectiveProductType && <p>Effective product type: {curation.effectiveProductType.id ?? 'Unavailable'} · {curation.effectiveProductType.source}
-                  {curation.effectiveProductType.source === 'execution' ? ' (frozen execution fallback, not a reviewed assignment)' : ''}</p>}
+                </p>}
                 {curation ? <ProposalFacts curation={curation} sku={item.upc} proposals={facts.proposals.filter(p => p.proposalType === 'product_classification' || p.proposalType === 'primary_product_type')} />
                   : <p className="bws-muted">Product type facts unavailable.</p>}
               </>}

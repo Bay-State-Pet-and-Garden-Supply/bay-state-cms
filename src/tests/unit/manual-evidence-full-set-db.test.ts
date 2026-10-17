@@ -15,7 +15,7 @@ import {
 import {
   submitManualEvidence,
 } from '../../onboarding/manual-evidence-service';
-import { buildManualEvidenceEntries } from '../../classification/stages/evidence-extraction';
+import { buildManualEvidenceEntries } from '../../classification/frozen-evidence-mapping';
 import { validateManualEvidenceForReview } from '../../classification/review-completion-gate';
 
 const TEST_DB = 'src/tests/unit/manual-evidence-full-set-db-test.db';

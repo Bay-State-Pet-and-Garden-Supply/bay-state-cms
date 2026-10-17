@@ -46,7 +46,13 @@ import {
   type VerifiedActivationContext,
 } from './config-loader';
 import { commitClassificationScope } from './config-store';
-import { isProtectedCatalogField } from './classification-ownership';
+import {
+  BRAND_ATTRIBUTE_ID,
+  FALLBACK_BRAND_CATALOG_FIELD,
+  isProtectedCatalogField,
+  isProtectedTargetId,
+} from './classification-ownership';
+import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import {
   syncConfigToCache,
   upsertConfigSnapshot,
@@ -145,22 +151,52 @@ function applyEditsToBundle(
         .join('; ')}`,
     );
   }
+  // Brand is an input-only identity. A submitted reaffirmation of its current
+  // governed mapping is a no-op, not an output-role change; omit it from the
+  // mutation batch while still processing any ordinary edits alongside it.
+  const effectiveEdits = parsedEdits.data.filter(edit => {
+    if (edit.attributeId !== BRAND_ATTRIBUTE_ID || edit.catalogField !== FALLBACK_BRAND_CATALOG_FIELD) {
+      return true;
+    }
+    const currentOwner = bundle.attributeMappings.find(mapping => mapping.catalogField === edit.catalogField);
+    return !currentOwner
+      || currentOwner.attributeId !== BRAND_ATTRIBUTE_ID
+      || currentOwner.isStale
+      || (edit.serialization != null
+        && canonicalJsonFileString(edit.serialization) !== canonicalJsonFileString(currentOwner.serialization));
+  });
+  if (effectiveEdits.length === 0) {
+    return {
+      bundleHash: bundle.manifest.bundleHash,
+      commitHash: null,
+      appliedFields: [],
+      removedFields: [],
+    };
+  }
 
   const attributeIds = new Set(bundle.attributes.map(attribute => attribute.id));
 
   // ── Validate the raw edits before any derivation ─────────────────────────
-  for (const edit of edits) {
+  for (const edit of effectiveEdits) {
     if (!edit || typeof edit.catalogField !== 'string' || edit.catalogField.trim() === '') {
       throw new FieldMappingEditError('invalid_edit', 'Each edit requires a non-empty catalogField.');
     }
-    // Issue #355: a semantic target cannot be rerouted into Brand, identity,
-    // operational, or native fulfillment data through a mapping. The Brand
-    // slot resolves from the current bundle mappings (pre-edit authority).
-    if (edit.attributeId !== null && edit.attributeId !== undefined
-      && isProtectedCatalogField(edit.catalogField, edit.attributeId, bundle.attributeMappings)) {
+    const currentOwner = bundle.attributeMappings.find(mapping => mapping.catalogField === edit.catalogField);
+    if (currentOwner?.attributeId === BRAND_ATTRIBUTE_ID || edit.attributeId === BRAND_ATTRIBUTE_ID) {
       throw new FieldMappingEditError(
         'invalid_edit',
-        `Cannot map ${edit.catalogField} to "${edit.attributeId}": the field is Brand, identity, operational, or native fulfillment data outside classification ownership.`,
+        `Cannot change the input-only Brand mapping at ${edit.catalogField}.`,
+      );
+    }
+    // Classification mappings require the certified semantic identity for the
+    // destination field. Unknown, protected, native, and cross-role bindings
+    // are refused before any persisted authority.
+    if (edit.attributeId !== null && edit.attributeId !== undefined
+      && (isProtectedCatalogField(edit.catalogField, edit.attributeId, bundle.attributeMappings)
+        || isProtectedTargetId(edit.catalogField, bundle.attributeMappings as unknown as AttributeMappingConfig[]))) {
+      throw new FieldMappingEditError(
+        'invalid_edit',
+        `Cannot map ${edit.catalogField} to "${edit.attributeId}": the field is Brand, protected, native, or otherwise outside classification ownership.`,
       );
     }
     if (edit.attributeId !== null && typeof edit.attributeId === 'string' && edit.attributeId.trim() === '') {
@@ -199,13 +235,13 @@ function applyEditsToBundle(
   // the caller must explicitly unmap the occupant in the same batch (the
   // existing in-batch move semantics) before a field can change owners.
   const unmappedAttributesInBatch = new Set<string>();
-  for (const edit of edits) {
+  for (const edit of effectiveEdits) {
     if (edit.attributeId === null || edit.attributeId === undefined) {
       const occupant = mappingByField.get(edit.catalogField);
       if (occupant) unmappedAttributesInBatch.add(occupant.attributeId);
     }
   }
-  for (const edit of edits) {
+  for (const edit of effectiveEdits) {
     if (edit.attributeId === null || edit.attributeId === undefined) continue;
     const occupant = mappingByField.get(edit.catalogField);
     if (occupant && occupant.attributeId !== edit.attributeId && !unmappedAttributesInBatch.has(occupant.attributeId)) {
@@ -217,7 +253,7 @@ function applyEditsToBundle(
     }
   }
 
-  for (const edit of edits) {
+  for (const edit of effectiveEdits) {
     const existing = mappingByField.get(edit.catalogField);
 
     if (edit.attributeId === null || edit.attributeId === undefined) {

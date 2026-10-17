@@ -13,6 +13,7 @@ import {
 } from '../classification-readiness-view';
 import { deriveEvidenceView } from '../classification-evidence-view';
 import { EvidenceCitationList } from './pipeline-drawer/EvidenceCitationList';
+import { CanonicalClassificationReadiness } from './CanonicalClassificationReadiness';
 import { colors } from '../theme';
 
 const buttonBase: React.CSSProperties = {
@@ -140,19 +141,19 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
     <div style={sectionStyle}>
       <h3 style={sectionTitle}>🧠 Classification</h3>
       <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-        Run AI-powered product classification to propose attributes, category pages, and product types.
+        Run classification to propose one Category + Product Type pair and its applicable Classification Attributes. Category Page assignments are separate proposals. Brand may inform classification but is never a classification output.
       </p>
 
       {/* Run status — conservative while readiness is unknown: buttons stay
           disabled and a loading note is shown until a real report arrives. */}
       {!readiness && (
         <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#64748b' }}>
-          Checking classification readiness…
+          Checking classification configuration…
         </div>
       )}
       {readiness && !readiness.isReady && (
         <div style={{ marginBottom: 16, padding: 12, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, fontSize: 13 }}>
-          <div style={{ color: '#9a3412', fontWeight: 600 }}>⚠ Classification is not ready to run</div>
+          <div style={{ color: '#9a3412', fontWeight: 600 }}>⚠ Classification configuration is not ready</div>
           <div style={{ color: '#7c2d12', marginTop: 4 }}>{readiness.summary.join(' ')}</div>
           {readiness.findingCodes.length > 0 && (
             <div style={{ color: '#7c2d12', marginTop: 4 }}>
@@ -182,6 +183,9 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
           )}
         </div>
       )}
+      {detail?.run && detail.classificationReadiness && (
+        <CanonicalClassificationReadiness result={detail.classificationReadiness} />
+      )}
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -189,7 +193,7 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
           style={primaryButton}
           onClick={handleRun}
           disabled={running || readiness === null || shouldBlockRun(readiness)}
-          title={readiness === null ? 'Checking classification readiness…' : (shouldBlockRun(readiness) ? 'Classification is not ready to run' : undefined)}
+          title={readiness === null ? 'Checking classification configuration…' : (shouldBlockRun(readiness) ? 'Classification configuration is not ready to run' : undefined)}
         >
           {running ? 'Running...' : hasActiveRun ? 'Rerun' : 'Run Classification'}
         </button>

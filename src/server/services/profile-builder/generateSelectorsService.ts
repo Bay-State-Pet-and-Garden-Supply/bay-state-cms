@@ -7,10 +7,10 @@
  * normalize custom fields → build response.
  */
 
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { getLlmTaskConfig } from '../../../db/repositories/llm-task-config-repo';
 import { getApiKey } from '../../../db/repositories/api-key-repo';
-import type { LlmTaskConfig, LlmTask, LlmProvider } from '../../../shared/schemas/onboarding';
+import type { LlmProvider } from '../../../shared/schemas/onboarding';
 import type {
   GenerateSelectorsRequest,
   GenerateSelectorsResponse,
@@ -19,7 +19,7 @@ import type {
   SelectorWarning,
   SelectorGenerationRuntime,
 } from '../../../shared/schemas/selector-generation';
-import { GenerateSelectorsResponseSchema, SELECTOR_GENERATION_LIMITS } from '../../../shared/schemas/selector-generation';
+import { GenerateSelectorsResponseSchema } from '../../../shared/schemas/selector-generation';
 import { z } from 'zod';
 
 import { createResolver } from './snapshotArtifactResolver';
@@ -136,27 +136,18 @@ const TIMEOUT_MS: Record<string, number> = {
 // ─── LLM Config Resolution ──────────────────────────────────────────────────
 
 function resolveLlmConfig(requestId: string): LlmEndpointConfig {
-  let taskConfig: LlmTaskConfig | null = null;
-  let resolvedTask = '';
+  const requestedTaskConfig = getLlmTaskConfig('one_shot_selector_generation');
+  const taskConfig = requestedTaskConfig ?? getLlmTaskConfig('profile_generation');
 
-  taskConfig = getLlmTaskConfig('one_shot_selector_generation' as LlmTask);
-  if (taskConfig) {
-    resolvedTask = 'one_shot_selector_generation';
-  }
-
-  if (!taskConfig) {
-    taskConfig = getLlmTaskConfig('profile_generation');
-    if (taskConfig) {
-      resolvedTask = 'profile_generation';
-      console.warn(
-        JSON.stringify({
-          event: 'selector_generation_task_config_fallback',
-          requestedTask: 'one_shot_selector_generation',
-          resolvedTask: 'profile_generation',
-          requestId,
-        }),
-      );
-    }
+  if (!requestedTaskConfig && taskConfig) {
+    console.warn(
+      JSON.stringify({
+        event: 'selector_generation_task_config_fallback',
+        requestedTask: 'one_shot_selector_generation',
+        resolvedTask: 'profile_generation',
+        requestId,
+      }),
+    );
   }
 
   if (!taskConfig) {

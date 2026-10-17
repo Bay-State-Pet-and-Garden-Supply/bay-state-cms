@@ -442,6 +442,7 @@ describe('classification config-store', () => {
     expect(classificationFiles).toContain('store/classification/catalog-evidence.json');
     expect(classificationFiles).toContain('store/classification/manifest.json');
     expect(classificationFiles).toContain('store/classification/product-types.json');
+    expect(classificationFiles).toContain('store/classification/categories.json');
     expect(classificationFiles).toContain('store/classification/attributes.json');
     expect(classificationFiles).toContain('store/classification/attribute-profiles.json');
     expect(classificationFiles).toContain('store/classification/mappings.json');
@@ -450,6 +451,6 @@ describe('classification config-store', () => {
     expect(classificationFiles).toContain('store/classification/guidance.json');
     expect(classificationFiles).toContain('store/classification/model-policies.json');
     expect(classificationFiles).toContain('store/classification/data-sharing.json');
-    expect(classificationFiles).toHaveLength(11);
+    expect(classificationFiles).toHaveLength(12);
   });
 });

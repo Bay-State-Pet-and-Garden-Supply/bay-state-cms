@@ -4,8 +4,11 @@ import { unlinkSync } from 'node:fs';
 import { initDb, getDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
-import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { createConfigSnapshot, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
+import type { CatalogEvidence } from '../../classification/catalog-evidence';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { enqueueRefreshItem, claimRefreshBatch } from '../../db/repositories/classification-refresh-repo';
 import { processRefreshItem } from '../../classification/type-dependent-refresh';
 import { overrideTypeFirstCurationFlags, resetTypeFirstCurationFlagsOverride } from '../../classification/flags';
@@ -78,6 +81,46 @@ describe('type-dependent-refresh (P1.4)', () => {
       dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
     };
   }
+  function loadV2BundleFixture() {
+    const seed: BayStateSeed = {
+      ...BayStatePetGardenSeed,
+      name: 'Refresh V2 fixture',
+      revision: 'refresh-v2',
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food', description: null },
+        { id: 'cat_food_cat', name: 'Cat Food', description: null },
+      ],
+      productTypes: [
+        { id: 'dog_food', name: 'Dog Food', description: null, categoryId: 'dog_food_cat', websiteValues: { category: 'Dog Food', productType: 'Dog Food' } },
+        { id: 'cat_food', name: 'Cat Food', description: null, categoryId: 'cat_food_cat', websiteValues: { category: 'Cat Food', productType: 'Cat Food' } },
+      ],
+      attributes: BayStatePetGardenSeed.attributes.filter(attribute =>
+        ['brand', 'breed-size', 'flavor'].includes(attribute.id),
+      ),
+      profileTemplates: [
+        { id: 'dog-profile', name: 'Dog Profile', productTypeIds: ['dog_food'], attributes: [{ attributeId: 'breed-size', cardinality: 'single' }] },
+        { id: 'cat-profile', name: 'Cat Profile', productTypeIds: ['cat_food'], attributes: [{ attributeId: 'flavor', cardinality: 'single' }] },
+      ],
+      mappings: BayStatePetGardenSeed.mappings.filter(mapping =>
+        ['brand', 'breed-size', 'flavor'].includes(mapping.attributeId),
+      ),
+      curationTargets: BayStatePetGardenSeed.curationTargets.filter(target =>
+        target.kind === 'product_type' || ['brand', 'breed-size', 'flavor'].includes(target.attributeId ?? ''),
+      ),
+    };
+    const evidence: CatalogEvidence = {
+      schemaVersion: 1,
+      sourceTreeHash: 'fixture',
+      productFileCount: 0,
+      parseFailureCount: 0,
+      parseFailures: [],
+      fieldRegistry: { entryCount: 0, xmlFields: [] },
+      fields: [],
+      pages: [],
+    };
+    return generateCandidate(seed, evidence).bundle;
+  }
+
 
   it('supersedes stale dependents under the reviewed product type without fabricating placeholder proposals', async () => {
     const db = getDb();
@@ -216,25 +259,17 @@ describe('type-dependent-refresh (P1.4)', () => {
     const itemId = randomUUID();
     const runId = randomUUID();
     const sku = 'SKU-ACCEPT-UNCHANGED';
-    const config = loadConfigFixture();
-    const ref = createConfigSnapshot(wsId, config);
-    const baseSnapshot2 = buildRuntimeSnapshot({ workspaceId: wsId, workspacePath: '/tmp/refresh', productSku: sku, sourceProductHash: '',
-      config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() } });
-    const { snapshotHash: recomputeHash3, deepFreeze: deepFreeze3 } = await import('../../classification/runtime-snapshot');
-    const snapshot = {
-      ...structuredClone(baseSnapshot2),
-      categories: [
-        { id: 'dog_food_cat', name: 'Dog Food' },
-        { id: 'cat_food_cat', name: 'Cat Food' },
-      ],
-    };
-    (snapshot as { productTypes: unknown }).productTypes = (snapshot.productTypes as Array<Record<string, unknown>>).map((t) => {
-      if (t.id === 'dog_food') return { ...t, categoryId: 'dog_food_cat' };
-      if (t.id === 'cat_food') return { ...t, categoryId: 'cat_food_cat' };
-      return { ...t };
+    const bundle = loadV2BundleFixture();
+    const ref = upsertConfigSnapshot(wsId, bundle);
+    const snapshot = buildRuntimeSnapshot({
+      workspaceId: wsId,
+      workspacePath: '/tmp/refresh',
+      productSku: sku,
+      authority: { kind: 'v2', bundle },
+      configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
+      sourceProductHash: '',
     });
-    (snapshot as { snapshotHash: string }).snapshotHash = recomputeHash3(snapshot as never);
-    persistRuntimeSnapshot(deepFreeze3(snapshot as never));
+    persistRuntimeSnapshot(snapshot);
     db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
       VALUES (?, ?, 'Accept unchanged', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
     db.run(`INSERT INTO onboarding_items (id, batch_id, row_number, upc, name, stage, stage_status, curation_data_json, created_at, updated_at)
@@ -251,14 +286,14 @@ describe('type-dependent-refresh (P1.4)', () => {
         VALUES (?, ?, 'accepted', 'nick', 'human_review', datetime('now'))`, [randomUUID(), id]);
     }
     db.run(`INSERT INTO classification_evidence (id, run_id, onboarding_item_id, product_sku, stage_name, source, reliability, attribute_id, source_field, snippet, value_json, metadata_json, created_at)
-      VALUES (?, ?, ?, ?, 'evidence_extraction', 'official_product_page', 'high', 'dog_breed_size', 'BreedSize', 'Small', '"Small"', '{}', datetime('now'))`, [randomUUID(), runId, itemId, sku]);
+      VALUES (?, ?, ?, ?, 'evidence_extraction', 'official_product_page', 'high', 'breed-size', 'BreedSize', 'Small', '"Small"', '{}', datetime('now'))`, [randomUUID(), runId, itemId, sku]);
     const oldDependentId = randomUUID();
     db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-      VALUES (?, ?, ?, 'field_assignment', 'dog_breed_size', '"Large"', 0.8, 'pending', datetime('now'))`, [oldDependentId, runId, sku]);
+      VALUES (?, ?, ?, 'field_assignment', 'breed-size', '"Large"', 0.8, 'pending', datetime('now'))`, [oldDependentId, runId, sku]);
     const originalPrediction = capturePreReviewPrediction({ runId, workspaceId: wsId, productSku: sku });
-    expect(originalPrediction.fieldAssignments.find(field => field.targetId === 'dog_breed_size')?.value).toBe('Large');
+    expect(originalPrediction.fieldAssignments.find(field => field.targetId === 'breed-size')?.value).toBe('Large');
     db.exec(`CREATE TRIGGER reject_refresh_value BEFORE INSERT ON classification_proposals
-      WHEN NEW.target_id = 'dog_breed_size' BEGIN SELECT RAISE(ABORT, 'fixture refresh commit failure'); END`);
+      WHEN NEW.target_id = 'breed-size' BEGIN SELECT RAISE(ABORT, 'fixture refresh commit failure'); END`);
     await expect(refreshReviewedDependents({ runId, workspaceId: wsId, itemId })).rejects.toThrow('fixture refresh commit failure');
     expect(db.query('SELECT superseded_at, status FROM classification_proposals WHERE id = ?').get(oldDependentId)).toEqual({ superseded_at: null, status: 'pending' });
     db.exec('DROP TRIGGER reject_refresh_value');
@@ -271,7 +306,7 @@ describe('type-dependent-refresh (P1.4)', () => {
     expect(afterCalls.n).toBe(beforeCalls.n);
     expect(findItemById(itemId)?.curationData?.curatedTitle).toBe('Keep this name');
     expect(findItemById(itemId)?.curationData?.classificationRunId).toBe(runId);
-    const newValue = db.query(`SELECT proposed_value_json, status FROM classification_proposals WHERE run_id = ? AND target_id = 'dog_breed_size' AND superseded_at IS NULL`).get(runId) as { proposed_value_json: string; status: string };
+    const newValue = db.query(`SELECT proposed_value_json, status FROM classification_proposals WHERE run_id = ? AND target_id = 'breed-size' AND superseded_at IS NULL`).get(runId) as { proposed_value_json: string; status: string };
     expect(JSON.parse(newValue.proposed_value_json)).toBe('Small');
     expect(newValue.status).toBe('pending');
     expect(db.query('SELECT superseded_at, status FROM classification_proposals WHERE id = ?').get(brandId)).toEqual({ superseded_at: null, status: 'accepted' });

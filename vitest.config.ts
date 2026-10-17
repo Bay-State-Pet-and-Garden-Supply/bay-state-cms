@@ -321,8 +321,23 @@ export default defineConfig({
       'src/tests/unit/release-routes.test.ts',
       'src/tests/unit/release-shadow.test.ts',
       // PR5 effective-curation-type suites (bun:test imports — vitest cannot collect them)
-      'src/tests/unit/effective-curation-type.test.ts',
       'src/tests/unit/effective-curation-stages.test.ts',
+      // Issue #356/#357 reviewed-projection consumer regression suites —
+      // bun:test/bun:sqlite via the repository layer; run under bun test via
+      // test:db (dual-runner gate §6.1). Canonical workflow + related
+      // canonical/profile/export seam suites (already Bun-native).
+      'src/tests/unit/canonical-classification-workflow.test.ts',
+      'src/tests/unit/canonical-classification-config.test.ts',
+      'src/tests/unit/canonical-classification-correction.test.ts',
+      'src/tests/unit/canonical-classification-decision.test.ts',
+      'src/tests/unit/canonical-classification-effective.test.ts',
+      'src/tests/unit/canonical-classification-profile.test.ts',
+      'src/tests/unit/canonical-classification-proposal.test.ts',
+      'src/tests/unit/provisional-attribute-seam.test.ts',
+      'src/tests/unit/export-safeguards-seam.test.ts',
+      'src/tests/unit/page-removal-workflow-seam.test.ts',
+      'src/tests/unit/readiness-invalidation-seam.test.ts',
+      'src/tests/unit/sensitive-claim-seam.test.ts',
       // PR8 draft-projection stage suite (bun:test imports — vitest cannot collect it)
       'src/tests/unit/draft-projection.test.ts',
       // PR8 acceptance (bun:test imports — vitest cannot collect it)
@@ -508,6 +523,14 @@ export default defineConfig({
       // Jev v3 source-extractor seam — transitively imports bun:sqlite via the
       // collector's benchmark-exporter chain; run under bun test directly.
       'src/tests/unit/jev-source-collection.test.ts',
+      'src/tests/unit/jev-public-source-enrichment.test.ts',
+      'src/tests/unit/jev-source-request-window.test.ts',
+      'src/tests/unit/legacy-classification-history-only.test.ts',
+      'src/tests/unit/sku-local-evidence.test.ts',
+      'src/tests/unit/sku-local-page-evidence.test.ts',
+      'src/tests/unit/sku-local-siblings.test.ts',
+      // P1 engine suite imports repository/connection transitively (bun:sqlite); run under bun test via test:db.
+      'src/tests/unit/p1-engine-correctness.test.ts',
     ],
   },
 });

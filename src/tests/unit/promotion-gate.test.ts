@@ -1,13 +1,9 @@
 /**
  * PR11 C1 unit tests (issue #30): the PURE promotion gate.
  *
- * The gate is deterministic over its inputs (no DB access) — every branch:
- * legacy pass; blocked refuse (first finding as reason); malformed/missing
- * semantic payload in an ACTIVE cohort child refuse `semantic_validation_unavailable`;
- * parent missing/superseded/not-completed refuses; stale type-dependency
- * (mismatch) refuses; matching dependency passes; no-dependency (universal)
- * passes; a present dependency against a MISSING effective type refuses;
- * reviewed-source member pass/mismatch.
+ * This pure gate is deterministic over its inputs (no DB access). It fails
+ * closed for missing classification authority, blocked semantic state,
+ * invalid cohort/currentness, stale dependencies, and invalid page authority.
  */
 import { describe, it, expect } from 'vitest';
 import { validatePromotionGate, resolvePromotionEffectiveTypeId, computeExecutionAuthorityHash, computeReviewedAuthorityHash } from '../../classification/promotion-gate';
@@ -188,21 +184,19 @@ function authorityHashes(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('PR11 C1 — validatePromotionGate (pure)', () => {
-  it('legacy pass: no curation data or no classification run pointer is byte-identical (no gate)', () => {
-    expect(validatePromotionGate(gateInput({ curationData: null }))).toEqual({ ok: true });
-    expect(
-      validatePromotionGate(gateInput({ curationData: curationData({ classificationRunId: null }) })),
-    ).toEqual({ ok: true });
-    // A blocked semantic payload on a legacy item (no run pointer) is NOT a
-    // gate input at all — legacy promotion is byte-identical.
-    expect(
-      validatePromotionGate(gateInput({
-        curationData: curationData({
-          classificationRunId: null,
-          semanticValidation: blockedSemanticValidation('legacy finding'),
-        }),
-      })),
-    ).toEqual({ ok: true });
+  it('refuses readiness when classification run authority is absent or legacy', () => {
+    for (const data of [
+      null,
+      curationData({ classificationRunId: null }),
+      curationData({
+        classificationRunId: null,
+        semanticValidation: blockedSemanticValidation('legacy finding'),
+      }),
+    ]) {
+      const result = validatePromotionGate(gateInput({ curationData: data }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe('classification_authority_missing');
+    }
   });
 
   it('refuses a blocked member with the FIRST finding as the reason', () => {

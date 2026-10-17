@@ -24,6 +24,7 @@ import {
 } from '../../db/repositories/classification-run-repo';
 import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../classification/page-snapshot';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { applyCatalogClassification } from '../../classification/catalog-product-application';
 import { writeProductFile } from '../../git/workspace-files';
@@ -98,17 +99,14 @@ function seedRun(sku: string) {
   const brandId = byName.get(BRAND_PAGE.pageName)!;
   const config = configFixture();
   const ref = createConfigSnapshot(WS_ID, config);
+  const pageSnapshot = captureVerifiedPageSnapshot(WS_ID);
   const snapshot = buildRuntimeSnapshot({
     workspaceId: WS_ID, workspacePath, productSku: sku, config,
     configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: NOW },
     sourceProductHash: null,
-    pages: {
-      state: 'verified',
-      records: [
-        { pageId: taxonomyId, pageName: TAXONOMY_PAGE.pageName, verified: true },
-        { pageId: brandId, pageName: BRAND_PAGE.pageName, verified: true },
-      ],
-    } as any,
+    pages: toPageSnapshotState(pageSnapshot),
+    pageImportId: pageSnapshot.pageImportId,
+    pageImportHash: pageSnapshot.pageImportHash,
   });
   persistRuntimeSnapshot(snapshot);
   const run = createRepositoryRun(WS_ID, sku, ref.id, snapshot.snapshotHash, { sourceKind: 'catalog_product' });

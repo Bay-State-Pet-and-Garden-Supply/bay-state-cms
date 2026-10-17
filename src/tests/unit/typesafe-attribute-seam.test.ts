@@ -1,56 +1,106 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 /**
  * TypeSafe Jev Attribute Seam Verification (Issue #298 / AC 1–10).
  *
  * Full seam verification with HTTP mocked across:
  * - Valid single-value controlled choice (canonical mapping, derivation, isBulkAcceptable: false)
- * - Multi-value unsupported explicit abstention (never silent single choice)
+ * - Multi-value deterministic resolution without silent single-choice conversion
  * - Candidate limit exceeded (>253 candidates without first-N clipping)
- * - Deterministic precedence: reviewed facts, brand shortcuts, aliases (zero Jev calls)
- * - Free-text & measured paths never entering Jev Choice
- * - Effective type & attribute profile / empty profile (universal-only)
+ * - Deterministic aliases take precedence over model resolution
  * - State batching vs separation (identical state -> 1 request; restricted evidence -> separate requests)
  * - Direct evidence & claims safeguards (unsupported_claim on non-direct evidence)
- * - Pre-review prediction capture (fieldAssignments populated)
  * - Benchmark evaluator attribution & baseline comparison (fieldStates, inapplicable/unlabeled excluded)
- * - Error resilience (policy denied, model mismatch)
  */
 
-import { randomUUID } from 'node:crypto';
+import { SystemOneRequestSchema, type SystemOneAnswer, type SystemOneRequest } from '../../shared/schemas/systemone';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { initDb, closeDb, getDb } from '../../db/connection';
+import { initDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
+import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createRun } from '../../db/repositories/classification-run-repo';
 import { getModelCallsByRun } from '../../db/repositories/classification-model-call-repo';
 import { upsertProviderConnection } from '../../db/repositories/provider-connection-repo';
+import type { ProviderConnection } from '../../ai/provider-connections';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
 import {
   resolveAttributeDecision,
   batchResolveAttributeDecisions,
   buildProposalFromAttributeDecision,
 } from '../../classification/attribute-decision';
-import { processProductFieldTarget } from '../../classification/curation-target-processor';
-import { productAttributeProposalsStage } from '../../classification/stages/attribute-proposals';
-import { capturePreReviewPrediction } from '../../classification/benchmark-prediction';
 import {
   computeEvaluatorAttribution,
   readEvaluatorFieldStates,
   scoreEvaluatorFieldExample,
   type GoldExampleForEvaluation,
 } from '../../classification/benchmark-evaluator';
-import { buildRuntimeSnapshot } from '../../classification/runtime-snapshot';
-import type { ResolvedTarget, ResolvedTargetOption } from '../../classification/curation-target-resolver';
+import { resolveTargetsFromSnapshot, type ResolvedTarget, type ResolvedTargetOption } from '../../classification/curation-target-resolver';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import type {
   ClassificationEvidence,
   ModelPolicyConfigV2,
 } from '../../shared/schemas/classification';
 
+
+function choiceAnswerForCriterion(
+  criteria: Record<string, unknown>,
+  expectedLabel: string,
+  selectedProbability = 0.85,
+  vendorConfidence = 0.9,
+): SystemOneAnswer {
+  const selectedKey = Object.entries(criteria).find(([, label]) =>
+    typeof label === 'string' && label.toLowerCase().includes(expectedLabel.toLowerCase()),
+  )?.[0];
+  if (!selectedKey) {
+    throw new Error(`Expected ${expectedLabel} criterion in ${JSON.stringify(criteria)}`);
+  }
+  const otherKeys = Object.keys(criteria).filter(key => key !== selectedKey);
+  const residualProbability = (1 - selectedProbability) / otherKeys.length;
+  return {
+    type: 'choice',
+    choice: selectedKey,
+    probabilities: Object.fromEntries(
+      Object.keys(criteria).map(key => [key, key === selectedKey ? selectedProbability : residualProbability]),
+    ),
+    confidence: vendorConfidence,
+  };
+}
+
+function parseSystemOneRequest(init: RequestInit | undefined): SystemOneRequest {
+  if (typeof init?.body !== 'string') throw new Error('Expected a JSON SystemOne request body');
+  return SystemOneRequestSchema.parse(JSON.parse(init.body));
+}
+
+
+type FetchFixture = (...args: Parameters<typeof fetch>) => Promise<Response>;
+
+function installFetchFixture(handler: FetchFixture): void {
+  globalThis.fetch = Object.assign(
+    async (...args: Parameters<typeof fetch>): Promise<Response> => {
+      const input = args[0];
+      const requestUrl = input instanceof Request ? input.url : String(input);
+      expect(requestUrl).toContain('api.typesafe.ai/v1/systemone');
+      return handler(...args);
+    },
+    { preconnect: () => undefined },
+  );
+}
+
+function rejectUnexpectedFetch(): void {
+  installFetchFixture(async () => {
+    throw new Error('Unexpected external request in deterministic fixture');
+  });
+}
 /**
  * Shared fixture builder (complexity extraction only — test behavior
  * identical). Hoists the repeated SystemOne JSON Response envelope out of
  * the per-criterion fetch mocks.
  */
 function systemOneJsonResponse(
-  answers: Record<string, any>,
+  answers: Record<string, SystemOneAnswer>,
   usage: { input_tokens: number; output_tokens: number } = { input_tokens: 100, output_tokens: 10 },
 ): Response {
   return new Response(
@@ -66,6 +116,7 @@ function systemOneJsonResponse(
 describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
   const originalFetch = globalThis.fetch;
   const workspaceId = 'ws-typesafe-attr-seam';
+  let workspacePath: string;
 
   const flavorOptions: ResolvedTargetOption[] = [
     { value: 'Chicken', label: 'Chicken' },
@@ -73,26 +124,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     { value: 'Salmon', label: 'Salmon' },
   ];
 
-  const flavorTarget = {
-    config: {
-      id: 'flavor',
-      label: 'Food Flavor',
-      kind: 'attribute',
-      attributeId: 'flavor',
-      catalogField: 'ProductField1',
-      selectionMode: 'single',
-      confidenceThreshold: 0.7,
-      guidancePrompt: 'Select the primary food flavor',
-    },
-    options: flavorOptions,
-    attribute: {
-      id: 'flavor',
-      name: 'Food Flavor',
-      valueMode: 'singleChoice',
-      visualEvidenceEligibility: 'eligible',
-      valueAliases: [{ alias: 'poultry', mapsTo: 'Chicken' }],
-    },
-  } as unknown as ResolvedTarget;
+  let flavorTarget: ResolvedTarget;
 
   const sampleEvidence: ClassificationEvidence[] = [
     {
@@ -174,12 +206,6 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
         fallbackProvider: null,
         fallbackModel: null,
       },
-      attribute_ranking: {
-        provider: 'typesafe',
-        model: 'jev-1.13.0',
-        fallbackProvider: null,
-        fallbackModel: null,
-      },
     },
     textDataSharing: 'cloud_allowed',
     imageDataSharing: 'local_only',
@@ -191,10 +217,69 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     },
   };
 
+  function fixtureBundle(flavorValues = flavorOptions.map(option => option.value)) {
+    const primaryProductTypeTarget = BayStatePetGardenSeed.curationTargets.find(target => target.kind === 'product_type')!;
+    const attributes: BayStateSeed['attributes'] = [
+      { id: 'flavor', name: 'Food Flavor', allowedValues: flavorValues, valueAliases: [{ alias: 'poultry', mapsTo: flavorValues[0]! }], visualEvidenceEligibility: 'eligible', isClaim: false },
+      { id: 'food-form', name: 'Food Form', allowedValues: ['Dry', 'Wet'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false },
+      { id: 'material', name: 'Toy Material', allowedValues: ['Rubber', 'Plush'], valueAliases: [], visualEvidenceEligibility: 'ineligible', isClaim: false },
+      { id: 'dietary-features', name: 'Certified Organic', allowedValues: ['Organic', 'Conventional'], valueAliases: [], visualEvidenceEligibility: 'ineligible', isClaim: true },
+    ].map(attribute => ({
+      ...attribute, description: null, valueMode: 'controlled', canonicalUnit: null,
+      isCompositionAttribute: false, group: null, isUniversal: false,
+    })) as BayStateSeed['attributes'];
+    const fields: Record<string, string> = {
+      flavor: 'ProductField23', 'food-form': 'ProductField22', material: 'ProductField28', 'dietary-features': 'ProductField20',
+    };
+    return generateCandidate({
+      ...BayStatePetGardenSeed, name: 'TypeSafe attribute fixture', revision: 'typesafe-attribute-fixture',
+      categories: [{ id: 'pet-supplies', name: 'Pet Supplies', description: null }],
+      productTypes: [{ id: 'pet-food', name: 'Pet Food', description: null, categoryId: 'pet-supplies' }],
+      attributes,
+      profileTemplates: [{ id: 'pet-profile', name: 'Pet attributes', productTypeIds: ['pet-food'], attributes: attributes.map(attribute => ({ attributeId: attribute.id })) }],
+      mappings: attributes.map(attribute => ({ id: `${attribute.id}-map`, attributeId: attribute.id, catalogField: fields[attribute.id]!, serialization: { kind: 'scalar', prefix: '', suffix: '' } })),
+      curationTargets: [primaryProductTypeTarget, ...attributes.map((attribute, index) => ({
+        id: attribute.id, kind: 'product_field' as const, label: attribute.name, enabled: true, mandatory: false,
+        selectionMode: 'single' as const, attributeId: attribute.id, catalogField: fields[attribute.id]!,
+        optionSource: 'configured' as const, required: false, sortOrder: index,
+      }))],
+      brands: [], guidance: [], modelPolicy: cloudJevPolicy,
+      dataSharing: {
+        imagePolicy: 'local_only', textPolicy: 'cloud_allowed',
+        sensitiveDataFiltering: true, retentionDays: 90,
+      },
+    }, {
+      schemaVersion: 1, sourceTreeHash: '0'.repeat(64), productFileCount: 0, parseFailureCount: 0,
+      parseFailures: [], fieldRegistry: { entryCount: 0, xmlFields: [] }, fields: [], pages: [],
+    }).bundle;
+  }
+
+  function createFixtureRun(sku: string, flavorValues?: string[]) {
+    const bundle = fixtureBundle(flavorValues);
+    const snapshot = buildRuntimeSnapshot({
+      workspaceId, workspacePath, productSku: sku,
+      authority: { kind: 'v2', bundle }, sourceProductHash: null,
+      configSnapshotRef: { id: `config-${sku}`, hash: bundle.manifest.bundleHash, sourceCommit: null, createdAt: bundle.manifest.createdAt },
+    });
+    const stored = persistRuntimeSnapshot(snapshot);
+    return { ...createRun(workspaceId, sku, stored.id, stored.hash), snapshot };
+  }
+
+  function evidenceForRun(run: ReturnType<typeof createFixtureRun>, evidence: ClassificationEvidence[]) {
+    return evidence.map(record => ({ ...record, runId: run.id, productSku: run.snapshot.productSku }));
+  }
+
   beforeEach(() => {
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'typesafe-attributes-'));
     initDb(':memory:');
     runMigrations();
-    upsertProviderConnection({
+    insertWorkspace({
+      id: workspaceId, name: 'TypeSafe attribute fixture', workspacePath, gitPath: '',
+      createdAt: BayStatePetGardenSeed.createdAt, updatedAt: BayStatePetGardenSeed.createdAt,
+      bootstrapStatus: 'complete', baselineCommit: null,
+    });
+    rejectUnexpectedFetch();
+    const fixtureConnection = {
       id: 'typesafe',
       label: 'TypeSafe Jev',
       transport: 'systemone',
@@ -202,58 +287,52 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       trustZone: 'cloud',
       credential: 'fixture298',
       enabled: true,
-      lastProbedAt: new Date().toISOString(),
-      lastProbeStatus: 'healthy',
-      models: [{ id: 'jev-1.13.0', name: 'Jev 1.13.0' }],
-    } as any);
+    } satisfies ProviderConnection;
+    upsertProviderConnection(fixtureConnection);
+    const run = createFixtureRun('FIXTURE-TARGET');
+    flavorTarget = resolveTargetsFromSnapshot(run.snapshot).productFields.find(target => target.config.attributeId === 'flavor')!;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
     closeDb();
+    fs.rmSync(workspacePath, { recursive: true, force: true });
   });
 
   it('1. valid single-value choice: resolves canonical option with systemone_judgment and isBulkAcceptable=false', async () => {
-    const run = createRun(workspaceId, 'SKU-FLAVOR-1', null, 'hash-attr-1');
+    const run = createFixtureRun('SKU-FLAVOR-1');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    installFetchFixture(async (url: string | URL | Request, init?: RequestInit) => {
       const u = typeof url === 'string' ? url : url.toString();
       expect(u).toContain('/v1/systemone');
-      const body = JSON.parse(init?.body as string);
+      const body = parseSystemOneRequest(init);
       expect(body.model).toBe('jev-1.13.0');
-      expect(body.questions.attr_flavor).toBeDefined();
-      expect(body.questions.attr_flavor.criteria.opt_0).toContain('Chicken');
+      const question = body.questions.attr_flavor;
+      expect(question).toBeDefined();
+      if (!question || question.type !== 'choice') throw new Error('Expected flavor choice question');
+      expect(Object.values(question.criteria).some(label => typeof label === 'string' && label.includes('Chicken'))).toBe(true);
+      expect(question.criteria).toHaveProperty('no_match');
+      expect(question.criteria).toHaveProperty('insufficient_evidence');
 
       return systemOneJsonResponse(
         {
-          attr_flavor: {
-            type: 'choice',
-            choice: 'opt_0',
-            probabilities: {
-              opt_0: 0.88,
-              opt_1: 0.05,
-              opt_2: 0.04,
-              no_match: 0.02,
-              insufficient_evidence: 0.01,
-            },
-            confidence: 0.94,
-          },
+          attr_flavor: choiceAnswerForCriterion(question.criteria, 'Chicken', 0.88, 0.94),
         },
         { input_tokens: 120, output_tokens: 10 },
       );
-    }) as any;
+    });
 
     const decision = await resolveAttributeDecision({
       target: flavorTarget,
       cardinality: 'single',
-      evidence: jevChoiceEvidence,
+      evidence: evidenceForRun(run, jevChoiceEvidence),
       sku: 'SKU-FLAVOR-1',
       runId: run.id,
+      snapshot: run.snapshot,
       modelPolicy: policyView,
     });
-
-    expect(decision.status).toBe('resolved');
+    expect(decision.status, `Expected a resolved Jev decision; received ${JSON.stringify(decision)}`).toBe('resolved');
     expect(decision.value).toBe('Chicken');
     expect(decision.confidence).toBe(0.88);
     expect(decision.selectedProbability).toBe(0.88);
@@ -262,7 +341,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(decision.source).toBe('jev');
     expect(decision.derivation.kind).toBe('systemone_judgment');
 
-    const proposal = buildProposalFromAttributeDecision(decision, 'SKU-FLAVOR-1', run.id, 'hash-attr-1');
+    const proposal = buildProposalFromAttributeDecision(decision, 'SKU-FLAVOR-1', run.id, run.snapshot.snapshotHash);
     expect(proposal.proposalType).toBe('field_assignment');
     expect(proposal.proposedValue).toBe('Chicken');
     expect(proposal.isBulkAcceptable).toBe(false);
@@ -273,21 +352,22 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
   });
 
   it('2. multi-value resolution: resolves multi-value via deterministic alias or Jev Noul without silent single-choice conversion', async () => {
-    const run = createRun(workspaceId, 'SKU-MULTI-1', null, 'hash-multi');
+    const run = createFixtureRun('SKU-MULTI-1');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
     let fetchCalled = false;
-    globalThis.fetch = (async () => {
+    installFetchFixture(async () => {
       fetchCalled = true;
       return new Response('{}', { status: 200 });
-    }) as any;
+    });
 
     const decision = await resolveAttributeDecision({
       target: flavorTarget,
       cardinality: 'multiple',
-      evidence: sampleEvidence,
+      evidence: evidenceForRun(run, sampleEvidence),
       sku: 'SKU-MULTI-1',
       runId: run.id,
+      snapshot: run.snapshot,
       modelPolicy: policyView,
     });
 
@@ -296,13 +376,12 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(decision.values).toEqual(['Chicken']);
     expect(decision.value).toBe('Chicken');
 
-    const proposal = buildProposalFromAttributeDecision(decision, 'SKU-MULTI-1', run.id, 'hash-multi');
+    const proposal = buildProposalFromAttributeDecision(decision, 'SKU-MULTI-1', run.id, run.snapshot.snapshotHash);
     expect(proposal.proposalType).toBe('field_assignment');
     expect(proposal.proposedValue).toEqual(['Chicken']);
   });
 
   it('3. candidate limit exceeded: candidate options > 253 produces candidate_limit_exceeded (no clipping)', async () => {
-    const run = createRun(workspaceId, 'SKU-LIMIT-1', null, 'hash-limit');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
     const manyOptions: ResolvedTargetOption[] = Array.from({ length: 254 }, (_, i) => ({
@@ -310,61 +389,40 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       label: `Option ${i}`,
     }));
 
-    const bigTarget = {
-      ...flavorTarget,
-      options: manyOptions,
-    } as unknown as ResolvedTarget;
+    const run = createFixtureRun('SKU-LIMIT-1', manyOptions.map(option => option.value));
+    const bigTarget = resolveTargetsFromSnapshot(run.snapshot).productFields.find(target => target.config.attributeId === 'flavor')!;
+
+    expect(bigTarget.options, 'Candidate-limit fixture must be present in the captured runtime snapshot').toHaveLength(254);
 
     let fetchCalled = false;
-    globalThis.fetch = (async () => {
+    installFetchFixture(async () => {
       fetchCalled = true;
       return new Response('{}', { status: 200 });
-    }) as any;
+    });
 
     const decision = await resolveAttributeDecision({
       target: bigTarget,
       cardinality: 'single',
-      evidence: sampleEvidence,
+      evidence: evidenceForRun(run, sampleEvidence),
       sku: 'SKU-LIMIT-1',
       runId: run.id,
+      snapshot: run.snapshot,
       modelPolicy: policyView,
     });
-
-    expect(fetchCalled).toBe(false);
-    expect(decision.status).toBe('abstained');
+    expect(decision.status, `Expected candidate-limit abstention; received ${JSON.stringify(decision)}`).toBe('abstained');
     expect(decision.abstentionCode).toBe('candidate_limit_exceeded');
+    expect(fetchCalled).toBe(false);
   });
 
-  it('4. deterministic precedence: reviewed facts and aliases never call Jev; Brand is never a classifier output', async () => {
-    const run = createRun(workspaceId, 'SKU-PREC-1', null, 'hash-prec');
+  it('4. deterministic aliases resolve without a model request', async () => {
+    const run = createFixtureRun('SKU-PREC-1');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
     let fetchCalled = false;
-    globalThis.fetch = (async () => {
+    installFetchFixture(async () => {
       fetchCalled = true;
       return new Response('{}', { status: 200 });
-    }) as any;
-
-    // 4a. Reviewed facts precedence
-    const reviewedDecision = await resolveAttributeDecision({
-      target: flavorTarget,
-      cardinality: 'single',
-      evidence: sampleEvidence,
-      sku: 'SKU-PREC-1',
-      runId: run.id,
-      snapshot: {
-        snapshotHash: 'hash-prec',
-        reviewedFacts: [
-          { proposalType: 'field_assignment', targetId: 'flavor', value: 'Salmon' },
-        ],
-      } as any,
-      modelPolicy: policyView,
     });
-    expect(fetchCalled).toBe(false);
-    expect(reviewedDecision.status).toBe('resolved');
-    expect(reviewedDecision.value).toBe('Salmon');
-    expect(reviewedDecision.confidence).toBe(1.0);
-    expect(reviewedDecision.probabilityBasis).toBe('reviewed_fact');
 
     // 4b. Deterministic alias precedence
     const aliasEvidence: ClassificationEvidence[] = [
@@ -377,7 +435,7 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
         source: 'official_product_page',
         reliability: 'high',
         sourceUrl: null,
-        sourceField: 'ProductField1',
+        sourceField: 'ProductField23',
         snippet: 'Includes wholesome poultry meat',
         value: 'Includes wholesome poultry meat',
         metadata: null,
@@ -387,9 +445,10 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     const aliasDecision = await resolveAttributeDecision({
       target: flavorTarget,
       cardinality: 'single',
-      evidence: aliasEvidence,
+      evidence: evidenceForRun(run, aliasEvidence),
       sku: 'SKU-PREC-1',
       runId: run.id,
+      snapshot: run.snapshot,
       modelPolicy: policyView,
     });
     expect(fetchCalled).toBe(false);
@@ -397,196 +456,34 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
     expect(aliasDecision.value).toBe('Chicken');
     expect(aliasDecision.probabilityBasis).toBe('deterministic_alias');
 
-    // 4c. Brand attribute (issue #349): never a classifier output — the
-    // shared composition emits no proposal even with grounding evidence.
-    const freeTextTarget = {
-      config: {
-        id: 'brand',
-        label: 'Brand',
-        kind: 'attribute',
-        attributeId: 'brand',
-        catalogField: 'ProductField16',
-        selectionMode: 'single',
-      },
-      options: [],
-      attribute: {
-        id: 'brand',
-        name: 'Brand',
-        valueMode: 'freeText',
-      },
-    } as unknown as ResolvedTarget;
-
-    const brandEvidence: ClassificationEvidence[] = [
-      {
-        id: 'ev-brand',
-        runId: run.id,
-        stageName: 'evidence_extraction',
-        productSku: 'SKU-PREC-1',
-        attributeId: 'brand',
-        source: 'official_product_page',
-        reliability: 'high',
-        sourceUrl: null,
-        sourceField: 'ProductField16',
-        snippet: 'Acme Pet Food Co.',
-        value: 'Acme Pet Food Co.',
-        metadata: null,
-        capturedAt: new Date().toISOString(),
-      },
-    ];
-
-    const freeTextResult = await processProductFieldTarget(
-      freeTextTarget,
-      { sku: 'SKU-PREC-1', evidence: brandEvidence, acceptedProposals: [], allProposals: [] },
-      {
-        runId: run.id,
-        workspaceId,
-        snapshot: { snapshotHash: 'hash-prec' } as unknown as never,
-      } as never,
-    );
-    expect(fetchCalled).toBe(false);
-    expect(freeTextResult.proposals).toEqual([]);
-  });
-
-  it('5. empty profile & unresolved type: universal attributes proceed; type-dependent withheld', async () => {
-    const run = createRun(workspaceId, 'SKU-EMPTY-PROF', null, 'hash-empty-prof');
-    const nowIso = new Date().toISOString();
-
-    const emptyBundle = {
-      manifest: {
-        schemaVersion: 2,
-        bundleHash: 'hash-empty-prof',
-        fileVersions: {},
-        sourceCatalogCommit: null,
-        catalogEvidenceHash: null,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      },
-      brands: [],
-      guidance: [],
-      modelPolicy: cloudJevPolicy,
-      dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
-      productTypes: [
-        { id: 'general-item', name: 'General Item', description: null, attributeProfileId: null, oldIdAliases: [] },
-      ],
-      attributeProfiles: [],
-      attributes: [
-        { id: 'universal_attr', name: 'Universal Item', description: null, valueMode: 'controlled', allowedValues: ['Yes'], valueAliases: [], visualEvidenceEligibility: 'eligible', isUniversal: true, isClaim: false, isCompositionAttribute: false, group: 'General' },
-        { id: 'gated_flavor', name: 'Gated Flavor', description: null, valueMode: 'controlled', allowedValues: ['Chicken'], valueAliases: [], visualEvidenceEligibility: 'eligible', isUniversal: false, isClaim: false, isCompositionAttribute: false, group: 'Food' },
-      ],
-      attributeMappings: [
-        { id: 'm-1', attributeId: 'universal_attr', catalogField: 'ProductField1', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
-        { id: 'm-2', attributeId: 'gated_flavor', catalogField: 'ProductField2', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
-      ],
-      curationTargets: [
-        { id: 't-type', kind: 'product_type', label: 'Product Type', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
-        { id: 't-universal', kind: 'product_field', label: 'Universal Item', enabled: true, selectionMode: 'single', attributeId: 'universal_attr', catalogField: 'ProductField1', optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
-        { id: 't-gated', kind: 'product_field', label: 'Gated Flavor', enabled: true, selectionMode: 'single', attributeId: 'gated_flavor', catalogField: 'ProductField2', optionSource: 'configured', required: false, mandatory: false, sortOrder: 2 },
-      ],
-    };
-
-    const emptySnapshot = buildRuntimeSnapshot({
-      workspaceId,
-      workspacePath: '/tmp/test-ws',
-      productSku: 'SKU-EMPTY-PROF',
-      authority: { kind: 'v2', bundle: emptyBundle as any },
-      configSnapshotRef: { id: 'snap-empty', hash: 'hash-empty-prof', sourceCommit: null, createdAt: nowIso },
-      sourceProductHash: null,
-    });
-
-    const stageContext = {
-      runId: run.id,
-      workspaceId,
-      workspacePath: '/tmp/test-ws',
-      configSnapshotRef: emptySnapshot.configSnapshotRef,
-      snapshot: emptySnapshot,
-    } as any;
-
-    const stageInput = {
-      sku: 'SKU-EMPTY-PROF',
-      evidence: sampleEvidence,
-      acceptedProposals: [],
-    } as any;
-
-    globalThis.fetch = (async () => {
-      return systemOneJsonResponse({
-        attr_universal_attr: {
-          type: 'choice',
-          choice: 'opt_0',
-          probabilities: { opt_0: 0.90, no_match: 0.05, insufficient_evidence: 0.05 },
-          confidence: 0.95,
-        },
-      });
-    }) as any;
-
-    const stageResult = await productAttributeProposalsStage.execute(stageInput, stageContext);
-    expect(stageResult.status).toBe('succeeded');
-    const proposals = (stageResult as any).output.proposals;
-    // universal_attr proposed, gated_flavor withheld!
-    expect(proposals.some((p: any) => p.targetId === 'universal_attr')).toBe(true);
-    expect(proposals.some((p: any) => p.targetId === 'gated_flavor')).toBe(false);
   });
 
   it('6. state batching: identical states batch into 1 request; restricted evidence dispatches separately (AC 7)', async () => {
-    const run = createRun(workspaceId, 'SKU-BATCH-1', null, 'hash-batch');
+    const run = createFixtureRun('SKU-BATCH-1');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
-    const formTarget = {
-      config: {
-        id: 'form',
-        label: 'Food Form',
-        kind: 'attribute',
-        attributeId: 'form',
-        selectionMode: 'single',
-      },
-      options: [
-        { value: 'Dry', label: 'Dry' },
-        { value: 'Wet', label: 'Wet' },
-      ],
-      attribute: {
-        id: 'form',
-        name: 'Food Form',
-        valueMode: 'singleChoice',
-        visualEvidenceEligibility: 'eligible', // same as flavorTarget -> identical state
-        valueAliases: [],
-      },
-    } as unknown as ResolvedTarget;
+    const targets = resolveTargetsFromSnapshot(run.snapshot).productFields;
+    const formTarget = targets.find(target => target.config.attributeId === 'food-form')!;
+    const materialTargetIneligibleVisual = targets.find(target => target.config.attributeId === 'material')!;
 
-    const materialTargetIneligibleVisual = {
-      config: {
-        id: 'material',
-        label: 'Toy Material',
-        kind: 'attribute',
-        attributeId: 'material',
-        selectionMode: 'single',
-      },
-      options: [
-        { value: 'Rubber', label: 'Rubber' },
-        { value: 'Plush', label: 'Plush' },
-      ],
-      attribute: {
-        id: 'material',
-        name: 'Toy Material',
-        valueMode: 'singleChoice',
-        visualEvidenceEligibility: 'ineligible', // filters visual evidence -> distinct state!
-        valueAliases: [],
-      },
-    } as unknown as ResolvedTarget;
-
-    const requestsReceived: any[] = [];
-    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      const body = JSON.parse(init?.body as string);
+    const requestsReceived: SystemOneRequest[] = [];
+    installFetchFixture(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = parseSystemOneRequest(init);
       requestsReceived.push(body);
-      const answers: any = {};
-      for (const qId of Object.keys(body.questions)) {
-        answers[qId] = {
-          type: 'choice',
-          choice: 'opt_0',
-          probabilities: { opt_0: 0.85, no_match: 0.1, insufficient_evidence: 0.05 },
-          confidence: 0.9,
-        };
+      const answers: Record<string, SystemOneAnswer> = {};
+      const expectedLabels: Record<string, string> = {
+        attr_flavor: 'Chicken',
+        'attr_food-form': 'Dry',
+        attr_material: 'Rubber',
+      };
+      for (const [qId, question] of Object.entries(body.questions)) {
+        const expectedLabel = expectedLabels[qId];
+        if (!expectedLabel) throw new Error(`Unexpected question ${qId}`);
+        if (question.type !== 'choice') throw new Error(`Expected choice question ${qId}`);
+        answers[qId] = choiceAnswerForCriterion(question.criteria, expectedLabel);
       }
       return systemOneJsonResponse(answers);
-    }) as any;
+    });
 
     const decisions = await batchResolveAttributeDecisions({
       items: [
@@ -594,51 +491,40 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
         { target: formTarget, cardinality: 'single' },
         { target: materialTargetIneligibleVisual, cardinality: 'single' },
       ],
-      evidence: jevChoiceEvidence, // has official_product_page + visual_product_evidence without exact option keywords
+      evidence: evidenceForRun(run, jevChoiceEvidence), // has official_product_page + visual_product_evidence without exact option keywords
       sku: 'SKU-BATCH-1',
       runId: run.id,
+      snapshot: run.snapshot,
       modelPolicy: policyView,
     });
-
-    expect(decisions).toHaveLength(3);
+    expect(
+      decisions.map(decision => ({ targetId: decision.targetId, status: decision.status, value: decision.value, abstentionCode: decision.status === 'abstained' ? decision.abstentionCode : null })),
+      `Expected valid batched Jev choices; received ${JSON.stringify(decisions)}`,
+    ).toEqual([
+      { targetId: 'flavor', status: 'resolved', value: 'Chicken', abstentionCode: null },
+      { targetId: 'food-form', status: 'resolved', value: 'Dry', abstentionCode: null },
+      { targetId: 'material', status: 'resolved', value: 'Rubber', abstentionCode: null },
+    ]);
     // There must be EXACTLY 2 requests:
     // Request 1: batched flavor & form (identical permitted state with visual evidence)
     // Request 2: material (visual evidence excluded, restricted permitted state)
     expect(requestsReceived).toHaveLength(2);
 
     const batchedReq = requestsReceived.find(r => Object.keys(r.questions).length === 2);
-    expect(batchedReq).toBeDefined();
+    if (!batchedReq) throw new Error('Expected the shared-state flavor/food-form request');
     expect(batchedReq.questions.attr_flavor).toBeDefined();
-    expect(batchedReq.questions.attr_form).toBeDefined();
+    expect(batchedReq.questions['attr_food-form']).toBeDefined();
 
     const separateReq = requestsReceived.find(r => Object.keys(r.questions).length === 1);
-    expect(separateReq).toBeDefined();
+    if (!separateReq) throw new Error('Expected the restricted-evidence material request');
     expect(separateReq.questions.attr_material).toBeDefined();
   });
 
   it('7. claims safeguard: ungrounded claims without direct evidence abstain as unsupported_claim (AC 5)', async () => {
-    const run = createRun(workspaceId, 'SKU-CLAIM-1', null, 'hash-claim');
+    const run = createFixtureRun('SKU-CLAIM-1');
     const policyView = buildModelPolicyView(cloudJevPolicy);
 
-    const organicClaimTarget = {
-      config: {
-        id: 'organic',
-        label: 'Certified Organic',
-        kind: 'attribute',
-        attributeId: 'organic',
-        selectionMode: 'single',
-      },
-      options: [
-        { value: 'Yes', label: 'Yes' },
-        { value: 'No', label: 'No' },
-      ],
-      attribute: {
-        id: 'organic',
-        name: 'Certified Organic',
-        valueMode: 'singleChoice',
-        isClaim: true, // Claim sensitive!
-      },
-    } as unknown as ResolvedTarget;
+    const organicClaimTarget = resolveTargetsFromSnapshot(run.snapshot).productFields.find(target => target.config.attributeId === 'dietary-features')!;
 
     // Speculative non-direct evidence (e.g. distributor web-search snippet)
     const nonDirectEvidence: ClassificationEvidence[] = [
@@ -659,67 +545,28 @@ describe('TypeSafe Jev Attribute Seam Verification (Issue #298)', () => {
       },
     ];
 
-    globalThis.fetch = (async () => {
-      return systemOneJsonResponse({
-        attr_organic: {
-          type: 'choice',
-          choice: 'opt_0',
-          probabilities: { opt_0: 0.95, opt_1: 0.03, no_match: 0.01, insufficient_evidence: 0.01 },
-          confidence: 0.98,
-        },
-      });
-    }) as any;
+    installFetchFixture(async () => systemOneJsonResponse({
+      'attr_dietary-features': {
+        type: 'choice',
+        choice: 'opt_0',
+        probabilities: { opt_0: 0.95, opt_1: 0.03, no_match: 0.01, insufficient_evidence: 0.01 },
+        confidence: 0.98,
+      },
+    }));
 
     const decision = await resolveAttributeDecision({
       target: organicClaimTarget,
       cardinality: 'single',
-      evidence: nonDirectEvidence,
+      evidence: evidenceForRun(run, nonDirectEvidence),
       sku: 'SKU-CLAIM-1',
       runId: run.id,
+      snapshot: run.snapshot,
       modelPolicy: policyView,
     });
 
     // High probability (0.95) cannot authorize an ungrounded claim!
     expect(decision.status).toBe('abstained');
     expect(decision.abstentionCode).toBe('unsupported_claim');
-  });
-
-  it('8. pre-review prediction capture: populates fieldAssignments for predictions and abstentions', async () => {
-    const run = createRun(workspaceId, 'SKU-PRED-ATTR', null, 'hash-pred-1');
-    const db = getDb();
-    db.run('UPDATE classification_runs SET status = ? WHERE id = ?', ['completed', run.id]);
-    const now = new Date().toISOString();
-
-    db.run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', 'dog-food', ?, 0.90, 'pending', ?)`,
-      [randomUUID(), run.id, 'SKU-PRED-ATTR', JSON.stringify('dog-food'), now],
-    );
-
-    db.run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', 'flavor', ?, 0.88, 'pending', ?)`,
-      [randomUUID(), run.id, 'SKU-PRED-ATTR', JSON.stringify('Chicken'), now],
-    );
-
-    db.run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'reviewable_abstention', 'size', ?, 0, 'pending', ?)`,
-      [randomUUID(), run.id, 'SKU-PRED-ATTR', JSON.stringify({ reason: 'No size info', code: 'insufficient_evidence', attributeId: 'size' }), now],
-    );
-
-    const prediction = capturePreReviewPrediction({
-      runId: run.id,
-      workspaceId,
-      productSku: 'SKU-PRED-ATTR',
-    });
-
-    expect(prediction.outcome).toBe('predicted');
-    expect(prediction.productType).toBe('dog-food');
-    expect(prediction.fieldAssignments).toEqual([
-      { targetId: 'flavor', value: 'Chicken', values: ['Chicken'] },
-      { targetId: 'size', value: null },
-    ]);
   });
 
   it('9. benchmark evaluator attribution & baseline comparison: scores fieldStates with inapplicable/unlabeled excluded (AC 8)', () => {

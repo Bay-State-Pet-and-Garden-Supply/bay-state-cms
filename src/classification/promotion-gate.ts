@@ -22,8 +22,8 @@
  * filtered by `getAcceptedProposals` (`d.superseded_at IS NULL`) and is NOT
  * duplicated here.
  *
- * Legacy items (no curation data / no classification run pointer) pass
- * UNCHANGED — the narrow legacy promotion path stays byte-identical.
+ * Legacy items without a current classification run have no executable
+ * authority; they must be reclassified before a local CMS draft can be made.
  */
 import { CohortSemanticValidationSchema } from '../shared/schemas/onboarding';
 import type { CurationData } from '../shared/schemas/onboarding';
@@ -41,6 +41,7 @@ export type PromotionGateResult =
   | {
       ok: false;
       code:
+        | 'classification_authority_missing'
         | 'semantic_validation_blocked'
         | 'semantic_validation_unavailable'
         | 'run_not_completed'
@@ -235,10 +236,15 @@ export function validatePromotionGate(input: PromotionGateInput): PromotionGateR
     currentAuthorityHashes,
   } = input;
 
-  // 1. Legacy: no curation data or no classification run pointer — the narrow
-  //    legacy promotion path is byte-identical (no gate).
+  // Classification-authorized draft creation requires the current run pointer.
+  // Historical items without one need reclassification; they cannot bypass
+  // pair/profile readiness by taking the legacy promotion path.
   if (!curationData || !curationData.classificationRunId) {
-    return { ok: true };
+    return {
+      ok: false,
+      code: 'classification_authority_missing',
+      reason: `Item ${itemId} (SKU ${productSku}) has no current classification run authority; reclassify before promotion.`,
+    };
   }
   // A present run pointer that failed the caller's ownership validation never
   // reaches the gate (the caller refuses it); defensive fail-closed anyway.
@@ -426,8 +432,8 @@ export function validatePromotionGate(input: PromotionGateInput): PromotionGateR
  * identity is absent from `verifiedPageIds` (deleted page, foreign import,
  * or a name-only proposal with no verifiable identity) refuses the item —
  * defense-in-depth BEFORE any product draft / `product_pages` /
- * `ProductOnPages` write. Never runs for legacy items (they returned ok at
- * step 1) and never when the caller did not supply the verified set.
+ * `ProductOnPages` write. Reached only with current classification authority
+ * and a verified page set.
  */
 function assertPagesCurrentForImport(input: PromotionGateInput): PromotionGateResult | null {
   if (!input.verifiedPageIds) return null;

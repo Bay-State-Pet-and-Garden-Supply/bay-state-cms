@@ -181,6 +181,17 @@ describe('valueGapAbstainStage — composition gating', () => {
     expect(out(result).proposals).toEqual([]);
     expect(mocks.llmRankOptions).not.toHaveBeenCalled();
   });
+  it('does not use mutable config when the enabled stage has no frozen run snapshot', async () => {
+    overrideUniversalTierFlags({ valueGapLlmEnabled: true });
+
+    const result = await valueGapAbstainStage.execute(makeInput(), makeContext(undefined));
+
+    expect(result.status).toBe('abstained');
+    expect(out(result).proposals).toEqual([]);
+    expect(out(result).message).toContain('frozen classification snapshot');
+    expect(resolveTargetsFromSnapshot).not.toHaveBeenCalled();
+    expect(mocks.llmRankOptions).not.toHaveBeenCalled();
+  });
 });
 
 describe('valueGapAbstainStage — gap resolution (flag ON)', () => {

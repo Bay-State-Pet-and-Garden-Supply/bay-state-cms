@@ -9,8 +9,8 @@
  * - `resolveStageOrder` over the member stage list proves `name_consolidation`
  *   runs before `product_draft_projection`.
  *
- * Snapshot mappings (issue #351 SKU-local): the stage resolves mappings from
- * the frozen snapshot when present, else the live cache fallback.
+ * Frozen mappings are the only projection authority. Missing snapshots fail
+ * closed; the stage never falls back to live cache.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'bun:test';
 import { initDb, closeDb } from '../../db/connection';
@@ -28,9 +28,8 @@ import {
 import type { StageContext, StageInput } from '../../classification/types';
 
 beforeAll(() => {
-  // The stage imports the classification-config repo (which touches the DB
-  // only in the legacy cache path); the tests below always pass a frozen
-  // snapshot or mock the cache, but a live DB keeps every import path valid.
+  // The stage reads frozen mapping and page authority. A live DB keeps
+  // imports valid, but projection never uses its mapping caches.
   initDb(':memory:');
   runMigrations();
 });
@@ -44,9 +43,13 @@ const baseContext: StageContext = {
   workspaceId: 'workspace',
   runId: 'run-1',
   configSnapshotRef: { id: 'snapshot', hash: 'hash', sourceCommit: null, createdAt: '' },
-  // A frozen snapshot with NO attribute mappings keeps the stage pure
-  // (no legacy cache read, no DB dependency).
-  snapshot: { attributeMappings: [] } as unknown as StageContext['snapshot'],
+  // A frozen projection authority with no mapped attributes or verified
+  // Pages; it has the complete shape consumed by this stage.
+  snapshot: {
+    attributeMappings: [],
+    attributes: [],
+    pages: { state: 'no_verified_page_catalog', nameOnlyRecords: [] },
+  } as unknown as StageContext['snapshot'],
 };
 
 const baseInput: StageInput = {
@@ -138,12 +141,12 @@ describe('frozen snapshot attribute mappings (issue #351 SKU-local)', () => {
     expect(result.status).toBe('succeeded');
   });
 
-  it('without a snapshot => live cache fallback (no execution context exists)', async () => {
+  it('without a snapshot => fails closed instead of using live cache fallback', async () => {
     const context: StageContext = {
       ...baseContext,
       snapshot: undefined,
     };
     const result = await productDraftProjectionStage.execute(baseInput, context);
-    expect(result.status).toBe('succeeded');
+    expect(result.status).toBe('failed');
   });
 });

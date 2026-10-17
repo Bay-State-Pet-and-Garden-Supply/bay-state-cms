@@ -21,6 +21,7 @@ import type {
   ClassificationConfigSnapshotRef,
   CurationTargetConfig,
   ClassificationConfigBundleV2,
+  ProductTypeConfigV2,
 } from '../shared/schemas/classification';
 import type { RuntimeConfigAuthority } from './config-loader';
 import type { ResolvedTargetOption } from './curation-target-resolver';
@@ -50,6 +51,10 @@ import {
 } from './model-operation-registry';
 
 const now = () => new Date().toISOString();
+
+export type RuntimeClassificationProductType =
+  ClassificationConfig['productTypes'][number]
+  & Pick<Partial<ProductTypeConfigV2>, 'categoryId' | 'websiteValues' | 'invariantAttributes' | 'departmentId'>;
 
 export interface PageSnapshotRecord {
   pageId: string;
@@ -130,7 +135,7 @@ export interface RuntimeClassificationSnapshot {
   configSnapshotRef: ClassificationConfigSnapshotRef;
   focusedFileHashes: Record<string, string>;
   catalogEvidenceHash: string | null;
-  productTypes: ClassificationConfig['productTypes'];
+  productTypes: RuntimeClassificationProductType[];
   /**
    * Canonical Categories frozen for the run (issue #350). V1 configs carry
    * no categories (empty); v2 bundles carry the approved set. The snapshot
@@ -198,7 +203,10 @@ export function computeSnapshotFieldOptions(config: ClassificationConfig): Recor
     if (target.kind !== 'product_field') continue;
     const attribute = config.attributes.find(candidate => candidate.id === target.attributeId);
     if (!attribute) continue;
-    const allowed = resolveAttributeAllowedValues(config, attribute, target);
+    // Model inference must see the complete frozen candidate authority. The
+    // 250-value default is for UI retrieval only; truncating here could make
+    // an oversized candidate set look valid instead of refusing dispatch.
+    const allowed = resolveAttributeAllowedValues(config, attribute, target, Number.POSITIVE_INFINITY);
     result[target.id] = allowed.map(value => ({ value, label: value }));
   }
   return result;
@@ -212,7 +220,7 @@ export function computeSnapshotFieldOptions(config: ClassificationConfig): Recor
  */
 function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   config: ClassificationConfig;
-  productTypes: ClassificationConfig['productTypes'];
+  productTypes: RuntimeClassificationProductType[];
   categories: Array<{ id: string; name: string }>;
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
@@ -242,7 +250,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   const bundle = authority.bundle;
   return {
     config: bundle as unknown as ClassificationConfig,
-    productTypes: bundle.productTypes as unknown as ClassificationConfig['productTypes'],
+    productTypes: bundle.productTypes,
     categories: (bundle.categories ?? []).map(category => ({ id: category.id, name: category.name })),
     attributes: bundle.attributes as unknown as ClassificationConfig['attributes'],
     attributeProfiles: bundle.attributeProfiles as unknown as ClassificationConfig['attributeProfiles'],

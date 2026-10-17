@@ -264,6 +264,7 @@ import {
 } from '../../db/repositories/classification-run-repo';
 import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from '../../classification/consistency-validator';
 import { validateReviewCompletionGate, validateItemCategoryPagesAssigned } from '../../classification/review-completion-gate';
+import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
 import {
   buildReviewCompletenessContext,
   evaluateReviewCompleteness,
@@ -2004,6 +2005,17 @@ route.get('/onboarding/items/:id', async (c) => {
     }
   })();
 
+  const classificationReadiness = (() => {
+    if (!activeRunId) return null;
+    try {
+      const workspace = findWorkspace();
+      if (!workspace) return null;
+      return evaluateCanonicalReadiness({ workspaceId: workspace.id, runId: activeRunId });
+    } catch {
+      return null;
+    }
+  })();
+
   // M6: latest variant resolution (client-safe)
   let variantResolution: unknown = null;
   try {
@@ -2027,6 +2039,7 @@ route.get('/onboarding/items/:id', async (c) => {
     semanticValidation: semanticSurface.mode === 'active' ? semanticSurface.semanticValidation : undefined,
     sourcingQualificationView,
     ...(variantResolution ? { variantResolution } : {}),
+    classificationReadiness,
     ...(completeness ? { completeness } : {}),
   });
 });

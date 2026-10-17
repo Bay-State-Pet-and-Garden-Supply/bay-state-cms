@@ -293,8 +293,8 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
 
         <p style={styles.hint}>
           {curationViewMode === 'global'
-            ? 'Review the outputs Curation is allowed to populate. Product-field targets are further restricted by the current Product Type\'s Attribute Profile.'
-            : 'Review the effective curation attributes for each Product Type. Profile entries define per-type applicability, cardinality, and required state.'}
+            ? 'Review fields Curation may populate. The selected Attribute Profile limits applicable Classification Attributes. Brand may inform Product Classification but is never a classification output.'
+            : 'Review the Attribute Profile for each Category + Product Type pair. It defines applicable Classification Attributes, requiredness, and whether they accept one or multiple values. This view groups by Product Type because each type maps to one Category.'}
         </p>
 
         {curationViewMode === 'global' && (
@@ -303,7 +303,7 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
               ℹ️ Managing Curation in v2 Workspaces
             </div>
             <div style={{ color: '#1e3a8a', lineHeight: 1.4 }}>
-              In v2 classification workspaces, field targets and attribute requirements are managed per Product Type via the{' '}
+              For each run, the Category + Product Type pair selects its configured Attribute Profile. Use the{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -316,7 +316,7 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
               >
                 By Product Type
               </button>{' '}
-              tab, or globally via field mappings in Catalog Workbench.
+              tab to inspect profile rules. Global field mappings remain in Catalog Workbench.
             </div>
           </div>
         )}

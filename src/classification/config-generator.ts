@@ -115,6 +115,8 @@ export interface BayStateSeed {
     description: string | null;
     /** Approved canonical Category for this type (issue #350). */
     categoryId?: string;
+    websiteValues?: ProductTypeConfigV2['websiteValues'];
+    invariantAttributes?: ProductTypeConfigV2['invariantAttributes'];
     oldIdAliases?: string[];
   }>;
   /** Approved canonical Categories (issue #350). */
@@ -303,13 +305,12 @@ export function generateCandidate(seed: BayStateSeed, evidence: CatalogEvidence)
       id: type.id,
       name: type.name,
       description: type.description,
+      categoryId: type.categoryId ?? null,
       attributeProfileId: hasProfile ? `${type.id}-profile` : null,
       oldIdAliases: type.oldIdAliases ?? [],
-      // Issue #350: approved canonical Category per type. Absent here means
-      // the seed has no mapping — validation below reports the gap; the
-      // generator never invents a category.
-      categoryId: type.categoryId ?? null,
-      invariantAttributes: (type as any).invariantAttributes ?? {},
+      // Website values are explicit owner authority, never inferred from ids.
+      ...(type.websiteValues ? { websiteValues: type.websiteValues } : {}),
+      invariantAttributes: type.invariantAttributes ?? {},
     };
   });
 

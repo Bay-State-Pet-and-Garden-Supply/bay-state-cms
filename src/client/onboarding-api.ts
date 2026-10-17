@@ -50,6 +50,7 @@ import type {
 
 } from '../shared/schemas/extraction-worker';
 import type {
+  CanonicalClassificationReadinessResult,
   ClassificationProposalDecision,
   CurationTargetConfig,
   ProposalDecisionInput,
@@ -527,6 +528,8 @@ export interface ItemDetailResponse {
   item: OnboardingItem;
   sources: OnboardingSource[];
   extraction: ExtractionData | null;
+  /** Server-computed result from the active classification run's frozen authority. */
+  classificationReadiness?: CanonicalClassificationReadinessResult | null;
   variantResolution?: VariantResolutionClientView | null;
   evidenceAttempts?: DistributorEvidenceAttemptView[];
   /** Sourcing generations for the item (ADR 0014 audit view). */

@@ -23,6 +23,11 @@ import { buildDistributorRecordProjection } from '../../onboarding/sourcing/dist
 import { SOURCING_ENTRY_POLICY_VERSION } from '../../onboarding/sourcing/entry-policy';
 import { createDistributor, createConnection } from '../../db/repositories/distributor-repo';
 import { materializeDistributorRecordExtraction } from '../../onboarding/sourcing/distributor-record-materializer';
+import { generateCandidate } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
+import type { CatalogEvidence } from '../../classification/catalog-evidence';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../classification/page-snapshot';
 
 describe('Draft Promoter Service', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'promoter-test.db');
@@ -73,7 +78,7 @@ describe('Draft Promoter Service', () => {
         `map-${attributeId}`,
         attributeId,
         catalogField,
-        JSON.stringify({ format: 'direct', separator: ', ', prefix: '', suffix: '' }),
+        JSON.stringify({ kind: 'scalar', prefix: '', suffix: '' }),
         isStale,
         now,
         now,
@@ -101,7 +106,82 @@ describe('Draft Promoter Service', () => {
     return verified.id;
   }
 
-  function seedAcceptedCategoryProposal(db: any, sku: string, pageName: string, runOverride?: string) {
+  function seedCanonicalAuthority(db: any, sku: string, runId: string, includePair = true, requiredAttributeId?: string): void {
+    const now = new Date().toISOString();
+    const websiteValues = new Map([
+      ['dog-food-dry', { category: 'QA/test-only dog-food category', productType: 'QA/test-only dry dog food' }],
+      ['dog-food-wet', { category: 'QA/test-only dog-food category', productType: 'QA/test-only wet dog food' }],
+      ['cat-food-wet', { category: 'QA/test-only cat-food category', productType: 'QA/test-only wet cat food' }],
+      ['bird-food', { category: 'QA/test-only bird category', productType: 'QA/test-only bird food' }],
+    ]);
+    const seed = {
+      ...BayStatePetGardenSeed,
+      revision: 'qa-promotion-authority',
+      createdAt: '2026-10-16T00:00:00.000Z',
+      profileTemplates: requiredAttributeId
+        ? BayStatePetGardenSeed.profileTemplates.map(profile => profile.id === 'pet-food'
+          ? {
+            ...profile,
+            attributes: profile.attributes.map(rule => rule.attributeId === requiredAttributeId
+              ? { ...rule, required: true }
+              : rule),
+          }
+          : profile)
+        : BayStatePetGardenSeed.profileTemplates,
+      productTypes: BayStatePetGardenSeed.productTypes.map(type => {
+        const mappedValues = websiteValues.get(type.id);
+        return mappedValues ? { ...type, websiteValues: mappedValues } : type;
+      }),
+    };
+    const evidence: CatalogEvidence = {
+      schemaVersion: 1,
+      sourceTreeHash: '0'.repeat(64),
+      productFileCount: 0,
+      parseFailureCount: 0,
+      parseFailures: [],
+      fieldRegistry: { entryCount: 0, xmlFields: [] },
+      fields: [],
+      pages: [],
+    };
+    const bundle = generateCandidate(seed, evidence).bundle;
+    const pages = captureVerifiedPageSnapshot(wsId);
+    const snapshot = buildRuntimeSnapshot({
+      workspaceId: wsId,
+      workspacePath: tempWorkspaceDir,
+      productSku: sku,
+      authority: { kind: 'v2', bundle },
+      configSnapshotRef: {
+        id: `qa-config-${runId}`,
+        hash: bundle.manifest.bundleHash,
+        sourceCommit: null,
+        createdAt: now,
+      },
+      sourceProductHash: null,
+      pages: toPageSnapshotState(pages),
+      pageImportId: pages.pageImportId,
+      pageImportHash: pages.pageImportHash,
+    });
+    const persisted = persistRuntimeSnapshot(snapshot);
+    db.run('UPDATE classification_runs SET config_snapshot_hash = ? WHERE id = ?', [persisted.hash, runId]);
+
+    if (includePair) {
+      const pairProposalId = `pair-${runId}`;
+      db.run(
+        `INSERT OR IGNORE INTO classification_proposals
+         (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, 'product_classification', 'dog-food-dry', ?, 1.0, 'accepted', ?)`,
+        [pairProposalId, runId, sku, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }), now],
+      );
+      db.run(
+        `INSERT OR IGNORE INTO classification_proposal_decisions
+         (id, proposal_id, decision, decision_key, created_at)
+         VALUES (?, ?, 'accepted', ?, ?)`,
+        [`decision-${pairProposalId}`, pairProposalId, `decision-token-${pairProposalId}`, now],
+      );
+    }
+  }
+
+  function seedAcceptedCategoryProposal(db: any, sku: string, pageName: string, runOverride?: string, requiredAttributeId?: string) {
     const runId = runOverride ?? `run-${sku}`;
     const now = new Date().toISOString();
     const item = db.query(
@@ -136,6 +216,7 @@ describe('Draft Promoter Service', () => {
        VALUES (?, ?, 'accepted', ?, ?)`,
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]
     );
+    seedCanonicalAuthority(db, sku, runId, true, requiredAttributeId);
   }
 
   function seedPromotionReadyItem(batchName: string, sku: string) {
@@ -710,7 +791,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-brand']);
   });
 
-  it('routes the new-arrival date tag to the mapped catalog slot instead of hardcoded ProductField1 (#142)', async () => {
+  it('does not route new-arrival metadata through protected or unknown classification slots (#142)', async () => {
     const db = getDb();
     seedAttributeMapping(db, 'arrival_date', 'ProductField7');
     const batch = createBatch({
@@ -765,11 +846,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(promoteRes.count).toBe(1);
     const csItems = listChangeSetItems(promoteRes.changeSetId!);
     const draftProduct = JSON.parse(csItems[0].draftJson);
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(-2);
-    expect(draftProduct.customFields['ProductField7']).toBe(`new${mm}${dd}${yy}`);
+    expect(draftProduct.customFields['ProductField7']).toBeUndefined();
     expect(draftProduct.customFields['ProductField1']).toBeUndefined();
     db.run('DELETE FROM classification_attribute_mappings WHERE workspace_id = ? AND id = ?', [wsId, 'map-arrival_date']);
   });
@@ -920,6 +997,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
         [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]
       );
     }
+    seedCanonicalAuthority(db, sku, runId);
     seedApproved(item.id, batch.id);
     const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(promoteRes.failures).toHaveLength(0);
@@ -1058,7 +1136,50 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     }
   });
 
-  it('should fail promotion if no accepted category proposals exist', async () => {
+  it('refuses local promotion when a required profile value is missing or empty', async () => {
+    const scenarios: Array<{ suffix: string; acceptedValue?: unknown }> = [
+      { suffix: 'MISSING' },
+      { suffix: 'EMPTY', acceptedValue: [] },
+    ];
+
+    for (const scenario of scenarios) {
+      const sku = `REQUIRED-${scenario.suffix}`;
+      const { batch, item } = seedPromotionReadyItem(`Required ${scenario.suffix}`, sku);
+      const db = getDb();
+      const runId = `run-required-${scenario.suffix}`;
+      seedAcceptedCategoryProposal(db, item.upc, 'Toys', runId, 'flavor');
+      db.run("UPDATE classification_runs SET source_kind = 'onboarding' WHERE id = ?", [runId]);
+      seedAttributeMapping(db, 'flavor', 'ProductField23');
+      const now = new Date().toISOString();
+      if ('acceptedValue' in scenario) {
+        const proposalId = `proposal-required-${scenario.suffix}`;
+        db.run(
+          `INSERT INTO classification_proposals
+           (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+           VALUES (?, ?, ?, 'field_assignment', 'flavor', ?, 0.9, 'accepted', ?)`,
+          [proposalId, runId, item.upc, JSON.stringify(scenario.acceptedValue), now],
+        );
+        db.run(
+          `INSERT INTO classification_proposal_decisions
+           (id, proposal_id, decision, decision_key, created_at)
+           VALUES (?, ?, 'accepted', ?, ?)`,
+          [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
+        );
+      }
+
+      const before = listChangeSets(wsId);
+      seedApproved(item.id, batch.id);
+      const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+
+      expect(result.count).toBe(0);
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0].error).toContain('required_values_missing');
+      expect(result.changeSetId).toBeNull();
+      expect(listChangeSets(wsId)).toEqual(before);
+    }
+  });
+
+  it('requires current classification authority before draft creation', async () => {
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo Fail',
@@ -1119,7 +1240,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(promoteRes.count).toBe(0);
     expect(promoteRes.failures.length).toBe(1);
     expect(promoteRes.failures[0].itemId).toBe(item.id);
-    expect(promoteRes.failures[0].error).toContain('No accepted product page proposals or manual page assignments exist');
+    expect(promoteRes.failures[0].error).toContain('no current classification run authority');
     expect(promoteRes.changeSetId).toBeNull();
 
     // Verify no change set was created in the database
@@ -1195,15 +1316,16 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       JSON.stringify(currentCuration),
       item.id,
     ]);
+    seedCanonicalAuthority(db, item.upc, activeRunId, false);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(result.count).toBe(0);
     expect(result.failures).toHaveLength(1);
-    expect(result.failures[0].error).toContain('No accepted product page proposals');
+    expect(result.failures[0].error).toContain('pair_unresolved');
   });
 
-  it('fails promotion when only curationData.suggestedPages exist without accepted proposals or manual DB assignments', async () => {
+  it('legacy suggested pages cannot bypass missing classification authority', async () => {
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo Fallback',
@@ -1263,7 +1385,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(promoteRes.count).toBe(0);
     expect(promoteRes.failures.length).toBe(1);
-    expect(promoteRes.failures[0].error).toContain('No accepted product page proposals');
+    expect(promoteRes.failures[0].error).toContain('no current classification run authority');
   });
 
   it('promotes the reviewer-corrected Product Type target rather than prediction metadata', async () => {
@@ -1305,7 +1427,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
         has_revised_target, decision_key, created_at)
        VALUES ('decision-type-corrected', 'proposal-type-corrected', 'accepted', ?,
                'cat-food-wet', 1, 'type-corrected-token', ?)`,
-      [JSON.stringify({ productTypeId: 'cat-food-wet' }), now],
+      [JSON.stringify({ categoryId: 'cat-food', productTypeId: 'cat-food-wet' }), now],
     );
     db.run(
       `INSERT INTO classification_proposal_decisions
@@ -1313,6 +1435,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
        VALUES ('decision-page-corrected', 'proposal-page-corrected', 'accepted', 'page-corrected-token', ?)`,
       [now],
     );
+    seedCanonicalAuthority(db, item.upc, runId, false);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1326,11 +1449,12 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(JSON.parse(history.event_json).acceptedProductType).toBe('cat-food-wet');
   });
 
+
   it('uses the shared Product Type rule for historical one-sided, clear, and conflicting decisions', async () => {
     const scenarios = [
       {
         suffix: 'value-only',
-        revisedValueJson: JSON.stringify({ productTypeId: 'cat-food-wet' }),
+        revisedValueJson: JSON.stringify({ categoryId: 'cat-food', productTypeId: 'cat-food-wet' }),
         revisedTargetId: null,
         hasRevisedTarget: 0,
         expected: 'cat-food-wet',
@@ -1338,9 +1462,9 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       {
         suffix: 'target-only',
         revisedValueJson: null,
-        revisedTargetId: 'bird-food',
+        revisedTargetId: 'dog-food-wet',
         hasRevisedTarget: 1,
-        expected: 'bird-food',
+        expected: 'dog-food-wet',
       },
       {
         suffix: 'target-clear',
@@ -1351,13 +1475,12 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       },
       {
         suffix: 'conflicting-pair',
-        revisedValueJson: JSON.stringify({ productTypeId: 'cat-food-wet' }),
+        revisedValueJson: JSON.stringify({ categoryId: 'wild-bird', productTypeId: 'cat-food-wet' }),
         revisedTargetId: 'bird-food',
         hasRevisedTarget: 1,
         expected: 'bird-food',
       },
     ] as const;
-
     for (const scenario of scenarios) {
       const sku = `TYPE-HISTORY-${scenario.suffix.toUpperCase()}`;
       const { batch, item, curationData } = seedPromotionReadyItem(
@@ -1419,9 +1542,16 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
           now,
         ],
       );
+      seedCanonicalAuthority(db, item.upc, runId, false);
 
             seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+      if (scenario.expected === null) {
+        expect(result.count).toBe(0);
+        expect(result.failures).toHaveLength(1);
+        expect(db.query('SELECT draft_json FROM change_set_items WHERE sku = ?').get(item.upc)).toBeNull();
+        continue;
+      }
       expect(result.failures).toHaveLength(0);
       expect(result.count).toBe(1);
       const history = db.query(
@@ -1680,15 +1810,15 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(draft.customFields['ProductField23']).toBeUndefined();
   });
 
-  it('promotes legacy embedded proposals only when status is exactly accepted', async () => {
+  it('does not execute legacy embedded proposals without immutable run authority', async () => {
     const { batch, item } = seedPromotionReadyItem(
       'Legacy Embedded',
       'LEGACY-EMB-001',
     );
     const db = getDb();
     const legacyToysPageId = activateVerifiedPage('Toys', 'legacy-emb');
-    // No classificationRunId — a genuine legacy item. Embedded proposals in the
-    // curation JSON are the only classification input.
+    // No classificationRunId — a genuine legacy item. Embedded proposals are
+    // immutable history only and cannot supply current review authority.
     const legacyProposals = [
       {
         id: 'legacy-acc',
@@ -1745,20 +1875,12 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     ]);
     seedAttributeMapping(db, 'flavor', 'ProductField23');
 
-        seedApproved(item.id, batch.id);
-const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
-    expect(result.failures).toHaveLength(0);
-    expect(result.count).toBe(1);
-    const changeSetItem = db.query(
-      `SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1`,
-    ).get(item.upc) as { draft_json: string };
-    const draft = JSON.parse(changeSetItem.draft_json);
-    expect(draft.customFields['ProductField23']).toBe('Beef');
-    // None of the pending/rejected/stale/deferred embedded proposals may appear.
-    expect(draft.customFields['ProductField17']).toBeUndefined();
-    expect(draft.customFields['ProductField18']).toBeUndefined();
-    expect(draft.customFields['ProductField22']).toBeUndefined();
-    expect(draft.customFields['ProductField21']).toBeUndefined();
+    seedApproved(item.id, batch.id);
+    const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(result.count).toBe(0);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0].error).toContain('no current classification run authority');
+    expect(db.query('SELECT draft_json FROM change_set_items WHERE sku = ?').get(item.upc)).toBeNull();
   });
 
   it('promotes an accepted category page proposal whose identity is verified in the ACTIVE import', async () => {
@@ -1831,6 +1953,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
        VALUES (?, ?, 'accepted', ?, ?)`,
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
+    seedCanonicalAuthority(db, item.upc, runId);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1901,6 +2024,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
        VALUES (?, ?, 'accepted', ?, ?)`,
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
+    seedCanonicalAuthority(db, item.upc, runId);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1910,14 +2034,14 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     // item is still blocked, now earlier and with the Page-specific reason).
     expect(result.failures).toHaveLength(1);
     expect(result.count).toBe(0);
-    expect(result.failures[0].error).toContain('does not resolve into the active verified Page import');
+    expect(result.failures[0].error).toContain('Page identity unverified or inconsistent with the reviewed target');
     const changeSetItem = db.query(
       'SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1',
     ).get(item.upc) as { draft_json: string } | null;
     expect(changeSetItem).toBeNull();
   });
 
-  it('BLOCKS promotion when the only page input is an unverified/name-only manual DB row (fail-closed page gate)', async () => {
+  it('a legacy name-only page row cannot bypass missing classification authority', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'NameOnly Pages', fileName: 'np2.xlsx', totalItems: 1 });
     const items = insertItems(batch.id, [{ upc: '999000000004', name: 'Test Brand NameOnly Product 5 LB', price: '$8.00', rowNumber: 1, brandHint: 'Test Brand' }]);
     const item = items[0];
@@ -1957,7 +2081,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(result.failures).toHaveLength(1);
     expect(result.count).toBe(0);
-    expect(result.failures[0].error).toContain('No verified page assignments exist');
+    expect(result.failures[0].error).toContain('no current classification run authority');
   });
 
   it('REFUSES promotion when a MIXED verified + unverified accepted set exists — P11 fails the item closed before any draft write', async () => {
@@ -2014,7 +2138,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     // verified (no partial page sets may reach ProductOnPages).
     expect(result.failures).toHaveLength(1);
     expect(result.count).toBe(0);
-    expect(result.failures[0].error).toContain('does not resolve into the active verified Page import');
+    expect(result.failures[0].error).toContain('Page identity unverified or inconsistent with the reviewed target');
     const changeSetItemAfterRefusal = db.query(
       'SELECT draft_json FROM change_set_items WHERE sku = ? LIMIT 1',
     ).get(item.upc) as { draft_json: string } | null;
@@ -2095,6 +2219,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
        VALUES (?, ?, 'accepted', ?, ?)`,
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
+    seedCanonicalAuthority(db, item.upc, runId);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -2161,54 +2286,48 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       );
     }
 
-    // Healthy sibling: a LEGACY item (no run pointer) with an embedded accepted
-    // page proposal — the narrow legacy path must stay byte-identical. The
-    // page import is activated LAST (each activation supersedes the prior
-    // import, and the promoted sibling's page must be in the ACTIVE one).
-
-    // Blocked member: a VALID run pointer + committed semanticValidation
-    // blocked. The accepted verified page proposal proves the refusal comes
-    // from the promotion gate, not the mandatory Pages gate.
+    // Both members use the same frozen Page import and current V2 authority;
+    // only the blocked member carries a PR11 semantic-validation refusal.
     const now = new Date().toISOString();
-    const runId = 'run-pr11-blocked';
-    db.run(
-      `INSERT INTO classification_runs
-       (id, workspace_id, onboarding_item_id, source_kind, product_sku, status, started_at, completed_at)
-       VALUES (?, ?, ?, 'onboarding', ?, 'completed', ?, ?)`,
-      [runId, wsId, blocked.id, blocked.upc, now, now],
-    );
-    db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [
-      JSON.stringify({
-        ...curation,
-        classificationRunId: runId,
-        semanticValidation: {
-          status: 'blocked',
-          findings: [{
-            code: 'family_brand',
-            memberSku: blocked.upc,
-            message: 'PR11 brand conflict: acme vs woof',
-          }],
-        },
-      }),
-      blocked.id,
-    ]);
-    seedAcceptedCategoryProposal(db, blocked.upc, 'Toys', runId);
-
-    const legacyPageId = activateVerifiedPage('Toys', 'pr11-healthy');
-    db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [
-      JSON.stringify({
-        ...curation,
-        classificationRunId: null,
-        classificationProposals: [{
-          id: 'pr11-healthy-page',
-          proposalType: 'category_page',
-          targetId: 'Toys',
-          proposedValue: { pageId: legacyPageId, pageName: 'Toys' },
-          status: 'accepted',
-        }],
-      }),
-      healthy.id,
-    ]);
+    const healthyRunId = 'run-pr11-healthy';
+    const blockedRunId = 'run-pr11-blocked';
+    const toysPageId = activateVerifiedPage('Toys', 'pr11-shared');
+    for (const [item, runId] of [[healthy, healthyRunId], [blocked, blockedRunId]] as const) {
+      db.run(
+        `INSERT INTO classification_runs
+         (id, workspace_id, onboarding_item_id, source_kind, product_sku, status, started_at, completed_at)
+         VALUES (?, ?, ?, 'onboarding', ?, 'completed', ?, ?)`,
+        [runId, wsId, item.id, item.upc, now, now],
+      );
+      const semanticValidation = item.id === blocked.id
+        ? {
+            status: 'blocked',
+            findings: [{
+              code: 'family_brand',
+              memberSku: blocked.upc,
+              message: 'PR11 brand conflict: acme vs woof',
+            }],
+          }
+        : undefined;
+      db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [
+        JSON.stringify({ ...curation, classificationRunId: runId, ...(semanticValidation ? { semanticValidation } : {}) }),
+        item.id,
+      ]);
+      const proposalId = `pr11-page-${item.upc}`;
+      db.run(
+        `INSERT INTO classification_proposals
+         (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, 'category_page', ?, ?, 1.0, 'accepted', ?)`,
+        [proposalId, runId, item.upc, toysPageId, JSON.stringify({ pageId: toysPageId, pageName: 'Toys' }), now],
+      );
+      db.run(
+        `INSERT INTO classification_proposal_decisions
+         (id, proposal_id, decision, decision_key, created_at)
+         VALUES (?, ?, 'accepted', ?, ?)`,
+        [`decision-${proposalId}`, proposalId, `decision-${proposalId}`, now],
+      );
+      seedCanonicalAuthority(db, item.upc, runId);
+    }
 
         seedApproved(healthy.id, batch.id);
     seedApproved(blocked.id, batch.id);

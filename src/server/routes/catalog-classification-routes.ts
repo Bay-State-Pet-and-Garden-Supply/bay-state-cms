@@ -28,12 +28,14 @@ route.get('/products/:sku/classification', (c) => {
   const run = getRecentCatalogRun(workspace.id, sku);
 
   if (!run) {
-    return c.json({ run: null, configDrift: false, sourceDrift: false, evidence: [], proposals: [], decisions: [], stageResults: [] });
+    return c.json({ run: null, configDrift: false, sourceDrift: false, evidence: [], proposals: [], decisions: [], stageResults: [], classificationReadiness: null });
   }
 
   const evidence = getEvidenceByRun(run.id);
   const proposals = getProposalsByRun(run.id);
   const stageResults = getStageResults(run.id);
+
+  const classificationReadiness = evaluateCanonicalReadiness({ workspaceId: workspace.id, runId: run.id });
 
   // Canonical current decisions only. Historical revisions remain available in
   // the database audit trail but must not be restored as the active UI state.
@@ -80,6 +82,7 @@ route.get('/products/:sku/classification', (c) => {
     evidence,
     proposals,
     decisions,
+    classificationReadiness,
     stageResults,
   });
 });
@@ -191,13 +194,6 @@ route.post('/products/:sku/classification/runs/:runId/apply', async (c) => {
     return c.json({ error: gate.reason, code: gate.code }, 400);
   }
 
-  // Issue #354: shared canonical readiness (pair + profile + required values)
-  // is enforced before any draft mutation — same result the review surfaces
-  // report. A required gap fails attributably with no partial write.
-  const readiness = evaluateCanonicalReadiness({ workspaceId: workspace.id, runId });
-  if (!readiness.ok) {
-    return c.json({ error: readiness.reason, code: readiness.code }, 400);
-  }
 
   try {
     const result = await applyCatalogClassification(workspace.workspacePath, workspace.id, sku, runId);

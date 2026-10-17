@@ -42,10 +42,9 @@ import {
   deepFreeze,
 } from '../../classification/runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
-import {
-  getEffectiveCurationTypeForSnapshot,
-  resolveEffectiveTypeProfile,
-} from '../../classification/effective-curation-type';
+import { getEffectiveCurationTypeForSnapshot } from '../../classification/effective-curation-type';
+import { getEffectiveClassificationPair } from '../../classification/assignment-projection';
+import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
 import {
   validateMemberSemantics,
@@ -450,51 +449,38 @@ export async function executePreparedMembers(args: {
         // snapshot's reviewed fact alone would miss the provisional pair and
         // falsely block supported members. ADR 0041: legacy
         // `primary_product_type` rows are history-only, never live authority.
-        const semanticPair = (() => {
-          for (const proposal of curationData.classificationProposals) {
-            if (proposal.proposalType === 'product_classification' && proposal.status === 'accepted') {
-              const value = (proposal as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
-                ? (proposal as { revisedValue?: unknown }).revisedValue
-                : proposal.proposedValue;
-              const id = (value as { productTypeId?: unknown } | null)?.productTypeId;
-              if (typeof id === 'string' && id.length > 0) return id;
-              if (typeof proposal.targetId === 'string' && proposal.targetId.length > 0) return proposal.targetId;
-            }
-          }
-          const pending = [...curationData.classificationProposals]
-            .filter(proposal => proposal.proposalType === 'product_classification' && !proposal.isStale && (proposal.status === 'pending' || proposal.status === 'deferred'))
-            .sort((a, b) => b.confidence - a.confidence)[0];
-          if (pending) {
-            const value = (pending as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
-              ? (pending as { revisedValue?: unknown }).revisedValue
-              : pending.proposedValue;
-            const id = (value as { productTypeId?: unknown } | null)?.productTypeId;
-            if (typeof id === 'string' && id.length > 0) return id;
-            if (typeof pending.targetId === 'string' && pending.targetId.length > 0) return pending.targetId;
-          }
-          return resolvedEffectiveType.effectiveTypeId;
-        })();
-        const effectiveTypeIdForSemantic = semanticPair;
-        const effectiveProfileForSemantic = effectiveTypeIdForSemantic
-          ? resolveEffectiveTypeProfile(
-              effectiveTypeIdForSemantic,
-              memberSnapshotForSemantic.attributeProfiles,
-              true,
-              memberSnapshotForSemantic,
-            )
-          : null;
-        const universalAttributeIdsForSemantic = new Set(
-          memberSnapshotForSemantic.attributes
-            .filter(attribute => isUniversalAttribute(attribute))
-            .map(attribute => attribute.id),
+        const ownClassificationProposals = curationData.classificationProposals.filter(
+          proposal =>
+            proposal.proposalType === 'product_classification'
+            && proposal.productSku === memberSkuForSemantic
+            && proposal.runId === childRun.id,
         );
-        const profileAttributeIdsForSemantic = effectiveProfileForSemantic
-          ? new Set(effectiveProfileForSemantic.attributes.map(entry => entry.attributeId))
+        const semanticPairProposal = ownClassificationProposals.find(
+          proposal => proposal.status === 'accepted' && !proposal.isStale,
+        ) ?? ownClassificationProposals
+          .filter(
+            proposal =>
+              !proposal.isStale
+              && (proposal.status === 'pending' || proposal.status === 'deferred'),
+          )
+          .sort((a, b) => b.confidence - a.confidence)[0];
+        const semanticPair = semanticPairProposal
+          ? getEffectiveClassificationPair(semanticPairProposal)
+          : { categoryId: null, productTypeId: null };
+        const effectiveTypeIdForSemantic = semanticPair.productTypeId;
+        const profilePlanForSemantic = resolveAttributeProfilePlan(
+          memberSnapshotForSemantic,
+          { categoryId: semanticPair.categoryId, productTypeId: effectiveTypeIdForSemantic },
+          memberSnapshotForSemantic.reviewedFacts,
+        );
+        const universalAttributeIdsForSemantic = new Set(
+          memberSnapshotForSemantic.attributes.filter(attribute => isUniversalAttribute(attribute)).map(attribute => attribute.id),
+        );
+        const profileAttributeIdsForSemantic = profilePlanForSemantic.status === 'ready'
+          ? new Set(profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => entry.attribute.id))
           : null;
         const cardinalityByAttributeForSemantic = new Map<string, 'single' | 'multiple'>(
-          (effectiveProfileForSemantic?.attributes ?? [])
-            .filter(entry => entry.cardinality !== undefined)
-            .map(entry => [entry.attributeId, entry.cardinality]),
+          profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => [entry.attribute.id, entry.cardinality]),
         );
         const durableTitleOutputForSemantic = titleInputForMember(
           coordinatedTitles,
@@ -549,14 +535,10 @@ export async function executePreparedMembers(args: {
           universalAttributeIds: universalAttributeIdsForSemantic,
           profileAttributeIds: profileAttributeIdsForSemantic,
           cardinalityByAttributeId: cardinalityByAttributeForSemantic,
-          // PR9 review R1 (B4): the full FROZEN profile entries (carry each
-          // attribute's applicabilityConditions) + the member's FROZEN/reviewed
-          // facts from the immutable runtime snapshot — conditional
-          // applicability is REVALIDATED with the established evaluator.
-          profileEntriesByAttributeId: effectiveProfileForSemantic
-            ? new Map(effectiveProfileForSemantic.attributes.map(entry => [entry.attributeId, entry]))
+          profileEntriesByAttributeId: profilePlanForSemantic.status === 'ready'
+            ? new Map(profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => [entry.attribute.id, entry.rule!]))
             : null,
-          reviewedFacts: memberSnapshotForSemantic.reviewedFacts,
+          profileResolution: profilePlanForSemantic,
         });
         const semanticFindings = [
           ...memberSemanticsResult.findings,

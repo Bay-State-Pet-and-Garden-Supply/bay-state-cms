@@ -1,6 +1,7 @@
 import type { FieldRegistryEntry } from '../shared/schemas/field-registry';
 import type { StoreManagerReportResponse } from '../shared/schemas/store-manager-report';
 import type { CatalogProposal } from '../shared/schemas/catalog-health-proposal';
+import type { CanonicalClassificationReadinessResult } from '../shared/schemas/classification';
 
 const API_BASE = '/api';
 
@@ -222,6 +223,7 @@ export interface CatalogClassificationDetail {
     errorMessage: string | null;
   } | null;
   configDrift: boolean;
+  classificationReadiness?: CanonicalClassificationReadinessResult | null;
   sourceDrift: boolean;
   evidence: Array<{
     id: string;

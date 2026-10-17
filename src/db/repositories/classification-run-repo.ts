@@ -286,7 +286,7 @@ export function getAcceptedProposals(productSku: string, runId?: string): Classi
           WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
           ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS has_revised_target_id
         FROM classification_proposals p
-        WHERE p.product_sku = ? AND p.run_id = ? AND p.status = ? AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
+        WHERE p.product_sku = ? AND p.run_id = ? AND p.status = ? AND p.proposal_type <> 'primary_product_type' AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
           AND (SELECT d.decision FROM classification_proposal_decisions d
                WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
                ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) = ?`)
@@ -312,7 +312,7 @@ export function getAcceptedProposals(productSku: string, runId?: string): Classi
         WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
         ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS has_revised_target_id
       FROM classification_proposals p
-      WHERE p.product_sku = ? AND p.status = ? AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
+      WHERE p.product_sku = ? AND p.status = ? AND p.proposal_type <> 'primary_product_type' AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
         AND (SELECT d.decision FROM classification_proposal_decisions d
              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
              ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) = ?`)
@@ -924,20 +924,6 @@ export function findRuntimeSnapshotEvidenceExtractionRuleVersion(snapshotHash: s
   }
 }
 
-/** Frozen page-import hash carried by a persisted config snapshot, if any. */
-export function findConfigSnapshotPageImportHash(workspaceId: string, snapshotHash: string): string | null {
-  const snapshotRow = getDb().query(
-    `SELECT config_json FROM classification_config_snapshots
-     WHERE workspace_id = ? AND snapshot_hash = ?`,
-  ).get(workspaceId, String(snapshotHash)) as { config_json: string | null } | undefined;
-  if (!snapshotRow?.config_json) return null;
-  try {
-    const snap = JSON.parse(snapshotRow.config_json) as { pageImportHash?: unknown };
-    return typeof snap.pageImportHash === 'string' ? snap.pageImportHash : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Accepted canonical pair decision (ADR 0041: legacy
  * `primary_product_type` rows are history-only, never gate authority). */
@@ -977,7 +963,7 @@ export function findAcceptedPairDecision(runId: string): AcceptedPairDecisionRow
   };
 }
 
-/** Reviewable proposal gate columns for a run (all types; caller filters). */
+/** Review-gate eligible proposal columns; history-only legacy Product Type rows are excluded. */
 export interface GateProposalRow {
   id: string;
   status: string;
@@ -994,7 +980,7 @@ export function listGateProposalsByRun(runId: string): GateProposalRow[] {
               WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
             ) AS has_decision
      FROM classification_proposals p
-     WHERE p.run_id = ?`,
+     WHERE p.run_id = ? AND p.proposal_type <> 'primary_product_type'`,
   ).all(runId) as Array<{
     id: string; status: string; proposal_type: string;
     target_id: string | null; has_decision: number;

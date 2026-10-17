@@ -27,8 +27,8 @@ function proposal(partial: Partial<ClassificationProposal>): ClassificationPropo
     runId: 'run-1',
     productSku: 'SKU',
     proposalType: 'field_assignment',
-    targetId: 'brand',
-    proposedValue: 'LITTLE GIANT',
+    targetId: 'material',
+    proposedValue: 'Nylon',
     confidence: 0.85,
     evidenceIds: [],
     status: 'pending',
@@ -44,6 +44,7 @@ function proposal(partial: Partial<ClassificationProposal>): ClassificationPropo
 async function renderWith(
   proposals: ClassificationProposal[],
   onDecision: (p: ClassificationProposal, d: 'accepted' | 'rejected') => Promise<void> = vi.fn(),
+  classificationReadiness?: unknown,
 ) {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -52,6 +53,7 @@ async function renderWith(
     item: {
       curationData: { classificationProposals: proposals, suggestedPages: [] },
     },
+    classificationReadiness,
   } as unknown as ItemDetailResponse;
   await act(async () => {
     root.render(
@@ -92,35 +94,79 @@ describe('ReviewClassificationPanel clarity', () => {
     r.unmount();
   });
 
-  it('humanizes the primary product type value — raw JSON never appears', async () => {
-    const ppt = proposal({
-      proposalType: 'primary_product_type',
+  it('renders the canonical Category + Product Type pair as one reviewed Product Classification', async () => {
+    const pair = proposal({
+      proposalType: 'product_classification',
       targetId: 'poultry-feed',
-      proposedValue: { productTypeId: 'poultry-feed', matchedWords: [] },
+      proposedValue: { categoryId: 'poultry', productTypeId: 'poultry-feed', matchedWords: [] },
       confidence: 0.35,
     });
-    const r = await renderWith([ppt]);
+    const r = await renderWith([pair]);
     const text = r.text();
-    expect(text).toContain('Poultry Feed');
+    expect(text).toContain('Product Classification');
+    expect(text).toContain('Poultry / Poultry Feed');
     expect(text).toContain('35%');
     expect(text).toContain('Low');
-    expect(text).toContain('Model pick');
     expect(text).not.toContain('"productTypeId"');
     expect(text).not.toContain('{');
     expect(r.buttons()).toEqual(['Accept', 'Reject']);
     r.unmount();
   });
+  it('shows the server-owned classification readiness and attribute outcomes', async () => {
+    const r = await renderWith([], vi.fn(), {
+      ok: false,
+      code: 'required_values_missing',
+      reason: 'Required classification value(s) unresolved: flavor.',
+      details: {
+        categoryId: 'dog-food',
+        productTypeId: 'dry-food',
+        profileId: 'food-profile',
+        requiredValues: [
+          { attributeId: 'flavor', catalogField: 'ProductField23', status: 'missing' },
+          { attributeId: 'product-feature', catalogField: 'ProductField26', status: 'optional_unvalued' },
+          { attributeId: 'life-stage', catalogField: 'ProductField18', status: 'not_applicable' },
+          { attributeId: 'pet-size', catalogField: 'ProductField19', status: 'required_unknown' },
+        ],
+      },
+    });
+    expect(r.text()).toContain('Classification readiness');
+    expect(r.text()).toContain('Not ready');
+    expect(r.text()).toContain('Required classification value(s) unresolved: flavor.');
+    expect(r.text()).toContain('Flavor');
+    expect(r.text()).toContain('Missing');
+    expect(r.text()).toContain('Product Feature');
+    expect(r.text()).toContain('Optional — no value');
+    expect(r.text()).toContain('Life Stage');
+    expect(r.text()).toContain('Not applicable');
+    expect(r.text()).toContain('Pet Size');
+    expect(r.text()).toContain('Required — applicability unknown');
+    r.unmount();
+  });
 
-  it('renders matched words as chips for keyword-grounded picks', async () => {
-    const ppt = proposal({
+  it('keeps legacy type-only proposals history-only instead of offering an active decision', async () => {
+    const legacy = proposal({
       proposalType: 'primary_product_type',
+      targetId: 'poultry-feed',
+      proposedValue: { productTypeId: 'poultry-feed', matchedWords: [] },
+      confidence: 0.35,
+    });
+    const r = await renderWith([legacy]);
+    expect(r.text()).toContain('No current Product Classification or attribute proposals to review.');
+    expect(r.text()).not.toContain('Poultry Feed');
+    expect(r.buttons()).toEqual([]);
+    r.unmount();
+  });
+
+  it('renders matched words as chips for keyword-grounded pair picks', async () => {
+    const pair = proposal({
+      proposalType: 'product_classification',
       targetId: 'dog-food-dry',
-      proposedValue: { productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] },
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] },
       confidence: 0.8,
     });
-    const r = await renderWith([ppt]);
+    const r = await renderWith([pair]);
     const text = r.text();
-    expect(text).toContain('Dog Food Dry');
+    expect(text).toContain('Dog Food / Dog Food Dry');
     expect(text).toContain('Keyword match');
     expect(text).toContain('dog');
     expect(text).toContain('kibble');
@@ -128,17 +174,18 @@ describe('ReviewClassificationPanel clarity', () => {
     r.unmount();
   });
 
+
   it('merges identical pending proposals into a single row and fans the decision out to EVERY underlying id', async () => {
     const a = proposal({
       proposalType: 'field_assignment',
-      targetId: 'brand',
-      proposedValue: 'LITTLE GIANT BEEHIVE FRAME FEEDER Feeds your bees',
+      targetId: 'flavor',
+      proposedValue: 'Savory Blend',
       confidence: 0.85,
     });
     const b = proposal({
       proposalType: 'field_assignment',
-      targetId: 'product-type',
-      proposedValue: 'LITTLE GIANT BEEHIVE FRAME FEEDER Feeds your bees',
+      targetId: 'material',
+      proposedValue: 'Savory Blend',
       confidence: 0.85,
     });
     const onDecision = vi.fn(async (_p: ClassificationProposal, _d: 'accepted' | 'rejected') => {});
@@ -146,7 +193,7 @@ describe('ReviewClassificationPanel clarity', () => {
     const text = r.text();
     expect(text).toContain('Decisions needed (1)');
     expect(text).toContain('1 duplicate merged');
-    expect(text).toContain('Brand & Product Type');
+    expect(text).toContain('Flavor & Material');
     expect(r.buttons()).toEqual(['Accept', 'Reject']);
 
     // BLOCKER (review round 2): accepting the merged row must submit a
@@ -182,14 +229,14 @@ describe('ReviewClassificationPanel clarity', () => {
     r.unmount();
   });
 
-  it('labels the confidence chip for screen readers', async () => {
-    const ppt = proposal({
-      proposalType: 'primary_product_type',
+  it('labels canonical pair confidence for screen readers', async () => {
+    const pair = proposal({
+      proposalType: 'product_classification',
       targetId: 'dog-food-dry',
-      proposedValue: { productTypeId: 'dog-food-dry', matchedWords: [] },
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: [] },
       confidence: 0.35,
     });
-    const r = await renderWith([ppt]);
+    const r = await renderWith([pair]);
     const chip = r.container.querySelector('[aria-label^="Proposal confidence"]');
     expect(chip).not.toBeNull();
     expect(chip?.getAttribute('aria-label')).toContain('35 percent, low');
@@ -197,12 +244,102 @@ describe('ReviewClassificationPanel clarity', () => {
   });
 
   it('keeps distinct pending proposals as separate decisions', async () => {
-    const a = proposal({ targetId: 'brand', proposedValue: 'LITTLE GIANT', confidence: 0.85 });
-    const b = proposal({ targetId: 'product-type', proposedValue: 'Poultry Feed', confidence: 0.85 });
+    const a = proposal({ targetId: 'flavor', proposedValue: 'Chicken', confidence: 0.85 });
+    const b = proposal({ targetId: 'material', proposedValue: 'Nylon', confidence: 0.85 });
     const r = await renderWith([a, b]);
     const text = r.text();
     expect(text).toContain('Decisions needed (2)');
     expect(r.buttons()).toEqual(['Accept', 'Reject', 'Accept', 'Reject']);
+    r.unmount();
+  });
+  it('shows the effective corrected target and value for an accepted correction', async () => {
+    const corrected = proposal({
+      targetId: 'flavor',
+      proposedValue: 'Chicken',
+      hasRevisedTargetId: true,
+      revisedTargetId: 'material',
+      hasRevisedValue: true,
+      revisedValue: 'Nylon',
+      status: 'accepted',
+    });
+    const r = await renderWith([corrected]);
+    const text = r.text();
+    expect(text).toContain('Settled decisions');
+    expect(text).toContain('Accepted');
+    expect(text).toContain('Material');
+    expect(text).toContain('Nylon');
+    expect(text).not.toContain('Flavor');
+    expect(text).not.toContain('Chicken');
+    r.unmount();
+  });
+
+  it('shows the effective corrected target on pending rows carrying a reviewer correction', async () => {
+    const corrected = proposal({
+      targetId: 'flavor',
+      proposedValue: 'Chicken',
+      hasRevisedTargetId: true,
+      revisedTargetId: 'material',
+      hasRevisedValue: true,
+      revisedValue: 'Nylon',
+      status: 'pending',
+    });
+    const r = await renderWith([corrected]);
+    const text = r.text();
+    expect(text).toContain('Material');
+    expect(text).toContain('Nylon');
+    expect(text).not.toContain('Flavor');
+    r.unmount();
+  });
+
+  it('shows an explicit value clear as a removal with before and after', async () => {
+    const cleared = proposal({
+      targetId: 'material',
+      proposedValue: 'Nylon',
+      hasRevisedValue: true,
+      revisedValue: null,
+      status: 'pending',
+    });
+    const r = await renderWith([cleared]);
+    const text = r.text();
+    expect(text).toContain('Removal');
+    expect(text).toContain('Before: Nylon → After: (cleared)');
+    r.unmount();
+  });
+
+  it('shows an explicitly cleared target as cleared, never under the old label', async () => {
+    const cleared = proposal({
+      targetId: 'flavor',
+      proposedValue: 'Chicken',
+      hasRevisedTargetId: true,
+      revisedTargetId: null,
+      status: 'pending',
+    });
+    const r = await renderWith([cleared]);
+    const text = r.text();
+    expect(text).toContain('(cleared)');
+    expect(text).not.toContain('Flavor');
+    r.unmount();
+  });
+
+  it('keeps proposals with different effective corrections as separate rows', async () => {
+    const corrected = proposal({
+      targetId: 'flavor',
+      proposedValue: 'Chicken',
+      hasRevisedTargetId: true,
+      revisedTargetId: 'material',
+      hasRevisedValue: true,
+      revisedValue: 'Nylon',
+      confidence: 0.85,
+    });
+    const uncorrected = proposal({
+      targetId: 'flavor',
+      proposedValue: 'Chicken',
+      confidence: 0.85,
+    });
+    const r = await renderWith([corrected, uncorrected]);
+    const text = r.text();
+    expect(text).toContain('Decisions needed (2)');
+    expect(text).toContain('Material');
     r.unmount();
   });
 
@@ -224,11 +361,11 @@ describe('ReviewClassificationPanel clarity', () => {
     r.unmount();
   });
 
-  it('renders dual Type Conflict alerts on Primary Product Type and the conflicting attribute row', async () => {
-    const ppt = proposal({
-      proposalType: 'primary_product_type',
+  it('renders derived-attribute conflict beside the canonical Product Classification', async () => {
+    const pair = proposal({
+      proposalType: 'product_classification',
       targetId: 'dog-food-dry',
-      proposedValue: { productTypeId: 'dog-food-dry', matchedWords: [] },
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: [] },
       confidence: 0.9,
     });
     const conflictingInvariant = proposal({
@@ -242,9 +379,10 @@ describe('ReviewClassificationPanel clarity', () => {
         productTypeSource: 'reviewed',
       },
     });
-    const r = await renderWith([ppt, conflictingInvariant]);
+    const r = await renderWith([pair, conflictingInvariant]);
     const text = r.text();
-    expect(text).toContain('⚠ Type conflict in derived attributes');
+    expect(text).toContain('Type conflict in derived attributes');
+    expect(text).toContain('Product Classification');
     expect(text).toContain('⚠ Type conflict: Product Type implies this value, but extracted product evidence contains conflicting information.');
     r.unmount();
   });

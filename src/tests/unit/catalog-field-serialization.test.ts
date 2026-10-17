@@ -1,277 +1,204 @@
 /**
- * Catalog Field Serialization (Milestone 5).
- *
- * ONE shared serializer (`serializeAttributeValue`) is used by the preview
- * (draft projection), onboarding promotion, and catalog application paths.
- * This suite proves identical output across those surfaces, validates
- * field-specific delimiters, measured units, controlled membership, and
- * explicit-clear semantics.
+ * Serialization at the shared projection/serializer interfaces. Approved
+ * fixtures carry captured attributes and mappings; workflow tests own proof
+ * of review, pending exclusion, and actual catalog/onboarding local drafts.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  serializeAttributeValue,
-  validateSerializableValue,
-  getEffectiveProposalValue,
-  buildAssignmentProjection,
-} from '../../classification/assignment-projection';
-import type { ClassificationProposal } from '../../shared/types';
+import { serializeAttributeValue, buildAssignmentProjection } from '../../classification/assignment-projection';
+import type { AttributeMappingConfig, ClassificationProposal, ProductAttributeConfig } from '../../shared/types';
 
 function makeProposal(overrides: Partial<ClassificationProposal> = {}): ClassificationProposal {
   return {
-    id: 'prop-1',
-    runId: 'run-1',
-    productSku: 'SKU-1',
-    proposalType: 'field_assignment',
-    targetId: 'flavor',
-    proposedValue: ['Chicken', 'Beef'],
-    confidence: 0.9,
-    evidenceIds: [],
-    status: 'pending',
-    isBulkAcceptable: false,
-    isStale: false,
-    stalenessReason: null,
-    createdAt: '2026-08-01T00:00:00.000Z',
-    ...overrides,
+    id: 'prop-1', runId: 'run-1', productSku: 'SKU-1', proposalType: 'field_assignment',
+    targetId: 'flavor', proposedValue: ['Chicken', 'Beef'], confidence: 0.9,
+    evidenceIds: [], status: 'accepted', isBulkAcceptable: false, isStale: false,
+    stalenessReason: null, createdAt: '2026-08-01T00:00:00.000Z', ...overrides,
   };
 }
 
-const v1Serialization = { format: 'direct', separator: ', ', prefix: '', suffix: '' };
+const flavor: ProductAttributeConfig = {
+  id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null,
+  allowedValues: ['Chicken', 'Beef'], valueAliases: [{ alias: 'bird', mapsTo: 'Chicken' }],
+  visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: null,
+};
+const flavorMapping: AttributeMappingConfig = {
+  id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23',
+  serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false,
+};
+const captured = { attributes: [flavor], frozenMappings: [flavorMapping] };
 
-describe('serializeAttributeValue — one serializer across preview/promotion/application', () => {
-  it('serializes identically through the shared serializer for every surface', () => {
-    // Preview (draft projection) uses getEffectiveProposalValue then serialize.
-    const proposal = makeProposal();
-    const previewValue = serializeAttributeValue(
-      getEffectiveProposalValue(proposal),
-      v1Serialization,
-    );
-    // Promotion and application use the exact same function on the same value.
-    const promotionValue = serializeAttributeValue(
-      getEffectiveProposalValue(proposal),
-      v1Serialization,
-    );
-    const applicationValue = serializeAttributeValue(
-      getEffectiveProposalValue(proposal),
-      v1Serialization,
-    );
-    expect(previewValue).toBe('Chicken, Beef');
-    expect(promotionValue).toBe(previewValue);
-    expect(applicationValue).toBe(previewValue);
+describe('captured value authority at the reviewed projection interface', () => {
+  it('serializes multiple canonical values into the certified Flavor field', () => {
+    const result = buildAssignmentProjection([makeProposal()], {}, [], [flavorMapping], undefined, captured);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: null, proposedValue: 'Chicken, Beef', isOverwrite: false, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('applies prefix/suffix for scalar values', () => {
-    expect(
-      serializeAttributeValue('Joint Health', { format: 'direct', separator: ', ', prefix: '', suffix: '' }),
-    ).toBe('Joint Health');
-    expect(
-      serializeAttributeValue('10', { format: 'direct', separator: ', ', prefix: 'Size: ', suffix: '' }),
-    ).toBe('Size: 10');
+  it('canonicalizes a configured alias before serializing the field', () => {
+    const result = buildAssignmentProjection([
+      makeProposal({ proposedValue: ['bird', 'Beef'] }),
+    ], {}, [], [flavorMapping], undefined, captured);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: null, proposedValue: 'Chicken, Beef', isOverwrite: false, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('supports v2 scalar kind', () => {
-    expect(serializeAttributeValue('Chicken', { kind: 'scalar', prefix: '', suffix: '' })).toBe('Chicken');
-  });
-});
-
-describe('serializeAttributeValue — field-specific delimiters', () => {
-  it('joins multi-values with the delimited separator for v2 delimited kind', () => {
-    expect(
-      serializeAttributeValue(['Chicken', 'Beef'], { kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' }),
-    ).toBe('Chicken|Beef');
-  });
-
-  it('rejects a value containing the delimiter under the reject policy (fail closed)', () => {
-    expect(() =>
-      serializeAttributeValue(['Chicken|Rice', 'Beef'], { kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' }),
-    ).toThrow(/escapePolicy is "reject"/);
+  it.each([
+    { proposedValue: 'Salmon' },
+    { proposedValue: 'CHICKEN' },
+    { proposedValue: ['Chicken', 'Salmon'] },
+  ])('refuses noncanonical controlled values: $proposedValue', ({ proposedValue }) => {
+    const result = buildAssignmentProjection([
+      makeProposal({ proposedValue }),
+    ], {}, [], [flavorMapping], undefined, captured);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
   });
 
-  it('escapes the delimiter under the backslash policy', () => {
-    expect(
-      serializeAttributeValue(['Chicken|Rice', 'Beef'], { kind: 'delimited', delimiter: '|', escapePolicy: 'backslash', prefix: '', suffix: '' }),
-    ).toBe('Chicken\\|Rice|Beef');
-  });
-});
-
-describe('serializeAttributeValue — measured units', () => {
-  it('appends the unit with the configured separator for v2 measured kind', () => {
-    expect(
-      serializeAttributeValue(15, { kind: 'measured', unit: 'lb', valueUnitSeparator: ' ', prefix: '', suffix: '' }),
-    ).toBe('15 lb');
+  it('refuses an alias whose destination is not an allowed canonical value', () => {
+    const invalidAlias = { ...flavor, valueAliases: [{ alias: 'bird', mapsTo: 'Turkey' }] };
+    const result = buildAssignmentProjection([
+      makeProposal({ proposedValue: 'bird' }),
+    ], {}, [], [flavorMapping], undefined, { ...captured, attributes: [invalidAlias] });
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
   });
 
-  it('rejects non-finite measured values', () => {
-    expect(() =>
-      serializeAttributeValue('heavy', { kind: 'measured', unit: 'lb', valueUnitSeparator: ' ', prefix: '', suffix: '' }),
-    ).toThrow(/not a finite number/);
-  });
-});
-
-describe('serializeAttributeValue — explicit clear semantics', () => {
-  it('produces a true empty string for explicit null/undefined clears, bypassing prefix/suffix', () => {
-    expect(
-      serializeAttributeValue(null, { format: 'direct', separator: ', ', prefix: 'Size: ', suffix: ' lb' }),
-    ).toBe('');
-    expect(
-      serializeAttributeValue(undefined, { kind: 'scalar', prefix: 'Size: ', suffix: ' lb' }),
-    ).toBe('');
-  });
-});
-
-describe('validateSerializableValue', () => {
-  it('accepts allowed controlled values', () => {
-    const attribute = { id: 'flavor', valueMode: 'controlled' as const, allowedValues: ['Chicken', 'Beef'], valueAliases: [] };
-    expect(validateSerializableValue('Chicken', attribute)).toEqual({ ok: true });
-  });
-
-  it('rejects out-of-list controlled values', () => {
-    const attribute = { id: 'flavor', valueMode: 'controlled' as const, allowedValues: ['Chicken', 'Beef'], valueAliases: [] };
-    const result = validateSerializableValue('Salmon', attribute);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('controlled_membership');
-  });
-
-  it('accepts values matching an alias', () => {
-    const attribute = { id: 'flavor', valueMode: 'controlled' as const, allowedValues: ['Chicken'], valueAliases: [{ alias: 'chicken', mapsTo: 'Chicken' }] };
-    expect(validateSerializableValue('chicken', attribute)).toEqual({ ok: true });
-  });
-
-  it('rejects near-match values and aliases whose mapsTo is not an exact allowed ID (issue #17 G fail-closed)', () => {
-    // A case-variant of an allowed value is a near-match, not the canonical ID.
-    const nearMatch = { id: 'flavor', valueMode: 'controlled' as const, allowedValues: ['Chicken'], valueAliases: [] };
-    const rejected = validateSerializableValue('CHICKEN', nearMatch);
-    expect(rejected.ok).toBe(false);
-    if (!rejected.ok) expect(rejected.code).toBe('controlled_membership');
-
-    // An alias whose mapsTo points outside the allowed set never serializes.
-    const danglingAlias = { id: 'flavor', valueMode: 'controlled' as const, allowedValues: ['Chicken'], valueAliases: [{ alias: 'bird', mapsTo: 'Turkey' }] };
-    const rejectedAlias = validateSerializableValue('bird', danglingAlias);
-    expect(rejectedAlias.ok).toBe(false);
-    if (!rejectedAlias.ok) expect(rejectedAlias.code).toBe('controlled_membership');
-  });
-
-  it('accepts finite measured values and rejects non-finite', () => {
-    const measured = { id: 'weight', valueMode: 'measured' as const, allowedValues: [], valueAliases: [] };
-    expect(validateSerializableValue(15, measured)).toEqual({ ok: true });
-    const bad = validateSerializableValue('heavy', measured);
-    expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.code).toBe('measured_unit');
-  });
-
-  it('treats explicit clears as always legal', () => {
-    const attribute = { id: 'flavor', valueMode: 'controlled' as const, allowedValues: ['Chicken'], valueAliases: [] };
-    expect(validateSerializableValue(null, attribute)).toEqual({ ok: true });
-  });
-});
-
-describe('buildAssignmentProjection — skipped assignments stay visible and do not block the draft', () => {
-  const mappings = [
-    { id: 'm1', attributeId: 'flavor', catalogField: 'ProductField1', serialization: v1Serialization, isStale: false },
-    { id: 'm2', attributeId: 'stale-attr', catalogField: 'ProductField2', serialization: v1Serialization, isStale: true },
-  ];
-
-  it('projects mapped fields, skips stale mappings and missing targets without throwing', () => {
-    const proposals = [
-      makeProposal({ id: 'p-flavor' }),
-      makeProposal({ id: 'p-stale', targetId: 'stale-attr' }),
-      makeProposal({ id: 'p-no-target', targetId: null }),
-    ];
-    const projection = buildAssignmentProjection(proposals, {}, [], mappings);
-    const flavorField = projection.fields.find(field => field.catalogField === 'ProductField1');
-    expect(flavorField).toBeDefined();
-    expect(flavorField!.proposedValue).toBe('Chicken, Beef');
-    const staleSkip = projection.skipped.find(skip => skip.proposalId === 'p-stale');
-    expect(staleSkip).toBeDefined();
-    expect(staleSkip!.reason).toContain('stale');
-    const noTargetSkip = projection.skipped.find(skip => skip.proposalId === 'p-no-target');
-    expect(noTargetSkip).toBeDefined();
-    expect(noTargetSkip!.reason).toBe('No attribute target');
-  });
-
-  it('never emits a Page ID as a page name in the projection', () => {
-    // A category_page proposal with a verified pageId but no pageName must be
-    // a visible skip — the stable Page ID is never a display name.
-    const pageProposal = makeProposal({
-      id: 'p-page',
-      proposalType: 'category_page',
-      targetId: 'page-id-123',
-      proposedValue: { pageId: 'page-id-123' },
+  it('refuses nonempty controlled values when the captured allowed set is empty', () => {
+    const result = buildAssignmentProjection([makeProposal()], {}, [], [flavorMapping], undefined, {
+      ...captured, attributes: [{ ...flavor, allowedValues: [] }],
     });
-    const projection = buildAssignmentProjection(
-      [pageProposal],
-      {},
-      [],
-      mappings,
-      new Set(['page-id-123']),
-    );
-    expect(projection.pages.proposed).toEqual([]);
-    const skip = projection.skipped.find(skip => skip.proposalId === 'p-page');
-    expect(skip).toBeDefined();
-    expect(skip!.reason).toBe('Page display name missing');
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
+  });
 
-    // A well-formed value with pageName still projects the display name.
-    const goodProposal = makeProposal({
-      id: 'p-page-good',
-      proposalType: 'category_page',
-      targetId: 'page-id-456',
-      proposedValue: { pageId: 'page-id-456', pageName: 'Dog Food' },
+  it('refuses a target absent from captured attributes despite a valid current mapping', () => {
+    const result = buildAssignmentProjection([makeProposal()], {}, [], [flavorMapping], undefined, {
+      ...captured, attributes: [],
     });
-    const goodProjection = buildAssignmentProjection(
-      [goodProposal],
-      {},
-      [],
-      mappings,
-      new Set(['page-id-456']),
-    );
-    expect(goodProjection.pages.proposed).toEqual(['Dog Food']);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
+  });
+
+  it('clears a controlled field without leaving configured prefix/suffix text behind', () => {
+    const mapping = { ...flavorMapping, serialization: { ...flavorMapping.serialization, prefix: 'Flavor: ', suffix: ' recipe' } };
+    const result = buildAssignmentProjection([
+      makeProposal({ revisedValue: null, hasRevisedValue: true }),
+    ], { ProductField23: 'Flavor: Chicken recipe' }, [], [mapping], undefined, { attributes: [flavor], frozenMappings: [mapping] });
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: 'Flavor: Chicken recipe', proposedValue: '', isOverwrite: true, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('does not reinterpret a missing value as an explicit reviewed clear', () => {
+    const result = buildAssignmentProjection([
+      makeProposal({ revisedValue: undefined, hasRevisedValue: true }),
+    ], { ProductField23: 'Chicken' }, [], [flavorMapping], undefined, captured);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
+  });
+
+  it('keeps targetless assignments visible without blocking interpretation of valid fields', () => {
+    const result = buildAssignmentProjection([
+      makeProposal(), makeProposal({ id: 'no-target', targetId: null }),
+    ], {}, [], [flavorMapping], undefined, captured);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: null, proposedValue: 'Chicken, Beef', isOverwrite: false, isNoOp: false },
+    ]);
+    // A mutation owner must refuse this projection atomically because of the
+    // refusal; a valid partial interpretation is not permission to save it.
+    expect(result.skipped.map(skip => ({ proposalId: skip.proposalId, targetId: skip.targetId }))).toEqual([
+      { proposalId: 'no-target', targetId: null },
+    ]);
   });
 });
 
-// ── P2 acceptance criterion: retired attributes produce zero export fields ────
+describe('measured captured attributes', () => {
+  const size: ProductAttributeConfig = { ...flavor, id: 'size', name: 'Size', valueMode: 'measured', canonicalUnit: 'lb', allowedValues: [], valueAliases: [] };
+  const mapping: AttributeMappingConfig = {
+    id: 'size-map', attributeId: 'size', catalogField: 'ProductField27',
+    serialization: { format: 'direct', separator: ', ', prefix: '', suffix: ' lb' }, isStale: false,
+  };
+  const authority = { attributes: [size], frozenMappings: [mapping] };
 
-import fs from 'node:fs';
-import path from 'node:path';
-
-describe('P2 disposition — retired (not_exported, profile-less) attributes serialize NOTHING', () => {
-  const RELEASE_DIR = path.resolve(__dirname, '../../classification/releases/bay-state-v4');
-
-  const readEntries = (fileName: string): Array<Record<string, unknown>> =>
-    (JSON.parse(fs.readFileSync(path.join(RELEASE_DIR, fileName), 'utf8')) as { entries: unknown }).entries as Array<Record<string, unknown>>;
-
-  const RETIRED_IDS = [
-    'btu-rating', 'fuel-type', 'hose-length', 'joule-rating',
-    'npk-ratio', 'protein-pct', 'safety-toe-type', 'towing-capacity-lbs',
-  ];
-
-  it('all eight unmapped attributes are not_exported, profile-less, and mapping-free in the committed release', () => {
-    const attributes = readEntries('attributes.json');
-    const profiles = readEntries('facet-profiles.json');
-    const mappings = readEntries('export-mappings.json');
-    const membership = new Set<string>();
-    for (const profile of profiles) {
-      for (const attr of profile.attributes as Array<{ attributeId: string }>) membership.add(attr.attributeId);
-    }
-    for (const id of RETIRED_IDS) {
-      const attr = attributes.find(a => a.id === id);
-      expect(attr, id).toBeDefined();
-      expect((attr!.exportDisposition as { kind: string }).kind, `${id} disposition`).toBe('not_exported');
-      expect(membership.has(id), `${id} profile membership`).toBe(false);
-      expect(mappings.some(m => m.attributeId === id), `${id} export mapping`).toBe(false);
-    }
+  it('projects a finite measured value with its configured unit', () => {
+    const result = buildAssignmentProjection([
+      makeProposal({ targetId: 'size', proposedValue: 15 }),
+    ], {}, [], [mapping], undefined, authority);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField27', currentValue: null, proposedValue: '15 lb', isOverwrite: false, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('even an accepted value for a retired attribute emits ZERO export fields (visible skip instead)', () => {
-    const mappings = readEntries('export-mappings.json') as unknown as Parameters<typeof buildAssignmentProjection>[3];
-    const accepted = RETIRED_IDS.map((id, index) => makeProposal({
-      id: `p-retired-${index}`,
-      proposalType: 'field_assignment',
-      targetId: id,
-      proposedValue: 'whatever value',
-      status: 'accepted' as ClassificationProposal['status'],
-    }));
-    const projection = buildAssignmentProjection(accepted, {}, [], mappings);
-    // Zero export fields reach serialization; every proposal is a visible skip.
-    expect(projection.fields).toEqual([]);
-    expect(projection.skipped.map(s => s.targetId)).toEqual(RETIRED_IDS);
+  it.each([NaN, Infinity, -Infinity, 'heavy'])('refuses a non-finite measured value: %s', proposedValue => {
+    const result = buildAssignmentProjection([
+      makeProposal({ targetId: 'size', proposedValue }),
+    ], {}, [], [mapping], undefined, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
+  });
+
+  it.each(['15 kg', '15 lbs', '12lb?'])('refuses a measured string whose unit does not match the captured unit: %s', proposedValue => {
+    const result = buildAssignmentProjection([
+      makeProposal({ targetId: 'size', proposedValue }),
+    ], {}, [], [mapping], undefined, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['prop-1']);
+  });
+
+  it('allows an explicit reviewed measured clear without a dangling unit', () => {
+    const result = buildAssignmentProjection([
+      makeProposal({ targetId: 'size', proposedValue: 15, revisedValue: null, hasRevisedValue: true }),
+    ], { ProductField27: '15 lb' }, [], [mapping], undefined, authority);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField27', currentValue: '15 lb', proposedValue: '', isOverwrite: true, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
+  });
+});
+
+describe('field-specific serializer formats', () => {
+  it('serializes a scalar with configured affixes', () => {
+    expect(serializeAttributeValue('Chicken', { kind: 'scalar', prefix: '[', suffix: ']' })).toBe('[Chicken]');
+  });
+
+  it('joins multi-values with the configured delimiter', () => {
+    expect(serializeAttributeValue(['Chicken', 'Beef'], {
+      kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '',
+    })).toBe('Chicken|Beef');
+  });
+
+  it('rejects embedded delimiters instead of silently corrupting membership', () => {
+    expect(() => serializeAttributeValue(['Chicken|Rice', 'Beef'], {
+      kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '',
+    })).toThrow();
+  });
+
+  it('escapes embedded delimiters under the configured backslash policy', () => {
+    expect(serializeAttributeValue(['Chicken|Rice', 'Beef'], {
+      kind: 'delimited', delimiter: '|', escapePolicy: 'backslash', prefix: '', suffix: '',
+    })).toBe('Chicken\\|Rice|Beef');
+  });
+
+  it('serializes finite quantities with measured units and affixes', () => {
+    expect(serializeAttributeValue(15, {
+      kind: 'measured', unit: 'lb', valueUnitSeparator: ' ', prefix: '[', suffix: ']',
+    })).toBe('[15 lb]');
+  });
+
+  it.each([NaN, Infinity, -Infinity, 'heavy'])('rejects a non-finite measured quantity: %s', value => {
+    expect(() => serializeAttributeValue(value, {
+      kind: 'measured', unit: 'lb', valueUnitSeparator: ' ', prefix: '', suffix: '',
+    })).toThrow();
+  });
+
+  it('bypasses affixes for explicit serializer clears', () => {
+    expect(serializeAttributeValue(null, { format: 'direct', separator: ', ', prefix: 'Size: ', suffix: ' lb' })).toBe('');
+    expect(serializeAttributeValue(undefined, { kind: 'scalar', prefix: 'Size: ', suffix: ' lb' })).toBe('');
   });
 });

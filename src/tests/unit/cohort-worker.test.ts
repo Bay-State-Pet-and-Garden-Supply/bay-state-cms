@@ -1864,7 +1864,7 @@ describe('PR5 C4 — acceptance integration: SKU-local first pass, reviewed auth
     expect(memberA.stageStatus).toBe('completed');
     const proposalsA = memberA.curationData!.classificationProposals;
     expect(proposalsA.some(p => p.proposalType === 'field_assignment' && p.targetId === 'flavor')).toBe(false);
-    expect(proposalsA.some(p => p.proposalType === 'primary_product_type' && p.status === 'accepted')).toBe(false);
+    expect(proposalsA.some(p => p.proposalType === 'product_classification' && p.status === 'accepted')).toBe(false);
     expect(memberA.curationData!.effectiveProductType).toEqual({ id: null, source: 'none' });
 
     // (3) color (in the fixture, NOT universal) produces NO proposal either.
@@ -1908,7 +1908,7 @@ describe('PR5 C4 — acceptance integration: SKU-local first pass, reviewed auth
     // 5b. With an accepted product type decision (its pending flavor proposal was never
     // accepted): flavor ProductField1 value is NOT written.
     const ptProposalB = getDb().query(
-      "SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type IN ('product_classification', 'primary_product_type')",
+      "SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type = 'product_classification'",
     ).get(childRunIdB) as { id: string } | undefined;
     // Issue #351: the pair proposal exists only when the member's own evidence
     // supports one. If this member abstained on the pair, there is nothing to
@@ -2689,7 +2689,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
       // drives the suggestion; members without one suggest nothing (never
       // a family guess).
       const pair = curationData.classificationProposals.find(
-        proposal => proposal.proposalType === 'product_classification' || proposal.proposalType === 'primary_product_type',
+        proposal => proposal.proposalType === 'product_classification',
       );
       expect(curationData.suggestedProductType).toBe(pair?.targetId ?? null);
     }

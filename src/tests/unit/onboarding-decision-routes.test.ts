@@ -135,6 +135,8 @@ describe('onboarding decision routes', () => {
 
     expect(response.status).toBe(200);
     const body = await response.json() as any;
+    expect(body.classificationReadiness).toMatchObject({ ok: false });
+    expect(body.classificationReadiness.reason).toEqual(expect.any(String));
     expect(body.item.curationData.classificationProposals).toHaveLength(1);
     expect(body.item.curationData.classificationProposals[0]).toMatchObject({
       id: 'proposal-canonical',

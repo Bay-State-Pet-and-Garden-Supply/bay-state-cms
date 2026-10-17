@@ -83,9 +83,11 @@ describe('canary review authority', () => {
   it('validates both the field identity and carried value when only its target changes', () => {
     const snapshot = { attributes: [{ id: 'flavor', valueMode: 'controlled', allowedValues: ['Chicken'] }],
       curationTargets: [], fieldOptions: {} } as unknown as RuntimeClassificationSnapshot;
-    const proposal = { ...reviewedItem().proposals[1], targetId: 'brand', proposedValue: 'Chicken' };
+    const proposal = { ...reviewedItem().proposals[1], targetId: 'flavor', proposedValue: 'Chicken' };
     const correction = { hasRevisedValue: false, hasRevisedTargetId: true, revisedTargetId: 'unconfigured' };
-    expect(() => validateFrozenReviewCorrection(proposal, correction, snapshot)).toThrow('not configured');
+    expect(() => validateFrozenReviewCorrection({ ...proposal, targetId: 'brand' },
+      { ...correction, revisedTargetId: 'flavor' }, snapshot)).toThrow(/protected target/);
+    expect(() => validateFrozenReviewCorrection(proposal, correction, snapshot)).toThrow(/protected target/);
     expect(validateFrozenReviewCorrection(proposal, { ...correction, revisedTargetId: 'flavor' }, snapshot).revisedTargetId).toBe('flavor');
     expect(() => validateFrozenReviewCorrection({ ...proposal, proposedValue: 'Acme' },
       { ...correction, revisedTargetId: 'flavor' }, snapshot)).toThrow('configured controlled');

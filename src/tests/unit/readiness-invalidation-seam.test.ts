@@ -9,68 +9,120 @@
  * invalidate accepted dependents; stale accepted dependents never replay into
  * the draft; independent (universal) results survive.
  */
+import { Hono } from 'hono';
 import { describe, it, expect, beforeEach } from 'bun:test';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
-import {
-  createRun as createRepositoryRun,
-  completeRun,
-  getProposalsByRun,
-} from '../../db/repositories/classification-run-repo';
-import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
-import { buildRuntimeSnapshot, persistRuntimeSnapshot, snapshotHash } from '../../classification/runtime-snapshot';
+import { createRun as createRepositoryRun, completeRun, getProposalsByRun } from '../../db/repositories/classification-run-repo';
+import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { applyCatalogClassification } from '../../classification/catalog-product-application';
+import { validateCatalogReviewCompletionGate } from '../../classification/review-completion-gate';
 import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
 import { getPendingRefreshCount } from '../../db/repositories/classification-refresh-repo';
 import { writeProductFile } from '../../git/workspace-files';
-import { listChangeSetItems } from '../../db/repositories/change-set-repo';
+import { listChangeSetItems, listChangeSets } from '../../db/repositories/change-set-repo';
+import catalogClassificationRoutes from '../../server/routes/catalog-classification-routes';
 import { setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
-import { saveClassificationConfig, loadClassificationConfig } from '../../classification/config-loader';
-import { syncConfigToCache } from '../../db/repositories/classification-config-repo';
 import { computeProductHash } from '../../classification/catalog-product-source';
-
+import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
+import { previewCandidate, activateBundle } from '../../classification/config-store';
+import { scanCatalogEvidence, renderCatalogEvidence, verifyCatalogEvidenceTreeIntegrity } from '../../classification/catalog-evidence';
+import { updateFieldMetadata } from '../../server/services/field-metadata-service';
+import {
+  loadRuntimeConfigAuthority,
+  createRuntimeActivationContext,
+} from '../../classification/config-loader';
+import type { RuntimeConfigAuthority } from '../../classification/config-loader';
 const WS_ID = 'ws-readiness-seam';
 const NOW = '2026-08-01T12:00:00.000Z';
 
-function configFixture(): any {
-  // v1 file fixture (like the #350 seam): no categories key, no profiles,
-  // no isUniversal — the SNAPSHOT is patched post-build with the canonical
-  // pair mapping + universal flag (snapshot-only semantics, never file state).
+function seedFixture(): BayStateSeed {
   return {
-    manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: NOW, updatedAt: NOW, fileVersions: {} },
+    ...BayStatePetGardenSeed,
+    name: 'Readiness seam fixture',
+    revision: 'readiness-seam-v2',
+    createdAt: NOW,
+    categories: [
+      { id: 'dog-food', name: 'Dog Food', description: null },
+      { id: 'cat-food', name: 'Cat Food', description: null },
+    ],
     productTypes: [
-      { id: 'dry-dog-food', name: 'Dry Dog Food', description: null, attributeProfileId: null, oldIdAliases: [] },
-      { id: 'dry-cat-food', name: 'Dry Cat Food', description: null, attributeProfileId: null, oldIdAliases: [] },
+      { id: 'dry-dog-food', name: 'Dry Dog Food', description: null, categoryId: 'dog-food', websiteValues: { category: 'QA Category: dog-food', productType: 'QA Product Type: dry-dog-food' } },
+      { id: 'dry-cat-food', name: 'Dry Cat Food', description: null, categoryId: 'cat-food', websiteValues: { category: 'QA Category: cat-food', productType: 'QA Product Type: dry-cat-food' } },
     ],
     attributes: [
-      { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Chicken', 'Beef'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Food' },
-      { id: 'note', name: 'Note', description: null, valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Note' },
+      { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Chicken', 'Beef'], valueAliases: [], visualEvidenceEligibility: 'ineligible', isClaim: false, isCompositionAttribute: false, group: 'Food', isUniversal: false },
+      { id: 'product-feature', name: 'Product Feature', description: null, valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'ineligible', isClaim: false, isCompositionAttribute: false, group: 'Features', isUniversal: true },
     ],
-    attributeProfiles: [],
-    attributeMappings: [
-      { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
-      { id: 'note-map', attributeId: 'note', catalogField: 'ProductField24', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
+    profileTemplates: [
+      { id: 'dry-dog-food-profile', name: 'Dog Profile', productTypeIds: ['dry-dog-food'], attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single' }] },
+      { id: 'dry-cat-food-profile', name: 'Cat Profile', productTypeIds: ['dry-cat-food'], attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single' }] },
+    ],
+    mappings: [
+      { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+      { id: 'feature-map', attributeId: 'product-feature', catalogField: 'ProductField26', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     ],
     curationTargets: [
-      { id: 'class-target', kind: 'product_type', label: 'Classification', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
-      { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
-      { id: 'note-target', kind: 'product_field', label: 'Note', enabled: true, selectionMode: 'single', attributeId: 'note', catalogField: 'ProductField24', optionSource: 'configured', required: false, mandatory: false, sortOrder: 2 },
+      { id: 'class-target', kind: 'product_type', label: 'Classification', enabled: true, mandatory: false, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, sortOrder: 0 },
+      { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, sortOrder: 1 },
+      { id: 'feature-target', kind: 'product_field', label: 'Product Feature', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'product-feature', catalogField: 'ProductField26', optionSource: 'configured', required: false, sortOrder: 2 },
     ],
-    brands: [],
-    guidance: [],
-    modelPolicy: { defaultProvider: 'ollama', defaultModel: '', stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only' },
-    dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
   };
 }
 
 let workspacePath: string;
+let activeAuthority: Extract<RuntimeConfigAuthority, { kind: 'v2' }>;
+let activeSnapshotRef: { id: string; hash: string };
 
-beforeEach(() => {
+async function activateFixtureAuthority(): Promise<void> {
+  writeProduct('SKU-SEED');
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField23', { label: 'Facet-Flavor' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField26', { label: 'Facet-Product Feature' });
+  const git = (...args: string[]) => execFileSync('git', args, {
+    cwd: workspacePath,
+    encoding: 'utf-8',
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+  }).trim();
+  git('init', '-b', 'main');
+  git('config', '--local', 'user.name', 'Readiness Fixture');
+  git('config', '--local', 'user.email', 'readiness@example.test');
+  git('config', '--local', 'core.hooksPath', '/dev/null');
+  git('config', '--local', 'commit.gpgsign', 'false');
+  git('add', 'products', 'store/field-registry.json');
+  git('commit', '-m', 'Seed readiness catalog evidence');
+  const sourceCatalogCommit = git('rev-parse', 'HEAD');
+  const catalogEvidence = await scanCatalogEvidence(workspacePath, WS_ID);
+  const artifact = renderCatalogEvidence(catalogEvidence);
+  const catalogEvidenceHash = createHash('sha256').update(artifact).digest('hex');
+  const candidate = generateCandidate(seedFixture(), catalogEvidence);
+  const preview = previewCandidate(candidate.bundle, workspacePath, { catalogEvidence: artifact });
+  if (!preview.hash) throw new Error(JSON.stringify(preview.report.findings));
+  await activateBundle(preview.hash, null, {
+    workspacePath,
+    workspaceId: WS_ID,
+    sourceCatalogCommit,
+    catalogEvidenceHash,
+    activationContext: {
+      ...createRuntimeActivationContext(workspacePath, WS_ID),
+      verifyCatalogEvidenceTree: hash => verifyCatalogEvidenceTreeIntegrity(workspacePath, hash, WS_ID),
+    },
+  });
+  const authority = loadRuntimeConfigAuthority(workspacePath, createRuntimeActivationContext(workspacePath, WS_ID));
+  if (authority.kind !== 'v2') throw new Error('Readiness fixture did not activate V2 authority');
+  activeAuthority = authority;
+  activeSnapshotRef = upsertConfigSnapshot(WS_ID, authority.bundle, sourceCatalogCommit);
+}
+
+beforeEach(async () => {
   setTaxonomyFreezeForTests(false);
   workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'readiness-seam-'));
   fs.mkdirSync(path.join(workspacePath, '.baystate-cms'), { recursive: true });
@@ -78,55 +130,72 @@ beforeEach(() => {
   initDb(path.join(workspacePath, '.baystate-cms', 'app.db'));
   runMigrations();
   insertWorkspace({ id: WS_ID, name: 'seam', workspacePath, gitPath: '', createdAt: NOW, updatedAt: NOW, bootstrapStatus: 'complete', baselineCommit: null });
-  saveClassificationConfig(workspacePath, configFixture());
-  syncConfigToCache(WS_ID, loadClassificationConfig(workspacePath));
+  await activateFixtureAuthority();
 });
 
-function seedRun(sku: string, pageImport?: { id: string; hash: string }) {
-  const config = configFixture();
-  const ref = createConfigSnapshot(WS_ID, config);
-  const snapshot: any = {
-    ...buildRuntimeSnapshot({
-      workspaceId: WS_ID, workspacePath, productSku: sku, config,
-      configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: NOW },
-      sourceProductHash: null,
-      ...(pageImport ? { pageImportId: pageImport.id, pageImportHash: pageImport.hash } : {}),
-    }),
-    // Canonical pair mapping + universal flag + profile wiring (snapshot-only,
-    // like #350 seam: v1 files cannot express the pair mapping or profiles).
-    categories: [{ id: 'dog-food', name: 'Dog Food' }, { id: 'cat-food', name: 'Cat Food' }],
-    productTypes: [
-      { id: 'dry-dog-food', name: 'Dry Dog Food', categoryId: 'dog-food', attributeProfileId: 'dry-dog-food-profile' },
-      { id: 'dry-cat-food', name: 'Dry Cat Food', categoryId: 'cat-food', attributeProfileId: 'dry-cat-food-profile' },
-    ],
-    attributeProfiles: [
-      { id: 'dry-dog-food-profile', productTypeId: 'dry-dog-food', name: 'Dog Profile', attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single', applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] }] },
-      { id: 'dry-cat-food-profile', productTypeId: 'dry-cat-food', name: 'Cat Profile', attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single', applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] }] },
-    ],
-  };
-  snapshot.attributes = snapshot.attributes.map((a: any) =>
-    a.id === 'note' ? { ...a, isUniversal: true } : a,
-  );
-  // The test is the config authority here (v1 files cannot express the
-  // canonical pair mapping): re-embed the content hash so persistence
-  // integrity holds truthfully over exactly what was frozen.
-  snapshot.snapshotHash = snapshotHash(snapshot);
+function seedRun(
+  sku: string,
+  pageImport?: { id: string; hash: string },
+  flavorValue: unknown = 'Chicken',
+  options: { websiteMapping?: boolean; measuredValue?: unknown; proposalPrefix?: string } = {},
+) {
+  const ref = activeSnapshotRef;
+  const authority = options.websiteMapping === false
+    ? {
+      ...activeAuthority,
+      bundle: {
+        ...activeAuthority.bundle,
+        productTypes: activeAuthority.bundle.productTypes.map(type => {
+          const unmapped = { ...type };
+          delete unmapped.websiteValues;
+          return unmapped;
+        }),
+      },
+    }
+    : activeAuthority;
+  const snapshot = buildRuntimeSnapshot({
+    workspaceId: WS_ID, workspacePath, productSku: sku,
+    authority,
+    configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: NOW },
+    sourceProductHash: null,
+    ...(pageImport ? { pageImportId: pageImport.id, pageImportHash: pageImport.hash } : {}),
+  });
   persistRuntimeSnapshot(snapshot);
   const run = createRepositoryRun(WS_ID, sku, ref.id, snapshot.snapshotHash, { sourceKind: 'catalog_product' });
   const db = getDb();
   const now = new Date().toISOString();
+  const proposalPrefix = options.proposalPrefix ?? 'prop';
   const insert = (id: string, type: string, target: string | null, value: unknown) => {
     db.run(
       `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
       [id, run.id, sku, type, target, JSON.stringify(value), 0.9, 'pending', now],
     );
   };
-  insert('prop-pair', 'product_classification', 'dry-dog-food', { categoryId: 'dog-food', productTypeId: 'dry-dog-food' });
-  insert('prop-flavor', 'field_assignment', 'flavor', 'Chicken');
-  insert('prop-note', 'field_assignment', 'note', 'Free text');
+  insert(`${proposalPrefix}-pair`, 'product_classification', 'dry-dog-food', { categoryId: 'dog-food', productTypeId: 'dry-dog-food' });
+  insert(`${proposalPrefix}-flavor`, 'field_assignment', 'flavor', flavorValue);
+  insert(`${proposalPrefix}-note`, 'field_assignment', 'product-feature', options.measuredValue ?? 'Free text');
   completeRun(run.id, 'completed');
   return run;
 }
+
+function acceptSeededProposals(sku: string, runId: string, proposalPrefix = 'prop') {
+  const result = submitProposalDecisions({
+    workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
+    decisions: [
+      { proposalId: `${proposalPrefix}-pair`, decision: 'accepted' },
+      { proposalId: `${proposalPrefix}-flavor`, decision: 'accepted' },
+      { proposalId: `${proposalPrefix}-note`, decision: 'accepted' },
+    ],
+  });
+  if (!result.ok) throw new Error(`Could not accept seeded proposals: ${JSON.stringify(result)}`);
+  return result;
+}
+
+function replaceActiveFixtureBundle(bundle: typeof activeAuthority.bundle): void {
+  activeAuthority = { ...activeAuthority, bundle };
+  activeSnapshotRef = upsertConfigSnapshot(WS_ID, bundle, null);
+}
+
 
 function writeProduct(sku: string, fields: Record<string, string> = {}) {
   const product: any = {
@@ -170,7 +239,7 @@ describe('issue #354 workflow seam: dependent invalidation', () => {
     });
     expect(changeType.ok).toBe(true);
 
-    // The pair-gated dependent is stale; the universal note is intact.
+    // The pair-gated dependent is stale; the independent universal feature remains accepted.
     const rows = getProposalsByRun(run.id);
     expect(rows.find(p => p.id === 'prop-flavor')!.status).toBe('stale');
     expect(rows.find(p => p.id === 'prop-note')!.status).toBe('accepted');
@@ -182,11 +251,15 @@ describe('issue #354 workflow seam: dependent invalidation', () => {
     getDb().run('UPDATE classification_runs SET source_product_hash = ? WHERE id = ?', [computeProductHash(product), run.id]);
     const result = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
     expect(result.appliedFields).not.toContain('ProductField23');
-    expect(result.appliedFields).toContain('ProductField24');
+    expect(result.appliedFields).toContain('ProductField26');
     const items = listChangeSetItems(result.changeSetId);
     const draft = JSON.parse((items[0] as any).draftJson);
+    expect(draft.customFields.ProductField24).toBe('QA Category: cat-food');
+    expect(draft.customFields.ProductField25).toBe('QA Product Type: dry-cat-food');
+    expect(draft.customFields.ProductField24).not.toBe('QA Category: dog-food');
+    expect(draft.customFields.ProductField25).not.toBe('QA Product Type: dry-dog-food');
     expect(draft.customFields.ProductField23).toBe('Beef');
-    expect(draft.customFields.ProductField24).toBe('Free text');
+    expect(draft.customFields.ProductField26).toBe('Free text');
   });
 
   it('Category-member correction stales the accepted dependent (pair moves to the other approved combination)', async () => {
@@ -220,6 +293,36 @@ describe('issue #354 workflow seam: dependent invalidation', () => {
 });
 
 describe('issue #354 workflow seam: canonical readiness', () => {
+  it('catalog apply route refuses a required attribute gap before creating a local draft', async () => {
+    const sku = 'SKU-REQUIRED-GAP-APPLY';
+    const product = writeProduct(sku);
+    const run = seedRun(sku);
+    getDb().run(
+      'UPDATE classification_runs SET source_product_hash = ? WHERE id = ?',
+      [computeProductHash(product), run.id],
+    );
+    const decisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'accepted' },
+      ],
+    });
+    expect(decisions.ok).toBe(true);
+
+    const app = new Hono();
+    app.route('/api', catalogClassificationRoutes);
+    const before = listChangeSets(WS_ID);
+    const response = await app.request(`/api/products/${sku}/classification/runs/${run.id}/apply`, {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'required_values_missing' });
+    expect(listChangeSets(WS_ID)).toEqual(before);
+  });
+
   it('rejected required value blocks draft creation (required gap keeps Review)', async () => {
     const sku = 'SKU-REQUIRED-GAP';
     const run = seedRun(sku);
@@ -239,8 +342,68 @@ describe('issue #354 workflow seam: canonical readiness', () => {
 
     const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
     expect(readiness.ok).toBe(false);
-    if (!readiness.ok) expect(readiness.code).toBe('required_values_missing');
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+    }
+    const review = validateCatalogReviewCompletionGate({
+      workspaceId: WS_ID, productSku: sku, runId: run.id,
+    });
+    expect(review.ok).toBe(false);
+    if (!review.ok) expect(review.code).toBe('required_values_missing');
   });
+  it('blocks completed Review when the accepted pair has no approved ShopSite mapping', async () => {
+    const sku = 'SKU-CORE-MAPPING-GAP';
+    const run = seedRun(sku, undefined, 'Chicken', { websiteMapping: false });
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'accepted' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) expect(readiness.code).toBe('core_mapping_unresolved');
+    const review = validateCatalogReviewCompletionGate({
+      workspaceId: WS_ID, productSku: sku, runId: run.id,
+    });
+    expect(review.ok).toBe(false);
+    if (!review.ok) expect(review.code).toBe('core_mapping_unresolved');
+  });
+  it('keeps Review open when multiple accepted canonical pairs disagree', async () => {
+    const sku = 'SKU-DUPLICATE-CORE-PAIR';
+    const run = seedRun(sku);
+    getDb().run(
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'product_classification', ?, ?, 0.9, 'pending', ?)`,
+      ['prop-pair-second', run.id, sku, 'dry-cat-food', JSON.stringify({ categoryId: 'cat-food', productTypeId: 'dry-cat-food' }), NOW],
+    );
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-pair-second', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'accepted' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) expect(readiness.code).toBe('pair_unresolved');
+    const review = validateCatalogReviewCompletionGate({
+      workspaceId: WS_ID, productSku: sku, runId: run.id,
+    });
+    expect(review.ok).toBe(false);
+    if (!review.ok) expect(review.code).toBe('pair_unresolved');
+  });
+
+
 
   it('unresolved pair blocks with pair_unresolved (no accepted pair, no reviewed fact)', async () => {
     const sku = 'SKU-PAIR-GAP';
@@ -266,6 +429,34 @@ describe('issue #354 workflow seam: canonical readiness', () => {
     }
   });
 
+  it('does not treat a previously accepted stale pair as current readiness authority', () => {
+    const sku = 'SKU-STALE-PAIR';
+    const run = seedRun(sku);
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'accepted' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    getDb().run(
+      'UPDATE classification_proposals SET is_stale = 1, stale_at = ? WHERE id = ? AND run_id = ?',
+      [new Date().toISOString(), 'prop-pair', run.id],
+    );
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) expect(readiness.code).toBe('pair_unresolved');
+    const review = validateCatalogReviewCompletionGate({
+      workspaceId: WS_ID, productSku: sku, runId: run.id,
+    });
+    expect(review.ok).toBe(false);
+    if (!review.ok) expect(review.code).toBe('pair_unresolved');
+  });
+
   it('optional missing value does not block (supported optional stays optional)', async () => {
     const sku = 'SKU-OPTIONAL-OK';
     const run = seedRun(sku);
@@ -283,7 +474,328 @@ describe('issue #354 workflow seam: canonical readiness', () => {
 
     const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
     expect(readiness.ok).toBe(true);
+    if (readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('valued');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('optional_unvalued');
+    }
   });
+
+  it('does not report Review readiness when the completed run has no resolvable frozen snapshot', () => {
+    const sku = 'SKU-MISSING-FROZEN-SNAPSHOT';
+    const run = seedRun(sku);
+    const decisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'accepted' },
+      ],
+    });
+    expect(decisions.ok).toBe(true);
+    getDb().run("UPDATE classification_runs SET config_snapshot_hash = 'missing-snapshot' WHERE id = ?", [run.id]);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) expect(readiness.code).toBe('profile_unresolved');
+
+    const review = validateCatalogReviewCompletionGate({ workspaceId: WS_ID, productSku: sku, runId: run.id });
+    expect(review.ok).toBe(false);
+    if (!review.ok) expect(review.code).toBe('profile_unresolved');
+  });
+  it('does not satisfy a required single-valued profile attribute with a one-item array', () => {
+    const sku = 'SKU-SINGLE-VALUE-ARRAY';
+    const run = seedRun(sku, undefined, ['Chicken']);
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'rejected' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('optional_unvalued');
+    }
+  });
+
+  it('does not satisfy a required controlled value with whitespace-only text', () => {
+    const sku = 'SKU-WHITESPACE-VALUE';
+    const run = seedRun(sku, undefined, '   ');
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'rejected' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+    }
+  });
+
+  it('does not satisfy a required controlled value outside its captured allowed values', () => {
+    const sku = 'SKU-INVALID-CONTROLLED-VALUE';
+    const run = seedRun(sku, undefined, 'Duck');
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'rejected' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+    }
+  });
+  it('does not let accepted required values survive empty or retargeted proposal data', () => {
+    const sku = 'SKU-REVALIDATED-ACCEPTED-VALUE';
+    const run = seedRun(sku);
+    acceptSeededProposals(sku, run.id);
+
+    for (const invalidValue of ['', []]) {
+      getDb().run(
+        'UPDATE classification_proposals SET proposed_value_json = ? WHERE id = ? AND run_id = ?',
+        [JSON.stringify(invalidValue), 'prop-flavor', run.id],
+      );
+      const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+      expect(readiness.ok).toBe(false);
+      if (!readiness.ok) {
+        expect(readiness.code).toBe('required_values_missing');
+        expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+      }
+    }
+
+    getDb().run(
+      `UPDATE classification_proposals
+       SET target_id = 'product-feature', proposed_value_json = ?
+       WHERE id = ? AND run_id = ?`,
+      [JSON.stringify('Chicken'), 'prop-flavor', run.id],
+    );
+    const wrongTargetReadiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(wrongTargetReadiness.ok).toBe(false);
+    if (!wrongTargetReadiness.ok) {
+      expect(wrongTargetReadiness.code).toBe('required_values_missing');
+      expect(wrongTargetReadiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+    }
+  });
+
+  it('does not let a stale accepted attribute decision satisfy a required profile entry', () => {
+    const sku = 'SKU-STALE-ATTRIBUTE-DECISION';
+    const run = seedRun(sku);
+    acceptSeededProposals(sku, run.id);
+    getDb().run(
+      `UPDATE classification_proposals
+       SET status = 'stale', is_stale = 1, stale_at = ?
+       WHERE id = ? AND run_id = ?`,
+      [new Date().toISOString(), 'prop-flavor', run.id],
+    );
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('missing');
+    }
+  });
+
+  it('revalidates accepted measured values against the frozen canonical unit', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const measuredAttribute = bundle.attributes.find(attribute => attribute.id === 'product-feature');
+    const measuredMapping = bundle.attributeMappings.find(mapping => mapping.attributeId === 'product-feature');
+    const measuredTarget = bundle.curationTargets.find(target => target.id === 'feature-target');
+    if (!measuredAttribute || !measuredMapping || !measuredTarget) {
+      throw new Error('Measured readiness fixture is incomplete.');
+    }
+    measuredAttribute.valueMode = 'measured';
+    measuredAttribute.canonicalUnit = 'lb';
+    measuredAttribute.allowedValues = [];
+    measuredAttribute.valueAliases = [];
+    measuredMapping.serialization = {
+      kind: 'measured', unit: 'lb', valueUnitSeparator: ' ', prefix: '', suffix: '',
+    };
+    measuredTarget.required = true;
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-MEASURED-UNIT-DRIFT';
+    const run = seedRun(sku, undefined, 'Chicken', { measuredValue: '15 lb' });
+    acceptSeededProposals(sku, run.id);
+    getDb().run(
+      'UPDATE classification_proposals SET proposed_value_json = ? WHERE id = ? AND run_id = ?',
+      [JSON.stringify('15 kg'), 'prop-note', run.id],
+    );
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('missing');
+    }
+  });
+
+  it('treats an explicitly empty Attribute Profile as a valid configured outcome', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogType = bundle.productTypes.find(type => type.id === 'dry-dog-food');
+    if (!dogType) throw new Error('Readiness fixture is missing its dog-food Product Type.');
+    dogType.attributeProfileId = null;
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-EMPTY-ATTRIBUTE-PROFILE';
+    const run = seedRun(sku);
+    const decisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'rejected' },
+      ],
+    });
+    expect(decisions.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(true);
+    if (readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('not_applicable');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('optional_unvalued');
+    }
+  });
+
+  it('keeps a missing declared Attribute Profile distinct from an explicitly empty profile', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogType = bundle.productTypes.find(type => type.id === 'dry-dog-food');
+    if (!dogType) throw new Error('Readiness fixture is missing its dog-food Product Type.');
+    dogType.attributeProfileId = 'missing-readiness-profile';
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-MISSING-ATTRIBUTE-PROFILE';
+    const run = seedRun(sku);
+    const pairDecision = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-pair', decision: 'accepted' }],
+    });
+    expect(pairDecision.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) expect(readiness.code).toBe('profile_unresolved');
+  });
+
+  it('reports a configured profile omission as confirmed non-applicability', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogType = bundle.productTypes.find(type => type.id === 'dry-dog-food');
+    const profile = bundle.attributeProfiles.find(candidate => candidate.id === dogType?.attributeProfileId);
+    if (!dogType || !profile) throw new Error('Readiness fixture is missing its dog-food Attribute Profile.');
+    profile.attributes = profile.attributes.filter(rule => rule.attributeId !== 'flavor');
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-PROFILE-OMITS-FLAVOR';
+    const run = seedRun(sku);
+    const decisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'rejected' },
+      ],
+    });
+    expect(decisions.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(true);
+    if (readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('not_applicable');
+    }
+  });
+
+  it('reports unknown applicability separately from an applicable required gap', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogType = bundle.productTypes.find(type => type.id === 'dry-dog-food');
+    const profile = bundle.attributeProfiles.find(candidate => candidate.id === dogType?.attributeProfileId);
+    const flavorRule = profile?.attributes.find(rule => rule.attributeId === 'flavor');
+    if (!dogType || !profile || !flavorRule) throw new Error('Readiness fixture is missing its required Flavor rule.');
+    flavorRule.applicabilityConditions = [
+      { operator: 'equals', attributeId: 'product-feature', value: 'Observed condition', factSource: 'accepted_reviewed' },
+    ];
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-UNKNOWN-ATTRIBUTE-APPLICABILITY';
+    const run = seedRun(sku);
+    const decisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'rejected' },
+      ],
+    });
+    expect(decisions.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.code).toBe('required_values_missing');
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('required_unknown');
+    }
+  });
+
+  it('uses compatible reviewed facts to confirm configured non-applicability', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogType = bundle.productTypes.find(type => type.id === 'dry-dog-food');
+    const profile = bundle.attributeProfiles.find(candidate => candidate.id === dogType?.attributeProfileId);
+    const flavorRule = profile?.attributes.find(rule => rule.attributeId === 'flavor');
+    if (!dogType || !profile || !flavorRule) throw new Error('Readiness fixture is missing its required Flavor rule.');
+    flavorRule.applicabilityConditions = [
+      { operator: 'equals', attributeId: 'product-feature', value: 'Observed condition', factSource: 'accepted_reviewed' },
+    ];
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-REVIEWED-CONDITION-FACT';
+    const priorRun = seedRun(sku, undefined, 'Chicken', { proposalPrefix: 'prior' });
+    const priorDecisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: priorRun.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prior-pair', decision: 'accepted' },
+        { proposalId: 'prior-flavor', decision: 'rejected' },
+        { proposalId: 'prior-note', decision: 'accepted' },
+      ],
+    });
+    expect(priorDecisions.ok).toBe(true);
+
+    const currentRun = seedRun(sku, undefined, 'Chicken', { proposalPrefix: 'current' });
+    const currentDecisions = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: currentRun.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'current-pair', decision: 'accepted' },
+        { proposalId: 'current-flavor', decision: 'rejected' },
+        { proposalId: 'current-note', decision: 'rejected' },
+      ],
+    });
+    expect(currentDecisions.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: currentRun.id });
+    expect(readiness.ok).toBe(true);
+    if (readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('not_applicable');
+    }
+  });
+
 });
 
 describe('issue #354 workflow seam: stale page authority refuses without partial write', () => {

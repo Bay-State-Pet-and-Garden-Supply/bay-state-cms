@@ -4,73 +4,93 @@ import fs from 'fs';
 import os from 'os';
 import { initDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
-import { createRun as createRepositoryRun, completeRun, getAcceptedProposals, getLiveDecisionsByRun, getProposalsByRun, insertDecisionRow, supersedeDecisionsForProposals, getRun } from '../../db/repositories/classification-run-repo';
+import { insertWorkspace } from '../../db/repositories/workspace-repo';
+import { createRun as createRepositoryRun, completeRun, getAcceptedProposals, getLiveDecisionsByRun, getProposalsByRun, insertDecisionRow, supersedeDecisionsForProposals } from '../../db/repositories/classification-run-repo';
 import { getDb } from '../../db/connection';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { validateCatalogReviewCompletionGate } from '../../classification/review-completion-gate';
-import { createConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot, getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
-import type { ClassificationConfig } from '../../shared/types';
+import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
+import type { ClassificationConfigBundleV2 } from '../../shared/schemas/classification';
+import type { CatalogEvidence } from '../../classification/catalog-evidence';
 
-function loadClassificationConfigFixture(): ClassificationConfig {
-  const now = '2026-08-01T12:00:00.000Z';
-  return {
-    manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: now, updatedAt: now, fileVersions: {} },
+function loadClassificationConfigFixture(): ClassificationConfigBundleV2 {
+  const seed: BayStateSeed = {
+    name: 'Review protocol fixture', revision: 'review-v1', createdAt: '2026-08-01T12:00:00.000Z',
+    categories: [
+      { id: 'dog-food', name: 'Dog Food', description: null },
+      { id: 'cat-food', name: 'Cat Food', description: null },
+      { id: 'bird-food', name: 'Bird Food', description: null },
+    ],
     productTypes: [
-      { id: 'dry-dog-food', name: 'Dry Dog Food', description: null, attributeProfileId: 'dry-dog-food-profile', oldIdAliases: [] },
+      { id: 'dry-dog-food', name: 'Dry Dog Food', description: null, categoryId: 'dog-food', websiteValues: { category: 'Dog Food', productType: 'Dry Dog Food' } },
+      { id: 'dog-food-dry', name: 'Dog Kibble', description: null, categoryId: 'dog-food', websiteValues: { category: 'Dog Food', productType: 'Dog Kibble' } },
+      { id: 'cat-food-wet', name: 'Wet Cat Food', description: null, categoryId: 'cat-food', websiteValues: { category: 'Cat Food', productType: 'Wet Cat Food' } },
+      { id: 'bird-food', name: 'Bird Food', description: null, categoryId: 'bird-food', websiteValues: { category: 'Bird Food', productType: 'Bird Food' } },
     ],
     attributes: [
-      { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Chicken', 'Beef'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Food' },
+      { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null,
+        allowedValues: ['Chicken', 'Beef', 'Salmon'], valueAliases: [], visualEvidenceEligibility: 'eligible',
+        isClaim: false, isCompositionAttribute: false, group: 'Food', isUniversal: false },
     ],
-    attributeProfiles: [
-      { id: 'dry-dog-food-profile', productTypeId: 'dry-dog-food', name: 'Dry Dog Food Profile', attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single', applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] }] },
-    ],
-    attributeMappings: [
-      { id: 'flavor-mapping', attributeId: 'flavor', catalogField: 'ProductField1', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
-    ],
+    profileTemplates: [{ id: 'food-profile', name: 'Food', productTypeIds: ['dry-dog-food'],
+      attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single' }] }],
+    mappings: [{ id: 'flavor-mapping', attributeId: 'flavor', catalogField: 'ProductField23',
+      serialization: { kind: 'scalar', prefix: '', suffix: '' } }],
     curationTargets: [
-      { id: 'primary-product-type', kind: 'product_type', label: 'Primary Product Type', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
-      { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField1', optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
+      { id: 'primary-product-type', kind: 'product_type', label: 'Product Classification', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
+      { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
     ],
-    brands: [],
-    guidance: [],
-    modelPolicy: { defaultProvider: 'ollama', defaultModel: '', stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only' },
+    brands: [], guidance: [],
+    modelPolicy: { defaultProvider: 'ollama', defaultModel: 'fixture-model', providerLocalities: { ollama: 'local' },
+      stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only',
+      mlFeatures: {
+        productionRetrieval: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+        pageReranking: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+        confidenceCalibration: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+        productionEmbeddings: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+      } },
     dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
   };
+  const evidence: CatalogEvidence = { schemaVersion: 1, sourceTreeHash: '0'.repeat(64), productFileCount: 0,
+    parseFailureCount: 0, parseFailures: [], fieldRegistry: { entryCount: 1, xmlFields: ['ProductField23'] },
+    fields: [], pages: [] };
+  return generateCandidate(seed, evidence).bundle;
 }
 
 const workspaceId = 'ws-catalog-class-db-test';
 
-// Review correction now needs actual frozen options, not the old fake-hash
-// placeholder. Keep the protocol/transaction tests at their existing seam.
+let workspacePath: string;
+
+// Capture one coherent configuration before creating the run. Historical
+// no-capture cases explicitly use createRepositoryRun instead of this fixture.
 function createRun(...args: Parameters<typeof createRepositoryRun>) {
-  const run = createRepositoryRun(...args);
-  if (run.configSnapshotHash && getRuntimeSnapshotByHash(run.workspaceId, run.configSnapshotHash)) return run;
-  const config = loadClassificationConfigFixture();
-  config.attributes[0].allowedValues.push('Salmon');
-  config.productTypes.push(...['dog-food-dry', 'cat-food-wet', 'bird-food'].map(id => ({ id, name: id, description: null, attributeProfileId: null, oldIdAliases: [] })));
-  config.curationTargets = config.curationTargets?.map(target => target.kind === 'product_type' ? { ...target, enabled: false } : target);
-  const ref = createConfigSnapshot(run.workspaceId, config);
-  const snapshot = buildRuntimeSnapshot({ workspaceId: run.workspaceId, workspacePath: '/tmp/catalog-review-fixture', productSku: run.productSku,
-    config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: run.sourceProductHash });
-  persistRuntimeSnapshot(snapshot);
-  getDb().run('UPDATE classification_runs SET config_snapshot_hash = ? WHERE id = ?', [snapshot.snapshotHash, run.id]);
-  return getRun(run.id)!;
+  const [workspaceId, sku, , snapshotHash, options] = args;
+  if (snapshotHash && getRuntimeSnapshotByHash(workspaceId, snapshotHash)) {
+    return createRepositoryRun(...args);
+  }
+  const bundle = loadClassificationConfigFixture();
+  const ref = upsertConfigSnapshot(workspaceId, bundle);
+  const snapshot = buildRuntimeSnapshot({ workspaceId, workspacePath, productSku: sku,
+    authority: { kind: 'v2', bundle },
+    configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
+    sourceProductHash: options?.sourceProductHash ?? null });
+  const persisted = persistRuntimeSnapshot(snapshot);
+  return createRepositoryRun(workspaceId, sku, persisted.id, persisted.hash, options);
 }
 
 describe('proposal-review-service (catalog product)', () => {
   beforeEach(() => {
     // Fresh in-memory database before each test
-    const wsPath = path.join(os.tmpdir(), `catalog-class-db-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-    fs.mkdirSync(path.join(wsPath, '.baystate-cms'), { recursive: true });
-    const dbPath = path.join(wsPath, '.baystate-cms', 'app.db');
+    workspacePath = path.join(os.tmpdir(), `catalog-class-db-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    fs.mkdirSync(path.join(workspacePath, '.baystate-cms'), { recursive: true });
+    const dbPath = path.join(workspacePath, '.baystate-cms', 'app.db');
     initDb(dbPath);
     runMigrations();
-    // Protocol fixtures historically omitted their field identity. Supply the
-    // actual closed fixture field before exercising correction validation.
-    getDb().exec(`CREATE TRIGGER review_fixture_field AFTER INSERT ON classification_proposals
-      WHEN NEW.proposal_type = 'field_assignment' AND NEW.target_id IS NULL
-      BEGIN UPDATE classification_proposals SET target_id = 'flavor' WHERE id = NEW.id; END`);
+    const now = new Date().toISOString();
+    insertWorkspace({ id: workspaceId, name: 'Review fixture', workspacePath, gitPath: '',
+      createdAt: now, updatedAt: now, bootstrapStatus: 'complete', baselineCommit: null });
   });
 
   it('rejects decisions for a non-existent run', () => {
@@ -93,8 +113,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"test"', 0.8, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
       ['proposal-1', run.id, 'SKU001', new Date().toISOString()],
     );
 
@@ -117,8 +137,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"Beef"', 0.9, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.9, 'pending', ?)`,
       ['proposal-accept', run.id, 'SKU001', new Date().toISOString()],
     );
 
@@ -219,8 +239,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"test"', 0.8, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
       ['proposal-ws', run.id, 'SKU001', new Date().toISOString()],
     );
 
@@ -244,8 +264,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"test"', 0.8, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
       ['proposal-sk', run.id, 'SKU001', new Date().toISOString()],
     );
 
@@ -302,110 +322,6 @@ describe('proposal-review-service (catalog product)', () => {
     expect(decRow.revised_target_id).toBeNull();
   });
 
-  it('normalizes one-sided Product Type corrections and rejects conflicting pairs', () => {
-    const run = createRun(workspaceId, 'SKU-TYPE-NORMALIZE', null, null, {
-      sourceKind: 'catalog_product',
-      sourceProductHash: 'type-normalize-source',
-    });
-    const now = new Date().toISOString();
-    for (const id of ['prop-type-value', 'prop-type-target', 'prop-type-clear', 'prop-type-conflict']) {
-      getDb().run(
-        `INSERT INTO classification_proposals
-         (id, run_id, product_sku, proposal_type, target_id, proposed_value_json,
-          confidence, status, created_at)
-         VALUES (?, ?, 'SKU-TYPE-NORMALIZE', 'primary_product_type', 'dog-food-dry', ?, 0.9, 'pending', ?)`,
-        [id, run.id, JSON.stringify({ productTypeId: 'dog-food-dry', matchedWords: ['dog', 'kibble'] }), now],
-      );
-    }
-    completeRun(run.id, 'completed');
-
-    const normalized = submitProposalDecisions({
-      workspaceId,
-      productSku: 'SKU-TYPE-NORMALIZE',
-      runId: run.id,
-      sourceKind: 'catalog_product',
-      decisions: [
-        {
-          proposalId: 'prop-type-value',
-          decision: 'accepted',
-          revisedValue: { productTypeId: 'cat-food-wet', matchedWords: ['cat'] },
-          actionToken: 'type-value-token',
-          expectedRevisionId: null,
-        },
-        {
-          proposalId: 'prop-type-target',
-          decision: 'accepted',
-          revisedTargetId: 'bird-food',
-          actionToken: 'type-target-token',
-          expectedRevisionId: null,
-        },
-        {
-          proposalId: 'prop-type-clear',
-          decision: 'accepted',
-          revisedTargetId: null,
-          actionToken: 'type-clear-token',
-          expectedRevisionId: null,
-        },
-      ],
-    });
-    expect(normalized.ok).toBe(true);
-
-    const rows = getDb().query(
-      `SELECT proposal_id, revised_value_json, revised_target_id, has_revised_target
-       FROM classification_proposal_decisions
-       WHERE proposal_id LIKE 'prop-type-%' ORDER BY proposal_id`,
-    ).all() as Array<{
-      proposal_id: string;
-      revised_value_json: string | null;
-      revised_target_id: string | null;
-      has_revised_target: number;
-    }>;
-    expect(rows).toEqual([
-      {
-        proposal_id: 'prop-type-clear',
-        revised_value_json: 'null',
-        revised_target_id: null,
-        has_revised_target: 1,
-      },
-      {
-        proposal_id: 'prop-type-target',
-        revised_value_json: JSON.stringify({ productTypeId: 'bird-food' }),
-        revised_target_id: 'bird-food',
-        has_revised_target: 1,
-      },
-      {
-        proposal_id: 'prop-type-value',
-        revised_value_json: JSON.stringify({ productTypeId: 'cat-food-wet' }),
-        revised_target_id: 'cat-food-wet',
-        has_revised_target: 1,
-      },
-    ]);
-
-    const conflict = submitProposalDecisions({
-      workspaceId,
-      productSku: 'SKU-TYPE-NORMALIZE',
-      runId: run.id,
-      sourceKind: 'catalog_product',
-      decisions: [{
-        proposalId: 'prop-type-conflict',
-        decision: 'accepted',
-        revisedValue: { productTypeId: 'cat-food-wet' },
-        revisedTargetId: 'bird-food',
-        actionToken: 'type-conflict-token',
-        expectedRevisionId: null,
-      }],
-    });
-    expect(conflict.ok).toBe(false);
-    if (!conflict.ok) expect(conflict.code).toBe('invalid_decisions');
-    const conflictRow = getDb().query(
-      'SELECT status FROM classification_proposals WHERE id = ?',
-    ).get('prop-type-conflict') as { status: string };
-    expect(conflictRow.status).toBe('pending');
-    const conflictDecisionCount = getDb().query(
-      'SELECT COUNT(*) AS count FROM classification_proposal_decisions WHERE proposal_id = ?',
-    ).get('prop-type-conflict') as { count: number };
-    expect(conflictDecisionCount.count).toBe(0);
-  });
 
   it('is idempotent for exact retries', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, {
@@ -414,8 +330,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"Chicken"', 0.9, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', ?)`,
       ['prop-idem', run.id, 'SKU001', new Date().toISOString()],
     );
 
@@ -469,8 +385,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
     getDb().run(
       `INSERT INTO classification_proposals
-       (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"value"', 0.9, 'pending', ?)`,
+       (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.9, 'pending', ?)`,
       ['prop-audit-rollback', run.id, 'SKU-AUDIT-ROLLBACK', new Date().toISOString()],
     );
     completeRun(run.id, 'completed');
@@ -508,8 +424,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
     getDb().run(
       `INSERT INTO classification_proposals
-       (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"value"', 0.9, 'pending', ?)`,
+       (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.9, 'pending', ?)`,
       ['prop-aliases', run.id, 'SKU-ALIASES', new Date().toISOString()],
     );
     completeRun(run.id, 'completed');
@@ -537,8 +453,8 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"Chicken"', 0.9, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', ?)`,
       ['prop-chain', run.id, 'SKU001', new Date().toISOString()],
     );
 
@@ -588,8 +504,8 @@ describe('proposal-review-service (catalog product)', () => {
   it('does not let a delayed retry supersede a newer decision', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, { sourceKind: 'catalog_product' });
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES ('prop-delayed', ?, 'SKU001', 'field_assignment', '"Original"', 0.9, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES ('prop-delayed', ?, 'SKU001', 'field_assignment', 'flavor', '"Beef"', 0.9, 'pending', ?)`,
       [run.id, new Date().toISOString()],
     );
     completeRun(run.id, 'completed');
@@ -628,8 +544,8 @@ describe('proposal-review-service (catalog product)', () => {
   it('preserves an explicit null correction as a deliberate clear', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, { sourceKind: 'catalog_product' });
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES ('prop-null', ?, 'SKU001', 'field_assignment', '"Original"', 0.9, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES ('prop-null', ?, 'SKU001', 'field_assignment', 'flavor', '"Beef"', 0.9, 'pending', ?)`,
       [run.id, new Date().toISOString()],
     );
     completeRun(run.id, 'completed');
@@ -645,7 +561,7 @@ describe('proposal-review-service (catalog product)', () => {
     expect(accepted[0].hasRevisedValue).toBe(true);
     expect(Object.prototype.hasOwnProperty.call(accepted[0], 'revisedValue')).toBe(true);
     expect(accepted[0].revisedValue).toBeNull();
-    expect(accepted[0].proposedValue).toBe('Original');
+    expect(accepted[0].proposedValue).toBe('Beef');
   });
 
   it('preserves an explicit null target correction as a deliberate clear', () => {
@@ -688,8 +604,8 @@ describe('proposal-review-service (catalog product)', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, { sourceKind: 'catalog_product' });
     for (const id of ['prop-cross-a', 'prop-cross-b']) {
       getDb().run(
-        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-         VALUES (?, ?, 'SKU001', 'field_assignment', '"v"', 0.8, 'pending', ?)`,
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, 'SKU001', 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
         [id, run.id, new Date().toISOString()],
       );
     }
@@ -723,8 +639,8 @@ describe('proposal-review-service (catalog product)', () => {
   it('honors a client-supplied decision id when unused', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, { sourceKind: 'catalog_product' });
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES ('prop-client-id', ?, 'SKU001', 'field_assignment', '"v"', 0.8, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES ('prop-client-id', ?, 'SKU001', 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
       [run.id, new Date().toISOString()],
     );
     completeRun(run.id, 'completed');
@@ -758,8 +674,8 @@ describe('proposal-review-service (catalog product)', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, { sourceKind: 'catalog_product' });
     for (const id of ['prop-id-a', 'prop-id-b']) {
       getDb().run(
-        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-         VALUES (?, ?, 'SKU001', 'field_assignment', '"v"', 0.8, 'pending', ?)`,
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, 'SKU001', 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
         [id, run.id, new Date().toISOString()],
       );
     }
@@ -791,8 +707,8 @@ describe('proposal-review-service (catalog product)', () => {
 
     for (const id of ['prop-a', 'prop-b']) {
       getDb().run(
-        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-         VALUES (?, ?, ?, 'field_assignment', '"v"', 0.8, 'pending', ?)`,
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
         [id, run.id, 'SKU001', new Date().toISOString()],
       );
     }
@@ -839,6 +755,74 @@ describe('proposal-review-service (catalog product)', () => {
     expect(getLiveDecisionsByRun(run.id)).toHaveLength(0);
   });
 
+
+  it('keeps historical proposals readable and rejectable/deferable without granting acceptance authority', () => {
+    const sku = 'LEGACY-OUTPUT-AUTHORITY';
+    const run = createRepositoryRun(workspaceId, sku, null, null, { sourceKind: 'catalog_product' });
+    for (const id of ['legacy-accept', 'legacy-reject', 'legacy-defer']) {
+      getDb().run(`INSERT INTO classification_proposals
+        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+        VALUES (?, ?, ?, 'field_assignment', 'unknown-historical-attribute', '"Beef"', 0.8, 'pending', datetime('now'))`, [id, run.id, sku]);
+    }
+    completeRun(run.id, 'completed');
+    const refused = submitProposalDecisions({ workspaceId, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'legacy-accept', decision: 'accepted' }] });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.code).toBe('configuration_gap');
+    expect(getLiveDecisionsByRun(run.id)).toEqual([]);
+    expect(getProposalsByRun(run.id)).toHaveLength(3);
+    const historicalReview = submitProposalDecisions({ workspaceId, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'legacy-reject', decision: 'rejected' }, { proposalId: 'legacy-defer', decision: 'deferred' }] });
+    expect(historicalReview.ok).toBe(true);
+    expect(getLiveDecisionsByRun(run.id).map(decision => decision.decision).sort()).toEqual(['deferred', 'rejected']);
+    expect(getAcceptedProposals(sku, run.id)).toEqual([]);
+  });
+
+
+  it('does not treat a bare config snapshot as captured runtime output authority', () => {
+    const sku = 'CONFIG-ONLY-AUTHORITY';
+    const ref = upsertConfigSnapshot(workspaceId, loadClassificationConfigFixture());
+    const run = createRepositoryRun(workspaceId, sku, ref.id, ref.hash, { sourceKind: 'catalog_product' });
+    getDb().run(`INSERT INTO classification_proposals
+      (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+      VALUES ('config-only', ?, ?, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', datetime('now'))`, [run.id, sku]);
+    completeRun(run.id, 'completed');
+    const result = submitProposalDecisions({ workspaceId, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'config-only', decision: 'accepted' }] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('configuration_gap');
+    expect(getLiveDecisionsByRun(run.id)).toEqual([]);
+    expect(getProposalsByRun(run.id)[0].status).toBe('pending');
+  });
+
+  it('atomically refuses unknown original and revised field authority, including clears', () => {
+    const sku = 'UNKNOWN-OUTPUT-AUTHORITY';
+    const run = createRun(workspaceId, sku, null, null, { sourceKind: 'catalog_product' });
+    for (const [id, target] of [['known-first', 'flavor'], ['unknown-original', 'not-configured'], ['known-revised', 'flavor']]) {
+      getDb().run(`INSERT INTO classification_proposals
+        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+        VALUES (?, ?, ?, 'field_assignment', ?, '"Beef"', 0.8, 'pending', datetime('now'))`, [id, run.id, sku, target]);
+    }
+    completeRun(run.id, 'completed');
+    const invalidDecisions = [
+      [{ proposalId: 'unknown-original', decision: 'accepted' as const }, 'protected_target_refused'],
+      [{ proposalId: 'unknown-original', decision: 'accepted' as const, revisedTargetId: 'flavor', revisedValue: 'Chicken' }, 'protected_target_refused'],
+      [{ proposalId: 'unknown-original', decision: 'accepted' as const, revisedValue: null }, 'protected_target_refused'],
+      [{ proposalId: 'known-revised', decision: 'accepted' as const, revisedTargetId: 'not-configured', revisedValue: 'Chicken' }, 'protected_target_refused'],
+      [{ proposalId: 'known-revised', decision: 'accepted' as const, revisedTargetId: 'not-configured', revisedValue: null }, 'protected_target_refused'],
+      [{ proposalId: 'known-revised', decision: 'accepted' as const, revisedTargetId: 'ProductField23', revisedValue: 'Chicken' }, 'configuration_gap'],
+    ] as const;
+    for (const [decision, expectedCode] of invalidDecisions) {
+      const result = submitProposalDecisions({ workspaceId, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+        decisions: [{ proposalId: 'known-first', decision: 'accepted' }, decision] });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe(expectedCode);
+      expect(getLiveDecisionsByRun(run.id)).toEqual([]);
+      expect(getAcceptedProposals(sku, run.id)).toEqual([]);
+      expect(getProposalsByRun(run.id).every(proposal => proposal.status === 'pending')).toBe(true);
+    }
+  });
+
   it('superseded decisions no longer satisfy the catalog review gate', () => {
     const run = createRun(workspaceId, 'SKU001', null, null, {
       sourceKind: 'catalog_product',
@@ -846,9 +830,14 @@ describe('proposal-review-service (catalog product)', () => {
     });
 
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'field_assignment', '"v"', 0.8, 'pending', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'field_assignment', 'flavor', '"Beef"', 0.8, 'pending', ?)`,
       ['prop-gate', run.id, 'SKU001', new Date().toISOString()],
+    );
+    getDb().run(
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'product_classification', 'dry-dog-food', '{"categoryId":"dog-food","productTypeId":"dry-dog-food"}', 0.9, 'pending', ?)`,
+      ['prop-pair', run.id, 'SKU001', new Date().toISOString()],
     );
 
     completeRun(run.id, 'completed');
@@ -858,7 +847,10 @@ describe('proposal-review-service (catalog product)', () => {
       productSku: 'SKU001',
       runId: run.id,
       sourceKind: 'catalog_product',
-      decisions: [{ proposalId: 'prop-gate', decision: 'accepted' }],
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-gate', decision: 'accepted' },
+      ],
     });
     expect(result.ok).toBe(true);
 
@@ -948,14 +940,14 @@ describe('proposal-review-service (catalog product)', () => {
     expect(queuedCount.count).toBe(1);
   });
 
-  it('blocks catalog review completion for type-gated field proposals without a reviewed Product Type', () => {
+  it('blocks catalog review completion until a Product Classification pair is reviewed', () => {
     const config = loadClassificationConfigFixture();
-    const { id: snapId, hash: snapHash } = createConfigSnapshot(workspaceId, config);
+    const { id: snapId, hash: snapHash } = upsertConfigSnapshot(workspaceId, config);
     const runtime = buildRuntimeSnapshot({
       workspaceId,
-      workspacePath: '/tmp/fixture',
+      workspacePath,
       productSku: 'SKU-GATED',
-      config,
+      authority: { kind: 'v2', bundle: config },
       configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() },
       sourceProductHash: 'gated-hash',
     });
@@ -982,11 +974,36 @@ describe('proposal-review-service (catalog product)', () => {
 
     const gate = validateCatalogReviewCompletionGate({ workspaceId, productSku: 'SKU-GATED', runId: run.id });
     expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.code).toBe('type_gated_without_reviewed_type');
+    if (!gate.ok) expect(gate.code).toBe('pair_unresolved');
 
-    // Accepting the pair (in-run accepted decision) unblocks the gate. A
-    // legacy type-only acceptance would also unblock iff its category
-    // resolved through the snapshot mapping — the pair path is canonical.
+    getDb().run(
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'primary_product_type', 'dry-dog-food', '{"productTypeId":"dry-dog-food"}', 0.9, 'pending', ?)`,
+      ['prop-legacy-type', run.id, 'SKU-GATED', new Date().toISOString()],
+    );
+    const legacyDecision = submitProposalDecisions({
+      workspaceId, productSku: 'SKU-GATED', runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-legacy-type', decision: 'accepted' }],
+    });
+    expect(legacyDecision.ok).toBe(false);
+    if (!legacyDecision.ok) {
+      expect(legacyDecision.code).toBe('invalid_decisions');
+      expect(legacyDecision.reason).toMatch(/history-only/);
+    }
+    expect(getProposalsByRun(run.id).find(proposal => proposal.id === 'prop-legacy-type')!.status).toBe('pending');
+
+    getDb().run("UPDATE classification_proposals SET status = 'accepted' WHERE id = ?", ['prop-legacy-type']);
+    getDb().run(
+      `INSERT INTO classification_proposal_decisions
+       (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at)
+       VALUES (?, ?, 'accepted', '{"productTypeId":"dry-dog-food"}', 'dry-dog-food', ?, NULL)`,
+      ['dec-legacy-type', 'prop-legacy-type', new Date().toISOString()],
+    );
+    expect(getProposalsByRun(run.id).find(proposal => proposal.id === 'prop-legacy-type')!.status).toBe('accepted');
+    expect(getAcceptedProposals('SKU-GATED', run.id).some(proposal => proposal.id === 'prop-legacy-type')).toBe(false);
+
+    // Only the canonical pair unblocks the gate; legacy type-only history
+    // remains inspectable but cannot act as current classification authority.
     getDb().run(
       `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
        VALUES (?, ?, ?, 'product_classification', 'dry-dog-food', '{"categoryId":"dog-food","productTypeId":"dry-dog-food"}', 0.9, 'accepted', ?)`,
@@ -1007,14 +1024,14 @@ describe('proposal-review-service (catalog product)', () => {
     const now = new Date().toISOString();
     // Spoofed: status column says accepted but no decision row exists.
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, 'SKU-ACCEPTED', 'field_assignment', '"Spoof"', 0.9, 'accepted', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, 'SKU-ACCEPTED', 'field_assignment', 'flavor', '"Spoof"', 0.9, 'accepted', ?)`,
       ['prop-accepted-spoof', run.id, now],
     );
     // Deferred: live decision is deferred.
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, 'SKU-ACCEPTED', 'field_assignment', '"Deferred"', 0.8, 'deferred', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, 'SKU-ACCEPTED', 'field_assignment', 'flavor', '"Deferred"', 0.8, 'deferred', ?)`,
       ['prop-accepted-deferred', run.id, now],
     );
     getDb().run(
@@ -1025,8 +1042,8 @@ describe('proposal-review-service (catalog product)', () => {
     );
     // Genuine: status accepted AND a live accepted decision.
     getDb().run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, 'SKU-ACCEPTED', 'field_assignment', '"Chicken"', 0.9, 'accepted', ?)`,
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, 'SKU-ACCEPTED', 'field_assignment', 'flavor', '"Chicken"', 0.9, 'accepted', ?)`,
       ['prop-accepted-live', run.id, now],
     );
     getDb().run(

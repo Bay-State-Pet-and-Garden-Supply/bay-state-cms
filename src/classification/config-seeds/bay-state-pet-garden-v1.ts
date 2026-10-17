@@ -10,17 +10,23 @@
  * Product Types: the 13 historically committed types plus the approved
  * eight-type expansion (21 total).
  *
- * ShopSite field mappings (PF16–PF32 labels CERTIFIED against the authenticated Extra
- * Fields screenshot, 2026-10-15 — see docs/audits/extra-fields-certification-2026-10-15.md;
- * PF1–PF15 labels uncertified — see docs/audits/live-storefront-product-fields-2026-10-13.md):
- *   Brand → ProductField16, Pet Type → ProductField17, Lifestage → ProductField18,
- *   Pet Size → ProductField19, Special Diet → ProductField20, Health Feature → ProductField21,
- *   Food Form → ProductField22, Flavor → ProductField23, Category → ProductField24,
- *   Product Type → ProductField25, Product Feature → ProductField26, Size → ProductField27,
- *   Material → ProductField28, Color → ProductField29, Packaging Type → ProductField30,
- *   Product Cross Sell → ProductField32, Ingredients/Nutrition → ProductField8.
- * ProductField31 (Product Category) is intentionally NOT mapped — it carries live category
- * values on 30% of products (2026-10-13 census) and is reserved pending owner verification.
+ * ShopSite field roles CERTIFIED against the authenticated Extra Fields screenshot,
+ * 2026-10-15 (docs/audits/extra-fields-certification-2026-10-15.md). Classification
+ * Attribute roles are Pet Type → ProductField17, Lifestage → ProductField18,
+ * Pet Size → ProductField19, Special Diet → ProductField20, Health Feature →
+ * ProductField21, Food Form → ProductField22, Flavor → ProductField23, Product
+ * Feature → ProductField26, Size → ProductField27, Material → ProductField28,
+ * Color → ProductField29, and Packaging Type → ProductField30.
+ *
+ * Facet Category (ProductField24) and Facet Product Type (ProductField25) are
+ * owned by the canonical Product Classification pair, not ordinary attribute
+ * mappings. This seed supplies no approved storefront values for those roles;
+ * missing values remain a configuration gap and must never be inferred from
+ * taxonomy IDs or labels. Brand (ProductField16) is optional input identity,
+ * never classifier output. ProductField31 (Product Category) is distinct;
+ * ProductField32 (Product Cross Sell) is commerce data; ProductField8 is a
+ * Custom Tab, not an approved Nutrition output. Unnamed/unverified fields are
+ * never inferred as classifier destinations.
  */
 
 import type { BayStateSeed } from '../config-generator';
@@ -272,34 +278,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       isUniversal: false,
     },
     {
-      id: 'category',
-      name: 'Category',
-      description: 'Store category classification (ShopSite Facet - Category).',
-      valueMode: 'freeText',
-      canonicalUnit: null,
-      allowedValues: [],
-      valueAliases: [],
-      visualEvidenceEligibility: 'ineligible',
-      isClaim: false,
-      isCompositionAttribute: false,
-      group: 'Store',
-      isUniversal: false,
-    },
-    {
-      id: 'product-type',
-      name: 'Product Type',
-      description: "The store's product type classification, mirrored as the ShopSite Facet - Product Type value.",
-      valueMode: 'freeText',
-      canonicalUnit: null,
-      allowedValues: [],
-      valueAliases: [],
-      visualEvidenceEligibility: 'ineligible',
-      isClaim: false,
-      isCompositionAttribute: false,
-      group: 'Identity',
-      isUniversal: true,
-    },
-    {
       id: 'packaging-type',
       name: 'Packaging Type',
       description: 'Primary package form (can/bag/box/tray/pouch).',
@@ -369,35 +347,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       group: 'Product',
       isUniversal: false,
     },
-    {
-      id: 'product-cross-sell',
-      name: 'Product Cross Sell',
-      description: 'Associated SKUs or cross-sell products (ShopSite Product Cross Sell).',
-      valueMode: 'freeText',
-      canonicalUnit: null,
-      allowedValues: [],
-      valueAliases: [],
-      visualEvidenceEligibility: 'ineligible',
-      isClaim: false,
-      isCompositionAttribute: false,
-      group: 'Product',
-      isUniversal: false,
-    },
-    {
-      id: 'nutrition',
-      name: 'Ingredients & Nutritional Info',
-      description: 'Ingredients and nutritional information.',
-      valueMode: 'freeText',
-      canonicalUnit: null,
-      allowedValues: [],
-      valueAliases: [],
-      visualEvidenceEligibility: 'eligible',
-      isClaim: false,
-      isCompositionAttribute: false,
-      group: 'Nutrition',
-      isUniversal: false,
-    },
-
     // ── Domain Expansion Attributes ──────────────────────────────────────────
     {
       id: 'npk-ratio',
@@ -554,8 +503,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'breed-size', required: false, cardinality: 'single' },
         { attributeId: 'dietary-features', required: false, cardinality: 'single' },
         { attributeId: 'health-benefits', required: false, cardinality: 'single' },
-        { attributeId: 'nutrition', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -571,7 +518,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'color', required: false, cardinality: 'single' },
         { attributeId: 'size', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -584,8 +530,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       attributes: [
         { attributeId: 'food-form', required: false, cardinality: 'single' },
         { attributeId: 'packaging-type', required: false, cardinality: 'single' },
-        { attributeId: 'nutrition', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -601,7 +545,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'size', required: false, cardinality: 'single' },
         { attributeId: 'packaging-type', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -615,7 +558,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'material', required: false, cardinality: 'single' },
         { attributeId: 'size', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -628,7 +570,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       attributes: [
         { attributeId: 'packaging-type', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -640,12 +581,10 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         'plant-food-fertilizer',
       ],
       attributes: [
-        { attributeId: 'category', required: false, cardinality: 'single' },
         { attributeId: 'packaging-type', required: false, cardinality: 'single' },
         { attributeId: 'material', required: false, cardinality: 'single' },
         { attributeId: 'size', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -658,7 +597,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
       attributes: [
         { attributeId: 'material', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -672,7 +610,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'material', required: false, cardinality: 'single' },
         { attributeId: 'size', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -686,7 +623,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'food-form', required: false, cardinality: 'single' },
         { attributeId: 'packaging-type', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
     {
@@ -700,7 +636,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
         { attributeId: 'color', required: false, cardinality: 'single' },
         { attributeId: 'size', required: false, cardinality: 'single' },
         { attributeId: 'product-feature', required: false, cardinality: 'single' },
-        { attributeId: 'product-cross-sell', required: false, cardinality: 'single' },
       ],
     },
   ],
@@ -715,15 +650,11 @@ export const BayStatePetGardenSeed: BayStateSeed = {
     { id: 'health-benefits-mapping', attributeId: 'health-benefits', catalogField: 'ProductField21', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'food-form-mapping', attributeId: 'food-form', catalogField: 'ProductField22', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'flavor-mapping', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
-    { id: 'category-mapping', attributeId: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
-    { id: 'product-type-mapping', attributeId: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'product-feature-mapping', attributeId: 'product-feature', catalogField: 'ProductField26', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'size-mapping', attributeId: 'size', catalogField: 'ProductField27', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'material-mapping', attributeId: 'material', catalogField: 'ProductField28', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'color-mapping', attributeId: 'color', catalogField: 'ProductField29', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'packaging-type-mapping', attributeId: 'packaging-type', catalogField: 'ProductField30', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
-    { id: 'product-cross-sell-mapping', attributeId: 'product-cross-sell', catalogField: 'ProductField32', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
-    { id: 'nutrition-mapping', attributeId: 'nutrition', catalogField: 'ProductField8', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
   ],
 
   // ── Curation targets ──────────────────────────────────────────────────────
@@ -758,14 +689,11 @@ export const BayStatePetGardenSeed: BayStateSeed = {
     { id: 'breed-size-target', kind: 'product_field', label: 'Breed Size', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'breed-size', catalogField: 'ProductField19', optionSource: 'configured', required: false, sortOrder: 13 },
     { id: 'food-form-target', kind: 'product_field', label: 'Food Form', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'food-form', catalogField: 'ProductField22', optionSource: 'configured', required: false, sortOrder: 14 },
     { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, sortOrder: 15 },
-    { id: 'category-target', kind: 'product_field', label: 'Category', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'category', catalogField: 'ProductField24', optionSource: 'configured', required: false, sortOrder: 16 },
-    { id: 'product-type-target', kind: 'product_field', label: 'Product Type', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'product-type', catalogField: 'ProductField25', optionSource: 'configured', required: false, sortOrder: 17 },
     { id: 'packaging-type-target', kind: 'product_field', label: 'Packaging Type', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'packaging-type', catalogField: 'ProductField30', optionSource: 'configured', required: false, sortOrder: 18 },
     { id: 'material-target', kind: 'product_field', label: 'Material', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'material', catalogField: 'ProductField28', optionSource: 'configured', required: false, sortOrder: 19 },
     { id: 'color-target', kind: 'product_field', label: 'Color', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'color', catalogField: 'ProductField29', optionSource: 'configured', required: false, sortOrder: 20 },
     { id: 'size-target', kind: 'product_field', label: 'Size', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'size', catalogField: 'ProductField27', optionSource: 'configured', required: false, sortOrder: 21 },
     { id: 'product-feature-target', kind: 'product_field', label: 'Product Feature', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'product-feature', catalogField: 'ProductField26', optionSource: 'configured', required: false, sortOrder: 22 },
-    { id: 'product-cross-sell-target', kind: 'product_field', label: 'Product Cross Sell', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'product-cross-sell', catalogField: 'ProductField32', optionSource: 'configured', required: false, sortOrder: 23 },
     {
       id: 'store-pages',
       kind: 'page',
