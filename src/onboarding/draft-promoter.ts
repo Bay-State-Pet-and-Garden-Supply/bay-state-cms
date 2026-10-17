@@ -73,7 +73,7 @@ import type { CohortRun } from '../shared/schemas/cohorts';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
 import type { Product } from '../shared/schemas/product';
 import type { ClassificationProposal } from '../shared/schemas/classification';
-import { getCachedAttributeMappings, getCachedBrands } from '../db/repositories/classification-config-repo';
+import { getCachedAttributeMappings, getCachedClassificationOutputBindings, getCachedBrands } from '../db/repositories/classification-config-repo';
 import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import { resolveBrand } from '../classification/brand-resolution';
 import { extractPageNamesFromBlock } from '../shopsite/product-codec';
@@ -372,7 +372,7 @@ export function computePromotionGate(
     // The final draft repeats it against the actual existing product values.
     const projection = buildAssignmentProjection(activeProposals, {}, [], getCachedAttributeMappings(workspaceId),
       new Set(verifiedPages.map(page => page.id)), createAssignmentProjectionAuthority(
-        snapshot, new Map(verifiedPages.map(page => [page.id, page.name])),
+        snapshot, new Map(verifiedPages.map(page => [page.id, page.name])), getCachedClassificationOutputBindings(workspaceId),
       ));
     if (projection.skipped.length > 0) {
       return { ok: false,
@@ -1795,7 +1795,7 @@ export async function prepareDraftPromotion(
         currentPageNames,
         mappings,
         verifiedPageIds,
-        createAssignmentProjectionAuthority(frozenSnapshot, verifiedNameById),
+        createAssignmentProjectionAuthority(frozenSnapshot, verifiedNameById, getCachedClassificationOutputBindings(workspaceId)),
       );
       if (projection.skipped.length > 0) {
         const errMsg = `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`;

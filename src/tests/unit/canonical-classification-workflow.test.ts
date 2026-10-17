@@ -43,6 +43,7 @@ import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import {
   createConfigSnapshot,
   getCachedAttributeMappings,
+  getCachedClassificationOutputBindings,
   syncConfigToCache,
   upsertConfigSnapshot,
 } from '../../db/repositories/classification-config-repo';
@@ -113,6 +114,11 @@ const CATEGORY_FIELD = 'ProductField24';
 const PRODUCT_TYPE_FIELD = 'ProductField25';
 const BRAND_FIELD = 'ProductField16';
 const PRICING_FIELD = 'ProductField6';
+
+const canonicalOutputBindings: NonNullable<BayStateSeed['classificationOutputBindings']> = [
+  { role: 'category', catalogField: CATEGORY_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+  { role: 'product-type', catalogField: PRODUCT_TYPE_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+];
 
 function configFixture(): ClassificationConfig {
   const now = '2026-08-01T12:00:00.000Z';
@@ -216,6 +222,8 @@ async function persistGovernedOnboardingSnapshot(sku: string, product: Product):
   for (const [xmlField, label] of [
     [FLAVOR_FIELD, 'Facet-Flavor'],
     [MATERIAL_FIELD, 'Facet-Material'],
+    [CATEGORY_FIELD, 'Facet - Category'],
+    [PRODUCT_TYPE_FIELD, 'Facet - Product Type'],
     [BRAND_FIELD, 'Brand'],
     [PRICING_FIELD, 'MAP Pricing'],
   ]) {
@@ -243,6 +251,7 @@ async function persistGovernedOnboardingSnapshot(sku: string, product: Product):
       id: 'dog-food-dry', name: 'Dry Dog Food', description: null, categoryId: 'dog-food',
       websiteValues: { category: 'QA Category: dog-food', productType: 'QA Product Type: dog-food-dry' },
     }],
+    classificationOutputBindings: canonicalOutputBindings,
     attributes: [
       { id: 'flavor', name: 'Flavor', allowedValues: ['Chicken'] },
       { id: 'material', name: 'Material', allowedValues: ['Rubber'] },
@@ -444,6 +453,7 @@ describe('canonical classification from supplied facts to reviewed catalog draft
       customFields: {
         [BRAND_FIELD]: 'Acme', [FLAVOR_FIELD]: 'Beef',
         [MATERIAL_FIELD]: 'Nylon', [COLOR_FIELD]: 'Blue',
+        [CATEGORY_FIELD]: 'Old Category', [PRODUCT_TYPE_FIELD]: 'Old Product Type',
         [PRICING_FIELD]: '12.50', ProductField99: 'opaque custom value',
       },
       productOnPages: ['Old Page', 'Brand - Acme'],
@@ -461,6 +471,7 @@ describe('canonical classification from supplied facts to reviewed catalog draft
     // R1 metadata and its R2 attestation are written through the real owner.
     for (const [xmlField, label] of [
       [MATERIAL_FIELD, 'Facet-Material'], [COLOR_FIELD, 'Facet-Color'],
+      [CATEGORY_FIELD, 'Facet - Category'], [PRODUCT_TYPE_FIELD, 'Facet - Product Type'],
       [BRAND_FIELD, 'Brand'], [PRICING_FIELD, 'MAP Pricing'],
     ]) {
       updateFieldMetadata({ id: WS_ID, workspacePath }, xmlField, { label });
@@ -511,6 +522,7 @@ describe('canonical classification from supplied facts to reviewed catalog draft
         { id: 'material-map', attributeId: 'material', catalogField: MATERIAL_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' } },
         { id: 'color-map', attributeId: 'color', catalogField: COLOR_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' } },
       ],
+      classificationOutputBindings: canonicalOutputBindings,
       curationTargets: [
         { ...pairTypeTarget().config, required: true, mandatory: true },
         { id: 'mt', kind: 'product_field', label: 'Material', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'material', catalogField: MATERIAL_FIELD, optionSource: 'configured', required: false, sortOrder: 1 },
@@ -610,6 +622,8 @@ describe('canonical classification from supplied facts to reviewed catalog draft
       new Set(), {
         attributes: snapshot.attributes,
         frozenMappings: snapshot.attributeMappings,
+        currentClassificationOutputBindings: getCachedClassificationOutputBindings(WS_ID),
+        frozenClassificationOutputBindings: snapshot.classificationOutputBindings ?? [],
         categories: snapshot.categories,
         productTypes: snapshot.productTypes,
       },
@@ -643,6 +657,39 @@ describe('canonical classification from supplied facts to reviewed catalog draft
     expect(draft.sku).toBe(sku);
     expect(draft.status).toBe(product.status);
     // Local change-set only: the repository source product is untouched.
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+  });
+
+  it('refuses an accepted canonical pair when frozen and current core field bindings are absent', async () => {
+    const sku = 'SKU-PAIR-WITHOUT-BINDINGS';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    writeProductFile(workspacePath, product);
+    const config = configFixture();
+    const ref = createConfigSnapshot(WS_ID, config);
+    const persisted = persistCoherentSnapshot(sku, config, ref);
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, {
+      sourceKind: 'catalog_product',
+      sourceProductHash: persisted.snapshot.sourceProductHash,
+    });
+    seedPairProposal(getDb(), run.id, sku, now);
+    completeRun(run.id, 'completed');
+
+    const pair = getProposalsByRun(run.id).find(proposal => proposal.proposalType === 'product_classification');
+    if (!pair) throw new Error('Canonical pair proposal was not persisted');
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [{ proposalId: pair.id, decision: 'accepted' }],
+    });
+    expect(reviewed.ok).toBe(true);
+
+    const draftsBefore = listChangeSets(WS_ID);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id))
+      .rejects.toThrow(/Classification projection refused/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
     expect(readProductFile(workspacePath, sku)).toEqual(product);
   });
 
@@ -898,6 +945,8 @@ describe('issue #357 reviewed-projection parity: onboarding consumer', () => {
         [BRAND_FIELD]: 'Acme',
         [FLAVOR_FIELD]: 'Chicken',
         [MATERIAL_FIELD]: 'Nylon',
+        [CATEGORY_FIELD]: 'Old Category',
+        [PRODUCT_TYPE_FIELD]: 'Old Product Type',
         [PRICING_FIELD]: '9.99',
       },
     });

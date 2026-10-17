@@ -7,7 +7,7 @@ import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createConfigSnapshot, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
 import type { CatalogEvidence } from '../../classification/catalog-evidence';
-import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { buildRuntimeSnapshot, persistRuntimeSnapshot, snapshotHash } from '../../classification/runtime-snapshot';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { enqueueRefreshItem, claimRefreshBatch } from '../../db/repositories/classification-refresh-repo';
 import { processRefreshItem } from '../../classification/type-dependent-refresh';
@@ -376,14 +376,28 @@ describe('type-dependent-refresh (P1.4)', () => {
     const sku = `SKU-CONDITIONAL-${randomUUID().slice(0, 8)}`;
     const bundle = loadConditionalMaterialBundleFixture();
     const ref = upsertConfigSnapshot(wsId, bundle);
-    const snapshot = buildRuntimeSnapshot({
+    const snapshot = structuredClone(buildRuntimeSnapshot({
       workspaceId: wsId,
       workspacePath: '/tmp/refresh',
       productSku: sku,
       authority: { kind: 'v2', bundle },
       configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
       sourceProductHash: '',
+    }));
+    snapshot.reviewedFacts.push({
+      proposalId: 'prior-species-proposal',
+      decisionId: 'prior-species-decision',
+      runId: 'prior-species-run',
+      workspaceId: wsId,
+      productSku: sku,
+      proposalType: 'field_assignment',
+      targetId: 'species',
+      value: 'Dog',
+      configSnapshotHash: ref.hash,
+      sourceHash: null,
+      createdAt: '2026-08-01T12:00:00.000Z',
     });
+    snapshot.snapshotHash = snapshotHash(snapshot);
     persistRuntimeSnapshot(snapshot);
     db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
       VALUES (?, ?, 'Conditional refresh', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
@@ -450,5 +464,36 @@ describe('type-dependent-refresh (P1.4)', () => {
     });
     expect(materialReview.ok).toBe(true);
     expect(evaluateCanonicalReadiness({ workspaceId: wsId, runId }).ok).toBe(true);
+    const currentSpeciesDecisionId = getProposalsByRun(runId).find(proposal => proposal.id === speciesId)?.currentDecisionId;
+    expect(currentSpeciesDecisionId).toBeTruthy();
+    const removedSpeciesReview = submitProposalDecisions({
+      workspaceId: wsId,
+      productSku: sku,
+      runId,
+      sourceKind: 'onboarding',
+      onboardingItemId: itemId,
+      decisions: [{ proposalId: speciesId, decision: 'rejected', expectedRevisionId: currentSpeciesDecisionId! }],
+    });
+    expect(removedSpeciesReview.ok).toBe(true);
+    const malformedSpeciesId = randomUUID();
+    db.run(`INSERT INTO classification_proposals
+      (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+      VALUES (?, ?, ?, 'field_assignment', 'species', ?, 1, 'pending', datetime('now'))`,
+    [malformedSpeciesId, runId, sku, JSON.stringify(['Dog', '  '])]);
+    const malformedSpeciesReview = submitProposalDecisions({
+      workspaceId: wsId,
+      productSku: sku,
+      runId,
+      sourceKind: 'onboarding',
+      onboardingItemId: itemId,
+      decisions: [{ proposalId: malformedSpeciesId, decision: 'accepted' }],
+    });
+    expect(malformedSpeciesReview.ok).toBe(true);
+    const invalidatedReadiness = evaluateCanonicalReadiness({ workspaceId: wsId, runId });
+    expect(invalidatedReadiness).toMatchObject({ ok: false, code: 'required_values_missing' });
+    if (!invalidatedReadiness.ok) {
+      expect(invalidatedReadiness.details.requiredValues.find(value => value.attributeId === 'material')?.status)
+        .toBe('required_unknown');
+    }
   });
 });

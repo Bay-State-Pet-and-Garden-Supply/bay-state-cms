@@ -557,6 +557,15 @@ export const AttributeMappingConfigV2Schema = z.object({
 }).strict();
 export type AttributeMappingConfigV2 = z.infer<typeof AttributeMappingConfigV2Schema>;
 
+/** Governed destination for one member of the canonical Product Classification pair. */
+export const CanonicalClassificationOutputBindingV2Schema = z.object({
+  role: z.enum(['category', 'product-type']),
+  catalogField: z.string().min(1),
+  serialization: ScalarSerializationV2Schema,
+  isStale: z.boolean(),
+}).strict();
+export type CanonicalClassificationOutputBindingV2 = z.infer<typeof CanonicalClassificationOutputBindingV2Schema>;
+
 export const CurationTargetConfigV2Schema = z.object({
   id: ClassificationSlugSchema,
   kind: CurationTargetKindEnum,
@@ -712,7 +721,10 @@ export const ProductTypesFileV2Schema = entriesEnvelopeV2(ProductTypeConfigV2Sch
 export const CategoriesFileV2Schema = entriesEnvelopeV2(CategoryConfigV2Schema);
 export const AttributesFileV2Schema = entriesEnvelopeV2(ProductAttributeConfigV2Schema);
 export const AttributeProfilesFileV2Schema = entriesEnvelopeV2(AttributeProfileConfigV2Schema);
-export const AttributeMappingsFileV2Schema = entriesEnvelopeV2(AttributeMappingConfigV2Schema);
+export const AttributeMappingsFileV2Schema = entriesEnvelopeV2(AttributeMappingConfigV2Schema).extend({
+  /** Kept in mappings.json, but separate from ordinary Classification Attribute mappings. */
+  classificationOutputBindings: z.array(CanonicalClassificationOutputBindingV2Schema).default(() => []),
+}).strict();
 export const CurationTargetsFileV2Schema = entriesEnvelopeV2(CurationTargetConfigV2Schema);
 export const BrandsFileV2Schema = entriesEnvelopeV2(BrandConfigV2Schema);
 export const GuidanceFileV2Schema = entriesEnvelopeV2(GuidanceConfigV2Schema);
@@ -746,6 +758,8 @@ export const ClassificationConfigBundleV2Schema = z.object({
   attributes: z.array(ProductAttributeConfigV2Schema),
   attributeProfiles: z.array(AttributeProfileConfigV2Schema),
   attributeMappings: z.array(AttributeMappingConfigV2Schema),
+  /** Explicit, separately governed ShopSite destinations for the canonical Category + Product Type pair. */
+  classificationOutputBindings: z.array(CanonicalClassificationOutputBindingV2Schema).optional(),
   curationTargets: z.array(CurationTargetConfigV2Schema),
   brands: z.array(BrandConfigV2Schema),
   guidance: z.array(GuidanceConfigV2Schema),

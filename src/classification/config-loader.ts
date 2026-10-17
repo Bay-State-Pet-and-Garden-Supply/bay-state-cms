@@ -108,6 +108,11 @@ interface ReadFileResult {
   value: unknown;
 }
 
+interface ManifestReadResult {
+  dir: CheckedDirectory;
+  file: ReadFileResult;
+}
+
 function fsErrorCode(error: unknown): string | null {
   return error && typeof error === 'object' && 'code' in error
     ? String((error as { code?: unknown }).code ?? '')
@@ -304,7 +309,7 @@ function readRequiredFile(dir: CheckedDirectory, fileName: string): ReadFileResu
   }
 }
 
-function readManifest(workspacePath: string): { dir: CheckedDirectory; file: ReadFileResult } {
+function readManifest(workspacePath: string): ManifestReadResult {
   const dir = checkedClassificationDirectory(workspacePath);
   try {
     const entries = fs.readdirSync(dir.path);
@@ -520,6 +525,7 @@ function loadClassificationConfigBundleV2Internal(
     attributes: attributesFile.entries,
     attributeProfiles: attributeProfilesFile.entries,
     attributeMappings: attributeMappingsFile.entries,
+    classificationOutputBindings: attributeMappingsFile.classificationOutputBindings,
     curationTargets: curationTargetsFile.entries,
     brands: brandsFile.entries,
     guidance: guidanceFile.entries,
@@ -665,7 +671,7 @@ function loadPinnedReleaseAuthority(workspacePath: string, pinnedRevision: strin
   let dataSharing = compiled.dataSharing;
   let curationTargets = compiled.curationTargets;
 
-  let manifest: ReturnType<typeof readManifest> | null = null;
+  let manifest: ManifestReadResult;
   try {
     manifest = readManifest(workspacePath);
   } catch {

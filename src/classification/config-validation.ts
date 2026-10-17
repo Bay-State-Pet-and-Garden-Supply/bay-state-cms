@@ -13,7 +13,7 @@ import {
   findCanonicalCollisions,
   validateCanonicalValue,
 } from './controlled-value-identity';
-import { isCanonicalClassificationAttributeId } from './classification-ownership';
+import { isApprovedCanonicalClassificationBinding, isCanonicalClassificationAttributeId } from './classification-ownership';
 
 export type ClassificationConfigFindingSeverity = 'error' | 'warning';
 
@@ -1165,6 +1165,55 @@ export function validateClassificationConfigBundle(
         code: 'unexpected_measured_serialization',
         path: `$.attributeMappings[${index}].serialization`,
         message: 'Only measured attributes may use measured serialization.',
+      });
+    }
+  });
+
+  const outputBindings = config.classificationOutputBindings ?? [];
+  const outputBindingRoles = new Set<string>();
+  const outputBindingFields = new Set<string>();
+  if (outputBindings.length === 1) {
+    findings.push({
+      severity: 'error',
+      code: 'canonical_output_binding_incomplete',
+      path: '$.classificationOutputBindings',
+      message: 'Category and Product Type output bindings must be configured together.',
+    });
+  }
+  outputBindings.forEach((binding, index) => {
+    const basePath = `$.classificationOutputBindings[${index}]`;
+    if (outputBindingRoles.has(binding.role)) {
+      findings.push({
+        severity: 'error',
+        code: 'duplicate_canonical_output_role',
+        path: `${basePath}.role`,
+        message: `Canonical output role "${binding.role}" is configured more than once.`,
+      });
+    }
+    outputBindingRoles.add(binding.role);
+    if (!isApprovedCanonicalClassificationBinding(binding.role, binding.catalogField, config.attributeMappings)) {
+      findings.push({
+        severity: 'error',
+        code: 'canonical_output_binding_unapproved',
+        path: `${basePath}.catalogField`,
+        message: `Catalog Field "${binding.catalogField}" is not the approved destination for canonical ${binding.role}.`,
+      });
+    }
+    if (outputBindingFields.has(binding.catalogField) || mappedCatalogFields.has(binding.catalogField)) {
+      findings.push({
+        severity: 'error',
+        code: 'duplicate_canonical_output_field',
+        path: `${basePath}.catalogField`,
+        message: `Catalog Field "${binding.catalogField}" is already assigned to another output role.`,
+      });
+    }
+    outputBindingFields.add(binding.catalogField);
+    if (attestedFields && !attestedFields.has(binding.catalogField)) {
+      findings.push({
+        severity: 'error',
+        code: 'catalog_field_unattested',
+        path: `${basePath}.catalogField`,
+        message: `Catalog Field "${binding.catalogField}" is not present in the supplied catalog attestation.`,
       });
     }
   });

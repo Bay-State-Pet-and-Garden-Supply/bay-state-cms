@@ -21,6 +21,7 @@ import type {
   ClassificationConfigSnapshotRef,
   CurationTargetConfig,
   ClassificationConfigBundleV2,
+  CanonicalClassificationOutputBindingV2,
   ProductTypeConfigV2,
 } from '../shared/schemas/classification';
 import type { RuntimeConfigAuthority } from './config-loader';
@@ -144,6 +145,8 @@ export interface RuntimeClassificationSnapshot {
   categories: Array<{ id: string; name: string }>;
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
+  /** Pair-role destinations are frozen independently of ordinary attribute mappings. */
+  classificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
   attributeMappings: ClassificationConfig['attributeMappings'];
   guidance: ClassificationConfig['guidance'];
   brands: ClassificationConfig['brands'];
@@ -225,6 +228,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
   attributeMappings: ClassificationConfig['attributeMappings'];
+  classificationOutputBindings: CanonicalClassificationOutputBindingV2[];
   guidance: ClassificationConfig['guidance'];
   brands: ClassificationConfig['brands'];
   modelPolicy: ClassificationConfig['modelPolicy'];
@@ -240,6 +244,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
       attributes: config.attributes,
       attributeProfiles: config.attributeProfiles,
       attributeMappings: config.attributeMappings,
+      classificationOutputBindings: [],
       guidance: config.guidance,
       brands: config.brands,
       modelPolicy: config.modelPolicy,
@@ -255,6 +260,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
     attributes: bundle.attributes as unknown as ClassificationConfig['attributes'],
     attributeProfiles: bundle.attributeProfiles as unknown as ClassificationConfig['attributeProfiles'],
     attributeMappings: bundle.attributeMappings as unknown as ClassificationConfig['attributeMappings'],
+    classificationOutputBindings: bundle.classificationOutputBindings ?? [],
     guidance: bundle.guidance as unknown as ClassificationConfig['guidance'],
     brands: bundle.brands as unknown as ClassificationConfig['brands'],
     modelPolicy: bundle.modelPolicy as unknown as ClassificationConfig['modelPolicy'],
@@ -317,6 +323,7 @@ export function buildRuntimeSnapshot(input: RuntimeSnapshotInput): RuntimeClassi
     attributes: fields.attributes,
     attributeProfiles: fields.attributeProfiles,
     attributeMappings: fields.attributeMappings,
+    classificationOutputBindings: fields.classificationOutputBindings,
     guidance: fields.guidance,
     brands: fields.brands,
     modelPolicy: fields.modelPolicy,

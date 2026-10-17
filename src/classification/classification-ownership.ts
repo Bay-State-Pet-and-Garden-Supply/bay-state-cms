@@ -113,6 +113,28 @@ export const CLASSIFIER_OWNED_CATALOG_FIELDS: Record<string, string> = {
   ProductField30: 'Facet - Packaging Type',
 };
 
+/** Approved ShopSite destinations for the two members of Product Classification. */
+export const CANONICAL_CLASSIFICATION_CATALOG_FIELDS: Readonly<Record<'category' | 'product-type', string>> = {
+  category: 'ProductField24',
+  'product-type': 'ProductField25',
+};
+
+export type CanonicalClassificationOutputRole = keyof typeof CANONICAL_CLASSIFICATION_CATALOG_FIELDS;
+
+/** True only for the certified destination assigned to this canonical pair role. */
+export function isApprovedCanonicalClassificationBinding(
+  role: string,
+  catalogField: string | null | undefined,
+  mappings?: Array<{ attributeId: string; catalogField?: string | null; isStale?: boolean }>,
+): role is CanonicalClassificationOutputRole {
+  if (!catalogField || !Object.prototype.hasOwnProperty.call(CANONICAL_CLASSIFICATION_CATALOG_FIELDS, role)) {
+    return false;
+  }
+  return CANONICAL_CLASSIFICATION_CATALOG_FIELDS[role as CanonicalClassificationOutputRole] === catalogField
+    && isClassifierOwnedCatalogField(catalogField)
+    && !isProtectedCatalogField(catalogField, null, mappings);
+}
+
 /**
  * True when a catalog slot is an approved classifier output role (issue
  * #357): present in CLASSIFIER_OWNED_CATALOG_FIELDS with its authenticated

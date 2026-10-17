@@ -93,6 +93,20 @@ CREATE TABLE IF NOT EXISTS classification_attribute_mappings (
   PRIMARY KEY (workspace_id, id)
 );
 
+-- Canonical Category + Product Type output destinations are distinct from
+-- ordinary Classification Attribute mappings.
+CREATE TABLE IF NOT EXISTS classification_output_bindings (
+  workspace_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('category', 'product-type')),
+  catalog_field TEXT NOT NULL,
+  serialization_json TEXT NOT NULL,
+  is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+  config_hash TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, role)
+);
+
 -- Cached brand config entries for deterministic brand resolution.
 CREATE TABLE IF NOT EXISTS classification_brands (
   workspace_id TEXT NOT NULL,

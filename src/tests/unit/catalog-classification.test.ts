@@ -8,6 +8,7 @@ import {
 } from '../../shopsite/product-codec';
 import { ownProductPageNames } from '../../classification/catalog-product-source';
 import type { ClassificationProposal, AttributeMappingConfig, ProductAttributeConfig, Product } from '../../shared/types';
+import type { CanonicalClassificationOutputBindingV2 } from '../../shared/schemas/classification';
 
 function makePageTestProduct(
   productOnPages: string[],
@@ -89,6 +90,77 @@ describe('reviewed assignment projection with captured semantic authority', () =
       { catalogField: 'ProductField17', currentValue: 'Dog', proposedValue: 'Cat', isOverwrite: true, isNoOp: false },
     ]);
     expect(result.skipped).toEqual([]);
+  });
+
+  it('projects an accepted canonical pair through both captured and current output bindings', () => {
+    const bindings = [
+      { role: 'category' as const, catalogField: 'ProductField24', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type' as const, catalogField: 'ProductField25', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+    ];
+    const pair = proposal({
+      id: 'p-pair',
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+    });
+    const result = buildAssignmentProjection(
+      [pair],
+      currentCustomFields,
+      [],
+      mappings,
+      verifiedPageIds,
+      {
+        ...authority,
+        currentClassificationOutputBindings: bindings,
+        frozenClassificationOutputBindings: bindings,
+        categories: [{ id: 'dog-food' }],
+        productTypes: [{
+          id: 'dog-food-dry',
+          categoryId: 'dog-food',
+          websiteValues: { category: 'QA Dog Food', productType: 'QA Dry Dog Food' },
+        }],
+      },
+    );
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField24', currentValue: null, proposedValue: 'QA Dog Food', isOverwrite: false, isNoOp: false },
+      { catalogField: 'ProductField25', currentValue: null, proposedValue: 'QA Dry Dog Food', isOverwrite: false, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it.each([
+    ['missing current Category binding', (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.filter(binding => binding.role !== 'category'), null],
+    ['stale Product Type binding', (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.map(binding => binding.role === 'product-type' ? { ...binding, isStale: true } : binding), null],
+    ['wrong Category destination', (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.map(binding => binding.role === 'category' ? { ...binding, catalogField: 'ProductField25' } : binding), null],
+    ['changed current serializer', null, (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.map(binding => binding.role === 'category' ? { ...binding, serialization: { ...binding.serialization, prefix: 'Category: ' } } : binding)],
+  ])('refuses an incomplete, stale, mismatched or changed pair binding: %s', (_label, currentEdit, frozenEdit) => {
+    const bindings = [
+      { role: 'category' as const, catalogField: 'ProductField24', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type' as const, catalogField: 'ProductField25', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+    ];
+    const pair = proposal({
+      id: 'p-pair',
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+    });
+    const currentBindings = currentEdit ? currentEdit(bindings) : bindings;
+    const frozenBindings = frozenEdit ? frozenEdit(bindings) : bindings;
+    const result = buildAssignmentProjection([pair], currentCustomFields, [], mappings, verifiedPageIds, {
+      ...authority,
+      currentClassificationOutputBindings: currentBindings,
+      frozenClassificationOutputBindings: frozenBindings,
+      categories: [{ id: 'dog-food' }],
+      productTypes: [{
+        id: 'dog-food-dry',
+        categoryId: 'dog-food',
+        websiteValues: { category: 'QA Dog Food', productType: 'QA Dry Dog Food' },
+      }],
+    });
+    expect(result.fields).toEqual([]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'p-pair', reason: expect.stringContaining('protected_target_refused') }),
+    ]);
   });
 
   it('writes a corrected Flavor→Material decision only into Material PF28', () => {

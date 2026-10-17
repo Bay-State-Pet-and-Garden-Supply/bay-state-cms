@@ -15,6 +15,7 @@ import type {
   AttributeEvidencePolicy,
   AttributeProfileConfigV2,
   AttributeMappingConfigV2,
+  CanonicalClassificationOutputBindingV2,
   BrandConfigV2,
   Cardinality,
   ClassificationConfigBundleV2,
@@ -124,6 +125,7 @@ export interface BayStateSeed {
   attributes: BayStateSeedAttribute[];
   profileTemplates: BayStateSeedProfileTemplate[];
   mappings: BayStateSeedMapping[];
+  classificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
   curationTargets: CurationTargetConfigV2[];
   brands: BrandConfigV2[];
   guidance: GuidanceConfigV2[];
@@ -175,7 +177,12 @@ export function buildFocusedFiles(bundle: Omit<ClassificationConfigBundleV2, 'ma
     'categories.json': canonicalJsonFileString(CategoriesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.categories })),
     'attributes.json': canonicalJsonFileString(AttributesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributes })),
     'attribute-profiles.json': canonicalJsonFileString(AttributeProfilesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeProfiles })),
-    'mappings.json': canonicalJsonFileString(AttributeMappingsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeMappings })),
+    'mappings.json': canonicalJsonFileString(AttributeMappingsFileV2Schema.parse({
+      schemaVersion: 2,
+      bundleOrigin: bundle.bundleOrigin,
+      entries: bundle.attributeMappings,
+      classificationOutputBindings: bundle.classificationOutputBindings ?? [],
+    })),
     'curation-targets.json': canonicalJsonFileString(CurationTargetsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.curationTargets })),
     'brands.json': canonicalJsonFileString(BrandsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.brands })),
     'guidance.json': canonicalJsonFileString(GuidanceFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.guidance })),
@@ -363,6 +370,7 @@ export function generateCandidate(seed: BayStateSeed, evidence: CatalogEvidence)
     attributes,
     attributeProfiles: profiles,
     attributeMappings: mappings,
+    classificationOutputBindings: seed.classificationOutputBindings ?? [],
     curationTargets,
     brands: seed.brands,
     guidance: seed.guidance,

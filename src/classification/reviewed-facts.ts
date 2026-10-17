@@ -125,6 +125,15 @@ export function filterCompatibleFacts(
   return facts.filter(fact => isFactCompatible(fact, currentConfigHash, currentSourceHash));
 }
 
+function isUsableReviewedFactValue(value: unknown): boolean {
+  const isUsableScalar = (candidate: unknown): boolean =>
+    (typeof candidate === 'string' && candidate.trim().length > 0)
+    || (typeof candidate === 'number' && Number.isFinite(candidate));
+  return Array.isArray(value)
+    ? value.length > 0 && value.every(isUsableScalar)
+    : isUsableScalar(value);
+}
+
 /**
  * Overlay this run's accepted field decisions on the compatible facts captured
  * by its snapshot. Cleared values still replace their prior target fact.
@@ -152,13 +161,7 @@ export function composeEffectiveReviewedFacts(
     if (proposal.targetId) replacedTargets.add(proposal.targetId);
     if (targetId) replacedTargets.add(targetId);
     const value = getEffectiveProposalValue(proposal);
-    if (
-      targetId
-      && value !== null
-      && value !== undefined
-      && !(typeof value === 'string' && value.trim().length === 0)
-      && !(Array.isArray(value) && value.length === 0)
-    ) {
+    if (targetId && isUsableReviewedFactValue(value)) {
       currentFacts.push({
         proposalId: proposal.id,
         decisionId: proposal.currentDecisionId,

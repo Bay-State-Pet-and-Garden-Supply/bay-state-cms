@@ -1,11 +1,11 @@
 import type { AttributeMappingConfig, ClassificationProposal, ProductAttributeConfig } from '../shared/types';
-import type { SerializationConfigV2 } from '../shared/schemas/classification';
+import type { CanonicalClassificationOutputBindingV2, SerializationConfigV2 } from '../shared/schemas/classification';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import { resolveAlias } from './controlled-value-identity';
 import { isSilentNarrowing } from './attribute-grounding-guards';
 import { deterministicStringify } from '../git/deterministic-json';
 import { resolveWebsiteClassification, type BundleView } from './product-classification';
-import { isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { isApprovedCanonicalClassificationBinding, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 
 /** Return the reviewed correction when present, including an explicit null. */
@@ -276,30 +276,38 @@ export function validateSerializableValue(
   return { ok: true };
 }
 
-/** Captured value/mapping authority and verified page display names. */
+/** Captured values and mappings that authorize a complete canonical pair projection. */
 export interface AssignmentProjectionAuthority {
   attributes?: ProductAttributeConfig[];
   frozenMappings?: AttributeMappingConfig[];
+  currentClassificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
+  frozenClassificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
   verifiedPageNames?: ReadonlyMap<string, string>;
   categories?: BundleView['categories'];
   productTypes?: BundleView['productTypes'];
 }
+
 /**
- * Build the complete approved projection authority from one frozen snapshot.
- * Callers may supply active Page names after confirming the Page import hash;
- * stage previews use the Page identities captured in the snapshot.
+ * Build projection authority from one frozen snapshot and the currently
+ * active pair bindings. The current binding list is separate from ordinary
+ * Classification Attribute mappings by design.
  */
 export function createAssignmentProjectionAuthority(
   snapshot: RuntimeClassificationSnapshot | null | undefined,
   verifiedPageNames?: ReadonlyMap<string, string>,
+  currentClassificationOutputBindings: CanonicalClassificationOutputBindingV2[] = [],
 ): AssignmentProjectionAuthority {
-  if (!snapshot) return verifiedPageNames ? { verifiedPageNames } : {};
+  if (!snapshot) return verifiedPageNames
+    ? { verifiedPageNames, currentClassificationOutputBindings }
+    : { currentClassificationOutputBindings };
   const verifiedPages = snapshot.pages.state === 'verified'
     ? snapshot.pages.records.filter(page => page.verified)
     : [];
   return {
     attributes: snapshot.attributes,
     frozenMappings: snapshot.attributeMappings,
+    currentClassificationOutputBindings,
+    frozenClassificationOutputBindings: snapshot.classificationOutputBindings ?? [],
     verifiedPageNames: verifiedPageNames ?? new Map(verifiedPages.map(page => [page.pageId, page.pageName])),
     categories: snapshot.categories,
     productTypes: snapshot.productTypes,
@@ -359,24 +367,51 @@ export function buildAssignmentProjection(
         if (resolution.status !== 'resolved') {
           refuse(`${resolution.code}: ${resolution.reason}`);
         } else {
-          const pairFields = [
-            { catalogField: 'ProductField24', proposedValue: resolution.values.category },
-            { catalogField: 'ProductField25', proposedValue: resolution.values.productType },
-          ];
-          for (const field of pairFields) {
-            if (isProtectedCatalogField(field.catalogField, null, mappings)) {
-              refuse(`protected_target_refused: Core classification role "${field.catalogField}" is not approved.`);
+          const canonicalRoles = [
+            { role: 'category', proposedValue: resolution.values.category },
+            { role: 'product-type', proposedValue: resolution.values.productType },
+          ] as const;
+          const currentBindings = authority.currentClassificationOutputBindings ?? [];
+          const frozenBindings = authority.frozenClassificationOutputBindings ?? [];
+          const boundFields: Array<{ catalogField: string; proposedValue: string }> = [];
+          for (const role of canonicalRoles) {
+            const current = currentBindings.filter(binding => binding.role === role.role);
+            const frozen = frozenBindings.filter(binding => binding.role === role.role);
+            const binding = current[0];
+            const fieldIsAliased = mappings.some(mapping => mapping.catalogField === binding?.catalogField);
+            const frozenFieldIsAliased = authority.frozenMappings?.some(
+              mapping => mapping.catalogField === frozen[0]?.catalogField,
+            ) ?? false;
+            if (current.length !== 1 || frozen.length !== 1 || !binding || !frozen[0]
+              || binding.isStale || frozen[0].isStale
+              || !isApprovedCanonicalClassificationBinding(role.role, binding.catalogField, mappings)
+              || !isApprovedCanonicalClassificationBinding(role.role, frozen[0].catalogField, authority.frozenMappings)
+              || fieldIsAliased || frozenFieldIsAliased
+              || deterministicStringify(binding) !== deterministicStringify(frozen[0])) {
+              refuse(`protected_target_refused: Missing, stale, changed or uncertified canonical ${role.role} output binding.`);
+              break;
+            }
+            try {
+              boundFields.push({
+                catalogField: binding.catalogField,
+                proposedValue: serializeAttributeValue(role.proposedValue, binding.serialization),
+              });
+            } catch (error) {
+              refuse(`protected_target_refused: Canonical ${role.role} output binding cannot serialize its approved website value: ${error instanceof Error ? error.message : String(error)}`);
               break;
             }
           }
-          if (skipped.length === 0) for (const field of pairFields) {
-            const currentValue = currentCustomFields[field.catalogField] ?? null;
-            fields.push({ ...field, currentValue, isOverwrite: currentValue !== null && currentValue !== field.proposedValue,
-              isNoOp: currentValue === field.proposedValue });
+          if (boundFields.length === canonicalRoles.length) {
+            for (const field of boundFields) {
+              const currentValue = currentCustomFields[field.catalogField] ?? null;
+              fields.push({ catalogField: field.catalogField, proposedValue: field.proposedValue, currentValue,
+                isOverwrite: currentValue !== null && currentValue !== field.proposedValue,
+                isNoOp: currentValue === field.proposedValue });
+            }
           }
-        }
       }
     }
+  }
   }
 
   for (const proposal of acceptedProposals) {

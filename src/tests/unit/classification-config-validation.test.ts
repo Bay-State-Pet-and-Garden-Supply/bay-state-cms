@@ -546,6 +546,32 @@ describe('classification v2 structural and semantic validation', () => {
     expect(codes).not.toContain('duplicate_attribute_mapping');
   });
 
+  it('governs Category and Product Type output bindings as an atomic pair separate from attributes', () => {
+    const mappings = [
+      { role: 'category' as const, catalogField: 'ProductField24', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type' as const, catalogField: 'ProductField25', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+    ];
+
+    const missingMate = structuredClone(migrated().bundle);
+    missingMate.classificationOutputBindings = [mappings[0]];
+    expect(findingCodes(missingMate)).toContain('canonical_output_binding_incomplete');
+
+    const crossedRoles = structuredClone(migrated().bundle);
+    crossedRoles.classificationOutputBindings = [
+      { ...mappings[0], catalogField: 'ProductField25' },
+      { ...mappings[1], catalogField: 'ProductField24' },
+    ];
+    expect(findingCodes(crossedRoles)).toContain('canonical_output_binding_unapproved');
+
+    const approvedPair = structuredClone(migrated().bundle);
+    approvedPair.classificationOutputBindings = mappings;
+    expect(findingCodes(approvedPair)).not.toEqual(expect.arrayContaining([
+      'canonical_output_binding_incomplete',
+      'canonical_output_binding_unapproved',
+      'duplicate_canonical_output_field',
+    ]));
+  });
+
   it('I5: rejects one attribute mapped to two Catalog Fields (duplicate_attribute_mapping)', () => {
     const bundle = structuredClone(migrated().bundle);
     bundle.attributeMappings.push({

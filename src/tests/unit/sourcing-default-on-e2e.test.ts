@@ -1152,7 +1152,7 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
     // Generate one coherent ACTIVE config from actual local catalog evidence.
     // The curator itself captures/persists its runtime snapshot; this fixture
     // never patches that snapshot or seeds a classification run/proposal.
-    const xmlFields = ['ProductField23', 'ProductField28'];
+    const xmlFields = ['ProductField23', 'ProductField28', 'ProductField24', 'ProductField25'];
     fs.writeFileSync(path.join(wsPath, 'store', 'field-registry.json'), JSON.stringify({ entries: xmlFields.map(xmlField => ({ xmlField })) }));
     const evidence = await scanCatalogEvidence(wsPath);
     const artifactContent = renderCatalogEvidence(evidence);
@@ -1167,6 +1167,10 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
       productTypes: [
         { id: 'dog-food-dry', name: 'Dry Dog Food', description: 'Dry dog food kibble.', categoryId: 'dog-food', websiteValues: { category: 'QA/test-only Dog Food', productType: 'QA/test-only Dry Dog Food' } },
         { id: 'dog-toy', name: 'Dog Toy', description: 'Dog toy.', categoryId: 'dog-toys', websiteValues: { category: 'QA/test-only Dog Toys', productType: 'QA/test-only Dog Toy' } },
+      ],
+      classificationOutputBindings: [
+        { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+        { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
       ],
       attributes: [
         { ...V1_CONFIG.attributes[0], allowedValues: ['Chicken', 'Beef'], isUniversal: false },
