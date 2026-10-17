@@ -76,6 +76,7 @@ import type { ClassificationProposal } from '../shared/schemas/classification';
 import { getCachedAttributeMappings, getCachedBrands } from '../db/repositories/classification-config-repo';
 import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import { resolveBrand } from '../classification/brand-resolution';
+import { extractPageNamesFromBlock } from '../shopsite/product-codec';
 import {
   getEffectivePrimaryProductTypeId,
   buildAssignmentProjection,
@@ -1774,9 +1775,19 @@ export async function prepareDraftPromotion(
       const frozenSnapshot = gateInfo.activeRun?.configSnapshotHash
         ? getRuntimeSnapshotByHash(workspaceId, gateInfo.activeRun.configSnapshotHash) : null;
       const currentPageAssignments = getProductPageAssignments(item.upc);
+      const preserved = existingApproved?.shopsite.preserved;
+      const preservedPageNames = [
+        ...Object.entries(preserved?.advancedBlocks ?? {})
+          .filter(([name]) => name.toLowerCase() === 'productonpages')
+          .map(([, block]) => String(block)),
+        ...Object.entries(preserved?.unknownElements ?? {})
+          .filter(([name]) => name.toLowerCase() === 'productonpages')
+          .map(([, block]) => String(block)),
+      ].flatMap(extractPageNamesFromBlock);
       const currentPageNames = [...new Set([
         ...(existingApproved?.core.productOnPages ?? []),
         ...currentPageAssignments.map(page => page.pageName),
+        ...preservedPageNames,
       ])];
       const projection = buildAssignmentProjection(
         activeProposals,
@@ -1926,9 +1937,14 @@ export async function prepareDraftPromotion(
       // Preserve every existing placement except the explicit reviewed
       // taxonomy removals. The codec owns ProductOnPages serialization.
       coreProduct.productOnPages = classificationPageNames;
-      const preservedUnknown = { ...(product.shopsite.preserved.unknownElements ?? {}) };
-      delete preservedUnknown['ProductOnPages'];
-      product.shopsite.preserved = { ...product.shopsite.preserved, unknownElements: preservedUnknown };
+      const draftPreserved = product.shopsite.preserved;
+      product.shopsite.preserved = {
+        ...draftPreserved,
+        unknownElements: Object.fromEntries(Object.entries(draftPreserved.unknownElements ?? {})
+          .filter(([name]) => name.toLowerCase() !== 'productonpages')),
+        advancedBlocks: Object.fromEntries(Object.entries(draftPreserved.advancedBlocks ?? {})
+          .filter(([name]) => name.toLowerCase() !== 'productonpages')),
+      };
 
       // Persist the originating item on receipt-created catalog drafts. This
       // is record linkage (not a receipt-derived success projection), retained

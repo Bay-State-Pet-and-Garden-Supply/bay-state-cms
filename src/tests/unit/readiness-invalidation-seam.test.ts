@@ -540,6 +540,74 @@ describe('issue #354 workflow seam: canonical readiness', () => {
       expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('valued');
     }
   });
+  it('keeps required applicability unknown when the accepted discriminator is cleared', () => {
+    const sku = 'SKU-CLEARED-APPLICABILITY-FACT';
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogProfile = bundle.attributeProfiles.find(profile => profile.id === 'dry-dog-food-profile')!;
+    const flavorRule = dogProfile.attributes.find(attribute => attribute.attributeId === 'flavor')!;
+    flavorRule.applicabilityConditions = [{
+      operator: 'equals',
+      attributeId: 'product-feature',
+      value: 'Dog-only',
+      factSource: 'accepted_reviewed',
+    }];
+    replaceActiveFixtureBundle(bundle);
+    seedPriorReviewedFieldFact(sku, 'product-feature', 'Cat-only');
+    const run = seedRun(sku);
+    const decision = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'accepted', revisedValue: null },
+      ],
+    });
+    expect(decision.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('required_unknown');
+    }
+  });
+
+
+
+  it('keeps required applicability unknown when the accepted discriminator is blank', () => {
+    const sku = 'SKU-BLANK-APPLICABILITY-FACT';
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogProfile = bundle.attributeProfiles.find(profile => profile.id === 'dry-dog-food-profile')!;
+    const flavorRule = dogProfile.attributes.find(attribute => attribute.attributeId === 'flavor')!;
+    flavorRule.applicabilityConditions = [{
+      operator: 'equals',
+      attributeId: 'product-feature',
+      value: 'Dog-only',
+      factSource: 'accepted_reviewed',
+    }];
+    replaceActiveFixtureBundle(bundle);
+    seedPriorReviewedFieldFact(sku, 'product-feature', 'Cat-only');
+    const run = seedRun(sku);
+    const decision = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        { proposalId: 'prop-note', decision: 'accepted', revisedValue: '   ' },
+      ],
+    });
+    expect(decision.ok).toBe(true);
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('required_unknown');
+    }
+  });
 
   it('does not report Review readiness when the completed run has no resolvable frozen snapshot', () => {
     const sku = 'SKU-MISSING-FROZEN-SNAPSHOT';
@@ -554,15 +622,14 @@ describe('issue #354 workflow seam: canonical readiness', () => {
     });
     expect(decisions.ok).toBe(true);
     getDb().run("UPDATE classification_runs SET config_snapshot_hash = 'missing-snapshot' WHERE id = ?", [run.id]);
-
     const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
     expect(readiness.ok).toBe(false);
     if (!readiness.ok) expect(readiness.code).toBe('profile_unresolved');
-
     const review = validateCatalogReviewCompletionGate({ workspaceId: WS_ID, productSku: sku, runId: run.id });
     expect(review.ok).toBe(false);
     if (!review.ok) expect(review.code).toBe('profile_unresolved');
   });
+
   it('does not satisfy a required single-valued profile attribute with a one-item array', () => {
     const sku = 'SKU-SINGLE-VALUE-ARRAY';
     const run = seedRun(sku, undefined, ['Chicken']);

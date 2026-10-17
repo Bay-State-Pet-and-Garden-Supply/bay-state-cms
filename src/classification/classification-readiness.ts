@@ -127,19 +127,27 @@ export function evaluateCanonicalReadiness(input: {
     const targetId = getEffectiveProposalTargetId(proposal);
     if (proposal.targetId) replacedFactTargets.add(proposal.targetId);
     if (targetId) replacedFactTargets.add(targetId);
-    currentApplicabilityFacts.push({
-      proposalId: proposal.id,
-      decisionId: proposal.currentDecisionId,
-      runId: run.id,
-      workspaceId: run.workspace_id,
-      productSku: run.product_sku,
-      proposalType: proposal.proposalType,
-      targetId,
-      value: getEffectiveProposalValue(proposal),
-      configSnapshotHash: run.config_snapshot_hash,
-      sourceHash: snapshot.sourceProductHash,
-      createdAt: proposal.createdAt,
-    });
+    const value = getEffectiveProposalValue(proposal);
+    if (
+      value !== null
+      && value !== undefined
+      && !(typeof value === 'string' && value.trim().length === 0)
+      && !(Array.isArray(value) && value.length === 0)
+    ) {
+      currentApplicabilityFacts.push({
+        proposalId: proposal.id,
+        decisionId: proposal.currentDecisionId,
+        runId: run.id,
+        workspaceId: run.workspace_id,
+        productSku: run.product_sku,
+        proposalType: proposal.proposalType,
+        targetId,
+        value,
+        configSnapshotHash: run.config_snapshot_hash,
+        sourceHash: snapshot.sourceProductHash,
+        createdAt: proposal.createdAt,
+      });
+    }
   }
   const applicabilityFacts = [
     ...currentApplicabilityFacts,

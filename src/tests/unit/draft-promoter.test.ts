@@ -11,6 +11,7 @@ import {
   completeSourcingWithDecision,
 } from '../../db/repositories/onboarding-item-repo';
 import { promoteItems } from '../../onboarding/draft-promoter';
+import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { markReviewed, markApproved } from '../../db/repositories/onboarding-review-repo';
 import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
 import { listVerifiedPageOptions } from '../../db/repositories/page-repo';
@@ -2791,6 +2792,114 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(csItems.length).toBe(1);
     const drafted = JSON.parse(csItems[0].draftJson) as { core: { description: string } };
     expect(drafted.core.description).toBe('Reviewed curation copy.');
+  });
+  it('preserves unreviewed legacy page assignments while codec encoding applies reviewed removals', async () => {
+    const db = getDb();
+    const sku = '599999999998';
+    const { batch, item } = seedPromotionReadyItem('Legacy page preservation', sku);
+    const now = new Date().toISOString();
+    const runId = `run-${sku}`;
+    activatePageImportFromRecords({
+      workspaceId: wsId,
+      sourceHash: createHash('sha256').update(`legacy-pages-${sku}`).digest('hex'),
+      parserFormatVersion: 'pages-xml-1',
+      records: ['Removed Legacy Page', 'Retained Legacy Page'].map((name, index) => ({
+        identity: { kind: 'exported_guid' as const, key: `${sku}-legacy-${index}`, status: 'verified' as const },
+        name,
+        parentRef: null,
+        availability: 'available' as const,
+      })),
+      activatedBy: 'test',
+    });
+    const verifiedPages = listVerifiedPageOptions(wsId);
+    const removedPageId = verifiedPages.find(page => page.name === 'Removed Legacy Page')!.id;
+    const retainedPageId = verifiedPages.find(page => page.name === 'Retained Legacy Page')!.id;
+    db.run(
+      `INSERT INTO classification_runs (id, workspace_id, onboarding_item_id, product_sku, status, started_at)
+       VALUES (?, ?, ?, ?, 'completed', ?)`,
+      [runId, wsId, item.id, sku, now],
+    );
+    seedCanonicalAuthority(db, sku, runId);
+    const curationRow = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(item.id) as { curation_data_json: string };
+    db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [
+      JSON.stringify({ ...JSON.parse(curationRow.curation_data_json), classificationRunId: runId }),
+      item.id,
+    ]);
+    const retainedProposalId = `prop-${sku}-retained`;
+    db.run(
+      `INSERT INTO classification_proposals
+       (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'category_page', ?, ?, 1.0, 'accepted', ?)`,
+      [retainedProposalId, runId, sku, retainedPageId, JSON.stringify({ pageId: retainedPageId, pageName: 'Retained Legacy Page' }), now],
+    );
+    db.run(
+      `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at)
+       VALUES (?, ?, 'accepted', ?, ?)`,
+      [`decision-${retainedProposalId}`, retainedProposalId, `decision-token-${retainedProposalId}`, now],
+    );
+    const removedProposalId = `prop-${sku}-removed`;
+    db.run(
+      `INSERT INTO classification_proposals
+       (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'category_page', ?, ?, 1.0, 'accepted', ?)`,
+      [removedProposalId, runId, sku, removedPageId, JSON.stringify({ pageId: removedPageId, pageName: 'Removed Legacy Page' }), now],
+    );
+    db.run(
+      `INSERT INTO classification_proposal_decisions
+       (id, proposal_id, decision, revised_value_json, revised_target_id, has_revised_target, decision_key, created_at)
+       VALUES (?, ?, 'accepted', 'null', NULL, 1, ?, ?)`,
+      [`decision-${removedProposalId}`, removedProposalId, `decision-token-${removedProposalId}`, now],
+    );
+
+    const productFileDir = path.join(tempWorkspaceDir, 'products');
+    mkdirSync(productFileDir, { recursive: true });
+    const legacyPages = '<ProductOnPages><Name>Removed Legacy Page</Name><Name>Retained Legacy Page</Name></ProductOnPages>';
+    const unrelatedBlock = '<PricingRules><Rule>Keep unchanged</Rule></PricingRules>';
+    const existingProduct = {
+      schemaVersion: 1,
+      id: `test-id-${sku}`,
+      sku,
+      status: 'active',
+      core: {
+        name: 'Test Brand Product',
+        price: '9.99',
+        salePrice: null,
+        description: null,
+        inventory: { quantityOnHand: null, lowStockThreshold: null, outOfStockLimit: null },
+        availability: 'instock',
+        weight: null,
+        taxable: true,
+        media: { primary: `products/${sku}/images/primary.jpg`, additional: [] },
+        seo: { fileName: null, searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
+      },
+      customFields: { ProductField16: 'Test Brand' },
+      shopsite: {
+        productId: null,
+        productGuid: null,
+        xmlVersion: '15.0',
+        lastPulledAt: null,
+        lastRemoteHash: null,
+        lastSyncedAt: null,
+        source: { dbname: 'products', uniqueName: 'SKU' },
+        preserved: { unknownElements: {}, advancedBlocks: { productOnPages: legacyPages, PricingRules: unrelatedBlock }, rawAttributes: {} },
+      },
+      metadata: { createdAt: now, updatedAt: now, archivedAt: null },
+    };
+    writeFileSync(path.join(productFileDir, `${sku}.json`), JSON.stringify(existingProduct));
+    seedApproved(item.id, batch.id);
+
+    const promoted = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(promoted.failures).toHaveLength(0);
+    const draft = JSON.parse(listChangeSetItems(promoted.changeSetId!)[0].draftJson);
+    expect(draft.core.productOnPages).toEqual(['Retained Legacy Page']);
+    expect(draft.shopsite.preserved.advancedBlocks.PricingRules).toBe(unrelatedBlock);
+    expect(draft.shopsite.preserved.advancedBlocks.productOnPages).toBeUndefined();
+
+    const encoded = ShopSiteProductCodec.encode(draft);
+    expect(encoded.xml).not.toContain('Removed Legacy Page');
+    expect((encoded.xml.match(/Retained Legacy Page/g) ?? [])).toHaveLength(1);
+    expect(encoded.xml).toContain(unrelatedBlock);
   });
 });
 });

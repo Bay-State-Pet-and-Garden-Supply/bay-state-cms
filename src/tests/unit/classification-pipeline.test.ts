@@ -27,9 +27,10 @@ import {
 import { createRun, completeRun, getProposalsByRun, getStageResults, getEvidenceByRun, recordDecision } from '../../db/repositories/classification-run-repo';
 import { setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
 import { runPipeline } from '../../classification/pipeline-runner';
-import type { ClassificationStageName } from '../../classification/types';
+import type { ClassificationStageName, StageDefinition } from '../../classification/types';
 import type { ClassificationEvidence } from '../../shared/types';
-import { evidenceExtractionStage, nameConsolidationStage, categoryPageProposalsStage, productAttributeProposalsStage, attributeApplicabilityStage, primaryProductTypeStage } from '../../classification';
+import { evidenceExtractionStage, nameConsolidationStage, categoryPageProposalsStage, productAttributeProposalsStage, attributeApplicabilityStage, primaryProductTypeStage, valueGapAbstainStage } from '../../classification';
+import { overrideUniversalTierFlags, resetUniversalTierFlagsOverride } from '../../classification/flags';
 import { processProductFieldTarget } from '../../classification/curation-target-processor';
 import { upsertPage } from '../../db/repositories/page-repo';
 import { upsertRegistryEntry } from '../../db/repositories/field-registry-repo';
@@ -790,6 +791,70 @@ describe('Classification Pipeline Integration', () => {
     expect(persistedAbstentions.length).toBe(1);
     expect(persistedAbstentions[0].targetId).toBe('name_consolidation');
   });
+  it('passes persisted applicability from an abstained stage to the real value-gap resolver', async () => {
+    const config = loadClassificationConfig(workspacePath);
+    const { id: snapId, hash: snapHash } = createConfigSnapshot(workspaceId, config);
+    const sku = 'TEST-SKU-ABSTAIN-METADATA';
+    const configSnapshotRef = { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() };
+    const runtime = buildRuntimeSnapshot({ workspaceId, workspacePath, productSku: sku, config, configSnapshotRef, sourceProductHash: null });
+    persistRuntimeSnapshot(runtime);
+    const run = createRun(workspaceId, sku, snapId, snapHash);
+    const applicabilityMetadata = { applicability: [{ attributeId: 'flavor', state: 'applicable' }] };
+    const abstainingStage: StageDefinition = {
+      name: 'attribute_applicability',
+      requires: [],
+      evidenceFrom: [],
+      execute: async () => ({
+        status: 'abstained',
+        reason: 'Applicability evidence was incomplete',
+        output: {
+          evidence: [{
+            id: randomUUID(), runId: run.id, stageName: 'attribute_applicability', productSku: sku,
+            attributeId: 'flavor', source: 'catalog_product', reliability: 'high', sourceUrl: null,
+            sourceField: null, snippet: null, value: 'uncommitted evidence', metadata: {}, capturedAt: new Date().toISOString(),
+          }],
+          proposals: [{
+            id: randomUUID(), runId: run.id, productSku: sku, proposalType: 'field_assignment',
+            targetId: 'test-flavor', proposedValue: 'uncommitted proposal', confidence: 1, evidenceIds: [],
+            status: 'pending', isBulkAcceptable: false, isStale: false, stalenessReason: null,
+            snapshotHash: null, createdAt: new Date().toISOString(),
+          }],
+          abstained: true,
+          metadata: applicabilityMetadata,
+        },
+      }),
+    };
+    const emptyProposalStage: StageDefinition = {
+      name: 'product_attribute_proposals',
+      requires: ['attribute_applicability'],
+      evidenceFrom: [],
+      execute: async () => ({ status: 'succeeded', output: { evidence: [], proposals: [], abstained: false } }),
+    };
+
+    overrideUniversalTierFlags({ valueGapLlmEnabled: true });
+    try {
+      const result = await runPipeline(
+        [abstainingStage, emptyProposalStage, valueGapAbstainStage],
+        { workspacePath, workspaceId, runId: run.id, configSnapshotRef, snapshot: runtime },
+        { sku, evidence: [], acceptedProposals: [], allProposals: [] },
+      );
+      const persistedStages = getStageResults(run.id);
+      const applicability = persistedStages.find(stage => stage.stage_name === 'attribute_applicability');
+      const valueGap = persistedStages.find(stage => stage.stage_name === 'value_gap_abstain');
+      expect(applicability?.status).toBe('abstained');
+      expect(JSON.parse(applicability!.output_json!).metadata).toEqual(applicabilityMetadata);
+      expect(JSON.parse(valueGap!.output_json!).metadata.resolutions).toContainEqual(
+        expect.objectContaining({ attributeId: 'flavor', outcome: 'no_evidence' }),
+      );
+      expect(result.evidence).toEqual([]);
+      expect(result.proposals.some(proposal => proposal.proposedValue === 'uncommitted proposal')).toBe(false);
+      expect(getEvidenceByRun(run.id)).toEqual([]);
+      expect(getProposalsByRun(run.id).some(proposal => proposal.proposedValue === 'uncommitted proposal')).toBe(false);
+    } finally {
+      resetUniversalTierFlagsOverride();
+    }
+  });
+
 
   it('rejects pipeline when evidence/proposal persistence fails due to PK conflict; downstream not called, one failed result', async () => {
     const CONFLICT_ID = '00000000-0000-0000-0000-0000000000cc';

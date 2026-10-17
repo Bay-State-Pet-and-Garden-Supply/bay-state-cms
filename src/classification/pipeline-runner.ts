@@ -418,6 +418,12 @@ export async function runPipeline(stages: StageDefinition[], context: StageConte
           outputJson: JSON.stringify(outputPayload),
           errorMessage: result.reason,
         });
+        stageOutputs[stageName] = {
+          evidence: [],
+          proposals: [],
+          abstained: true,
+          ...(result.output?.metadata ? { metadata: result.output.metadata } : {}),
+        };
         allProposals.push(abstentionProposal);
       } else {
         assertOwnership();
