@@ -18,6 +18,7 @@
  * - Profile applicability uses current accepted effective field decisions
  *   overlaid on compatible reviewed facts captured in the run snapshot.
  */
+import { getCachedAttributeMappings, getCachedClassificationOutputBindings } from '../db/repositories/classification-config-repo';
 import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun } from '../db/repositories/classification-run-repo';
 import { composeEffectiveReviewedFacts } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
@@ -25,6 +26,7 @@ import { getReviewedClassificationPair } from './effective-curation-type';
 import { getEffectiveClassificationPair, getEffectiveProposalTargetId, getEffectiveProposalValue, validateSerializableValue } from './assignment-projection';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
 import { resolveWebsiteClassification } from './product-classification';
+import { resolveCanonicalClassificationOutputBindings } from './classification-ownership';
 import type {
   CanonicalClassificationReadinessResult,
   CanonicalReadinessCode as SharedCanonicalReadinessCode,
@@ -116,6 +118,20 @@ export function evaluateCanonicalReadiness(input: {
     return {
       ok: false, code: 'core_mapping_unresolved',
       reason: `Product Classification has no unambiguous approved ShopSite mapping: ${websiteClassification.reason}`,
+      details: { categoryId, productTypeId, profileId: null, requiredValues: [] },
+    };
+  }
+
+  const outputBindingResolution = resolveCanonicalClassificationOutputBindings({
+    currentBindings: getCachedClassificationOutputBindings(input.workspaceId),
+    frozenBindings: snapshot.classificationOutputBindings ?? [],
+    currentMappings: getCachedAttributeMappings(input.workspaceId),
+    frozenMappings: snapshot.attributeMappings,
+  });
+  if (outputBindingResolution.status !== 'resolved') {
+    return {
+      ok: false, code: 'core_mapping_unresolved',
+      reason: `Product Classification output binding is unresolved: ${outputBindingResolution.reason}`,
       details: { categoryId, productTypeId, profileId: null, requiredValues: [] },
     };
   }

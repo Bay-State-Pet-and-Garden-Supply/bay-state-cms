@@ -12,7 +12,8 @@
  * the rule cannot drift between callers. No caller reimplements the Brand
  * check locally.
  */
-import type { AttributeMappingConfig } from '../shared/schemas/classification';
+import { canonicalJsonStringify } from '../shared/stable-id';
+import type { AttributeMappingConfig, CanonicalClassificationOutputBindingV2 } from '../shared/schemas/classification';
 
 /** The classifier-owned Brand attribute identity. */
 export const BRAND_ATTRIBUTE_ID = 'brand';
@@ -125,7 +126,7 @@ export type CanonicalClassificationOutputRole = keyof typeof CANONICAL_CLASSIFIC
 export function isApprovedCanonicalClassificationBinding(
   role: string,
   catalogField: string | null | undefined,
-  mappings?: Array<{ attributeId: string; catalogField?: string | null; isStale?: boolean }>,
+  mappings?: ReadonlyArray<{ attributeId: string; catalogField?: string | null; isStale?: boolean }>,
 ): role is CanonicalClassificationOutputRole {
   if (!catalogField || !Object.prototype.hasOwnProperty.call(CANONICAL_CLASSIFICATION_CATALOG_FIELDS, role)) {
     return false;
@@ -133,6 +134,56 @@ export function isApprovedCanonicalClassificationBinding(
   return CANONICAL_CLASSIFICATION_CATALOG_FIELDS[role as CanonicalClassificationOutputRole] === catalogField
     && isClassifierOwnedCatalogField(catalogField)
     && !isProtectedCatalogField(catalogField, null, mappings);
+}
+
+export type CanonicalClassificationOutputBindingResolution =
+  | {
+    status: 'resolved';
+    bindings: Readonly<Record<CanonicalClassificationOutputRole, CanonicalClassificationOutputBindingV2>>;
+  }
+  | {
+    status: 'unresolved';
+    role: CanonicalClassificationOutputRole;
+    reason: string;
+  };
+
+/**
+ * Resolve the pair's current output bindings against its frozen classification
+ * authority. Review readiness and draft projection share this fail-closed
+ * check so a mapping cannot appear ready but become unprojectable later.
+ */
+export function resolveCanonicalClassificationOutputBindings(input: {
+  currentBindings: readonly CanonicalClassificationOutputBindingV2[];
+  frozenBindings: readonly CanonicalClassificationOutputBindingV2[];
+  currentMappings: readonly AttributeMappingConfig[];
+  frozenMappings: readonly AttributeMappingConfig[];
+}): CanonicalClassificationOutputBindingResolution {
+  const resolved = {} as Record<CanonicalClassificationOutputRole, CanonicalClassificationOutputBindingV2>;
+
+  for (const role of Object.keys(CANONICAL_CLASSIFICATION_CATALOG_FIELDS) as CanonicalClassificationOutputRole[]) {
+    const current = input.currentBindings.filter(binding => binding.role === role);
+    const frozen = input.frozenBindings.filter(binding => binding.role === role);
+    const binding = current[0];
+    const frozenBinding = frozen[0];
+    const currentFieldIsAliased = input.currentMappings.some(mapping => mapping.catalogField === binding?.catalogField);
+    const frozenFieldIsAliased = input.frozenMappings.some(mapping => mapping.catalogField === frozenBinding?.catalogField);
+    if (current.length !== 1 || frozen.length !== 1 || !binding || !frozenBinding
+      || binding.isStale || frozenBinding.isStale
+      || !isApprovedCanonicalClassificationBinding(role, binding.catalogField, input.currentMappings)
+      || !isApprovedCanonicalClassificationBinding(role, frozenBinding.catalogField, input.frozenMappings)
+      || currentFieldIsAliased || frozenFieldIsAliased
+      || canonicalJsonStringify(binding) !== canonicalJsonStringify(frozenBinding)) {
+      return {
+        status: 'unresolved',
+        role,
+        reason: `Missing, stale, changed or uncertified canonical ${role} output binding.`,
+      };
+    }
+
+    resolved[role] = binding;
+  }
+
+  return { status: 'resolved', bindings: resolved };
 }
 
 /**
@@ -260,7 +311,7 @@ export const MISROUTED_CATALOG_SLOTS = [
 export function isProtectedCatalogField(
   catalogField: string | null | undefined,
   attributeId?: string | null,
-  mappings?: Array<{ attributeId: string; catalogField?: string | null; isStale?: boolean }>,
+  mappings?: ReadonlyArray<{ attributeId: string; catalogField?: string | null; isStale?: boolean }>,
 ): boolean {
   if (!catalogField) return true;
   const resolvedField = catalogField.trim();

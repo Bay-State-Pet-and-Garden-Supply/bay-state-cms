@@ -71,6 +71,10 @@ function seedFixture(): BayStateSeed {
       { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
       { id: 'feature-map', attributeId: 'product-feature', catalogField: 'ProductField26', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     ],
+    classificationOutputBindings: [
+      { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+    ],
     curationTargets: [
       { id: 'class-target', kind: 'product_type', label: 'Classification', enabled: true, mandatory: false, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, sortOrder: 0 },
       { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, sortOrder: 1 },
@@ -86,6 +90,8 @@ let activeSnapshotRef: { id: string; hash: string };
 async function activateFixtureAuthority(): Promise<void> {
   writeProduct('SKU-SEED');
   updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField23', { label: 'Facet-Flavor' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField24', { label: 'Facet - Category' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField25', { label: 'Facet - Product Type' });
   updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField26', { label: 'Facet-Product Feature' });
   const git = (...args: string[]) => execFileSync('git', args, {
     cwd: workspacePath,
@@ -395,6 +401,38 @@ describe('issue #354 workflow seam: canonical readiness', () => {
     if (!readiness.ok) expect(readiness.code).toBe('core_mapping_unresolved');
     const review = validateCatalogReviewCompletionGate({
       workspaceId: WS_ID, productSku: sku, runId: run.id,
+    });
+    expect(review.ok).toBe(false);
+    if (!review.ok) expect(review.code).toBe('core_mapping_unresolved');
+  });
+  it('keeps Review open when a current canonical output binding is missing', () => {
+    const sku = 'SKU-CORE-OUTPUT-BINDING-GAP';
+    const run = seedRun(sku);
+    const decide = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-note', decision: 'accepted' },
+      ],
+    });
+    expect(decide.ok).toBe(true);
+
+    getDb().run(
+      'DELETE FROM classification_output_bindings WHERE workspace_id = ? AND role = ?',
+      [WS_ID, 'category'],
+    );
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) expect(readiness.code).toBe('core_mapping_unresolved');
+    const review = validateCatalogReviewCompletionGate({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
     });
     expect(review.ok).toBe(false);
     if (!review.ok) expect(review.code).toBe('core_mapping_unresolved');

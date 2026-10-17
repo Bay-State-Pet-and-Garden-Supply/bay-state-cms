@@ -81,7 +81,7 @@ const TASK_GROUPS: Array<{ label: string; tasks: LlmTask[] }> = [
   },
   {
     label: 'Profile Builder',
-    tasks: ['profile_generation', 'profile_revision', 'one_shot_selector_generation'],
+    tasks: ['profile_generation', 'profile_revision'],
   },
   {
     label: 'Store Manager',

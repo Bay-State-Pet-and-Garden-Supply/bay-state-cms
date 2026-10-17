@@ -4,7 +4,7 @@ import { unlinkSync } from 'node:fs';
 import { initDb, getDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
-import { createConfigSnapshot, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { createConfigSnapshot, syncConfigToCache, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
 import type { CatalogEvidence } from '../../classification/catalog-evidence';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot, snapshotHash } from '../../classification/runtime-snapshot';
@@ -159,6 +159,10 @@ describe('type-dependent-refresh (P1.4)', () => {
         }],
       }],
       mappings: BayStatePetGardenSeed.mappings.filter(mapping => ['species', 'material'].includes(mapping.attributeId)),
+      classificationOutputBindings: [
+        { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+        { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      ],
       curationTargets: BayStatePetGardenSeed.curationTargets.filter(target =>
         target.kind === 'product_type' || ['species', 'material'].includes(target.attributeId ?? ''),
       ),
@@ -375,6 +379,7 @@ describe('type-dependent-refresh (P1.4)', () => {
     const runId = randomUUID();
     const sku = `SKU-CONDITIONAL-${randomUUID().slice(0, 8)}`;
     const bundle = loadConditionalMaterialBundleFixture();
+    syncConfigToCache(wsId, bundle as unknown as Parameters<typeof syncConfigToCache>[1]);
     const ref = upsertConfigSnapshot(wsId, bundle);
     const snapshot = structuredClone(buildRuntimeSnapshot({
       workspaceId: wsId,

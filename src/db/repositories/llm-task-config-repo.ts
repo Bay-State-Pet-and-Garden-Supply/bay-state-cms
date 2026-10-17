@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../connection';
+import { randomUUID } from 'node:crypto';
 import type { LlmTask } from '../../shared/schemas/onboarding';
 export type { LlmTask } from '../../shared/schemas/onboarding';
 
@@ -19,6 +19,7 @@ const LLM_PROVIDERS: ReadonlyArray<LlmProvider> = [
 ];
 
 
+
 export const LLM_TASKS: ReadonlyArray<LlmTask> = [
   'product_name_consolidation',
   'discovery_candidate_selection',
@@ -32,7 +33,6 @@ export const LLM_TASKS: ReadonlyArray<LlmTask> = [
   'attribute_value_classification',
   'product_field_refactor',
   'store_manager_assistant',
-  'one_shot_selector_generation',
 ];
 
 /**

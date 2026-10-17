@@ -5,7 +5,7 @@ import { resolveAlias } from './controlled-value-identity';
 import { isSilentNarrowing } from './attribute-grounding-guards';
 import { deterministicStringify } from '../git/deterministic-json';
 import { resolveWebsiteClassification, type BundleView } from './product-classification';
-import { isApprovedCanonicalClassificationBinding, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { resolveCanonicalClassificationOutputBindings, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 
 /** Return the reviewed correction when present, including an explicit null. */
@@ -371,42 +371,35 @@ export function buildAssignmentProjection(
             { role: 'category', proposedValue: resolution.values.category },
             { role: 'product-type', proposedValue: resolution.values.productType },
           ] as const;
-          const currentBindings = authority.currentClassificationOutputBindings ?? [];
-          const frozenBindings = authority.frozenClassificationOutputBindings ?? [];
-          const boundFields: Array<{ catalogField: string; proposedValue: string }> = [];
-          for (const role of canonicalRoles) {
-            const current = currentBindings.filter(binding => binding.role === role.role);
-            const frozen = frozenBindings.filter(binding => binding.role === role.role);
-            const binding = current[0];
-            const fieldIsAliased = mappings.some(mapping => mapping.catalogField === binding?.catalogField);
-            const frozenFieldIsAliased = authority.frozenMappings?.some(
-              mapping => mapping.catalogField === frozen[0]?.catalogField,
-            ) ?? false;
-            if (current.length !== 1 || frozen.length !== 1 || !binding || !frozen[0]
-              || binding.isStale || frozen[0].isStale
-              || !isApprovedCanonicalClassificationBinding(role.role, binding.catalogField, mappings)
-              || !isApprovedCanonicalClassificationBinding(role.role, frozen[0].catalogField, authority.frozenMappings)
-              || fieldIsAliased || frozenFieldIsAliased
-              || deterministicStringify(binding) !== deterministicStringify(frozen[0])) {
-              refuse(`protected_target_refused: Missing, stale, changed or uncertified canonical ${role.role} output binding.`);
-              break;
+          const bindingResolution = resolveCanonicalClassificationOutputBindings({
+            currentBindings: authority.currentClassificationOutputBindings ?? [],
+            frozenBindings: authority.frozenClassificationOutputBindings ?? [],
+            currentMappings: mappings,
+            frozenMappings: authority.frozenMappings ?? [],
+          });
+          if (bindingResolution.status !== 'resolved') {
+            refuse(`protected_target_refused: ${bindingResolution.reason}`);
+          } else {
+            const boundFields: Array<{ catalogField: string; proposedValue: string }> = [];
+            for (const role of canonicalRoles) {
+              const binding = bindingResolution.bindings[role.role];
+              try {
+                boundFields.push({
+                  catalogField: binding.catalogField,
+                  proposedValue: serializeAttributeValue(role.proposedValue, binding.serialization),
+                });
+              } catch (error) {
+                refuse(`protected_target_refused: Canonical ${role.role} output binding cannot serialize its approved website value: ${error instanceof Error ? error.message : String(error)}`);
+                break;
+              }
             }
-            try {
-              boundFields.push({
-                catalogField: binding.catalogField,
-                proposedValue: serializeAttributeValue(role.proposedValue, binding.serialization),
-              });
-            } catch (error) {
-              refuse(`protected_target_refused: Canonical ${role.role} output binding cannot serialize its approved website value: ${error instanceof Error ? error.message : String(error)}`);
-              break;
-            }
-          }
-          if (boundFields.length === canonicalRoles.length) {
-            for (const field of boundFields) {
-              const currentValue = currentCustomFields[field.catalogField] ?? null;
-              fields.push({ catalogField: field.catalogField, proposedValue: field.proposedValue, currentValue,
-                isOverwrite: currentValue !== null && currentValue !== field.proposedValue,
-                isNoOp: currentValue === field.proposedValue });
+            if (boundFields.length === canonicalRoles.length) {
+              for (const field of boundFields) {
+                const currentValue = currentCustomFields[field.catalogField] ?? null;
+                fields.push({ catalogField: field.catalogField, proposedValue: field.proposedValue, currentValue,
+                  isOverwrite: currentValue !== null && currentValue !== field.proposedValue,
+                  isNoOp: currentValue === field.proposedValue });
+              }
             }
           }
       }
