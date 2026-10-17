@@ -14,7 +14,7 @@ import { findWorkspace } from '../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from './config-loader';
 import { authorityConfigHashMatches, getRuntimeSnapshotByHash, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
 import { getActivePageImportHash, listVerifiedPageOptions } from '../db/repositories/page-repo';
-import { buildAssignmentProjection } from './assignment-projection';
+import { buildAssignmentProjection, createAssignmentProjectionAuthority } from './assignment-projection';
 import { computeProductHash } from './catalog-product-source';
 import { digestLoadedImageBytes } from '../onboarding/packaging-ocr';
 import { findConnection } from '../db/repositories/connection-repo';
@@ -180,13 +180,7 @@ export async function applyCatalogClassification(
     product.core.productOnPages ?? [],
     mappings,
     new Set(verifiedPages.map(page => page.id)),
-    {
-      attributes: frozenSnapshot.attributes,
-      frozenMappings: frozenSnapshot.attributeMappings,
-      verifiedPageNames: new Map(verifiedPages.map(page => [page.id, page.name])),
-      categories: frozenSnapshot.categories,
-      productTypes: frozenSnapshot.productTypes,
-    },
+    createAssignmentProjectionAuthority(frozenSnapshot, new Map(verifiedPages.map(page => [page.id, page.name]))),
   );
   if (projection.skipped.length > 0) {
     throw new Error(`Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`);

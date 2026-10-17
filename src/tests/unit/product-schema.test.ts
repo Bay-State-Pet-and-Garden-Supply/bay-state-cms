@@ -9,9 +9,6 @@ import {
   hasProductPage,
   type Product,
 } from '../../shared/schemas/product';
-import fs from 'fs';
-import path from 'path';
-
 describe('Product Schema & productOnPages First-Class Support (Ticket #139)', () => {
   describe('Schema Definition & Parsing', () => {
     it('defaults productOnPages to empty array in CoreProductSchema', () => {
@@ -70,25 +67,36 @@ describe('Product Schema & productOnPages First-Class Support (Ticket #139)', ()
       expect(product.core.productOnPages).toEqual(['Dog Food Dry', 'Puppy Supplies']);
     });
 
-    it('cleanly parses existing real product fixtures from storage/catalog/products without migration friction', () => {
-      const catalogProductsDir = path.resolve(import.meta.dirname, '../../../storage/catalog/products');
-      if (!fs.existsSync(catalogProductsDir)) {
-        return;
-      }
+    it('parses deterministic product data with and without legacy productOnPages', () => {
+      const rawProduct = {
+        schemaVersion: 1,
+        id: 'fixture-product',
+        sku: 'FIXTURE-1',
+        status: 'active' as const,
+        core: { name: 'Fixture Dog Food', price: '12.00' },
+        customFields: {},
+        shopsite: {
+          source: { dbname: 'products', uniqueName: 'SKU' },
+          preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} },
+        },
+        metadata: {
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      };
 
-      const files = fs.readdirSync(catalogProductsDir).filter(f => f.endsWith('.json')).slice(0, 10);
-      expect(files.length).toBeGreaterThan(0);
+      const validated = ProductSchema.parse(rawProduct);
+      expect(validated.sku).toBe('FIXTURE-1');
+      expect(validated.core.name).toBe('Fixture Dog Food');
+      expect(validated.core.productOnPages).toEqual([]);
 
-      for (const file of files) {
-        const filePath = path.join(catalogProductsDir, file);
-        const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        const validated = ProductSchema.parse(raw);
-
-        expect(validated.sku).toBe(raw.sku);
-        expect(validated.core.name).toBe(raw.core.name);
-        // Validated productOnPages defaults to array even if absent in raw file
-        expect(Array.isArray(validated.core.productOnPages)).toBe(true);
-      }
+      const categorized = ProductSchema.parse({
+        ...rawProduct,
+        id: 'fixture-categorized',
+        sku: 'FIXTURE-2',
+        core: { ...rawProduct.core, productOnPages: ['Dog Food'] },
+      });
+      expect(categorized.core.productOnPages).toEqual(['Dog Food']);
     });
   });
 

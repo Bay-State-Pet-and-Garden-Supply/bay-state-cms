@@ -12,14 +12,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ── Mocks — mock the entire page-assignment-llm module so its
 //    transitive dependencies (page-repo → bun:sqlite) never load ─────
 
-vi.mock('@/classification/page-assignment-llm', () => ({
+vi.mock('../../classification/page-assignment-llm', () => ({
   buildPageHierarchy: vi.fn(),
   extractProductContext: vi.fn(),
   llmAssignCategoryPages: vi.fn(),
 }));
 
-vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
-vi.mock('@/classification/config-loader', () => ({
+vi.mock('../../classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
+vi.mock('../../classification/config-loader', () => ({
   loadClassificationConfig: vi.fn(() => ({
     curationTargets: [
       {
@@ -27,8 +27,13 @@ vi.mock('@/classification/config-loader', () => ({
         kind: 'page',
         label: 'Store Category Pages',
         enabled: true,
+        mandatory: false,
         selectionMode: 'multiple',
-        
+        attributeId: null,
+        catalogField: null,
+        optionSource: 'configured',
+        required: false,
+        sortOrder: 0,
       },
     ],
     productTypes: [],
@@ -36,20 +41,23 @@ vi.mock('@/classification/config-loader', () => ({
   })),
 }));
 
-vi.mock('@/classification/curation-target-resolver', () => ({
+vi.mock('../../classification/curation-target-resolver', () => ({
   resolveEnabledTargets: vi.fn(),
 }));
 
-vi.mock('@/classification/curation-target-ranker', () => ({
+vi.mock('../../classification/curation-target-ranker', () => ({
   llmRankOptions: vi.fn(),
 }));
 
-vi.mock('@/classification/cohort-page-proposal-engine', () => ({
+vi.mock('../../classification/cohort-page-proposal-engine', () => ({
   coordinateCohortPagesOnce: vi.fn(),
 }));
 
-vi.mock('@/classification/product-type-decision', () => ({
+vi.mock('../../classification/product-type-decision', () => ({
   resolveProductTypeDecision: vi.fn(),
+}));
+vi.mock('../../classification/page-decision', () => ({
+  filterPageCandidatesForBackfill: vi.fn((pages: unknown[]) => pages),
 }));
 
 // Import after mocks
@@ -288,7 +296,7 @@ describe('processPageTarget (LLM-first)', () => {
     expect(proposal.confidence).toBeGreaterThanOrEqual(0);
   });
 
-  it('builds the LLM product context ONLY from the restricted page packet (excludes healthConcern, id-ordered)', async () => {
+  it('excludes prior page placements before context extraction and keeps evidence order stable', async () => {
     vi.mocked(buildPageHierarchy).mockReturnValue([
       { id: 'dog-food-dry', name: 'Dog Food Dry', parentName: null },
     ]);
@@ -323,6 +331,7 @@ describe('processPageTarget (LLM-first)', () => {
         { ...base, id: 'ev-m-category', attributeId: null, source: 'official_product_page', sourceField: 'category', value: 'Dog Food' },
         { ...base, id: 'ev-n-name', attributeId: null, source: 'spreadsheet', sourceField: 'name', value: 'Test Product' },
         { ...base, id: 'ev-x-health', attributeId: null, source: 'visual_product_evidence', sourceField: 'healthConcern', value: 'Sensitive Stomach' },
+        { ...base, id: 'ev-page-context', attributeId: null, source: 'page_context', sourceField: 'category_page', value: 'Prior Page' },
       ] as ClassificationEvidence[],
     });
 
@@ -348,13 +357,12 @@ describe('processPageTarget (LLM-first)', () => {
     );
 
     expect(result.proposals).toHaveLength(1);
-    // The restricted packet reaches extractProductContext: id-ordered, and the
-    // excluded healthConcern record never appears (issue #17 pass 5c).
+    // Prior page placements are comparison context, not evidence for a new assignment.
     expect(extractProductContext).toHaveBeenCalledTimes(1);
     const contextEvidence = vi.mocked(extractProductContext).mock.calls[0][0];
     const ids = contextEvidence.map(e => e.id);
-    expect(ids).toEqual(['ev-a-species-dog', 'ev-m-category', 'ev-n-name', 'ev-z-species-cat']);
-    expect(ids).not.toContain('ev-x-health');
+    expect(ids).toEqual(['ev-a-species-dog', 'ev-m-category', 'ev-n-name', 'ev-x-health', 'ev-z-species-cat']);
+    expect(ids).not.toContain('ev-page-context');
     expect(ids).toEqual([...ids].sort());
   });
 });

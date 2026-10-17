@@ -723,6 +723,42 @@ describe('issue #354 workflow seam: canonical readiness', () => {
       expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('not_applicable');
     }
   });
+  it('keeps required attributes unresolved when their output binding is stale or protected', () => {
+    for (const binding of ['stale', 'pricing'] as const) {
+      const bundle = structuredClone(activeAuthority.bundle);
+      const flavorMapping = bundle.attributeMappings.find(mapping => mapping.attributeId === 'flavor');
+      const flavorTarget = bundle.curationTargets.find(target => target.id === 'flavor-target');
+      if (!flavorMapping || !flavorTarget) throw new Error('Readiness fixture is missing the Flavor output binding.');
+      if (binding === 'stale') {
+        flavorMapping.isStale = true;
+      } else {
+        flavorMapping.catalogField = 'ProductField6';
+        flavorTarget.catalogField = 'ProductField6';
+      }
+      replaceActiveFixtureBundle(bundle);
+
+      const sku = `SKU-REQUIRED-${binding.toUpperCase()}-BINDING`;
+      const proposalPrefix = `prop-${binding}`;
+      const run = seedRun(sku, undefined, 'Chicken', { proposalPrefix });
+      const decisions = submitProposalDecisions({
+        workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+        decisions: [
+          { proposalId: `${proposalPrefix}-pair`, decision: 'accepted' },
+          { proposalId: `${proposalPrefix}-flavor`, decision: 'rejected' },
+          { proposalId: `${proposalPrefix}-note`, decision: 'rejected' },
+        ],
+      });
+      expect(decisions.ok).toBe(true);
+
+      const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+      expect(readiness.ok).toBe(false);
+      if (!readiness.ok) {
+        expect(readiness.code).toBe('required_values_missing');
+        expect(readiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('required_unknown');
+      }
+    }
+  });
+
 
   it('reports unknown applicability separately from an applicable required gap', () => {
     const bundle = structuredClone(activeAuthority.bundle);

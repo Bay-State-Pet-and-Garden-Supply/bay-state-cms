@@ -22,7 +22,7 @@ import { extractProtectedTokens } from './title-prompt-template';
 
 import { getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
-import { assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions, getActivePageImportHash } from '../db/repositories/page-repo';
+import { assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions, getActivePageImportHash, removeProductFromVerifiedPage } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
 import { normalizeFileName, slugifyFileName, uniquifyFileNames, FILE_NAME_EXTENSION } from '../shopsite/file-name';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
@@ -71,6 +71,7 @@ import { getRuntimeSnapshotByHash } from '../classification/runtime-snapshot';
 import { validatePromotionGate, resolvePromotionEffectiveTypeId, computeExecutionAuthorityHash, computeReviewedAuthorityHash } from '../classification/promotion-gate';
 import type { CohortRun } from '../shared/schemas/cohorts';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
+import type { Product } from '../shared/schemas/product';
 import type { ClassificationProposal } from '../shared/schemas/classification';
 import { getCachedAttributeMappings, getCachedBrands } from '../db/repositories/classification-config-repo';
 import type { AttributeMappingConfig } from '../shared/schemas/classification';
@@ -78,8 +79,8 @@ import { resolveBrand } from '../classification/brand-resolution';
 import {
   getEffectivePrimaryProductTypeId,
   buildAssignmentProjection,
+  createAssignmentProjectionAuthority,
 } from '../classification/assignment-projection';
-import type { Product } from '../shared/types';
 import { isProtectedCatalogField } from '../classification/classification-ownership';
 import { evaluateCanonicalReadiness } from '../classification/classification-readiness';
 
@@ -369,13 +370,9 @@ export function computePromotionGate(
     // Shared interpretation also verifies the original identity of removals.
     // The final draft repeats it against the actual existing product values.
     const projection = buildAssignmentProjection(activeProposals, {}, [], getCachedAttributeMappings(workspaceId),
-      new Set(verifiedPages.map(page => page.id)), {
-        attributes: snapshot.attributes,
-        frozenMappings: snapshot.attributeMappings,
-        verifiedPageNames: new Map(verifiedPages.map(page => [page.id, page.name])),
-        categories: snapshot.categories,
-        productTypes: snapshot.productTypes,
-      });
+      new Set(verifiedPages.map(page => page.id)), createAssignmentProjectionAuthority(
+        snapshot, new Map(verifiedPages.map(page => [page.id, page.name])),
+      ));
     if (projection.skipped.length > 0) {
       return { ok: false,
         reason: `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`,
@@ -1787,13 +1784,7 @@ export async function prepareDraftPromotion(
         currentPageNames,
         mappings,
         verifiedPageIds,
-        {
-          attributes: frozenSnapshot?.attributes,
-          frozenMappings: frozenSnapshot?.attributeMappings,
-          verifiedPageNames: verifiedNameById,
-          categories: frozenSnapshot?.categories,
-          productTypes: frozenSnapshot?.productTypes,
-        },
+        createAssignmentProjectionAuthority(frozenSnapshot, verifiedNameById),
       );
       if (projection.skipped.length > 0) {
         const errMsg = `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`;
@@ -2001,8 +1992,7 @@ export async function prepareDraftPromotion(
       // Persist only the reviewed delta; never clear unrelated/manual or
       // Brand assignments as a side effect of classification promotion.
       for (const page of projection.pages.removals) {
-        getDb().query('DELETE FROM product_pages WHERE product_sku = ? AND (page_id = ? OR page_name = ?)')
-          .run(item.upc, page.pageId, page.pageName);
+        removeProductFromVerifiedPage(item.upc, page.pageId, page.pageName);
       }
       for (const page of projection.pages.additions) {
         assignProductToPageId(item.upc, page.pageId, page.pageName);

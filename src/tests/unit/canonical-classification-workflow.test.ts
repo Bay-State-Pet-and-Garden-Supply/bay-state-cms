@@ -587,6 +587,22 @@ describe('canonical classification from supplied facts to reviewed catalog draft
     const accepted = getAcceptedProposals(sku, run.id);
     expect(accepted.map(proposal => proposal.id).sort()).toEqual([pairs[0].id, material.id].sort());
     expect(getProposalsByRun(run.id).find(proposal => proposal.id === color.id)?.status).toBe('pending');
+    const stagePreview = await productDraftProjectionStage.execute({
+      sku, evidence: getEvidenceByRun(run.id), acceptedProposals: accepted,
+      allProposals: getProposalsByRun(run.id),
+    }, {
+      workspacePath, workspaceId: WS_ID, configSnapshotRef: snapshot.configSnapshotRef,
+      snapshot, runId: run.id,
+    });
+    expect(stagePreview.status).toBe('succeeded');
+    if (stagePreview.status !== 'succeeded') throw new Error('Reviewed canonical pair preview was refused');
+    expect(stagePreview.output.metadata?.projection).toMatchObject({
+      fieldAssignments: {
+        [CATEGORY_FIELD]: 'QA Canine Goods',
+        [PRODUCT_TYPE_FIELD]: 'QA Dog Toy',
+      },
+    });
+
 
     // The shared approved-only preview excludes the unreviewed Red proposal.
     const approved = buildAssignmentProjection(

@@ -6,6 +6,7 @@ import { isSilentNarrowing } from './attribute-grounding-guards';
 import { deterministicStringify } from '../git/deterministic-json';
 import { resolveWebsiteClassification, type BundleView } from './product-classification';
 import { isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 
 /** Return the reviewed correction when present, including an explicit null. */
 export function getEffectiveProposalValue(proposal: ClassificationProposal): unknown {
@@ -282,6 +283,27 @@ export interface AssignmentProjectionAuthority {
   verifiedPageNames?: ReadonlyMap<string, string>;
   categories?: BundleView['categories'];
   productTypes?: BundleView['productTypes'];
+}
+/**
+ * Build the complete approved projection authority from one frozen snapshot.
+ * Callers may supply active Page names after confirming the Page import hash;
+ * stage previews use the Page identities captured in the snapshot.
+ */
+export function createAssignmentProjectionAuthority(
+  snapshot: RuntimeClassificationSnapshot | null | undefined,
+  verifiedPageNames?: ReadonlyMap<string, string>,
+): AssignmentProjectionAuthority {
+  if (!snapshot) return verifiedPageNames ? { verifiedPageNames } : {};
+  const verifiedPages = snapshot.pages.state === 'verified'
+    ? snapshot.pages.records.filter(page => page.verified)
+    : [];
+  return {
+    attributes: snapshot.attributes,
+    frozenMappings: snapshot.attributeMappings,
+    verifiedPageNames: verifiedPageNames ?? new Map(verifiedPages.map(page => [page.pageId, page.pageName])),
+    categories: snapshot.categories,
+    productTypes: snapshot.productTypes,
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { mkdirSync, rmSync, unlinkSync } from 'node:fs';
 import path from 'path';
@@ -16,6 +16,7 @@ import { validateChangeSet } from '../../validation/change-set-validation';
 import { listValidationResults } from '../../db/repositories/validation-repo';
 import { type ExtractionData, ExtractionDataSchema } from '../../shared/schemas/onboarding';
 import type { Product } from '../../shared/types';
+import { seedCanonicalPromotionAuthority } from './helpers/seed-canonical-promotion-authority';
 
 describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'naming-promotion-test.db');
@@ -39,6 +40,13 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [runId, wsId, item.id, sku, 'completed', now],
     );
+    seedCanonicalPromotionAuthority({
+      db,
+      workspaceId: wsId,
+      workspacePath: tempWorkspaceDir,
+      sku,
+      runId,
+    });
     const curationData = item.curation_data_json ? JSON.parse(item.curation_data_json) : {};
     curationData.classificationRunId = runId;
     db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [JSON.stringify(curationData), item.id]);

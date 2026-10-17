@@ -96,9 +96,12 @@ export function resolveAttributeProfilePlan(
     const protectedOutput = isProtectedTargetId(attribute.id, snapshot.attributeMappings)
       || (mapping !== undefined && (mapping.isStale || isProtectedCatalogField(mapping.catalogField, attribute.id, snapshot.attributeMappings)))
       || targets.some(target => target.catalogField && isProtectedCatalogField(target.catalogField, attribute.id, snapshot.attributeMappings));
+    const required = rule?.required === true || targets.some(target => target.required);
     let applicability: AttributeApplicability;
     if (protectedOutput) {
-      applicability = { attributeId: attribute.id, state: 'not_applicable', reason: 'Protected or unverified output is not a Classification Attribute.' };
+      applicability = required
+        ? { attributeId: attribute.id, state: 'unknown', reason: 'Required Classification Attribute has a protected or unverified output binding.' }
+        : { attributeId: attribute.id, state: 'not_applicable', reason: 'Protected or unverified output is not a Classification Attribute.' };
     } else if (targets.length > 0 && (bindings.length !== 1 || !mapping?.catalogField
       || targets.some(target => target.catalogField && target.catalogField !== mapping.catalogField))) {
       applicability = { attributeId: attribute.id, state: 'unknown', reason: `Frozen Classification Attribute "${attribute.id}" has no unique current field binding consistent with its configured target.` };
@@ -120,7 +123,7 @@ export function resolveAttributeProfilePlan(
     }
     return {
       attribute, rule, applicability,
-      required: rule?.required === true || targets.some(target => target.required),
+      required,
       cardinality: rule?.cardinality ?? targets[0]?.selectionMode ?? 'single',
     };
   });

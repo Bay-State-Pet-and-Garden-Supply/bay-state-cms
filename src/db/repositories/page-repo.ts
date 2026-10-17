@@ -164,6 +164,18 @@ export function assignProductToVerifiedPage(productSku: string, pageId: string, 
 }
 
 /**
+ * Remove one reviewed product-page assignment by its verified identity.
+ * The caller MUST pass the Page identity from the active verified import.
+ */
+export function removeProductFromVerifiedPage(productSku: string, pageId: string, pageName: string): void {
+  const db = getDb();
+  db.run(
+    'DELETE FROM product_pages WHERE product_sku = ? AND (page_id = ? OR page_name = ?)',
+    [productSku, pageId, pageName],
+  );
+}
+
+/**
  * Legacy name-based assignment (backward-compatible wrapper). Resolves the
  * page by name and writes page_id ONLY when that row carries a verified
  * identity from an active import; otherwise the assignment stays name-only

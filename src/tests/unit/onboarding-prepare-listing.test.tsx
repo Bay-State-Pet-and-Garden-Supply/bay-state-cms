@@ -144,7 +144,6 @@ describe('product-first preparation', () => {
     expect(container.textContent).toContain('Proposed value: Chicken');
     expect(container.textContent).toContain('Revised value: Turkey');
     expect(container.textContent).toContain('Accepted assignment — listing approval is separate');
-    expect(container.textContent).toContain('frozen execution fallback, not a reviewed assignment');
     expect(container.textContent).not.toMatch(/OLD RUN|OTHER PRODUCT/);
     for (const key of ['ocr_evidence', 'family_cohort', 'names', 'product_type', 'field_classification']) {
       expect(container.querySelector(`[data-testid="prepare-section-${key}"]`)).not.toBeNull();

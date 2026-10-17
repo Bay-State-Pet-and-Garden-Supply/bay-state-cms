@@ -436,72 +436,26 @@ describe('ShopSite Product XML Characterization & Baseline Parity Suite (Ticket 
     });
   });
 
-  describe('Fixture 7: Real Export Round-Trip Characterization', () => {
-    it('verifies round-trip integrity on sample live store export fixture', () => {
-      const exportFixturePath = path.resolve(
-        import.meta.dirname,
-        '../../../storage/catalog/exports/1389f6a5-9bc1-45b9-9b86-bba35d2e437a/shopsite-products.xml',
-      );
-      if (!fs.existsSync(exportFixturePath)) {
-        return;
-      }
-      const exportXml = fs.readFileSync(exportFixturePath, 'utf-8');
-      const parsed = ShopSiteProductCodec.decode(exportXml);
-      expect(parsed.products.length).toBe(12);
+  describe('Fixture 7: Test-owned Export Round-Trip Characterization', () => {
+    it('preserves product identity, core fields, and custom fields across encode/decode', () => {
+      const products = ShopSiteProductCodec.decode(sampleFixtureXml).products;
+      expect(products.map(product => product.sku).sort()).toEqual(['ABC-123', 'XYZ-789']);
 
-      for (const product of parsed.products) {
-        const denorm = ShopSiteProductCodec.encode(product);
-        // Verify XML serialization contains the SKU and XML-escaped Name
-        expect(denorm.xml).toContain(`<SKU>${product.sku}</SKU>`);
-
-        // Re-decode to verify true mathematical round-trip parity
-        const reloaded = ShopSiteProductCodec.decode(denorm.xml).products[0];
-
+      for (const product of products) {
+        const xml = ShopSiteProductCodec.encode(product).xml;
+        expect(xml).toContain(`<SKU>${product.sku}</SKU>`);
+        const decoded = ShopSiteProductCodec.decode(xml).products;
+        expect(decoded).toHaveLength(1);
+        const reloaded = decoded[0];
         expect(reloaded.sku).toBe(product.sku);
         expect(reloaded.core.name).toBe(product.core.name);
         expect(reloaded.core.price).toBe(product.core.price);
+        expect(reloaded.core.weight).toBe(product.core.weight);
+        expect(reloaded.core.taxable).toBe(product.core.taxable);
 
-        // If product had GTIN, verify preservation
-        if (product.customFields['GTIN']) {
-          expect(reloaded.customFields['GTIN']).toBe(product.customFields['GTIN']);
-        }
-        // If product had Brand (ProductField16), verify preservation
-        if (product.customFields['ProductField16']) {
-          expect(reloaded.customFields['ProductField16']).toBe(product.customFields['ProductField16']);
-        }
-      }
-    });
-
-    it('verifies round-trip integrity on actual catalog files from storage/catalog/products', () => {
-      const catalogProductsDir = path.resolve(import.meta.dirname, '../../../storage/catalog/products');
-      if (!fs.existsSync(catalogProductsDir)) {
-        return;
-      }
-      const files = fs.readdirSync(catalogProductsDir).filter(f => f.endsWith('.json'));
-      expect(files.length).toBeGreaterThan(0);
-
-      // Sample 10 real products
-      const sampleFiles = files.slice(0, 10);
-      for (const file of sampleFiles) {
-        const filePath = path.join(catalogProductsDir, file);
-        const originalProduct = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Product;
-
-        const denorm = ShopSiteProductCodec.encode(originalProduct);
-        expect(denorm.xml).toContain(`<SKU>${originalProduct.sku}</SKU>`);
-
-        const parsed = ShopSiteProductCodec.decode(denorm.xml);
-        expect(parsed.products.length).toBe(1);
-
-        const reloaded = parsed.products[0];
-        expect(reloaded.sku).toBe(originalProduct.sku);
-        expect(reloaded.core.name).toBe(originalProduct.core.name);
-        expect(reloaded.core.price).toBe(originalProduct.core.price);
-        expect(reloaded.core.weight).toBe(originalProduct.core.weight);
-        expect(reloaded.core.taxable).toBe(originalProduct.core.taxable);
-
-        for (const [key, val] of Object.entries(originalProduct.customFields)) {
-          if (key.startsWith('ProductField') && val) {
-            expect(reloaded.customFields[key]).toBe(val);
+        for (const [key, value] of Object.entries(product.customFields)) {
+          if (key.startsWith('ProductField') && value) {
+            expect(reloaded.customFields[key]).toBe(value);
           }
         }
       }

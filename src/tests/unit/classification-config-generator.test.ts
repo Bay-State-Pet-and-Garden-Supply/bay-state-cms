@@ -94,7 +94,7 @@ describe('classification config generator', () => {
     }
   });
 
-  it('preserves the reviewed ShopSite field mappings (verified Extra Fields config)', () => {
+  it('keeps reviewed identity and attribute mappings separate from core-pair and commerce outputs', () => {
     const candidate = generateCandidate(BayStatePetGardenSeed, evidenceWithFields(REVIEWED_FIELDS));
     const mappingByAttribute = new Map(
       candidate.bundle.attributeMappings.map(mapping => [mapping.attributeId, mapping.catalogField]),
@@ -107,23 +107,21 @@ describe('classification config generator', () => {
     expect(mappingByAttribute.get('health-benefits')).toBe('ProductField21');
     expect(mappingByAttribute.get('food-form')).toBe('ProductField22');
     expect(mappingByAttribute.get('flavor')).toBe('ProductField23');
-    expect(mappingByAttribute.get('category')).toBe('ProductField24');
-    expect(mappingByAttribute.get('product-type')).toBe('ProductField25');
     expect(mappingByAttribute.get('product-feature')).toBe('ProductField26');
     expect(mappingByAttribute.get('size')).toBe('ProductField27');
     expect(mappingByAttribute.get('material')).toBe('ProductField28');
     expect(mappingByAttribute.get('color')).toBe('ProductField29');
     expect(mappingByAttribute.get('packaging-type')).toBe('ProductField30');
-    expect(mappingByAttribute.get('product-cross-sell')).toBe('ProductField32');
-    expect(mappingByAttribute.get('nutrition')).toBe('ProductField8');
-    // Reserved: ProductField31 (Product Category) is intentionally unmapped
-    // pending owner verification — it carries live category values (2026-10-13 census).
-    expect(mappingByAttribute.has('department')).toBe(false);
-    expect(candidate.bundle.attributeMappings.some(mapping => mapping.catalogField === 'ProductField31')).toBe(false);
 
-    // Product Type is mapped through the product-type attribute (the Facet -
-    // Product Type field), while the primary-product-type target stays
-    // attribute/catalog-field free (single-cardinality configured gate).
+    // Category and Product Type are one canonical pair, not ordinary attribute
+    // mappings; unmapped/custom/commerce fields stay outside the classifier.
+    for (const attributeId of ['category', 'product-type', 'nutrition', 'product-cross-sell', 'department']) {
+      expect(mappingByAttribute.has(attributeId)).toBe(false);
+    }
+    for (const catalogField of ['ProductField8', 'ProductField24', 'ProductField25', 'ProductField31', 'ProductField32']) {
+      expect(candidate.bundle.attributeMappings.some(mapping => mapping.catalogField === catalogField)).toBe(false);
+    }
+
     const productTypeTarget = candidate.bundle.curationTargets.find(target => target.kind === 'product_type')!;
     expect(productTypeTarget).toBeDefined();
     expect(productTypeTarget.catalogField).toBeNull();

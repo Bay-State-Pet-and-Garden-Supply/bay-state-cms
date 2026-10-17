@@ -1,6 +1,6 @@
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { readProductFile } from '../../git/workspace-files';
-import { buildAssignmentProjection, getEffectiveProposalTargetId, getEffectiveProposalValue } from '../assignment-projection';
+import { buildAssignmentProjection, createAssignmentProjectionAuthority, getEffectiveProposalTargetId, getEffectiveProposalValue } from '../assignment-projection';
 
 /**
  * Product Draft Projection Stage
@@ -76,11 +76,7 @@ export const productDraftProjectionStage: StageDefinition = {
     const verifiedPages = snapshot.pages.state === 'verified'
       ? snapshot.pages.records.filter(page => page.verified) : [];
     const verifiedIds = new Set(verifiedPages.map(page => page.pageId));
-    const authority = {
-      attributes: snapshot.attributes,
-      frozenMappings: mappings,
-      verifiedPageNames: new Map(verifiedPages.map(page => [page.pageId, page.pageName])),
-    };
+    const authority = createAssignmentProjectionAuthority(snapshot);
     const approved = buildAssignmentProjection(accepted, currentFields, currentPages, mappings, verifiedIds, authority);
     const blocked = approved.skipped.length > 0;
     const fieldAssignments: Record<string, string> = {};

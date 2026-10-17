@@ -538,6 +538,7 @@ export async function executePreparedMembers(args: {
           profileEntriesByAttributeId: profilePlanForSemantic.status === 'ready'
             ? new Map(profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => [entry.attribute.id, entry.rule!]))
             : null,
+          reviewedFacts: memberSnapshotForSemantic.reviewedFacts,
           profileResolution: profilePlanForSemantic,
         });
         const semanticFindings = [
