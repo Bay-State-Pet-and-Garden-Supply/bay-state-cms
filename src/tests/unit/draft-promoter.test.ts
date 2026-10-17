@@ -2814,6 +2814,13 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     const verifiedPages = listVerifiedPageOptions(wsId);
     const removedPageId = verifiedPages.find(page => page.name === 'Removed Legacy Page')!.id;
     const retainedPageId = verifiedPages.find(page => page.name === 'Retained Legacy Page')!.id;
+    // The database row has a verified page ID but its stored display name is
+    // stale; only the current verified catalog name may enter the draft.
+    assignProductToPageId(sku, retainedPageId, 'Unverified DB-only Page Name');
+    db.run(
+      'INSERT INTO product_pages (product_sku, page_name, page_id, created_at) VALUES (?, ?, NULL, ?)',
+      [sku, 'Unverified Name-Only Page', now],
+    );
     db.run(
       `INSERT INTO classification_runs (id, workspace_id, onboarding_item_id, product_sku, status, started_at)
        VALUES (?, ?, ?, ?, 'completed', ?)`,
@@ -2893,6 +2900,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(promoted.failures).toHaveLength(0);
     const draft = JSON.parse(listChangeSetItems(promoted.changeSetId!)[0].draftJson);
     expect(draft.core.productOnPages).toEqual(['Retained Legacy Page']);
+    expect(draft.core.productOnPages).not.toContain('Unverified DB-only Page Name');
     expect(draft.shopsite.preserved.advancedBlocks.PricingRules).toBe(unrelatedBlock);
     expect(draft.shopsite.preserved.advancedBlocks.productOnPages).toBeUndefined();
 

@@ -4,6 +4,7 @@ import type { CatalogEvidence } from '../../../classification/catalog-evidence';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../../classification/runtime-snapshot';
 import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../../classification/page-snapshot';
 
+import { hashCanonicalJson } from '../../../shared/stable-id';
 interface SeedCanonicalPromotionAuthorityOptions {
   db: { run: (query: string, parameters?: unknown[]) => unknown };
   workspaceId: string;
@@ -49,6 +50,10 @@ export function seedCanonicalPromotionAuthority({
       const mappedValues = websiteValues.get(type.id);
       return mappedValues ? { ...type, websiteValues: mappedValues } : type;
     }),
+    classificationOutputBindings: [
+      { role: 'category' as const, catalogField: 'ProductField24', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type' as const, catalogField: 'ProductField25', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+    ],
   };
   const evidence: CatalogEvidence = {
     schemaVersion: 1,
@@ -80,6 +85,14 @@ export function seedCanonicalPromotionAuthority({
   });
   const persisted = persistRuntimeSnapshot(snapshot);
   db.run('UPDATE classification_runs SET config_snapshot_hash = ? WHERE id = ?', [persisted.hash, runId]);
+  for (const binding of seed.classificationOutputBindings!) {
+    db.run(
+      `INSERT OR REPLACE INTO classification_output_bindings
+       (workspace_id, role, catalog_field, serialization_json, is_stale, config_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
+      [workspaceId, binding.role, binding.catalogField, JSON.stringify(binding.serialization), hashCanonicalJson(binding), now, now],
+    );
+  }
 
   if (includePair) {
     const pairProposalId = `pair-${runId}`;

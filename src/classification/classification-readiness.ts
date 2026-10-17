@@ -5,14 +5,15 @@
  * and onboarding review-complete/draft creation. It answers:
  * is the run's canonical Category + Product Type resolved, does that pair
  * have an unambiguous approved storefront mapping, is its profile configuration
- * resolved, and are its applicable required values valued?
+ * resolved, and are all applicability states known and applicable required
+ * values validly valued?
  *
  * - Unresolved/ambiguous Category or Product Type, unresolved storefront
- *   mapping/profile configuration, or applicable required values keep Review
- *   and prevent draft creation.
+ *   mapping/profile configuration, unknown applicability, or applicable
+ *   required values keep Review and prevent draft creation.
  * - Supported optional values, optional abstentions, and confirmed
  *   non-applicability are reported but never block: optional unsupported
- *   attributes do not become universal requirements.
+ *   attributes do not become universal value requirements.
  * - Brand and images stay optional to classification; separate listing,
  *   identity, commerce, and image-rights requirements are untouched.
  * - Profile applicability uses current accepted effective field decisions
@@ -154,7 +155,7 @@ export function evaluateCanonicalReadiness(input: {
       const status: RequiredValueGap['status'] = entry.required ? 'required_unknown' : 'optional_unknown';
       const mapping = snapshot.attributeMappings.find(candidate => candidate.attributeId === entry.attribute.id);
       requiredValues.push({ attributeId: entry.attribute.id, catalogField: mapping?.catalogField ?? null, status });
-      if (entry.required) missingRequired++;
+      missingRequired++;
       continue;
     }
     const mapping = snapshot.attributeMappings.find(candidate => candidate.attributeId === entry.attribute.id);
@@ -186,13 +187,13 @@ export function evaluateCanonicalReadiness(input: {
   }
 
   if (missingRequired > 0) {
-    const names = requiredValues
-      .filter(gap => gap.status === 'missing' || gap.status === 'required_unknown')
+    const unresolved = requiredValues
+      .filter(gap => gap.status === 'missing' || gap.status === 'required_unknown' || gap.status === 'optional_unknown')
       .map(gap => gap.attributeId)
       .join(', ');
     return {
       ok: false, code: 'required_values_missing',
-      reason: `Required classification value(s) unresolved: ${names}.`,
+      reason: `Classification values or applicability unresolved: ${unresolved}.`,
       details: { categoryId, productTypeId, profileId: plan.profileId, requiredValues },
     };
   }

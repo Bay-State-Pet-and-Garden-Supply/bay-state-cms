@@ -16,7 +16,7 @@ The classifier proposes one canonical **Product Classification**, consisting of 
 - Classification outputs exclude identity, listing content, pricing, inventory, and operational status. Broader listing preparation remains separate from classification.
 - Every proposed assignment and removal requires a reviewed decision, applied separately through CMS drafts. No model-confidence or earned-authority gate bypasses classification review.
 - Classification Readiness uses the current reviewed pair and frozen Attribute Profile authority. A required entry is satisfied only by a current accepted value valid under its captured applicability, target, allowed values, cardinality, and unit; missing, empty, invalid, stale, or wrong-target values keep the item in Review.
-- An explicitly empty profile is resolved; a missing or invalid declared profile is unresolved. Optional unvalued and confirmed non-applicability do not block, while unknown applicability blocks when required.
+- An explicitly empty profile is resolved; a missing or invalid declared profile is unresolved. Optional unvalued and confirmed non-applicability do not block, but unknown applicability blocks regardless of optionality.
 - Catalog Review and onboarding Review/Promotion consume the same server-owned readiness result; the review surface does not reconstruct readiness rules.
 - Correcting either member of the pair invalidates dependent attribute/page/removal decisions before mutation, refreshes only compatible own-SKU evidence as pending review, and retains valid independent decisions.
 - Listing, identity, commercial, and image-rights gates remain separate; classification never supplies protected data to pass them.

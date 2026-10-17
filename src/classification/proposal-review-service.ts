@@ -4,7 +4,7 @@ import { enqueueRefreshItem } from '../db/repositories/classification-refresh-re
 import type { ClassificationProposalDecision } from '../shared/types';
 import { getCategoryIdFromValue, getEffectiveClassificationPair, getEffectiveProposalTargetId, getEffectiveProposalValue, getProductTypeIdFromValue } from './assignment-projection';
 import { getRuntimeSnapshotByHash, snapshotHash as computeSnapshotHash } from './runtime-snapshot';
-import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
+import { getConditionalUniversalAttributeIds, invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
 import { validateFrozenReviewCorrection } from './review-correction';
 import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import { pageNameFromPageValue } from '../shared/proposal-display';
@@ -434,8 +434,9 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           const hasWithheldDependents = currentProposals.some(proposal => proposal.proposalType === 'reviewable_abstention'
             && ['product_attribute_proposals', 'category_page_proposals'].includes(proposal.targetId ?? '')
             && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Product Classification'));
+          const conditionalUniversalAttributeIds = snapshot ? getConditionalUniversalAttributeIds(snapshot, nextTypeId) : new Set<string>();
           const needsInitialDependents = !hadHumanReviewedType
-            && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot)));
+            && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)));
           refreshRequired = input.reviewOrigin !== 'agent_review' && nextTypeId !== null
             && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId || hasWithheldDependents || needsInitialDependents);
           if (input.reviewOrigin !== 'agent_review' && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId)) {

@@ -542,6 +542,73 @@ describe('issue #354 workflow seam: canonical readiness', () => {
       expect(readiness.details.requiredValues.find(value => value.attributeId === 'product-feature')?.status).toBe('optional_unvalued');
     }
   });
+  it('blocks unknown optional applicability but keeps known optional states nonblocking', () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogProfile = bundle.attributeProfiles.find(profile => profile.id === 'dry-dog-food-profile')!;
+    const flavorRule = dogProfile.attributes.find(attribute => attribute.attributeId === 'flavor')!;
+    flavorRule.required = false;
+    flavorRule.applicabilityConditions = [{
+      operator: 'equals',
+      attributeId: 'product-feature',
+      value: 'Dog-only',
+      factSource: 'accepted_reviewed',
+    }];
+    replaceActiveFixtureBundle(bundle);
+
+    const unknownSku = 'SKU-OPTIONAL-UNKNOWN';
+    const unknownRun = seedRun(unknownSku, undefined, 'Chicken', { proposalPrefix: 'optional-unknown' });
+    const unknownDecision = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: unknownSku, runId: unknownRun.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'optional-unknown-pair', decision: 'accepted' },
+        { proposalId: 'optional-unknown-flavor', decision: 'rejected' },
+        { proposalId: 'optional-unknown-note', decision: 'rejected' },
+      ],
+    });
+    expect(unknownDecision.ok).toBe(true);
+    const unknownReadiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: unknownRun.id });
+    expect(unknownReadiness.ok).toBe(false);
+    if (!unknownReadiness.ok) {
+      expect(unknownReadiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('optional_unknown');
+      expect(unknownReadiness.reason).toContain('flavor');
+      expect(unknownReadiness.reason).toContain('applicability');
+    }
+
+    const applicableSku = 'SKU-OPTIONAL-UNVALUED';
+    const applicableRun = seedRun(applicableSku, undefined, 'Chicken', { proposalPrefix: 'optional-applicable' });
+    const applicableDecision = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: applicableSku, runId: applicableRun.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'optional-applicable-pair', decision: 'accepted' },
+        { proposalId: 'optional-applicable-flavor', decision: 'rejected' },
+        { proposalId: 'optional-applicable-note', decision: 'accepted', revisedValue: 'Dog-only' },
+      ],
+    });
+    expect(applicableDecision.ok).toBe(true);
+    const applicableReadiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: applicableRun.id });
+    expect(applicableReadiness.ok).toBe(true);
+    if (applicableReadiness.ok) {
+      expect(applicableReadiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('optional_unvalued');
+    }
+
+    const inapplicableSku = 'SKU-OPTIONAL-NOT-APPLICABLE';
+    const inapplicableRun = seedRun(inapplicableSku, undefined, 'Chicken', { proposalPrefix: 'optional-inapplicable' });
+    const inapplicableDecision = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: inapplicableSku, runId: inapplicableRun.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'optional-inapplicable-pair', decision: 'accepted' },
+        { proposalId: 'optional-inapplicable-flavor', decision: 'rejected' },
+        { proposalId: 'optional-inapplicable-note', decision: 'accepted', revisedValue: 'Cat-only' },
+      ],
+    });
+    expect(inapplicableDecision.ok).toBe(true);
+    const inapplicableReadiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: inapplicableRun.id });
+    expect(inapplicableReadiness.ok).toBe(true);
+    if (inapplicableReadiness.ok) {
+      expect(inapplicableReadiness.details.requiredValues.find(value => value.attributeId === 'flavor')?.status).toBe('not_applicable');
+    }
+  });
+
 
   it('uses current accepted discriminator values when evaluating frozen required-field applicability', () => {
     const sku = 'SKU-CURRENT-APPLICABILITY-FACT';

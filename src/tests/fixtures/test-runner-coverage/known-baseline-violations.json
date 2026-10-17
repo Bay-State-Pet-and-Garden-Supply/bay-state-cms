@@ -11,7 +11,6 @@
     {"file":"src/tests/unit/cohort-page-prompt.test.ts","code":"unclassified-bun-mention","area":"cohort curation workstream"},
     {"file":"src/tests/unit/cohort-v6-migration.test.ts","code":"missing-test-db","area":"cohort curation workstream"},
     {"file":"src/tests/unit/curation-target-processor.test.ts","code":"unclassified-bun-mention","area":"type-first curation workstream"},
-    {"file":"src/tests/unit/curation-target-product-type-normalization.test.ts","code":"unclassified-bun-mention","area":"type-first curation workstream"},
     {"file":"src/tests/unit/curation-target-ranker-behavior.test.ts","code":"unclassified-bun-mention","area":"type-first curation workstream"},
     {"file":"src/tests/unit/field-registry-routes.test.ts","code":"missing-test-db","area":"taxonomy/mapping workstream"},
     {"file":"src/tests/unit/manual-evidence-foundation.test.ts","code":"missing-exclude","area":"manual-evidence workstream (#102-#105)"},

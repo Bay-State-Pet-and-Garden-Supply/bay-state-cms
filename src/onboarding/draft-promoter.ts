@@ -1786,7 +1786,11 @@ export async function prepareDraftPromotion(
       ].flatMap(extractPageNamesFromBlock);
       const currentPageNames = [...new Set([
         ...(existingApproved?.core.productOnPages ?? []),
-        ...currentPageAssignments.map(page => page.pageName),
+        ...currentPageAssignments.flatMap(page => {
+          if (!page.pageId || !verifiedPageIds.has(page.pageId)) return [];
+          const verifiedName = verifiedNameById.get(page.pageId);
+          return verifiedName?.trim() ? [verifiedName] : [];
+        }),
         ...preservedPageNames,
       ])];
       const projection = buildAssignmentProjection(

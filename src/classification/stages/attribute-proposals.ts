@@ -15,6 +15,7 @@ import { resolveAttributeProfilePlan } from '../attribute-profile-plan';
 import { composeEffectiveReviewedFacts } from '../reviewed-facts';
 import { resolveProductTypeInvariants } from '../product-type-invariants';
 import { isUniversalAttribute } from '../applicability-evaluator';
+import { getEffectiveProposalTargetId } from '../assignment-projection';
 
 /** Preserve a populated multi-valued slot instead of proposing a subset. */
 function isAlreadyPopulatedMultiValue(input: {
@@ -46,11 +47,16 @@ export const productAttributeProposalsStage: StageDefinition = {
     if (!context.snapshot) return { status: 'abstained', reason: plan.reason! };
     const resolved = resolveTargetsFromSnapshot(context.snapshot);
     const entriesById = new Map(plan.entries.map(entry => [entry.attribute.id, entry]));
+    const acceptedFieldIds = new Set(input.acceptedProposals
+      .filter(proposal => proposal.proposalType === 'field_assignment' && proposal.status === 'accepted')
+      .map(proposal => getEffectiveProposalTargetId(proposal)));
     const gated: Array<{ target: (typeof resolved.productFields)[number]; cardinality: 'single' | 'multiple' }> = [];
     for (const target of resolved.productFields) {
       const entry = target.attribute && entriesById.get(target.attribute.id);
       if (!entry || entry.applicability.state !== 'applicable') continue;
-      if (context.dependentReviewRefresh && isUniversalAttribute(entry.attribute)) continue;
+      if (context.dependentReviewRefresh && acceptedFieldIds.has(entry.attribute.id)) continue;
+      if (context.dependentReviewRefresh && isUniversalAttribute(entry.attribute)
+        && (entry.rule?.applicabilityConditions.length ?? 0) === 0) continue;
       if (isAlreadyPopulatedMultiValue({ input, attribute: entry.attribute })) continue;
       gated.push({ target, cardinality: entry.cardinality });
     }

@@ -1,8 +1,9 @@
+import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import { getDb } from '../connection';
 import { findItemById, updateItemCurationData } from './onboarding-item-repo';
 import { getProposalsByRun, getEvidenceByRun, getLiveDecisionsByRun, getRun } from './classification-run-repo';
-import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
+import { getEffectiveClassificationPair, getEffectiveProposalTargetId } from '../../classification/assignment-projection';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import { markReviewInvalidated } from './onboarding-review-repo';
 import { randomUUID } from 'node:crypto';
@@ -14,8 +15,34 @@ const dependentAbstentionStages = new Set(['attribute_applicability', 'product_a
 export function invalidateDependentTypeReview(runId: string, snapshot: RuntimeClassificationSnapshot | null, itemId: string | undefined, reason: string): void {
   const db = getDb();
   const at = new Date().toISOString();
-  for (const proposal of listCurrentRunProposals(runId)) {
-    const dependent = snapshot ? isTypeDependentProposal(proposal, snapshot)
+  const proposals = listCurrentRunProposals(runId);
+  const classification = proposals.find(proposal => proposal.proposalType === 'product_classification' && proposal.status === 'accepted');
+  const pair = classification ? getEffectiveClassificationPair(classification) : null;
+  const type = pair ? snapshot?.productTypes.find(candidate => candidate.id === pair.productTypeId) : null;
+  const profileId = type && 'attributeProfileId' in type && typeof type.attributeProfileId === 'string'
+    ? type.attributeProfileId : null;
+  const profile = profileId ? snapshot?.attributeProfiles.find(candidate => candidate.id === profileId) : null;
+  const premiseIds = new Set((profile?.attributes ?? []).flatMap(rule =>
+    rule.applicabilityConditions.flatMap(condition => {
+      if (!condition || typeof condition !== 'object' || !('attributeId' in condition)) return [];
+      return typeof condition.attributeId === 'string' ? [condition.attributeId] : [];
+    }),
+  ));
+  const conditionalUniversalAttributeIds = snapshot ? getConditionalUniversalAttributeIds(snapshot, pair?.productTypeId ?? null) : new Set<string>();
+  const liveAccepted = new Set(getLiveDecisionsByRun(runId)
+    .filter(decision => decision.decision === 'accepted' && decision.decisionOrigin === 'human_review')
+    .map(decision => decision.proposalId));
+  for (const proposal of proposals) {
+    const preservePremise = proposal.proposalType === 'field_assignment'
+      && premiseIds.has(getEffectiveProposalTargetId(proposal) ?? '')
+      && proposal.status === 'accepted'
+      && !proposal.isStale
+      && proposal.currentDecisionId != null
+      && liveAccepted.has(proposal.id)
+      && proposal.runId === runId
+      && proposal.productSku === snapshot?.productSku;
+    if (preservePremise) continue;
+    const dependent = snapshot ? isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)
       : proposal.proposalType === 'field_assignment' || proposal.proposalType === 'category_page';
     if (!dependent) continue;
     db.run(`UPDATE classification_proposals SET status = 'stale', is_stale = 1, staleness_reason = ? WHERE id = ?`, [reason, proposal.id]);
@@ -31,7 +58,25 @@ export function listCurrentRunProposals(runId: string) {
   return getProposalsByRun(runId).filter(proposal => !superseded.has(proposal.id));
 }
 
-export function isTypeDependentProposal(proposal: ReturnType<typeof listCurrentRunProposals>[number], snapshot: RuntimeClassificationSnapshot): boolean {
+export function getConditionalUniversalAttributeIds(snapshot: RuntimeClassificationSnapshot, typeId: string | null): ReadonlySet<string> {
+  if (!typeId) return new Set();
+  const type = snapshot.productTypes.find(candidate => candidate.id === typeId);
+  if (!type || !('attributeProfileId' in type) || typeof type.attributeProfileId !== 'string') return new Set();
+  const profile = snapshot.attributeProfiles.find(candidate => candidate.id === type.attributeProfileId);
+  return new Set((profile?.attributes ?? [])
+    .filter(rule => rule.applicabilityConditions.length > 0)
+    .map(rule => rule.attributeId)
+    .filter(attributeId => {
+      const attribute = snapshot.attributes.find(candidate => candidate.id === attributeId);
+      return Boolean(attribute && isUniversalAttribute(attribute));
+    }));
+}
+
+export function isTypeDependentProposal(
+  proposal: ReturnType<typeof listCurrentRunProposals>[number],
+  snapshot: RuntimeClassificationSnapshot,
+  conditionalUniversalAttributeIds: ReadonlySet<string>,
+): boolean {
   if (proposal.proposalType === 'category_page') return true;
   if (proposal.proposalType === 'reviewable_abstention') {
     if (dependentAbstentionStages.has(proposal.targetId ?? '')) return true;
@@ -40,9 +85,11 @@ export function isTypeDependentProposal(proposal: ReturnType<typeof listCurrentR
     return Boolean(attribute && !isUniversalAttribute(attribute));
   }
   if (proposal.proposalType !== 'field_assignment') return false;
-  const attribute = snapshot.attributes.find(attr => attr.id === proposal.targetId);
-  return !attribute || !isUniversalAttribute(attribute);
+  const attribute = snapshot.attributes.find(attr => attr.id === getEffectiveProposalTargetId(proposal));
+  return !attribute || !isUniversalAttribute(attribute)
+    || conditionalUniversalAttributeIds.has(attribute.id);
 }
+
 
 export function assertDependentReviewCurrent(input: { runId: string; workspaceId: string; itemId?: string | null; decisionId: string }): void {
   const run = getRun(input.runId);
@@ -98,12 +145,13 @@ export function failDependentReviewLease(lease: DependentReviewLease, message: s
     WHERE id = ? AND status = 'claimed' AND claimed_by = ?`, [message, new Date().toISOString(), lease.refreshId, lease.ownerId]);
 }
 
-export function supersedeDependentReviewProposals(runId: string, snapshot: RuntimeClassificationSnapshot, refreshId: string): void {
+export function supersedeDependentReviewProposals(runId: string, snapshot: RuntimeClassificationSnapshot, refreshId: string, typeId: string, preservedProposalIds: ReadonlySet<string>): void {
   const stmt = getDb().prepare(`UPDATE classification_proposals SET superseded_at = ?, refresh_queue_id = ?, is_stale = 1,
     status = 'stale', staleness_reason = 'Superseded by reviewed Product Type refresh' WHERE id = ? AND superseded_at IS NULL`);
   const at = new Date().toISOString();
+  const conditionalUniversalAttributeIds = getConditionalUniversalAttributeIds(snapshot, typeId);
   for (const proposal of listCurrentRunProposals(runId)) {
-    if (isTypeDependentProposal(proposal, snapshot)) stmt.run(at, refreshId, proposal.id);
+    if (!preservedProposalIds.has(proposal.id) && isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)) stmt.run(at, refreshId, proposal.id);
   }
 }
 
@@ -112,13 +160,14 @@ export function finishDependentReviewProjection(input: {
   runId: string; workspaceId: string; itemId?: string | null; refreshId: string;
   typeId: string; decisionId: string; newProposalIds: string[];
   snapshot: RuntimeClassificationSnapshot; lease: DependentReviewLease; commitPreparedStages: () => void;
+  preservedProposalIds: ReadonlySet<string>;
   applicability?: unknown;
 }): void {
   const db = getDb();
   db.transaction(() => {
     assertDependentReviewCurrent(input);
     assertDependentReviewLease(input.lease);
-    supersedeDependentReviewProposals(input.runId, input.snapshot, input.refreshId);
+    supersedeDependentReviewProposals(input.runId, input.snapshot, input.refreshId, input.typeId, input.preservedProposalIds);
     input.commitPreparedStages();
     const dependency = db.prepare(`INSERT OR REPLACE INTO classification_proposal_dependencies
       (workspace_id, proposal_id, dependency_kind, dependency_target_id, dependency_value_hash, created_at)
