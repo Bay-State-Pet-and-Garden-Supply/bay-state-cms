@@ -17,7 +17,7 @@
 | AI — routing | `src/ai` | `model-registry.ts` + `provider-registry.ts` + `provider-connections.ts` + `inference-dispatcher.ts` + `network-transport.ts` + `local-runtime-coordinator.ts` + `evals/*-scorer.ts` |
 | AI — VLM OCR | Ollama native `/api/chat` | `src/onboarding/vlm-client.ts` + `cloud-vlm-client.ts`, `api_keys.service='ollama_vlm'`, `qwen2.5vl:latest` |
 | Onboarding | Pipeline | `src/onboarding/{job-queue,product-curator,draft-promoter,sourcing,discovery,extraction,normalization}` + `src/classification/stages/*` (ADR 0004 replaceable stages) |
-| Classification | Cohort + stages | `src/classification/{stages,taxonomy,releases/bay-state-v3+v4,curation,benchmarks,embedding,config-store}` — Attribute Profiles, Product Types, Category Page identity (ADR 0005) |
+| Classification | Canonical Product Classification (website Category + Product Type), frozen Attribute Profiles, configured Classification Attributes, and verified Category Pages (`src/classification`); reviewed-only projection to local drafts (ADR 0041). Cohort execution and replaceable stage composition remain governed by ADRs 0013 and 0004. |
 | Tests | Vitest 3 + bun:test | `vitest.config.ts` (`include: src/tests/**/*.test.ts`, 30+ DB suites excluded → `test:db`), `bun run test` = `vitest run && bun run test:db` (150+ suites) |
 | Lint | ESLint 9 + typescript-eslint 8 | `eslint.config.mjs` |
 | Design | DESIGN.md "The General Store" | Uniform Green #14532D / Burgundy #760C19 / Gold #F6DB12, Arvo + Inter + JetBrains Mono, soft shadows |
@@ -39,7 +39,7 @@ src/onboarding
           → curation (product-curator orchestrator + classification/stages/*: name-consolidation, primary-product-type, attribute-*, category-page-proposals, evidence-extraction)
           → review (onboarding-review-repo, onboarding-work-state) → draft-promoter (product_pages rows)
   VLM: packaging-ocr ↔ vlm-client / cloud-vlm-client ↔ Ollama
-src/classification (1,000+ lines catalog-* + curation + releases/bay-state-v3+v4 + stages/*) — cohort-centric, type-first (ADR 0013), taxonomy freeze (v3/v4 manifests)
+src/classification (catalog + cohort pipelines) — one canonical pair selects the frozen Attribute Profile and drives applicable attribute proposals/readiness; reviewed decisions alone project approved classification values to local drafts. Cohorts group execution, not product facts.
 <!-- ADR-0030 (2026-08): src/product-intelligence/** (Agent Lab / PI) DELETED. Salvage homes:
   image verification/rights → src/onboarding/image-verification/ (deterministic network gate, no policy runtime)
   imported-result gate → src/onboarding/imported-result-gate.ts (retired in Phase 4 with the pi_* tables)
@@ -84,7 +84,7 @@ src/extraction-worker (standalone Node — Crawlee + Playwright) ↔ profile-run
 
 - **CI:** `.github/workflows/ci.yml` — `push: [main]` + `pull_request` — `oven-sh/setup-bun@v2@1.3.5` → `bun install --frozen-lockfile` → `typecheck` → `vitest run` → `test:db` — 30 min timeout. Lint intentionally excluded (debt tracked in `docs/adr` + review handoff).
 - **Scripts:** `scripts/dev.ts`, `scripts/verify.sh`, `scripts/validate-specs-yaml.sh` + `bp-yaml-set.sh` (copied from bigpowers for `specs/` YAML gates), `scripts/sourcing-live-smoke.ts`, `scripts/classification-integrity.ts`.
-- **ADRs:** 28 (`docs/adr/0001–0029`) — sourcing (0014), PI boundary (0010), cohort curation (0013), replaceable stages (0004), page identity (0005), brand resolution (0017), specialist registry (0018), batch intelligence (0021), evals/shadow/rollout/legacy-migration (0029, #60).
+- **ADRs:** See `docs/adr/` for accepted records. ADR 0041 supersedes classification semantics from ADRs 0004, 0013, and 0033; their unrelated stage, execution, and provider decisions remain in force.
 
 ## Gray areas & debt
 
