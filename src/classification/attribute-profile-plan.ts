@@ -14,6 +14,7 @@ import type { ReviewedFact } from './reviewed-facts';
 import { evaluateConditions, isUniversalAttribute, type AttributeApplicability } from './applicability-evaluator';
 import { isApprovedClassificationPair } from './product-classification';
 import { isProtectedCatalogField, isProtectedTargetId } from './classification-ownership';
+import { validateAttributeProfileValue } from './attribute-value-validation';
 
 export interface AttributeProfilePlanEntry {
   attribute: ProductAttributeConfig;
@@ -121,6 +122,7 @@ export function resolveAttributeProfilePlan(
       staticApplicability,
     };
   });
+  const contextsByAttributeId = new Map(contexts.map(context => [context.attribute.id, context]));
   const states = new Map<string, AttributeApplicability['state']>();
   for (const context of contexts) {
     states.set(context.attribute.id, context.staticApplicability?.state
@@ -137,7 +139,11 @@ export function resolveAttributeProfilePlan(
     changed = false;
     usableFacts.length = 0;
     for (const fact of facts) {
-      if (fact.targetId !== null && states.get(fact.targetId) === 'applicable') usableFacts.push(fact);
+      const context = fact.targetId ? contextsByAttributeId.get(fact.targetId) : undefined;
+      if (context && states.get(context.attribute.id) === 'applicable'
+        && validateAttributeProfileValue(fact.value, context.attribute, context.cardinality).ok) {
+        usableFacts.push(fact);
+      }
     }
     for (const context of contexts) {
       if (context.staticApplicability || context.conditions.length === 0

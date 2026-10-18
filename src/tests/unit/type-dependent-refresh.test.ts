@@ -18,6 +18,8 @@ import { capturePreReviewPrediction } from '../../classification/benchmark-predi
 import { getProposalsByRun, getStageResults } from '../../db/repositories/classification-run-repo';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
+import { getApplicableAcceptedPremiseProposalIds } from '../../db/repositories/classification-dependent-review-repo';
+import type { ClassificationProposal } from '../../shared/schemas/classification';
 
 describe('type-dependent-refresh (P1.4)', () => {
   const dbPath = `/tmp/test-refresh-${randomUUID()}.db`;
@@ -314,6 +316,50 @@ describe('type-dependent-refresh (P1.4)', () => {
     };
     return generateCandidate(seed, evidence).bundle;
   }
+
+  it('does not preserve an array-valued corrected premise under the new pair profile', () => {
+    const sku = `SKU-CORRECTED-ARRAY-PREMISE-${randomUUID().slice(0, 8)}`;
+    const runId = randomUUID();
+    const bundle = loadConditionalMaterialBundleFixture();
+    const now = new Date().toISOString();
+    const snapshot = buildRuntimeSnapshot({
+      workspaceId: wsId,
+      workspacePath: '/tmp/refresh',
+      productSku: sku,
+      authority: { kind: 'v2', bundle },
+      configSnapshotRef: { id: 'corrected-premise', hash: 'corrected-premise', sourceCommit: null, createdAt: now },
+      sourceProductHash: 'corrected-premise-source',
+    });
+    const proposal: ClassificationProposal = {
+      id: 'corrected-array-premise',
+      runId,
+      productSku: sku,
+      proposalType: 'field_assignment',
+      targetId: 'product-feature',
+      proposedValue: ['Dog', 'Cat'],
+      revisedTargetId: 'species',
+      hasRevisedTargetId: true,
+      revisedValue: ['Dog', 'Cat'],
+      hasRevisedValue: true,
+      confidence: 1,
+      status: 'accepted',
+      isBulkAcceptable: false,
+      isStale: false,
+      stalenessReason: null,
+      createdAt: now,
+      currentDecisionId: 'corrected-array-premise-decision',
+      evidenceIds: [],
+    };
+
+    const preservable = getApplicableAcceptedPremiseProposalIds(
+      snapshot,
+      { categoryId: 'dog_food_cat', productTypeId: 'dog_food' },
+      runId,
+      [proposal],
+    );
+
+    expect(preservable.has(proposal.id)).toBe(false);
+  });
 
 
 

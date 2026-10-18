@@ -10,6 +10,7 @@ import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
 import { composeEffectiveReviewedFacts } from './reviewed-facts';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
+import { parseMeasuredValue, validateAttributeProfileValue, validateSerializableValue } from './attribute-value-validation';
 
 /** Extract a stable Product Type ID from either supported proposal value shape. */
 export function getProductTypeIdFromValue(value: unknown): string | null {
@@ -82,39 +83,6 @@ export function getEffectiveClassificationPair(
   };
 }
 
-type MeasuredValueParseResult =
-  | { ok: true; value: number }
-  | { ok: false; message: string };
-
-function parseMeasuredValue(
-  value: unknown,
-  canonicalUnit: string | null | undefined,
-): MeasuredValueParseResult {
-  const unit = canonicalUnit?.trim();
-  if (!unit) return { ok: false, message: 'Measured value has no configured canonical unit.' };
-
-  let numeric: number;
-  if (typeof value === 'number') {
-    numeric = value;
-  } else if (typeof value === 'string') {
-    const match = value.trim().match(/^([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)(.*)$/);
-    if (!match) {
-      return { ok: false, message: `Measured value "${value}" is not a finite measured number.` };
-    }
-    const suppliedUnit = match[2]!.trim();
-    if (suppliedUnit && suppliedUnit.toLowerCase() !== unit.toLowerCase()) {
-      return { ok: false, message: `Measured value "${value}" does not use the configured unit "${unit}".` };
-    }
-    numeric = Number(match[1]);
-  } else {
-    return { ok: false, message: `Measured value "${String(value)}" is not a finite measured number.` };
-  }
-
-  if (!Number.isFinite(numeric)) {
-    return { ok: false, message: `Measured value "${String(value)}" is not a finite measured number.` };
-  }
-  return { ok: true, value: numeric };
-}
 
 /**
  * Serialize an attribute value into a catalog field string using the mapping's
@@ -195,79 +163,6 @@ export function serializeAttributeValue(
   return `${prefix}${core}${suffix}`;
 }
 
-/**
- * Validate a proposed value against its attribute shape: controlled
- * membership, measured units, and explicit-clear semantics. Delimiter policy
- * is enforced inside serializeAttributeValue (it throws on violation).
- */
-export type SerializableValueValidation =
-  | { ok: true }
-  | { ok: false; code: 'controlled_membership' | 'measured_unit'; message: string };
-
-export function validateSerializableValue(
-  value: unknown,
-  attribute?: (
-    Pick<
-      ProductAttributeConfig,
-      'id' | 'valueMode' | 'allowedValues' | 'valueAliases'
-    >
-    & Partial<Pick<ProductAttributeConfig, 'canonicalUnit'>>
-  ) | null,
-): SerializableValueValidation {
-  // Explicit clears are always legal.
-  if (value === null || value === undefined) return { ok: true };
-
-  const values = Array.isArray(value) ? value : [value];
-
-  if (attribute?.valueMode === 'controlled' && values.length > 0 && (attribute.allowedValues?.length ?? 0) === 0) {
-    return {
-      ok: false,
-      code: 'controlled_membership',
-      message: `Attribute "${attribute.id}" has no configured controlled values.`,
-    };
-  }
-  if (attribute?.valueMode === 'controlled' && (attribute.allowedValues?.length ?? 0) > 0) {
-    for (const item of values) {
-      const str = String(item);
-      // Exact canonical membership OR an alias that resolves to an exact
-      // allowed ID. An unknown/near-match value is never serialized as a
-      // controlled value (fail closed).
-      const allowed = attribute.allowedValues.includes(str);
-      const aliasTarget = allowed
-        ? str
-        : resolveAlias(str, attribute.valueAliases ?? [], attribute.allowedValues);
-      if (aliasTarget === null) {
-        return {
-          ok: false,
-          code: 'controlled_membership',
-          message: `Value "${str}" is not in the controlled value list for attribute "${attribute.id}".`,
-        };
-      }
-    }
-  }
-
-  if (attribute?.valueMode === 'measured') {
-    if (values.length === 0) {
-      return {
-        ok: false,
-        code: 'measured_unit',
-        message: `Attribute "${attribute.id}" has no measured value.`,
-      };
-    }
-    for (const item of values) {
-      const parsed = parseMeasuredValue(item, attribute.canonicalUnit);
-      if (!parsed.ok) {
-        return {
-          ok: false,
-          code: 'measured_unit',
-          message: `${parsed.message} Attribute "${attribute.id}".`,
-        };
-      }
-    }
-  }
-
-  return { ok: true };
-}
 
 /** Captured values and mappings that authorize a complete canonical pair projection. */
 export interface AssignmentProjectionAuthority {
@@ -340,13 +235,21 @@ export function buildAssignmentProjection(
   const removals: Array<{ pageId: string; pageName: string }> = [];
   const skipped: Array<{ proposalId: string; targetId: string | null; reason: string }> = [];
   const classificationProposal = acceptedProposals.find(proposal => proposal.proposalType === 'product_classification');
-  const effectivePair = classificationProposal
-    ? getEffectiveClassificationPair(classificationProposal)
-    : { categoryId: null, productTypeId: null };
   const runId = acceptedProposals.find(proposal => proposal.runId)?.runId;
   const reviewedFacts = authority.snapshot
     ? composeEffectiveReviewedFacts(authority.snapshot, acceptedProposals, runId ?? '')
     : [];
+  const reviewedPairFact = reviewedFacts.find(fact =>
+    fact.proposalType === 'product_classification'
+    && fact.productSku === authority.snapshot?.productSku
+    && fact.workspaceId === authority.snapshot?.workspaceId,
+  );
+  const effectivePair = classificationProposal
+    ? getEffectiveClassificationPair(classificationProposal)
+    : {
+      categoryId: getCategoryIdFromValue(reviewedPairFact?.value),
+      productTypeId: getProductTypeIdFromValue(reviewedPairFact?.value),
+    };
   const profilePlan = authority.snapshot
     ? resolveAttributeProfilePlan(authority.snapshot, effectivePair, reviewedFacts)
     : null;
@@ -482,16 +385,20 @@ export function buildAssignmentProjection(
         refuse('Attribute value has an invalid serialization shape');
         continue;
       }
+      const profileEntry = authority.snapshot !== undefined
+        ? profilePlan?.entries.find(candidate => candidate.attribute.id === targetId)
+        : undefined;
       if (authority.snapshot !== undefined) {
-        const applicability = profilePlan?.entries.find(entry => entry.attribute.id === targetId)?.applicability;
         const explicitReviewedClear = proposal.hasRevisedValue && value === null;
-        if (applicability?.state !== 'applicable' && !explicitReviewedClear) {
-          refuse(applicability?.reason
+        if (profileEntry?.applicability.state !== 'applicable' && !explicitReviewedClear) {
+          refuse(profileEntry?.applicability.reason
             ?? 'Frozen Attribute Profile applicability is unavailable; re-review under a frozen approved profile.');
           continue;
         }
       }
-      const validation = validateSerializableValue(value, attribute);
+      const validation = profileEntry
+        ? validateAttributeProfileValue(value, profileEntry.attribute, profileEntry.cardinality)
+        : validateSerializableValue(value, attribute);
       if (!validation.ok) {
         refuse(validation.message);
         continue;

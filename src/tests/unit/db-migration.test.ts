@@ -17,6 +17,7 @@ import {
 import { createBatch, deleteBatch } from '../../db/repositories/onboarding-batch-repo';
 import { insertItems } from '../../db/repositories/onboarding-item-repo';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
+import { getCachedClassificationOutputBindings } from '../../db/repositories/classification-config-repo';
 
 describe('SQLite Migration', () => {
   const testDbPath = '/tmp/baystate-cms-test.db';
@@ -55,6 +56,28 @@ describe('SQLite Migration', () => {
       "SELECT COUNT(*) as cnt FROM app_meta WHERE key = 'classification_schema_version'"
     ).get() as { cnt: number };
     expect(rows.cnt).toBe(1);
+  });
+  it('upgrades an existing classification schema before output-binding consumers run', () => {
+    const db = getDb();
+    db.exec('DROP TABLE classification_output_bindings');
+    try {
+      runMigrations();
+      expect(getCachedClassificationOutputBindings('migration-workspace')).toEqual([]);
+    } finally {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS classification_output_bindings (
+          workspace_id TEXT NOT NULL,
+          role TEXT NOT NULL CHECK (role IN ('category', 'product-type')),
+          catalog_field TEXT NOT NULL,
+          serialization_json TEXT NOT NULL,
+          is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+          config_hash TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (workspace_id, role)
+        );
+      `);
+    }
   });
 
   it('repairs duplicate active discovery runs before creating unique indexes', () => {

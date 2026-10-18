@@ -5,7 +5,8 @@ import { getDb } from '../connection';
 import { findItemById, updateItemCurationData } from './onboarding-item-repo';
 import { getProposalsByRun, getEvidenceByRun, getLiveDecisionsByRun, getRun } from './classification-run-repo';
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
-import { getEffectiveClassificationPair, validateSerializableValue } from '../../classification/assignment-projection';
+import { getEffectiveClassificationPair } from '../../classification/assignment-projection';
+import { validateAttributeProfileValue } from '../../classification/attribute-value-validation';
 import { getEffectiveProposalTargetId } from '../../classification/effective-proposal';
 import { composeEffectiveReviewedFacts } from '../../classification/reviewed-facts';
 import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
@@ -19,17 +20,7 @@ function isValidReviewedPremiseValue(
   attribute: ProductAttributeConfig,
   cardinality: 'single' | 'multiple',
 ): boolean {
-  if (value === null || value === undefined || (cardinality === 'multiple') !== Array.isArray(value)) return false;
-  const values = Array.isArray(value) ? value : [value];
-  if (values.length === 0 || values.some(item => item === null || item === undefined)) return false;
-  if (values.some(item => typeof item === 'string' && item.trim().length === 0)) return false;
-  if (attribute.valueMode === 'measured') {
-    if (values.some(item => (typeof item !== 'string' && typeof item !== 'number')
-      || (typeof item === 'number' && !Number.isFinite(item)))) return false;
-  } else if (values.some(item => typeof item !== 'string')) {
-    return false;
-  }
-  return validateSerializableValue(value, attribute).ok;
+  return validateAttributeProfileValue(value, attribute, cardinality).ok;
 }
 
 /** Current accepted condition premises that remain valid under the corrected profile. */

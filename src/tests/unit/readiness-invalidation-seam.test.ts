@@ -1065,6 +1065,91 @@ describe('issue #354 workflow seam: canonical readiness', () => {
     }
   });
 
+  it('does not let an array corrected into a single-valued condition premise hide a required dependent or enter a local draft', async () => {
+    const bundle = structuredClone(activeAuthority.bundle);
+    const dogType = bundle.productTypes.find(type => type.id === 'dry-dog-food');
+    const profile = bundle.attributeProfiles.find(candidate => candidate.id === dogType?.attributeProfileId);
+    const flavorRule = profile?.attributes.find(rule => rule.attributeId === 'flavor');
+    const featureTarget = bundle.curationTargets.find(target => target.id === 'feature-target');
+    const flavorAttribute = bundle.attributes.find(attribute => attribute.id === 'flavor');
+    if (!profile || !flavorRule || !featureTarget || !flavorAttribute) {
+      throw new Error('Conditional cardinality fixture is incomplete.');
+    }
+    featureTarget.selectionMode = 'multiple';
+    flavorRule.required = false;
+    profile.attributes.push({
+      attributeId: 'species',
+      required: true,
+      cardinality: 'single',
+      applicabilityConditions: [{
+        operator: 'equals', attributeId: 'flavor', value: 'Beef', factSource: 'accepted_reviewed',
+      }],
+      constraints: {},
+      confidenceThresholds: {},
+      valueAliases: [],
+    });
+    bundle.attributes.push({
+      ...flavorAttribute,
+      id: 'species',
+      name: 'Species',
+      allowedValues: ['Dog', 'Cat'],
+    });
+    bundle.attributeMappings.push({
+      id: 'species-map',
+      attributeId: 'species',
+      catalogField: 'ProductField27',
+      serialization: { kind: 'scalar', prefix: '', suffix: '' },
+      isStale: false,
+    });
+    flavorRule.applicabilityConditions = [];
+    bundle.curationTargets.push({
+      id: 'species-target',
+      kind: 'product_field',
+      label: 'Species',
+      enabled: true,
+      mandatory: false,
+      selectionMode: 'single',
+      attributeId: 'species',
+      catalogField: 'ProductField27',
+      optionSource: 'configured',
+      required: true,
+      sortOrder: 3,
+    });
+    replaceActiveFixtureBundle(bundle);
+
+    const sku = 'SKU-INVALID-CARDINALITY-PREMISE';
+    const premiseValues = ['Chicken', 'Beef'];
+    const run = seedRun(sku, undefined, 'Chicken', { measuredValue: premiseValues });
+    const decisions = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'rejected' },
+        {
+          proposalId: 'prop-note',
+          decision: 'accepted',
+          revisedTargetId: 'flavor',
+          revisedValue: premiseValues,
+        },
+      ],
+    });
+    expect(decisions.ok).toBe(true);
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id });
+    expect(readiness.ok).toBe(false);
+    if (!readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'species')?.status).toBe('required_unknown');
+    }
+
+    writeProduct(sku);
+    const changeSetsBefore = listChangeSets(WS_ID);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id)).rejects.toThrow(/projection refused/);
+    expect(listChangeSets(WS_ID)).toEqual(changeSetsBefore);
+  });
+
 });
 
 describe('issue #354 workflow seam: stale page authority refuses without partial write', () => {

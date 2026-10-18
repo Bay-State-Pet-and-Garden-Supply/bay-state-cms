@@ -17,7 +17,7 @@
 import type { ClassificationEvidence, ClassificationProposal } from '../shared/types';
 import type { ProductAttributeConfig } from '../shared/schemas/classification';
 import type { CalibratedThresholds } from './confidence-calibrator';
-import { validateSerializableValue } from './assignment-projection';
+import { validateSerializableValue } from './attribute-value-validation';
 
 export type SafetyFindingCode =
   | 'claim_missing_direct_evidence'

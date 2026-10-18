@@ -814,6 +814,58 @@ describe('issue #356 frozen applicability projection gate', () => {
   });
 });
 
+describe('issue #356 compatible reviewed pair projection', () => {
+  it('uses the same-SKU compatible reviewed pair to select the frozen Attribute Profile', async () => {
+    const sku = 'SKU-CARRIED-REVIEWED-PAIR';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product);
+    const reviewedFacts: RuntimeClassificationSnapshot['reviewedFacts'] = [{
+      proposalId: 'prior-pair',
+      decisionId: 'prior-pair-decision',
+      runId: 'prior-run',
+      workspaceId: WS_ID,
+      productSku: sku,
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      value: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+      configSnapshotHash: persisted.snapshot.configSnapshotRef.hash,
+      sourceHash: persisted.snapshot.sourceProductHash,
+      createdAt: now,
+    }];
+    const snapshot = { ...persisted.snapshot, reviewedFacts };
+    const materialProposal: ClassificationProposal = {
+      id: 'current-material',
+      runId: 'current-run',
+      productSku: sku,
+      proposalType: 'field_assignment',
+      targetId: 'material',
+      proposedValue: 'Rubber',
+      confidence: 1,
+      status: 'accepted',
+      isBulkAcceptable: false,
+      isStale: false,
+      stalenessReason: null,
+      createdAt: now,
+      currentDecisionId: 'current-material-decision',
+      evidenceIds: [],
+    };
+
+    const projection = buildAssignmentProjection(
+      [materialProposal],
+      product.customFields,
+      product.core.productOnPages ?? [],
+      getCachedAttributeMappings(WS_ID),
+      new Set(),
+      createAssignmentProjectionAuthority(snapshot, undefined, getCachedClassificationOutputBindings(WS_ID)),
+    );
+
+    expect(projection.skipped).toEqual([]);
+    expect(projection.fields.map(field => field.catalogField)).toContain(MATERIAL_FIELD);
+    expect(projection.fields.find(field => field.catalogField === MATERIAL_FIELD)?.proposedValue).toBe('Rubber');
+  });
+});
+
 describe('issue #357 reviewed-projection parity: Flavor→Material correction (catalog)', () => {
   it('preview and local draft agree on the corrected destination — Rubber lands in PF28, never PF23', async () => {
     const sku = 'SKU-FLAVOR-MATERIAL';

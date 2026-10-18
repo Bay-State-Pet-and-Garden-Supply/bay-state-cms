@@ -1134,6 +1134,23 @@ export function runMigrations(): void {
     db.exec("INSERT INTO app_meta (key, value) VALUES ('classification_schema_version', '1');");
   }
 
+  // Canonical Category + Product Type output destinations were added after
+  // classification_schema_version reached 1. Keep this idempotent upgrade
+  // outside the original fresh-install-only migration gate.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS classification_output_bindings (
+      workspace_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('category', 'product-type')),
+      catalog_field TEXT NOT NULL,
+      serialization_json TEXT NOT NULL,
+      is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+      config_hash TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, role)
+    );
+  `);
+
   // ── Ensure classification_brands table exists (existing DB migration) ───────
   try {
     db.exec(`

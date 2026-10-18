@@ -3,7 +3,7 @@ import { describe, test, expect } from 'vitest';
 import fs from 'node:fs';
 import { validateProposalSafety } from '../../classification/proposal-safety';
 import { findCanonicalCollisions } from '../../classification/controlled-value-identity';
-import { validateSerializableValue } from '../../classification/assignment-projection';
+import { validateSerializableValue } from '../../classification/attribute-value-validation';
 
 describe('e05s02 — taxonomy provenance additive field', () => {
   test('product-curator populates taxonomyProvenance (bundle/snapshot/verified identity)', () => {

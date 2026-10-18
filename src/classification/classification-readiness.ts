@@ -24,7 +24,8 @@ import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun } from '..
 import { composeEffectiveReviewedFacts } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
-import { getEffectiveClassificationPair, validateSerializableValue } from './assignment-projection';
+import { getEffectiveClassificationPair } from './assignment-projection';
+import { validateAttributeProfileValue } from './attribute-value-validation';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
 import { resolveWebsiteClassification } from './product-classification';
@@ -168,17 +169,7 @@ export function evaluateCanonicalReadiness(input: {
     const valued = applicable && candidates.some(proposal => {
       const value = getEffectiveProposalValue(proposal);
       if (value === null || value === undefined) return false;
-      const isMultiple = entry.cardinality === 'multiple';
-      if (isMultiple !== Array.isArray(value)) return false;
-      const values = Array.isArray(value) ? value : [value];
-      if (values.length === 0 || values.some(item => item === null || item === undefined)) return false;
-      if (values.some(item => typeof item === 'string' && item.trim().length === 0)) return false;
-      if (entry.attribute.valueMode === 'measured') {
-        if (values.some(item => typeof item !== 'string' && typeof item !== 'number')) return false;
-      } else if (values.some(item => typeof item !== 'string')) {
-        return false;
-      }
-      return validateSerializableValue(value, entry.attribute).ok;
+      return validateAttributeProfileValue(value, entry.attribute, entry.cardinality).ok;
     });
     const status: RequiredValueGap['status'] = !applicable
       ? 'not_applicable'
