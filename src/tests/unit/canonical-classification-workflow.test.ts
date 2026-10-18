@@ -815,7 +815,7 @@ describe('issue #356 frozen applicability projection gate', () => {
 });
 
 describe('issue #356 compatible reviewed pair projection', () => {
-  it('uses the same-SKU compatible reviewed pair to select the frozen Attribute Profile', async () => {
+  it('projects the same-SKU compatible reviewed pair and its frozen Attribute Profile', async () => {
     const sku = 'SKU-CARRIED-REVIEWED-PAIR';
     const now = new Date().toISOString();
     const product = baseProduct(sku, now);
@@ -863,6 +863,10 @@ describe('issue #356 compatible reviewed pair projection', () => {
     expect(projection.skipped).toEqual([]);
     expect(projection.fields.map(field => field.catalogField)).toContain(MATERIAL_FIELD);
     expect(projection.fields.find(field => field.catalogField === MATERIAL_FIELD)?.proposedValue).toBe('Rubber');
+    expect(projection.fields.map(field => field.catalogField)).toContain(CATEGORY_FIELD);
+    expect(projection.fields.find(field => field.catalogField === CATEGORY_FIELD)?.proposedValue).toBe('QA Category: dog-food');
+    expect(projection.fields.map(field => field.catalogField)).toContain(PRODUCT_TYPE_FIELD);
+    expect(projection.fields.find(field => field.catalogField === PRODUCT_TYPE_FIELD)?.proposedValue).toBe('QA Product Type: dog-food-dry');
   });
 });
 

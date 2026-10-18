@@ -254,21 +254,39 @@ export function buildAssignmentProjection(
     ? resolveAttributeProfilePlan(authority.snapshot, effectivePair, reviewedFacts)
     : null;
   const classificationProposals = acceptedProposals.filter(proposal => proposal.proposalType === 'product_classification');
+  const pairSource = classificationProposals.length === 1 && classificationProposal
+    ? {
+      proposalId: classificationProposal.id,
+      targetId: getEffectiveProposalTargetId(classificationProposal),
+      pair: getEffectiveClassificationPair(classificationProposal),
+    }
+    : classificationProposals.length === 0 && reviewedPairFact
+      ? {
+        proposalId: reviewedPairFact.proposalId,
+        targetId: reviewedPairFact.targetId,
+        pair: {
+          categoryId: getCategoryIdFromValue(reviewedPairFact.value),
+          productTypeId: getProductTypeIdFromValue(reviewedPairFact.value),
+        },
+      }
+      : null;
   if (classificationProposals.length > 1) {
     for (const proposal of classificationProposals) {
       skipped.push({ proposalId: proposal.id, targetId: getEffectiveProposalTargetId(proposal),
         reason: 'Multiple accepted Product Classification proposals are ambiguous; review one canonical pair.' });
     }
-  } else if (classificationProposals.length === 1) {
-    const proposal = classificationProposals[0];
-    const targetId = getEffectiveProposalTargetId(proposal);
-    const refuse = (reason: string) => skipped.push({ proposalId: proposal.id, targetId, reason });
-    if (proposal.isStale) {
+  } else if (pairSource) {
+    const refuse = (reason: string) => skipped.push({
+      proposalId: pairSource.proposalId,
+      targetId: pairSource.targetId,
+      reason,
+    });
+    if (classificationProposal?.isStale) {
       refuse('Proposal is stale; re-review before applying');
     } else if (!authority.categories || !authority.productTypes) {
       refuse('Frozen Category and Product Type authority is unavailable');
     } else {
-      const pair = getEffectiveClassificationPair(proposal);
+      const pair = pairSource.pair;
       if (!pair.categoryId || !pair.productTypeId) {
         refuse('Canonical Category + Product Type pair is incomplete');
       } else {
@@ -314,9 +332,9 @@ export function buildAssignmentProjection(
               }
             }
           }
+        }
       }
     }
-  }
   }
 
   for (const proposal of acceptedProposals) {
