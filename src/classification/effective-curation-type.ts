@@ -8,6 +8,7 @@
 import type { StageContext, StageInput } from './types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { getEffectiveClassificationPair, getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
+import { selectClassificationProposal } from './proposal-selection';
 import type { ClassificationProposal } from '../shared/types';
 import { findRejectedProductClassificationProposal } from './reviewed-facts';
 

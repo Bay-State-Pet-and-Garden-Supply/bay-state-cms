@@ -5,6 +5,7 @@ import {
   findGateRunById,
   findLatestEvidenceExtractionOutputJson,
   findRuntimeSnapshotEvidenceExtractionRuleVersion,
+  getAcceptedProposals,
   getProposalsByRun,
   recordHistoryEvent,
 } from '../db/repositories/classification-run-repo';
