@@ -9,7 +9,7 @@ import { createRun as createRepositoryRun, completeRun, getAcceptedProposals, ge
 import { getDb } from '../../db/connection';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { validateCatalogReviewCompletionGate } from '../../classification/review-completion-gate';
-import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { syncConfigToCache, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot, getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
 import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
 import type { ClassificationConfigBundleV2 } from '../../shared/schemas/classification';
@@ -38,6 +38,10 @@ function loadClassificationConfigFixture(): ClassificationConfigBundleV2 {
       attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single' }] }],
     mappings: [{ id: 'flavor-mapping', attributeId: 'flavor', catalogField: 'ProductField23',
       serialization: { kind: 'scalar', prefix: '', suffix: '' } }],
+    classificationOutputBindings: [
+      { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+    ],
     curationTargets: [
       { id: 'primary-product-type', kind: 'product_type', label: 'Product Classification', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
       { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
@@ -71,6 +75,7 @@ function createRun(...args: Parameters<typeof createRepositoryRun>) {
     return createRepositoryRun(...args);
   }
   const bundle = loadClassificationConfigFixture();
+  syncConfigToCache(workspaceId, bundle as unknown as Parameters<typeof syncConfigToCache>[1]);
   const ref = upsertConfigSnapshot(workspaceId, bundle);
   const snapshot = buildRuntimeSnapshot({ workspaceId, workspacePath, productSku: sku,
     authority: { kind: 'v2', bundle },
@@ -942,6 +947,7 @@ describe('proposal-review-service (catalog product)', () => {
 
   it('blocks catalog review completion until a Product Classification pair is reviewed', () => {
     const config = loadClassificationConfigFixture();
+    syncConfigToCache(workspaceId, config as unknown as Parameters<typeof syncConfigToCache>[1]);
     const { id: snapId, hash: snapHash } = upsertConfigSnapshot(workspaceId, config);
     const runtime = buildRuntimeSnapshot({
       workspaceId,

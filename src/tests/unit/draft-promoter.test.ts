@@ -1070,10 +1070,12 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     }
   });
 
-  it('refuses local promotion when a required profile value is missing or empty', async () => {
-    const scenarios: Array<{ suffix: string; acceptedValue?: unknown }> = [
-      { suffix: 'MISSING' },
-      { suffix: 'EMPTY', acceptedValue: [] },
+  it('refuses local promotion when a required profile value is missing or unprojectable', async () => {
+    const scenarios: Array<{ suffix: string; acceptedValue?: unknown; expectedError: RegExp }> = [
+      { suffix: 'MISSING', expectedError: /required_values_missing/ },
+      // An accepted empty array is not a missing value: the frozen single
+      // cardinality rejects it in the shared projection. Both refuse locally.
+      { suffix: 'EMPTY', acceptedValue: [], expectedError: /Classification projection refused.*frozen single cardinality/ },
     ];
 
     for (const scenario of scenarios) {
@@ -1107,7 +1109,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
       expect(result.count).toBe(0);
       expect(result.failures).toHaveLength(1);
-      expect(result.failures[0].error).toContain('required_values_missing');
+      expect(result.failures[0].error).toMatch(scenario.expectedError);
       expect(result.changeSetId).toBeNull();
       expect(listChangeSets(wsId)).toEqual(before);
     }
