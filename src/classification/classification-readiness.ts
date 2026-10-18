@@ -24,7 +24,8 @@ import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun } from '..
 import { composeEffectiveReviewedFacts } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
-import { getEffectiveClassificationPair, getEffectiveProposalTargetId, getEffectiveProposalValue, validateSerializableValue } from './assignment-projection';
+import { getEffectiveClassificationPair, validateSerializableValue } from './assignment-projection';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
 import { resolveWebsiteClassification } from './product-classification';
 import { resolveCanonicalClassificationOutputBindings } from './classification-ownership';

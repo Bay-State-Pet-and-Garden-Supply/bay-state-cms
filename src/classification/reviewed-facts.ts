@@ -12,7 +12,7 @@
  * rather than silently reusing it.
  */
 import type { ClassificationProposal } from '../shared/types';
-import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './assignment-projection';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { getDb } from '../db/connection';
 

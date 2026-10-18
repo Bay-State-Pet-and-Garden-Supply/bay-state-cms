@@ -205,6 +205,117 @@ describe('type-dependent-refresh (P1.4)', () => {
     };
     return generateCandidate(seed, evidence).bundle;
   }
+  function loadConditionalChainBundleFixture() {
+    const species = BayStatePetGardenSeed.attributes.find(attribute => attribute.id === 'species')!;
+    const material = BayStatePetGardenSeed.attributes.find(attribute => attribute.id === 'material')!;
+    const productFeature = BayStatePetGardenSeed.attributes.find(attribute => attribute.id === 'product-feature')!;
+    const color = BayStatePetGardenSeed.attributes.find(attribute => attribute.id === 'color')!;
+    const seed: BayStateSeed = {
+      ...BayStatePetGardenSeed,
+      name: 'Conditional Premise Chain Refresh',
+      revision: 'conditional-premise-chain-refresh',
+      categories: [
+        { id: 'dog_food_cat', name: 'Dog Food', description: null },
+        { id: 'cat_food_cat', name: 'Cat Food', description: null },
+      ],
+      productTypes: [
+        {
+          id: 'dog_food',
+          name: 'Dog Food',
+          description: null,
+          categoryId: 'dog_food_cat',
+          websiteValues: { category: 'QA Dog Food', productType: 'QA Dry Dog Food' },
+        },
+        {
+          id: 'cat_food',
+          name: 'Cat Food',
+          description: null,
+          categoryId: 'cat_food_cat',
+          websiteValues: { category: 'QA Cat Food', productType: 'QA Dry Cat Food' },
+        },
+      ],
+      attributes: [
+        { ...species, isUniversal: false },
+        { ...material, isUniversal: false },
+        { ...productFeature, isUniversal: false },
+        { ...color, isUniversal: true },
+      ],
+      // The corrected profile makes Product Feature non-applicable from Color;
+      // Species depends on Product Feature, and Material depends on Species.
+      profileTemplates: [
+        {
+          id: 'cat-food-profile',
+          name: 'Cat Food Profile',
+          productTypeIds: ['cat_food'],
+          attributes: [
+            { attributeId: 'product-feature', required: false, cardinality: 'single', applicabilityConditions: [] },
+            { attributeId: 'species', required: false, cardinality: 'single', applicabilityConditions: [] },
+            { attributeId: 'material', required: true, cardinality: 'single', applicabilityConditions: [] },
+          ],
+        },
+        {
+          id: 'dog-food-profile',
+          name: 'Dog Food Profile',
+          productTypeIds: ['dog_food'],
+          attributes: [
+            {
+              attributeId: 'product-feature',
+              required: false,
+              cardinality: 'single',
+              applicabilityConditions: [
+                { operator: 'equals', attributeId: 'color', value: 'Red', factSource: 'accepted_reviewed' },
+              ],
+            },
+            {
+              attributeId: 'species',
+              required: false,
+              cardinality: 'single',
+              applicabilityConditions: [{
+                operator: 'equals',
+                attributeId: 'product-feature',
+                value: 'Dog-only',
+                factSource: 'accepted_reviewed',
+              }],
+            },
+            {
+              attributeId: 'material',
+              required: true,
+              cardinality: 'single',
+              applicabilityConditions: [{
+                operator: 'equals',
+                attributeId: 'species',
+                value: 'Dog',
+                factSource: 'accepted_reviewed',
+              }],
+            },
+          ],
+        },
+      ],
+      mappings: BayStatePetGardenSeed.mappings.filter(mapping =>
+        ['species', 'material', 'product-feature', 'color'].includes(mapping.attributeId),
+      ),
+      classificationOutputBindings: [
+        { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+        { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      ],
+      curationTargets: BayStatePetGardenSeed.curationTargets.filter(target =>
+        target.kind === 'product_type' || ['species', 'material', 'product-feature', 'color'].includes(target.attributeId ?? ''),
+      ),
+    };
+    const evidence: CatalogEvidence = {
+      schemaVersion: 1,
+      sourceTreeHash: 'conditional-premise-chain-refresh',
+      productFileCount: 0,
+      parseFailureCount: 0,
+      parseFailures: [],
+      fieldRegistry: { entryCount: 0, xmlFields: [] },
+      fields: [],
+      pages: [],
+    };
+    return generateCandidate(seed, evidence).bundle;
+  }
+
+
 
 
   it('supersedes stale dependents under the reviewed product type without fabricating placeholder proposals', async () => {
@@ -534,6 +645,115 @@ describe('type-dependent-refresh (P1.4)', () => {
     expect(invalidatedReadiness).toMatchObject({ ok: false, code: 'required_values_missing' });
     if (!invalidatedReadiness.ok) {
       expect(invalidatedReadiness.details.requiredValues.find(value => value.attributeId === 'material')?.status)
+        .toBe('required_unknown');
+    }
+  });
+  it('does not carry an inapplicable conditional premise into a downstream attribute after pair correction', async () => {
+    const db = getDb();
+    const batchId = randomUUID();
+    const itemId = randomUUID();
+    const runId = randomUUID();
+    const sku = `SKU-CONDITIONAL-CHAIN-${randomUUID().slice(0, 8)}`;
+    const bundle = loadConditionalChainBundleFixture();
+    syncConfigToCache(wsId, bundle as unknown as Parameters<typeof syncConfigToCache>[1]);
+    const ref = upsertConfigSnapshot(wsId, bundle);
+    const snapshot = structuredClone(buildRuntimeSnapshot({
+      workspaceId: wsId,
+      workspacePath: '/tmp/refresh',
+      productSku: sku,
+      authority: { kind: 'v2', bundle },
+      configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
+      sourceProductHash: '',
+    }));
+    snapshot.snapshotHash = snapshotHash(snapshot);
+    persistRuntimeSnapshot(snapshot);
+    db.run(`INSERT INTO onboarding_batches (id, workspace_id, name, file_name, created_at, updated_at)
+      VALUES (?, ?, 'Conditional chain', 'fixture', datetime('now'), datetime('now'))`, [batchId, wsId]);
+    db.run(`INSERT INTO onboarding_items (id, batch_id, row_number, upc, name, stage, stage_status, curation_data_json, created_at, updated_at)
+      VALUES (?, ?, 1, ?, 'Dog food', 'review', 'pending', ?, datetime('now'), datetime('now'))`,
+    [itemId, batchId, sku, JSON.stringify({ classificationRunId: runId })]);
+    db.run(`INSERT INTO classification_runs
+      (id, workspace_id, onboarding_item_id, source_kind, product_sku, status, config_snapshot_hash, started_at, completed_at)
+      VALUES (?, ?, ?, 'onboarding', ?, 'completed', ?, datetime('now'), datetime('now'))`,
+    [runId, wsId, itemId, sku, snapshot.snapshotHash]);
+
+    const pairId = randomUUID();
+    const featureId = randomUUID();
+    const speciesId = randomUUID();
+    const materialId = randomUUID();
+    const colorId = randomUUID();
+    for (const [id, type, targetId, value] of [
+      [pairId, 'product_classification', 'cat_food', { categoryId: 'cat_food_cat', productTypeId: 'cat_food' }],
+      [featureId, 'field_assignment', 'product-feature', 'Dog-only'],
+      [speciesId, 'field_assignment', 'species', 'Dog'],
+      [materialId, 'field_assignment', 'material', 'Nylon'],
+      [colorId, 'field_assignment', 'color', 'Blue'],
+    ] as const) {
+      db.run(`INSERT INTO classification_proposals
+        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 'pending', datetime('now'))`,
+      [id, runId, sku, type, targetId, JSON.stringify(value)]);
+    }
+    db.run(`INSERT INTO classification_evidence
+      (id, run_id, onboarding_item_id, product_sku, stage_name, source, reliability, attribute_id, source_field, snippet, value_json, metadata_json, created_at)
+      VALUES (?, ?, ?, ?, 'evidence_extraction', 'official_product_page', 'high', 'material', 'ProductField28', 'Nylon', '"Nylon"', '{}', datetime('now'))`,
+    [randomUUID(), runId, itemId, sku]);
+
+    const initialReview = submitProposalDecisions({
+      workspaceId: wsId,
+      productSku: sku,
+      runId,
+      sourceKind: 'onboarding',
+      onboardingItemId: itemId,
+      decisions: [
+        { proposalId: pairId, decision: 'accepted' },
+        { proposalId: featureId, decision: 'accepted' },
+        { proposalId: speciesId, decision: 'accepted' },
+        { proposalId: materialId, decision: 'accepted' },
+        { proposalId: colorId, decision: 'accepted' },
+      ],
+    });
+    expect(initialReview.ok).toBe(true);
+    const pairDecisionRevision = getProposalsByRun(runId).find(proposal => proposal.id === pairId)?.currentDecisionId;
+    expect(pairDecisionRevision).toBeTruthy();
+
+    const correctedPair = submitProposalDecisions({
+      workspaceId: wsId, productSku: sku, runId, sourceKind: 'onboarding', onboardingItemId: itemId,
+      decisions: [{
+        proposalId: pairId, decision: 'accepted', expectedRevisionId: pairDecisionRevision!,
+        revisedTargetId: 'dog_food',
+        revisedValue: { categoryId: 'dog_food_cat', productTypeId: 'dog_food' },
+      }],
+    });
+    expect(correctedPair.ok).toBe(true);
+    expect(getProposalsByRun(runId).find(proposal => proposal.id === featureId)?.status).toBe('stale');
+    expect(getProposalsByRun(runId).find(proposal => proposal.id === speciesId)?.status).toBe('stale');
+    expect(getProposalsByRun(runId).find(proposal => proposal.id === materialId)?.status).toBe('stale');
+
+    await refreshReviewedDependents({ runId, workspaceId: wsId, itemId });
+
+    const refreshedProposals = getProposalsByRun(runId);
+    for (const id of [featureId, speciesId, materialId]) {
+      expect(refreshedProposals.find(proposal => proposal.id === id)?.status).toBe('stale');
+    }
+    const colorProposal = getProposalsByRun(runId).find(proposal => proposal.id === colorId);
+    expect(colorProposal?.status).toBe('accepted');
+    expect(colorProposal?.currentDecisionId).toBeTruthy();
+
+    const applicabilityResult = getStageResults(runId).find(stage => stage.stage_name === 'attribute_applicability');
+    const applicability = JSON.parse(applicabilityResult!.output_json!).metadata.applicability as Array<{
+      attributeId: string;
+      state: string;
+    }>;
+    expect(applicability.find(entry => entry.attributeId === 'product-feature')?.state).toBe('not_applicable');
+    expect(applicability.find(entry => entry.attributeId === 'species')?.state).toBe('unknown');
+    expect(applicability.find(entry => entry.attributeId === 'material')?.state).toBe('unknown');
+    expect(applicability.find(entry => entry.attributeId === 'color')?.state).toBe('applicable');
+
+    const readiness = evaluateCanonicalReadiness({ workspaceId: wsId, runId });
+    expect(readiness).toMatchObject({ ok: false, code: 'required_values_missing' });
+    if (!readiness.ok) {
+      expect(readiness.details.requiredValues.find(value => value.attributeId === 'material')?.status)
         .toBe('required_unknown');
     }
   });

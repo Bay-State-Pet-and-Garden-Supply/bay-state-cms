@@ -15,7 +15,7 @@ import { resolveAttributeProfilePlan } from '../attribute-profile-plan';
 import { composeEffectiveReviewedFacts } from '../reviewed-facts';
 import { resolveProductTypeInvariants } from '../product-type-invariants';
 import { isUniversalAttribute } from '../applicability-evaluator';
-import { getEffectiveProposalTargetId } from '../assignment-projection';
+import { getEffectiveProposalTargetId } from '../effective-proposal';
 
 /** Preserve a populated multi-valued slot instead of proposing a subset. */
 function isAlreadyPopulatedMultiValue(input: {

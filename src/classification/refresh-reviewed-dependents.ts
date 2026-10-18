@@ -1,6 +1,6 @@
 import { getAcceptedProposals, getEvidenceByRun, getLiveDecisionsByRun, getRun } from '../db/repositories/classification-run-repo';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
-import { getEffectiveClassificationPair, getEffectiveProposalTargetId } from './assignment-projection';
+import { getEffectiveClassificationPair } from './assignment-projection';
 import { isApprovedClassificationPair } from './product-classification';
 import { runPipeline } from './pipeline-runner';
 import { attributeApplicabilityStage } from './stages/attribute-applicability';
@@ -10,6 +10,7 @@ import {
   assertDependentReviewCurrent, finishDependentReviewProjection,
   isTypeDependentProposal, listCurrentRunProposals, claimDependentReviewLease,
   assertDependentReviewLease, failDependentReviewLease, getConditionalUniversalAttributeIds,
+  getApplicableAcceptedPremiseProposalIds,
 } from '../db/repositories/classification-dependent-review-repo';
 import { redactTransportText } from './model-policy-gateway';
 
@@ -52,22 +53,12 @@ export async function refreshReviewedDependents(input: {
   if (lease.alreadyCompleted) return { runId: run.id, proposalCount: 0 };
   const refreshId = lease.refreshId;
   const assertHeld = () => { assertDependentReviewCurrent(guardInput); assertDependentReviewLease(lease); };
-  const selectedType = snapshot.productTypes.find(candidate => candidate.id === typeId);
-  const profileId = (selectedType as { attributeProfileId?: string | null } | undefined)?.attributeProfileId;
-  const selectedProfile = profileId
-    ? snapshot.attributeProfiles.find(profile => profile.id === profileId)
-    : undefined;
   const conditionalUniversalAttributeIds = getConditionalUniversalAttributeIds(snapshot, typeId);
-  const conditionalPremiseIds = new Set((selectedProfile?.attributes ?? [])
-    .flatMap(rule => rule.applicabilityConditions.flatMap(condition => {
-      if (!condition || typeof condition !== 'object') return [];
-      const attributeId = (condition as { attributeId?: unknown }).attributeId;
-      return typeof attributeId === 'string' ? [attributeId] : [];
-    })));
+  const preservablePremiseProposalIds = getApplicableAcceptedPremiseProposalIds(snapshot, pair, run.id, accepted);
   const acceptedFacts = accepted.filter(proposal =>
     !isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)
     || (proposal.proposalType === 'field_assignment'
-      && conditionalPremiseIds.has(getEffectiveProposalTargetId(proposal) ?? '')
+      && preservablePremiseProposalIds.has(proposal.id)
       && proposal.status === 'accepted'
       && !proposal.isStale
       && proposal.currentDecisionId != null
@@ -77,7 +68,7 @@ export async function refreshReviewedDependents(input: {
   const retained = listCurrentRunProposals(run.id).filter(proposal =>
     !isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)
     || (proposal.proposalType === 'field_assignment'
-      && conditionalPremiseIds.has(getEffectiveProposalTargetId(proposal) ?? '')
+      && preservablePremiseProposalIds.has(proposal.id)
       && proposal.status === 'accepted'
       && !proposal.isStale
       && proposal.currentDecisionId != null
@@ -85,7 +76,7 @@ export async function refreshReviewedDependents(input: {
       && proposal.productSku === run.productSku),
   );
   const preservedProposalIds = new Set(acceptedFacts
-    .filter(proposal => proposal.proposalType === 'field_assignment' && conditionalPremiseIds.has(getEffectiveProposalTargetId(proposal) ?? ''))
+    .filter(proposal => proposal.proposalType === 'field_assignment' && preservablePremiseProposalIds.has(proposal.id))
     .map(proposal => proposal.id));
   try {
   const result = await runPipeline([

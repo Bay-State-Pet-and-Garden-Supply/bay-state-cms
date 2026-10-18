@@ -7,16 +7,9 @@ import { deterministicStringify } from '../git/deterministic-json';
 import { resolveWebsiteClassification, type BundleView } from './product-classification';
 import { resolveCanonicalClassificationOutputBindings, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
-
-/** Return the reviewed correction when present, including an explicit null. */
-export function getEffectiveProposalValue(proposal: ClassificationProposal): unknown {
-  return proposal.hasRevisedValue ? proposal.revisedValue : proposal.proposedValue;
-}
-
-/** Return the reviewed target when present; otherwise retain the immutable target. */
-export function getEffectiveProposalTargetId(proposal: ClassificationProposal): string | null {
-  return proposal.hasRevisedTargetId ? proposal.revisedTargetId ?? null : proposal.targetId;
-}
+import { resolveAttributeProfilePlan } from './attribute-profile-plan';
+import { composeEffectiveReviewedFacts } from './reviewed-facts';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
 
 /** Extract a stable Product Type ID from either supported proposal value shape. */
 export function getProductTypeIdFromValue(value: unknown): string | null {
@@ -285,6 +278,8 @@ export interface AssignmentProjectionAuthority {
   verifiedPageNames?: ReadonlyMap<string, string>;
   categories?: BundleView['categories'];
   productTypes?: BundleView['productTypes'];
+  /** Present on production authority (including null) to distinguish missing frozen authority from legacy test-only use. */
+  snapshot?: RuntimeClassificationSnapshot | null;
 }
 
 /**
@@ -297,13 +292,16 @@ export function createAssignmentProjectionAuthority(
   verifiedPageNames?: ReadonlyMap<string, string>,
   currentClassificationOutputBindings: CanonicalClassificationOutputBindingV2[] = [],
 ): AssignmentProjectionAuthority {
-  if (!snapshot) return verifiedPageNames
-    ? { verifiedPageNames, currentClassificationOutputBindings }
-    : { currentClassificationOutputBindings };
+  if (!snapshot) return {
+    ...(verifiedPageNames ? { verifiedPageNames } : {}),
+    currentClassificationOutputBindings,
+    snapshot: snapshot ?? null,
+  };
   const verifiedPages = snapshot.pages.state === 'verified'
     ? snapshot.pages.records.filter(page => page.verified)
     : [];
   return {
+    snapshot,
     attributes: snapshot.attributes,
     frozenMappings: snapshot.attributeMappings,
     currentClassificationOutputBindings,
@@ -341,6 +339,17 @@ export function buildAssignmentProjection(
   const additions: Array<{ pageId: string; pageName: string }> = [];
   const removals: Array<{ pageId: string; pageName: string }> = [];
   const skipped: Array<{ proposalId: string; targetId: string | null; reason: string }> = [];
+  const classificationProposal = acceptedProposals.find(proposal => proposal.proposalType === 'product_classification');
+  const effectivePair = classificationProposal
+    ? getEffectiveClassificationPair(classificationProposal)
+    : { categoryId: null, productTypeId: null };
+  const runId = acceptedProposals.find(proposal => proposal.runId)?.runId;
+  const reviewedFacts = authority.snapshot
+    ? composeEffectiveReviewedFacts(authority.snapshot, acceptedProposals, runId ?? '')
+    : [];
+  const profilePlan = authority.snapshot
+    ? resolveAttributeProfilePlan(authority.snapshot, effectivePair, reviewedFacts)
+    : null;
   const classificationProposals = acceptedProposals.filter(proposal => proposal.proposalType === 'product_classification');
   if (classificationProposals.length > 1) {
     for (const proposal of classificationProposals) {
@@ -472,6 +481,15 @@ export function buildAssignmentProjection(
         .some(item => typeof item !== 'string' && typeof item !== 'number' && typeof item !== 'boolean'))) {
         refuse('Attribute value has an invalid serialization shape');
         continue;
+      }
+      if (authority.snapshot !== undefined) {
+        const applicability = profilePlan?.entries.find(entry => entry.attribute.id === targetId)?.applicability;
+        const explicitReviewedClear = proposal.hasRevisedValue && value === null;
+        if (applicability?.state !== 'applicable' && !explicitReviewedClear) {
+          refuse(applicability?.reason
+            ?? 'Frozen Attribute Profile applicability is unavailable; re-review under a frozen approved profile.');
+          continue;
+        }
       }
       const validation = validateSerializableValue(value, attribute);
       if (!validation.ok) {

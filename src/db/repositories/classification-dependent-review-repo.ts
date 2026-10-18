@@ -1,14 +1,85 @@
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
+import type { ProductAttributeConfig } from '../../shared/schemas/classification';
+import type { ClassificationProposal } from '../../shared/types';
 import { getDb } from '../connection';
 import { findItemById, updateItemCurationData } from './onboarding-item-repo';
 import { getProposalsByRun, getEvidenceByRun, getLiveDecisionsByRun, getRun } from './classification-run-repo';
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
-import { getEffectiveClassificationPair, getEffectiveProposalTargetId } from '../../classification/assignment-projection';
+import { getEffectiveClassificationPair, validateSerializableValue } from '../../classification/assignment-projection';
+import { getEffectiveProposalTargetId } from '../../classification/effective-proposal';
+import { composeEffectiveReviewedFacts } from '../../classification/reviewed-facts';
+import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
 import { hashCanonicalJson } from '../../shared/stable-id';
 import { markReviewInvalidated } from './onboarding-review-repo';
 import { randomUUID } from 'node:crypto';
 import { enqueueRefreshItem } from './classification-refresh-repo';
 
+function isValidReviewedPremiseValue(
+  value: unknown,
+  attribute: ProductAttributeConfig,
+  cardinality: 'single' | 'multiple',
+): boolean {
+  if (value === null || value === undefined || (cardinality === 'multiple') !== Array.isArray(value)) return false;
+  const values = Array.isArray(value) ? value : [value];
+  if (values.length === 0 || values.some(item => item === null || item === undefined)) return false;
+  if (values.some(item => typeof item === 'string' && item.trim().length === 0)) return false;
+  if (attribute.valueMode === 'measured') {
+    if (values.some(item => (typeof item !== 'string' && typeof item !== 'number')
+      || (typeof item === 'number' && !Number.isFinite(item)))) return false;
+  } else if (values.some(item => typeof item !== 'string')) {
+    return false;
+  }
+  return validateSerializableValue(value, attribute).ok;
+}
+
+/** Current accepted condition premises that remain valid under the corrected profile. */
+export function getApplicableAcceptedPremiseProposalIds(
+  snapshot: RuntimeClassificationSnapshot,
+  pair: { categoryId: string | null; productTypeId: string | null },
+  runId: string,
+  proposals: readonly ClassificationProposal[],
+): ReadonlySet<string> {
+  const selectedType = snapshot.productTypes.find(type => type.id === pair.productTypeId);
+  const profileId = selectedType && 'attributeProfileId' in selectedType
+    && typeof selectedType.attributeProfileId === 'string'
+    ? selectedType.attributeProfileId : null;
+  const profiles = profileId ? snapshot.attributeProfiles.filter(profile => profile.id === profileId) : [];
+  if (profiles.length !== 1 || !Array.isArray(profiles[0]?.attributes)) return new Set<string>();
+  const profile = profiles[0]!;
+  const premiseIds = new Set((profile?.attributes ?? []).flatMap(rule =>
+    Array.isArray(rule.applicabilityConditions)
+      ? rule.applicabilityConditions.flatMap(condition => {
+        if (!condition || typeof condition !== 'object' || !('attributeId' in condition)) return [];
+        return typeof condition.attributeId === 'string' ? [condition.attributeId] : [];
+      })
+      : [],
+  ));
+  if (premiseIds.size === 0) return new Set<string>();
+
+  const effectiveFacts = composeEffectiveReviewedFacts(snapshot, [...proposals], runId);
+  const preliminaryPlan = resolveAttributeProfilePlan(snapshot, pair, []);
+  const entriesById = new Map(preliminaryPlan.entries.map(entry => [entry.attribute.id, entry]));
+  const validFacts = effectiveFacts.filter(fact => {
+    if (!fact.targetId) return false;
+    const entry = entriesById.get(fact.targetId);
+    return Boolean(entry && isValidReviewedPremiseValue(fact.value, entry.attribute, entry.cardinality));
+  });
+  const plan = resolveAttributeProfilePlan(snapshot, pair, validFacts);
+  const applicableById = new Map(plan.entries.map(entry => [entry.attribute.id, entry.applicability.state]));
+  const currentProposalIds = new Set(proposals.map(proposal => proposal.id));
+  const effectiveFactByTarget = new Set<string>();
+  const preservableProposalIds = new Set<string>();
+  for (const fact of validFacts) {
+    if (!fact.targetId || effectiveFactByTarget.has(fact.targetId)) continue;
+    effectiveFactByTarget.add(fact.targetId);
+    if (premiseIds.has(fact.targetId)
+      && currentProposalIds.has(fact.proposalId)
+      && applicableById.get(fact.targetId) === 'applicable') {
+      preservableProposalIds.add(fact.proposalId);
+    }
+  }
+  return preservableProposalIds;
+}
 const dependentAbstentionStages = new Set(['attribute_applicability', 'product_attribute_proposals', 'category_page_proposals']);
 
 /** Called inside the decision transaction, before corrected type authority is exposed. */
@@ -18,23 +89,16 @@ export function invalidateDependentTypeReview(runId: string, snapshot: RuntimeCl
   const proposals = listCurrentRunProposals(runId);
   const classification = proposals.find(proposal => proposal.proposalType === 'product_classification' && proposal.status === 'accepted');
   const pair = classification ? getEffectiveClassificationPair(classification) : null;
-  const type = pair ? snapshot?.productTypes.find(candidate => candidate.id === pair.productTypeId) : null;
-  const profileId = type && 'attributeProfileId' in type && typeof type.attributeProfileId === 'string'
-    ? type.attributeProfileId : null;
-  const profile = profileId ? snapshot?.attributeProfiles.find(candidate => candidate.id === profileId) : null;
-  const premiseIds = new Set((profile?.attributes ?? []).flatMap(rule =>
-    rule.applicabilityConditions.flatMap(condition => {
-      if (!condition || typeof condition !== 'object' || !('attributeId' in condition)) return [];
-      return typeof condition.attributeId === 'string' ? [condition.attributeId] : [];
-    }),
-  ));
+  const preservablePremiseProposalIds = snapshot && pair
+    ? getApplicableAcceptedPremiseProposalIds(snapshot, pair, runId, proposals)
+    : new Set<string>();
   const conditionalUniversalAttributeIds = snapshot ? getConditionalUniversalAttributeIds(snapshot, pair?.productTypeId ?? null) : new Set<string>();
   const liveAccepted = new Set(getLiveDecisionsByRun(runId)
     .filter(decision => decision.decision === 'accepted' && decision.decisionOrigin === 'human_review')
     .map(decision => decision.proposalId));
   for (const proposal of proposals) {
     const preservePremise = proposal.proposalType === 'field_assignment'
-      && premiseIds.has(getEffectiveProposalTargetId(proposal) ?? '')
+      && preservablePremiseProposalIds.has(proposal.id)
       && proposal.status === 'accepted'
       && !proposal.isStale
       && proposal.currentDecisionId != null

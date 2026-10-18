@@ -86,7 +86,7 @@ export function resolveAttributeProfilePlan(
   const facts = reviewedFacts.filter(fact => fact.productSku === snapshot.productSku && fact.workspaceId === snapshot.workspaceId);
   const { rules, ...profile } = resolveProfile(snapshot, pair);
   const rulesById = new Map(rules.map(rule => [rule.attributeId, rule]));
-  const entries = snapshot.attributes.map(attribute => {
+  const contexts = snapshot.attributes.map(attribute => {
     const rule = rulesById.get(attribute.id) ?? null;
     const targets = snapshot.curationTargets.filter(target =>
       target.kind === 'product_field' && target.attributeId === attribute.id && (target.enabled || target.mandatory),
@@ -97,34 +97,73 @@ export function resolveAttributeProfilePlan(
       || (mapping !== undefined && (mapping.isStale || isProtectedCatalogField(mapping.catalogField, attribute.id, snapshot.attributeMappings)))
       || targets.some(target => target.catalogField && isProtectedCatalogField(target.catalogField, attribute.id, snapshot.attributeMappings));
     const required = rule?.required === true || targets.some(target => target.required);
-    let applicability: AttributeApplicability;
+    let staticApplicability: AttributeApplicability | null = null;
     if (protectedOutput) {
-      applicability = required
+      staticApplicability = required
         ? { attributeId: attribute.id, state: 'unknown', reason: 'Required Classification Attribute has a protected or unverified output binding.' }
         : { attributeId: attribute.id, state: 'not_applicable', reason: 'Protected or unverified output is not a Classification Attribute.' };
     } else if (targets.length > 0 && (bindings.length !== 1 || !mapping?.catalogField
       || targets.some(target => target.catalogField && target.catalogField !== mapping.catalogField))) {
-      applicability = { attributeId: attribute.id, state: 'unknown', reason: `Frozen Classification Attribute "${attribute.id}" has no unique current field binding consistent with its configured target.` };
+      staticApplicability = { attributeId: attribute.id, state: 'unknown', reason: `Frozen Classification Attribute "${attribute.id}" has no unique current field binding consistent with its configured target.` };
     } else if (profile.status === 'configuration_gap') {
-      applicability = { attributeId: attribute.id, state: 'unknown', reason: profile.reason! };
+      staticApplicability = { attributeId: attribute.id, state: 'unknown', reason: profile.reason! };
     } else if (!isUniversalAttribute(attribute) && profile.status !== 'ready') {
-      applicability = { attributeId: attribute.id, state: 'unknown', reason: profile.reason! };
+      staticApplicability = { attributeId: attribute.id, state: 'unknown', reason: profile.reason! };
     } else if (!isUniversalAttribute(attribute) && !rule) {
-      applicability = { attributeId: attribute.id, state: 'not_applicable', reason: `Attribute is not in the Product Classification profile (${pair.productTypeId}).` };
-    } else {
-      // Universal ownership is independent of a complete pair, but a broken
-      // selected profile remains a configuration gap for every output.
-      const state = evaluateConditions(rule?.applicabilityConditions ?? [], facts);
-      applicability = {
-        attributeId: attribute.id, state,
-        ...(state === 'unknown' ? { reason: 'Applicability condition cannot be decided from accepted/reviewed facts.' }
-          : state === 'not_applicable' ? { reason: 'Applicability condition is not satisfied by accepted/reviewed facts.' } : {}),
-      };
+      staticApplicability = { attributeId: attribute.id, state: 'not_applicable', reason: `Attribute is not in the Product Classification profile (${pair.productTypeId}).` };
     }
+
+    const conditions = rule?.applicabilityConditions ?? [];
     return {
-      attribute, rule, applicability,
-      required,
+      attribute, rule, required,
       cardinality: rule?.cardinality ?? targets[0]?.selectionMode ?? 'single',
+      conditions,
+      staticApplicability,
+    };
+  });
+  const states = new Map<string, AttributeApplicability['state']>();
+  for (const context of contexts) {
+    states.set(context.attribute.id, context.staticApplicability?.state
+      ?? (context.conditions.length === 0 ? 'applicable' : 'unknown'));
+  }
+
+  // Resolve the least fixed point from independent facts. A fact may serve as
+  // a premise only after its source attribute is known applicable; facts from
+  // not-applicable or unresolved sources cannot bootstrap a conditional chain
+  // or cycle into applicability.
+  const usableFacts: ReviewedFact[] = [];
+  let changed: boolean;
+  do {
+    changed = false;
+    usableFacts.length = 0;
+    for (const fact of facts) {
+      if (fact.targetId !== null && states.get(fact.targetId) === 'applicable') usableFacts.push(fact);
+    }
+    for (const context of contexts) {
+      if (context.staticApplicability || context.conditions.length === 0
+        || states.get(context.attribute.id) !== 'unknown') continue;
+      const state = evaluateConditions(context.conditions, usableFacts);
+      if (state !== 'unknown') {
+        states.set(context.attribute.id, state);
+        changed = true;
+      }
+    }
+  } while (changed);
+
+  const entries = contexts.map(context => {
+    const applicability = context.staticApplicability ?? {
+      attributeId: context.attribute.id,
+      state: states.get(context.attribute.id)!,
+      ...(states.get(context.attribute.id) === 'unknown'
+        ? { reason: 'Applicability condition cannot be decided from accepted/reviewed facts.' }
+        : states.get(context.attribute.id) === 'not_applicable'
+          ? { reason: 'Applicability condition is not satisfied by accepted/reviewed facts.' }
+          : {}),
+    };
+    return {
+      attribute: context.attribute, rule: context.rule, applicability,
+      required: context.required,
+      cardinality: context.cardinality,
     };
   });
   return { ...profile, entries };

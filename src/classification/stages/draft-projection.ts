@@ -1,6 +1,7 @@
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
 import { readProductFile } from '../../git/workspace-files';
-import { buildAssignmentProjection, createAssignmentProjectionAuthority, getEffectiveProposalTargetId, getEffectiveProposalValue } from '../assignment-projection';
+import { buildAssignmentProjection, createAssignmentProjectionAuthority } from '../assignment-projection';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from '../effective-proposal';
 import { getCachedClassificationOutputBindings } from '../../db/repositories/classification-config-repo';
 
 /**
