@@ -4,9 +4,10 @@ import { readProductFile } from '../../git/workspace-files';
 import { classifyCatalogProduct } from '../../classification/catalog-product-classifier';
 import { computeProductHash } from '../../classification/catalog-product-source';
 import { getDb } from '../../db/connection';
-import { getRecentCatalogRun, getEvidenceByRun, getLiveDecisionsByRun, getProposalsByRun, getStageResults } from '../../db/repositories/classification-run-repo';
+import { getRecentCatalogRun, getAcceptedProposals, getEvidenceByRun, getLiveDecisionsByRun, getProposalsByRun, getStageResults } from '../../db/repositories/classification-run-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../../classification/config-loader';
-import { authorityConfigHashMatches, runtimeSnapshotHashMatchesConfig } from '../../classification/runtime-snapshot';
+import { authorityConfigHashMatches, getRuntimeSnapshotByHash, runtimeSnapshotHashMatchesConfig } from '../../classification/runtime-snapshot';
+import { projectCurrentReviewedDraft } from '../../classification/stages/draft-projection';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
 import { validateCatalogReviewCompletionGate } from '../../classification/review-completion-gate';
 import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
@@ -20,7 +21,7 @@ const route = new Hono();
  * GET /api/products/:sku/classification
  * Get the latest catalog classification run detail for a product SKU.
  */
-route.get('/products/:sku/classification', (c) => {
+route.get('/products/:sku/classification', async (c) => {
   const workspace = getCurrentWorkspace();
   if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
 
@@ -28,12 +29,34 @@ route.get('/products/:sku/classification', (c) => {
   const run = getRecentCatalogRun(workspace.id, sku);
 
   if (!run) {
-    return c.json({ run: null, configDrift: false, sourceDrift: false, evidence: [], proposals: [], decisions: [], stageResults: [], classificationReadiness: null });
+    return c.json({ run: null, configDrift: false, sourceDrift: false, evidence: [], proposals: [], decisions: [], stageResults: [], classificationReadiness: null, draftProjection: null });
   }
 
   const evidence = getEvidenceByRun(run.id);
   const proposals = getProposalsByRun(run.id);
+  const acceptedProposals = getAcceptedProposals(sku, run.id);
   const stageResults = getStageResults(run.id);
+
+  const runtimeSnapshot = run.configSnapshotHash
+    ? getRuntimeSnapshotByHash(workspace.id, run.configSnapshotHash)
+    : null;
+  const draftProjection = runtimeSnapshot && (run.status === 'completed' || run.status === 'completed_with_abstentions')
+    ? await projectCurrentReviewedDraft({
+        sku,
+        expectedSnapshotHash: run.configSnapshotHash,
+        sourceKind: 'catalog_product',
+        evidence,
+        proposals,
+        acceptedProposals,
+        stageResults,
+      }, {
+        workspacePath: workspace.workspacePath,
+        workspaceId: workspace.id,
+        runId: run.id,
+        configSnapshotRef: runtimeSnapshot.configSnapshotRef,
+        snapshot: runtimeSnapshot,
+      })
+    : null;
 
   const classificationReadiness = evaluateCanonicalReadiness({ workspaceId: workspace.id, runId: run.id });
 
@@ -84,6 +107,7 @@ route.get('/products/:sku/classification', (c) => {
     decisions,
     classificationReadiness,
     stageResults,
+    draftProjection,
   });
 });
 

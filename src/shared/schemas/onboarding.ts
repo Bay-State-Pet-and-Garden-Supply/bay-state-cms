@@ -7,6 +7,7 @@ import {
   ClassificationProposalSchema,
   ClassificationProposalDecisionSchema,
   ClassificationHistoryEventSchema,
+  ClassificationDraftProjectionPreviewSchema,
 } from './classification';
 import { VariantSelectionReceiptSchema } from './variant-resolution';
 
@@ -1101,6 +1102,7 @@ export const CurationDataSchema = z.object({
   classificationProposals: z.array(ClassificationProposalSchema).default(() => []),
   classificationDecisions: z.array(ClassificationProposalDecisionSchema).default(() => []),
   classificationHistory: z.array(ClassificationHistoryEventSchema).default(() => []),
+  classificationDraftProjection: ClassificationDraftProjectionPreviewSchema.nullable().optional(),
   /**
    * Issue #351 (SKU-local evidence): the member's effective Curation Product
    * Type in prepared-cohort mode — the member's OWN reviewed (accepted)

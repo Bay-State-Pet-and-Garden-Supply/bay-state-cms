@@ -26,31 +26,58 @@ import {
   categoryPageProposalsStage,
 } from '../../classification';
 import type { StageContext, StageInput } from '../../classification/types';
+import { buildRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import type { ClassificationConfig } from '../../shared/schemas/classification';
+
+let baseContext: StageContext;
 
 beforeAll(() => {
-  // The stage reads frozen mapping and page authority. A live DB keeps
-  // imports valid, but projection never uses its mapping caches.
   initDb(':memory:');
   runMigrations();
+  const config = {
+    manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: '', updatedAt: '', fileVersions: {} },
+    productTypes: [],
+    attributes: [],
+    attributeProfiles: [],
+    attributeMappings: [],
+    curationTargets: [],
+    brands: [],
+    guidance: [],
+    modelPolicy: {
+      defaultProvider: 'ollama',
+      defaultModel: '',
+      stageOverrides: {},
+      imageDataSharing: 'local_only',
+      textDataSharing: 'local_only',
+    },
+    dataSharing: {
+      imagePolicy: 'local_only',
+      textPolicy: 'local_only',
+      sensitiveDataFiltering: true,
+      retentionDays: 90,
+    },
+  } satisfies ClassificationConfig;
+  const snapshot = buildRuntimeSnapshot({
+    workspaceId: 'workspace',
+    workspacePath: '/tmp/workspace',
+    productSku: 'SKU1',
+    config,
+    configSnapshotRef: { id: 'snapshot', hash: 'hash', sourceCommit: null, createdAt: '' },
+    sourceProductHash: null,
+    pages: { state: 'no_verified_page_catalog', nameOnlyRecords: [] },
+  });
+  baseContext = {
+    workspacePath: '/tmp/workspace',
+    workspaceId: 'workspace',
+    runId: 'run-1',
+    configSnapshotRef: snapshot.configSnapshotRef,
+    snapshot,
+  };
 });
 
 afterAll(() => {
   closeDb();
 });
-
-const baseContext: StageContext = {
-  workspacePath: '/tmp/workspace',
-  workspaceId: 'workspace',
-  runId: 'run-1',
-  configSnapshotRef: { id: 'snapshot', hash: 'hash', sourceCommit: null, createdAt: '' },
-  // A frozen projection authority with no mapped attributes or verified
-  // Pages; it has the complete shape consumed by this stage.
-  snapshot: {
-    attributeMappings: [],
-    attributes: [],
-    pages: { state: 'no_verified_page_catalog', nameOnlyRecords: [] },
-  } as unknown as StageContext['snapshot'],
-};
 
 const baseInput: StageInput = {
   sku: 'SKU1',

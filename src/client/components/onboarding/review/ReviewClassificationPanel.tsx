@@ -20,6 +20,7 @@ import type { ItemDetailResponse } from '../../../onboarding-api';
 import type { ClassificationProposal } from '../../../../shared/schemas/classification';
 import { CanonicalClassificationReadiness } from '../../CanonicalClassificationReadiness';
 import type { CurationData } from '../../../../shared/schemas/onboarding';
+import { ClassificationDraftProjectionCard } from '../../ClassificationDraftProjectionCard';
 
 /** e09 round-3 FIX 1 (adjudication #10): correction payload written alongside
  *  suggestedPages when the added page resolves to a VERIFIED Page ID. */
@@ -168,6 +169,7 @@ export function ReviewClassificationPanel({
   const gating = curation?.categoryPageGating ?? null;
   const dropped = curation?.speciesGuardDropped ?? [];
   const provenance = curation?.taxonomyProvenance ?? null;
+  const draftProjection = curation?.classificationDraftProjection ?? null;
 
   const handleDecision = async (proposal: ClassificationProposal, decision: 'accepted' | 'rejected') => {
     if (readOnly) return;
@@ -216,6 +218,7 @@ export function ReviewClassificationPanel({
       </div>
       <CanonicalClassificationReadiness result={detail?.classificationReadiness} />
       <div className="rv-panel-body">
+        <ClassificationDraftProjectionCard preview={draftProjection} />
         {withoutResults && (
           <div className="rv-empty">
             {gating?.needsReviewedType

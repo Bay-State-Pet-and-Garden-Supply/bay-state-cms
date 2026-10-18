@@ -1,4 +1,6 @@
-import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
+import type { StageDefinition, StageContext, StageInput, StageOutput, StageResult } from '../types';
+import { ClassificationDraftProjectionPreviewSchema, type ClassificationDraftProjectionPreview } from '../../shared/schemas/classification';
+import { snapshotHash } from '../runtime-snapshot';
 import { readProductFile } from '../../git/workspace-files';
 import { buildAssignmentProjection, createAssignmentProjectionAuthority } from '../assignment-projection';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue } from '../effective-proposal';
@@ -144,3 +146,142 @@ export const productDraftProjectionStage: StageDefinition = {
     return blocked ? { status: 'abstained', reason: message, output } : { status: 'succeeded', output };
   },
 };
+
+type CurrentDraftProjectionInput = {
+  sku: string;
+  expectedSnapshotHash: string | null;
+  sourceKind?: StageInput['sourceKind'];
+  onboardingItemId?: string;
+  evidence: StageInput['evidence'];
+  acceptedProposals: StageInput['acceptedProposals'];
+  proposals: StageInput['allProposals'];
+  stageResults: readonly { stage_name?: unknown; output_json?: unknown }[];
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  const record = asRecord(value);
+  if (!record) return {};
+  return Object.fromEntries(Object.entries(record).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function refusalList(value: unknown): Array<{ proposalId: string; targetId: string | null; reason: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = asRecord(item);
+    return record && typeof record.proposalId === 'string'
+      && (typeof record.targetId === 'string' || record.targetId === null)
+      && typeof record.reason === 'string'
+      ? [{ proposalId: record.proposalId, targetId: record.targetId, reason: record.reason }]
+      : [];
+  });
+}
+
+function previewFromStageResult(result: StageResult): ClassificationDraftProjectionPreview {
+  if (result.status === 'failed') {
+    return ClassificationDraftProjectionPreviewSchema.parse({
+      status: 'failed',
+      message: null,
+      error: result.error,
+      projection: null,
+    });
+  }
+  const output = result.output;
+  if (!output) {
+    return ClassificationDraftProjectionPreviewSchema.parse({
+      status: 'abstained',
+      message: result.status === 'abstained' ? result.reason : null,
+      error: null,
+      projection: null,
+    });
+  }
+
+  const projection = asRecord(output.metadata?.projection);
+  const rawTitle = asRecord(projection?.title);
+  return ClassificationDraftProjectionPreviewSchema.parse({
+    status: result.status,
+    message: result.status === 'abstained' ? result.reason : output.message ?? null,
+    error: null,
+    projection: projection ? {
+      fieldAssignments: stringRecord(projection.fieldAssignments),
+      pageAssignments: stringList(projection.pageAssignments),
+      removedPages: stringList(projection.removedPages),
+      selectionMode: projection.selectionMode,
+      refusals: refusalList(projection.refusals),
+      provisionalFieldAssignments: stringRecord(projection.provisionalFieldAssignments),
+      pendingPageAssignments: stringList(projection.pendingPageAssignments),
+      pendingRemovedPages: stringList(projection.pendingRemovedPages),
+      provisionalRefusals: refusalList(projection.provisionalRefusals),
+      title: rawTitle && typeof rawTitle.value === 'string' && typeof rawTitle.source === 'string'
+        ? { value: rawTitle.value, source: rawTitle.source }
+        : null,
+    } : null,
+  });
+}
+
+function restoredNameConsolidationOutput(
+  stageResults: CurrentDraftProjectionInput['stageResults'],
+): StageOutput | undefined {
+  let output: StageOutput | undefined;
+  for (const row of stageResults) {
+    if (row.stage_name !== 'name_consolidation' || typeof row.output_json !== 'string') continue;
+    try {
+      const parsed = asRecord(JSON.parse(row.output_json));
+      const metadata = asRecord(parsed?.metadata);
+      if (metadata) output = { evidence: [], proposals: [], abstained: false, metadata };
+    } catch {
+      // A malformed historical stage result must not prevent field projection.
+    }
+  }
+  return output;
+}
+
+/**
+ * Recomputes the user-facing draft projection from the run's frozen authority
+ * and current reviewer decisions. Persisted stage rows remain historical.
+ */
+export async function projectCurrentReviewedDraft(
+  input: CurrentDraftProjectionInput,
+  context: StageContext,
+): Promise<ClassificationDraftProjectionPreview> {
+  const snapshot = context.snapshot;
+  if (
+    !snapshot
+    || input.expectedSnapshotHash === null
+    || snapshot.snapshotHash !== input.expectedSnapshotHash
+    || snapshotHash(snapshot) !== input.expectedSnapshotHash
+    || snapshot.workspaceId !== context.workspaceId
+    || snapshot.productSku !== input.sku
+  ) {
+    return ClassificationDraftProjectionPreviewSchema.parse({
+      status: 'failed',
+      message: null,
+      error: 'Frozen classification authority is unavailable or does not match this run.',
+      projection: null,
+    });
+  }
+
+  const acceptedProposals = input.acceptedProposals;
+  const stageOutputs = {
+    name_consolidation: restoredNameConsolidationOutput(input.stageResults),
+  };
+  const result = await productDraftProjectionStage.execute({
+    sku: input.sku,
+    sourceKind: input.sourceKind,
+    onboardingItemId: input.onboardingItemId,
+    evidence: input.evidence,
+    acceptedProposals,
+    allProposals: input.proposals,
+    stageOutputs,
+  }, context);
+  return previewFromStageResult(result);
+}

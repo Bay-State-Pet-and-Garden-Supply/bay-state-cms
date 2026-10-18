@@ -15,6 +15,7 @@ import { deriveEvidenceView } from '../classification-evidence-view';
 import { EvidenceCitationList } from './pipeline-drawer/EvidenceCitationList';
 import { CanonicalClassificationReadiness } from './CanonicalClassificationReadiness';
 import { colors } from '../theme';
+import { ClassificationDraftProjectionCard } from './ClassificationDraftProjectionCard';
 
 const buttonBase: React.CSSProperties = {
   padding: '8px 14px',
@@ -186,6 +187,7 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
       {detail?.run && detail.classificationReadiness && (
         <CanonicalClassificationReadiness result={detail.classificationReadiness} />
       )}
+      {detail?.run && <ClassificationDraftProjectionCard preview={detail.draftProjection} />}
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>

@@ -260,11 +260,15 @@ import {
   getEvidenceByRun,
   getLiveDecisionsByRun,
   getProposalsByRun,
+  getAcceptedProposals,
+  getStageResults,
   getValidatedOnboardingRun,
 } from '../../db/repositories/classification-run-repo';
 import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from '../../classification/consistency-validator';
 import { validateReviewCompletionGate, validateItemCategoryPagesAssigned } from '../../classification/review-completion-gate';
 import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
+import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
+import { projectCurrentReviewedDraft } from '../../classification/stages/draft-projection';
 import {
   buildReviewCompletenessContext,
   evaluateReviewCompleteness,
@@ -489,6 +493,7 @@ const runOwnedCurationKeys = [
   'classificationProposals',
   'classificationDecisions',
   'classificationHistory',
+  'classificationDraftProjection',
 ] as const;
 
 function withoutRunOwnedCurationData(data: Record<string, unknown>): Record<string, unknown> {
@@ -1901,21 +1906,56 @@ route.get('/onboarding/items/:id', async (c) => {
       : [];
 
   const activeRunId = validatedItemRunId(item);
+  const itemBatch = activeRunId ? findBatchById(item.batchId) : null;
+  const activeRun = activeRunId && itemBatch
+    ? getValidatedOnboardingRun(activeRunId, itemBatch.workspaceId, item.id, item.upc)
+    : null;
+  const workspace = activeRun ? findWorkspace() : null;
+  const currentProposals = activeRun ? getProposalsByRun(activeRun.id) : [];
+  const currentAcceptedProposals = activeRun ? getAcceptedProposals(item.upc, activeRun.id) : [];
+  const currentEvidence = activeRun ? getEvidenceByRun(activeRun.id) : [];
+  const currentStageResults = activeRun ? getStageResults(activeRun.id) : [];
+  const runtimeSnapshot = activeRun?.configSnapshotHash && itemBatch
+    ? getRuntimeSnapshotByHash(itemBatch.workspaceId, activeRun.configSnapshotHash)
+    : null;
+  const classificationDraftProjection = activeRun
+    && itemBatch
+    && workspace?.id === itemBatch.workspaceId
+    && runtimeSnapshot
+    && (activeRun.status === 'completed' || activeRun.status === 'completed_with_abstentions')
+    ? await projectCurrentReviewedDraft({
+        sku: item.upc,
+        expectedSnapshotHash: activeRun.configSnapshotHash,
+        sourceKind: 'onboarding',
+        onboardingItemId: item.id,
+        evidence: currentEvidence,
+        proposals: currentProposals,
+        acceptedProposals: currentAcceptedProposals,
+        stageResults: currentStageResults,
+      }, {
+        workspacePath: workspace.workspacePath,
+        workspaceId: workspace.id,
+        runId: activeRun.id,
+        configSnapshotRef: runtimeSnapshot.configSnapshotRef,
+        snapshot: runtimeSnapshot,
+      })
+    : null;
   const sanitizedCuration = item.curationData
     ? withoutRunOwnedCurationData(item.curationData as unknown as Record<string, unknown>)
     : null;
   const hydratedItem = item.curationData
     ? {
         ...item,
-        curationData: activeRunId
+        curationData: activeRun
           ? {
               ...sanitizedCuration,
-              classificationRunId: activeRunId,
+              classificationRunId: activeRun.id,
               classificationConfigSnapshot: item.curationData.classificationConfigSnapshot ?? null,
-              classificationProposals: getProposalsByRun(activeRunId),
-              classificationEvidence: getEvidenceByRun(activeRunId),
-              classificationDecisions: getLiveDecisionsByRun(activeRunId),
+              classificationProposals: currentProposals,
+              classificationEvidence: currentEvidence,
+              classificationDecisions: getLiveDecisionsByRun(activeRun.id),
               classificationHistory: [],
+              classificationDraftProjection,
             }
           : sanitizedCuration,
       }

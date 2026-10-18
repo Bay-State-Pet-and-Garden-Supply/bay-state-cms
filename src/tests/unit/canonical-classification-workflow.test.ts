@@ -31,6 +31,7 @@
  * local consumer workflows below; neither identifier is written as a label.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { Hono } from 'hono';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -66,6 +67,8 @@ import { getEffectiveProposalTargetId, getEffectiveProposalValue } from '../../c
 import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
 import { productDraftProjectionStage } from '../../classification/stages/draft-projection';
 import { classifyCatalogProduct } from '../../classification/catalog-product-classifier';
+import catalogClassificationRoutes from '../../server/routes/catalog-classification-routes';
+import onboardingRoutes from '../../server/routes/onboarding-routes';
 import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
 import { previewCandidate, activateBundle } from '../../classification/config-store';
@@ -917,31 +920,19 @@ describe('issue #357 reviewed-projection parity: Flavor→Material correction (c
     expect(FLAVOR_FIELD in projectedByField).toBe(false);
     expect(projection.skipped.map(s => s.targetId)).not.toContain('brand');
 
-    // Approved preview (draft-projection stage): SAME destination. This is
-    // the #357 regression — old main wrote the revised value to PF23 here
-    // while the generic projector wrote PF28.
-    const stageInput: StageInput = { sku, evidence: [], acceptedProposals: accepted, allProposals: accepted };
-    const stageResult = await productDraftProjectionStage.execute(
-      stageInput,
-      pairSnapshotContext(run.id, persisted, persisted.snapshot),
-    );
-    if (stageResult.status === 'failed') throw new Error(stageResult.error);
-    if (!stageResult.output) throw new Error('Draft projection stage returned no output');
-    const stageMetadata: unknown = stageResult.output.metadata;
-    if (!stageMetadata || typeof stageMetadata !== 'object' || !('projection' in stageMetadata)) {
-      throw new Error('draft projection stage returned no projection metadata');
-    }
-    const stageProjection: unknown = stageMetadata.projection;
-    if (!stageProjection || typeof stageProjection !== 'object' || !('fieldAssignments' in stageProjection)) {
-      throw new Error('draft projection metadata lacks fieldAssignments');
-    }
-    const previewFields = stageProjection.fieldAssignments;
-    if (!previewFields || typeof previewFields !== 'object') {
-      throw new Error('Draft projection returned invalid field assignments');
-    }
-    expect(MATERIAL_FIELD in previewFields && previewFields[MATERIAL_FIELD]).toBe('Rubber');
-    expect(FLAVOR_FIELD in previewFields).toBe(false);
-
+    // The catalog Review detail recomputes the preview from persisted current
+    // decisions and the run's captured authority, rather than returning the
+    // pre-review provisional stage output.
+    const app = new Hono();
+    app.route('/api', catalogClassificationRoutes);
+    const response = await app.request(`/api/products/${encodeURIComponent(sku)}/classification`);
+    expect(response.status).toBe(200);
+    const detail = await response.json();
+    const draftPreview = detail.draftProjection;
+    expect(draftPreview.status).toBe('succeeded');
+    const stageProjection = draftPreview.projection;
+    expect(stageProjection.fieldAssignments[MATERIAL_FIELD]).toBe('Rubber');
+    expect(FLAVOR_FIELD in stageProjection.fieldAssignments).toBe(false);
     // Actual local draft: the change-set product carries Rubber in PF28,
     // PF23 keeps its existing value, Brand and the rest survive.
     const result = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
@@ -1209,6 +1200,18 @@ describe('issue #357 reviewed-projection parity: onboarding consumer', () => {
       }),
       item.id,
     );
+    const app = new Hono();
+    app.route('/api', onboardingRoutes);
+    const response = await app.request(`/api/onboarding/items/${encodeURIComponent(item.id)}`);
+    expect(response.status).toBe(200);
+    const detail = await response.json();
+    const preview = detail.item.curationData.classificationDraftProjection;
+    expect(preview.status).toBe('succeeded');
+    expect(preview.projection.fieldAssignments[MATERIAL_FIELD]).toBe('Rubber');
+    expect(preview.projection.fieldAssignments[FLAVOR_FIELD]).toBe('');
+    expect(preview.projection.pageAssignments).toContain('Toys');
+    expect(preview.projection.removedPages).toContain('Old Page');
+    expect(preview.projection.provisionalFieldAssignments[MATERIAL_FIELD]).toBeUndefined();
     const reviewGate = validateReviewCompletionGate({
       workspaceId: WS_ID, onboardingItemId: item.id, productSku: sku, activeRunId: run.id,
     });

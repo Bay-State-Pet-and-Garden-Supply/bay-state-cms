@@ -59,8 +59,7 @@ export interface StageOutput {
   abstained: boolean;
   /** Reason for abstention or failure */
   message?: string;
-  /** Arbitrary metadata returned by the stage (e.g. compatibility data for CurationData fields).
-   * This data is NOT represented as proposals and does NOT appear in the Review UI. */
+  /** Stage metadata is not itself reviewable proposal data. Explicit read models may expose declared preview metadata in the Review UI. */
   metadata?: Record<string, unknown>;
 }
 

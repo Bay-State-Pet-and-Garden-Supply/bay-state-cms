@@ -1160,6 +1160,33 @@ export const ApplyCatalogClassificationRequestSchema = z.object({
 
 export type ApplyCatalogClassificationRequest = z.infer<typeof ApplyCatalogClassificationRequestSchema>;
 
+export const ClassificationDraftProjectionRefusalSchema = z.object({
+  proposalId: z.string(),
+  targetId: z.string().nullable(),
+  reason: z.string(),
+});
+
+/** Current reviewed draft projection, recomputed from frozen run authority. */
+export const ClassificationDraftProjectionPreviewSchema = z.object({
+  status: z.enum(['succeeded', 'failed', 'abstained']),
+  message: z.string().nullable(),
+  error: z.string().nullable(),
+  projection: z.object({
+    fieldAssignments: z.record(z.string(), z.string()),
+    pageAssignments: z.array(z.string()),
+    removedPages: z.array(z.string()),
+    selectionMode: z.enum(['refused', 'accepted', 'provisional_preview']),
+    refusals: z.array(ClassificationDraftProjectionRefusalSchema),
+    provisionalFieldAssignments: z.record(z.string(), z.string()),
+    pendingPageAssignments: z.array(z.string()),
+    pendingRemovedPages: z.array(z.string()),
+    provisionalRefusals: z.array(ClassificationDraftProjectionRefusalSchema),
+    title: z.object({ value: z.string(), source: z.string() }).nullable(),
+  }).nullable(),
+});
+
+export type ClassificationDraftProjectionPreview = z.infer<typeof ClassificationDraftProjectionPreviewSchema>;
+
 /**
  * Enriched run detail returned by GET /api/products/:sku/classification.
  */
@@ -1186,6 +1213,7 @@ export const CatalogClassificationRunDetailSchema = z.object({
     errorMessage: z.string().nullable(),
   })),
   classificationReadiness: CanonicalClassificationReadinessSchema.nullable().optional(),
+  draftProjection: ClassificationDraftProjectionPreviewSchema.nullable().optional(),
   projection: z.object({
     fields: z.array(z.object({
       catalogField: z.string(),
