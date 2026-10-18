@@ -85,7 +85,10 @@ export const productDraftProjectionStage: StageDefinition = {
       undefined,
       getCachedClassificationOutputBindings(context.workspaceId),
     );
-    const approved = buildAssignmentProjection(accepted, currentFields, currentPages, mappings, verifiedIds, authority);
+    const reviewContext = { reviewedProposals: accepted, currentRunProposals: allProposals };
+    const approved = buildAssignmentProjection(
+      accepted, currentFields, currentPages, mappings, verifiedIds, authority, reviewContext,
+    );
     const blocked = approved.skipped.length > 0;
     const fieldAssignments: Record<string, string> = {};
     if (!blocked) {
@@ -100,7 +103,9 @@ export const productDraftProjectionStage: StageDefinition = {
     const pending = allProposals.filter(proposal => proposal.status === 'pending' && !proposal.isStale
       && !acceptedTargets.has(getEffectiveProposalTargetId(proposal))
       && !acceptedPages.has(getEffectiveProposalTargetId(proposal) ?? ''));
-    const provisional = buildAssignmentProjection(pending, currentFields, currentPages, mappings, verifiedIds, authority);
+    const provisional = buildAssignmentProjection(
+      pending, currentFields, currentPages, mappings, verifiedIds, authority, reviewContext,
+    );
     const provisionalFieldAssignments: Record<string, string> = {};
     for (const field of provisional.fields) {
       if (!approved.fields.some(acceptedField => acceptedField.catalogField === field.catalogField)) {

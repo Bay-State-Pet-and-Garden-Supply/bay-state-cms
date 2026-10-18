@@ -135,6 +135,27 @@ function isUsableReviewedFactValue(value: unknown): boolean {
 }
 
 /**
+ * An explicit live rejection in the current run withdraws carried pair
+ * authority; it is not equivalent to having no current pair decision.
+ */
+export function findRejectedProductClassificationProposal(
+  currentRunProposals: readonly ClassificationProposal[],
+  productSku: string,
+): ClassificationProposal | null {
+  const runId = currentRunProposals.find(proposal => proposal.productSku === productSku)?.runId;
+  if (!runId) return null;
+  return currentRunProposals.find(proposal =>
+    proposal.runId === runId
+    && proposal.productSku === productSku
+    && proposal.proposalType === 'product_classification'
+    && proposal.status === 'rejected'
+    && !proposal.isStale
+    && !proposal.supersededAt
+    && proposal.currentDecisionId != null,
+  ) ?? null;
+}
+
+/**
  * Overlay this run's accepted field decisions on the compatible facts captured
  * by its snapshot. Cleared values still replace their prior target fact.
  */

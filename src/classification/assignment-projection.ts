@@ -8,7 +8,7 @@ import { resolveWebsiteClassification, type BundleView } from './product-classif
 import { resolveCanonicalClassificationOutputBindings, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
-import { composeEffectiveReviewedFacts } from './reviewed-facts';
+import { composeEffectiveReviewedFacts, findRejectedProductClassificationProposal } from './reviewed-facts';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
 import { parseMeasuredValue, validateAttributeProfileValue, validateSerializableValue } from './attribute-value-validation';
 
@@ -176,6 +176,11 @@ export interface AssignmentProjectionAuthority {
   /** Present on production authority (including null) to distinguish missing frozen authority from legacy test-only use. */
   snapshot?: RuntimeClassificationSnapshot | null;
 }
+/** Current decisions distinguish a retracted pair from an absent proposal. */
+export interface AssignmentProjectionReviewContext {
+  reviewedProposals?: readonly ClassificationProposal[];
+  currentRunProposals?: readonly ClassificationProposal[];
+}
 
 /**
  * Build projection authority from one frozen snapshot and the currently
@@ -223,6 +228,7 @@ export function buildAssignmentProjection(
   mappings: AttributeMappingConfig[],
   verifiedPageIds?: Set<string> | null,
   authority: AssignmentProjectionAuthority = {},
+  reviewContext: AssignmentProjectionReviewContext = {},
 ) {
   const fields: Array<{
     catalogField: string;
@@ -235,21 +241,37 @@ export function buildAssignmentProjection(
   const removals: Array<{ pageId: string; pageName: string }> = [];
   const skipped: Array<{ proposalId: string; targetId: string | null; reason: string }> = [];
   const classificationProposal = acceptedProposals.find(proposal => proposal.proposalType === 'product_classification');
-  const runId = acceptedProposals.find(proposal => proposal.runId)?.runId;
+  const reviewedContextProposals = reviewContext.reviewedProposals ?? acceptedProposals;
+  const currentRunProposals = reviewContext.currentRunProposals ?? reviewedContextProposals;
+  const runId = acceptedProposals.find(proposal => proposal.runId)?.runId
+    ?? reviewedContextProposals.find(proposal => proposal.runId)?.runId;
   const reviewedFacts = authority.snapshot
-    ? composeEffectiveReviewedFacts(authority.snapshot, acceptedProposals, runId ?? '')
+    ? composeEffectiveReviewedFacts(authority.snapshot, reviewedContextProposals, runId ?? '')
     : [];
-  const reviewedPairFact = reviewedFacts.find(fact =>
+  const contextClassificationProposal = reviewedContextProposals.find(proposal =>
+    proposal.proposalType === 'product_classification'
+    && proposal.status === 'accepted'
+    && !proposal.isStale
+    && proposal.currentDecisionId != null
+    && (!runId || proposal.runId === runId)
+    && (!authority.snapshot || proposal.productSku === authority.snapshot.productSku),
+  );
+  const rejectedClassificationProposal = authority.snapshot && !classificationProposal && !contextClassificationProposal
+    ? findRejectedProductClassificationProposal(currentRunProposals, authority.snapshot.productSku)
+    : null;
+  const reviewedPairFact = rejectedClassificationProposal ? undefined : reviewedFacts.find(fact =>
     fact.proposalType === 'product_classification'
     && fact.productSku === authority.snapshot?.productSku
     && fact.workspaceId === authority.snapshot?.workspaceId,
   );
   const effectivePair = classificationProposal
     ? getEffectiveClassificationPair(classificationProposal)
-    : {
-      categoryId: getCategoryIdFromValue(reviewedPairFact?.value),
-      productTypeId: getProductTypeIdFromValue(reviewedPairFact?.value),
-    };
+    : contextClassificationProposal
+      ? getEffectiveClassificationPair(contextClassificationProposal)
+      : {
+        categoryId: getCategoryIdFromValue(reviewedPairFact?.value),
+        productTypeId: getProductTypeIdFromValue(reviewedPairFact?.value),
+      };
   const profilePlan = authority.snapshot
     ? resolveAttributeProfilePlan(authority.snapshot, effectivePair, reviewedFacts)
     : null;
@@ -260,7 +282,7 @@ export function buildAssignmentProjection(
       targetId: getEffectiveProposalTargetId(classificationProposal),
       pair: getEffectiveClassificationPair(classificationProposal),
     }
-    : classificationProposals.length === 0 && reviewedPairFact
+    : classificationProposals.length === 0 && !contextClassificationProposal && reviewedPairFact
       ? {
         proposalId: reviewedPairFact.proposalId,
         targetId: reviewedPairFact.targetId,
@@ -270,6 +292,13 @@ export function buildAssignmentProjection(
         },
       }
       : null;
+  if (rejectedClassificationProposal && classificationProposals.length === 0) {
+    skipped.push({
+      proposalId: rejectedClassificationProposal.id,
+      targetId: getEffectiveProposalTargetId(rejectedClassificationProposal),
+      reason: 'Product Classification was rejected in this run; a carried pair cannot authorize output.',
+    });
+  }
   if (classificationProposals.length > 1) {
     for (const proposal of classificationProposals) {
       skipped.push({ proposalId: proposal.id, targetId: getEffectiveProposalTargetId(proposal),
@@ -409,8 +438,17 @@ export function buildAssignmentProjection(
       if (authority.snapshot !== undefined) {
         const explicitReviewedClear = proposal.hasRevisedValue && value === null;
         if (profileEntry?.applicability.state !== 'applicable' && !explicitReviewedClear) {
-          refuse(profileEntry?.applicability.reason
-            ?? 'Frozen Attribute Profile applicability is unavailable; re-review under a frozen approved profile.');
+          // Attributable refusal: the frozen current pair/profile leaves this
+          // attribute not_applicable or unknown (including a missing entry or
+          // a missing plan — never projected into fields). An explicit
+          // reviewed clear still removes rather than assigns (see above).
+          const state = profileEntry?.applicability.state
+            ?? (profilePlan ? 'not_applicable' : 'unknown');
+          const detail = profileEntry?.applicability.reason
+            ?? (profilePlan
+              ? `Attribute "${targetId}" has no frozen Attribute Profile entry under the current pair; re-review under a frozen approved profile.`
+              : 'Frozen Attribute Profile applicability is unavailable; re-review under a frozen approved profile.');
+          refuse(`Attribute "${targetId}" applicability is ${state}: ${detail}`);
           continue;
         }
       }

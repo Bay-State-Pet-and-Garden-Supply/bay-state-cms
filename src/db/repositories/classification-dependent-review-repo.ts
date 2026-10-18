@@ -7,7 +7,7 @@ import { getProposalsByRun, getEvidenceByRun, getLiveDecisionsByRun, getRun } fr
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
 import { getEffectiveClassificationPair } from '../../classification/assignment-projection';
 import { validateAttributeProfileValue } from '../../classification/attribute-value-validation';
-import { getEffectiveProposalTargetId } from '../../classification/effective-proposal';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from '../../classification/effective-proposal';
 import { composeEffectiveReviewedFacts } from '../../classification/reviewed-facts';
 import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
 import { hashCanonicalJson } from '../../shared/stable-id';
@@ -56,18 +56,33 @@ export function getApplicableAcceptedPremiseProposalIds(
     return Boolean(entry && isValidReviewedPremiseValue(fact.value, entry.attribute, entry.cardinality));
   });
   const plan = resolveAttributeProfilePlan(snapshot, pair, validFacts);
-  const applicableById = new Map(plan.entries.map(entry => [entry.attribute.id, entry.applicability.state]));
+  const correctedEntriesById = new Map(plan.entries.map(entry => [entry.attribute.id, entry]));
+  const proposalsById = new Map(proposals.map(proposal => [proposal.id, proposal]));
+  const liveAcceptedIds = new Set(getLiveDecisionsByRun(runId)
+    .filter(decision => decision.decision === 'accepted')
+    .map(decision => decision.proposalId));
   const currentProposalIds = new Set(proposals.map(proposal => proposal.id));
   const effectiveFactByTarget = new Set<string>();
   const preservableProposalIds = new Set<string>();
   for (const fact of validFacts) {
     if (!fact.targetId || effectiveFactByTarget.has(fact.targetId)) continue;
     effectiveFactByTarget.add(fact.targetId);
-    if (premiseIds.has(fact.targetId)
-      && currentProposalIds.has(fact.proposalId)
-      && applicableById.get(fact.targetId) === 'applicable') {
-      preservableProposalIds.add(fact.proposalId);
-    }
+    if (!premiseIds.has(fact.targetId) || !currentProposalIds.has(fact.proposalId)) continue;
+    const proposal = proposalsById.get(fact.proposalId);
+    if (!proposal
+      || proposal.proposalType !== 'field_assignment'
+      || proposal.status !== 'accepted'
+      || proposal.isStale
+      || proposal.currentDecisionId == null
+      || proposal.runId !== runId
+      || proposal.productSku !== snapshot.productSku
+      || !liveAcceptedIds.has(proposal.id)) continue;
+    const correctedEntry = correctedEntriesById.get(fact.targetId);
+    if (!correctedEntry || correctedEntry.applicability.state !== 'applicable') continue;
+    const effectiveValue = getEffectiveProposalValue(proposal);
+    if (effectiveValue === null || effectiveValue === undefined) continue;
+    if (!isValidReviewedPremiseValue(effectiveValue, correctedEntry.attribute, correctedEntry.cardinality)) continue;
+    preservableProposalIds.add(fact.proposalId);
   }
   return preservableProposalIds;
 }

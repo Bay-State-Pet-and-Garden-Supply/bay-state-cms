@@ -8,7 +8,8 @@
 import type { StageContext, StageInput } from './types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
 import { getEffectiveClassificationPair, getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
-import { selectClassificationProposal } from './proposal-selection';
+import type { ClassificationProposal } from '../shared/types';
+import { findRejectedProductClassificationProposal } from './reviewed-facts';
 
 export type EffectiveTypeSource = 'reviewed' | 'provisional' | 'none';
 
@@ -31,7 +32,11 @@ function pairFromValue(value: unknown): { categoryId: string | null; productType
 /** Frozen facts have already passed source/config provenance compatibility. */
 export function getReviewedClassificationPair(
   snapshot: RuntimeClassificationSnapshot | undefined,
+  currentRunProposals: readonly ClassificationProposal[] = [],
 ): { categoryId: string | null; productTypeId: string | null } {
+  if (snapshot && findRejectedProductClassificationProposal(currentRunProposals, snapshot.productSku)) {
+    return { categoryId: null, productTypeId: null };
+  }
   const fact = snapshot?.reviewedFacts.find(candidate =>
     candidate.proposalType === 'product_classification'
     && candidate.productSku === snapshot.productSku
@@ -75,23 +80,25 @@ export function getEffectiveClassification(
     return { effectiveTypeId: pair.productTypeId, effectiveCategoryId: pair.categoryId, source: 'reviewed' };
   }
   const snapshot = context.snapshot;
-  if (snapshot?.productSku === input.sku && snapshot.workspaceId === context.workspaceId) {
+  const currentRunProposals = input.allProposals.filter(proposal =>
+    proposal.productSku === input.sku && proposal.runId === context.runId,
+  );
+  const hasRejectedPair = findRejectedProductClassificationProposal(currentRunProposals, input.sku) !== null;
+  if (snapshot?.productSku === input.sku && snapshot.workspaceId === context.workspaceId && !hasRejectedPair) {
     const hasReviewedPair = snapshot.reviewedFacts.some(fact =>
       fact.proposalType === 'product_classification'
       && fact.productSku === input.sku
       && fact.workspaceId === context.workspaceId,
     );
     if (hasReviewedPair) {
-      const pair = getReviewedClassificationPair(snapshot);
+      const pair = getReviewedClassificationPair(snapshot, currentRunProposals);
       return { effectiveTypeId: pair.productTypeId, effectiveCategoryId: pair.categoryId, source: 'reviewed' };
     }
   }
   const provisional = selectClassificationProposal({
     ...input,
     acceptedProposals: [],
-    allProposals: input.allProposals.filter(proposal =>
-      proposal.productSku === input.sku && proposal.runId === context.runId,
-    ),
+    allProposals: currentRunProposals,
   }).proposal;
   if (provisional) {
     const pair = getEffectiveClassificationPair(provisional);

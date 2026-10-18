@@ -5,7 +5,7 @@ import {
   findGateRunById,
   findLatestEvidenceExtractionOutputJson,
   findRuntimeSnapshotEvidenceExtractionRuleVersion,
-  getAcceptedProposals,
+  getProposalsByRun,
   recordHistoryEvent,
 } from '../db/repositories/classification-run-repo';
 import { getCachedAttributeMappings, getCachedClassificationOutputBindings } from '../db/repositories/classification-config-repo';
@@ -157,6 +157,7 @@ export async function applyCatalogClassification(
   if (acceptedProposals.length === 0) {
     throw new Error('No accepted proposals to apply.');
   }
+  const currentRunProposals = getProposalsByRun(runId);
 
   const frozenSnapshot = run.config_snapshot_hash
     ? getRuntimeSnapshotByHash(workspaceId, run.config_snapshot_hash)
@@ -182,6 +183,7 @@ export async function applyCatalogClassification(
     new Set(verifiedPages.map(page => page.id)),
     createAssignmentProjectionAuthority(frozenSnapshot, new Map(verifiedPages.map(page => [page.id, page.name])),
       getCachedClassificationOutputBindings(workspaceId)),
+    { reviewedProposals: acceptedProposals, currentRunProposals },
   );
   if (projection.skipped.length > 0) {
     throw new Error(`Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`);

@@ -55,6 +55,9 @@ export async function refreshReviewedDependents(input: {
   const assertHeld = () => { assertDependentReviewCurrent(guardInput); assertDependentReviewLease(lease); };
   const conditionalUniversalAttributeIds = getConditionalUniversalAttributeIds(snapshot, typeId);
   const preservablePremiseProposalIds = getApplicableAcceptedPremiseProposalIds(snapshot, pair, run.id, accepted);
+  const liveAcceptedIds = new Set(getLiveDecisionsByRun(run.id)
+    .filter(decision => decision.decision === 'accepted')
+    .map(decision => decision.proposalId));
   const acceptedFacts = accepted.filter(proposal =>
     !isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)
     || (proposal.proposalType === 'field_assignment'
@@ -62,6 +65,7 @@ export async function refreshReviewedDependents(input: {
       && proposal.status === 'accepted'
       && !proposal.isStale
       && proposal.currentDecisionId != null
+      && liveAcceptedIds.has(proposal.id)
       && proposal.runId === run.id
       && proposal.productSku === run.productSku),
   );
@@ -72,6 +76,7 @@ export async function refreshReviewedDependents(input: {
       && proposal.status === 'accepted'
       && !proposal.isStale
       && proposal.currentDecisionId != null
+      && liveAcceptedIds.has(proposal.id)
       && proposal.runId === run.id
       && proposal.productSku === run.productSku),
   );

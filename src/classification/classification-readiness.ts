@@ -20,7 +20,7 @@
  *   overlaid on compatible reviewed facts captured in the run snapshot.
  */
 import { getCachedAttributeMappings, getCachedClassificationOutputBindings } from '../db/repositories/classification-config-repo';
-import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun } from '../db/repositories/classification-run-repo';
+import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun, getProposalsByRun } from '../db/repositories/classification-run-repo';
 import { composeEffectiveReviewedFacts } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
@@ -86,6 +86,7 @@ export function evaluateCanonicalReadiness(input: {
   }
 
   const accepted = getAcceptedProposals(run.product_sku, run.id);
+  const currentRunProposals = getProposalsByRun(run.id);
   const decisions = getLiveDecisionsByRun(run.id);
   const currentAccepted = accepted.filter(proposal =>
     proposal.status === 'accepted' && !proposal.isStale &&
@@ -105,7 +106,7 @@ export function evaluateCanonicalReadiness(input: {
 
   const reviewedPair = acceptedPairs.length === 1
     ? getEffectiveClassificationPair(acceptedPairs[0]!)
-    : getReviewedClassificationPair(snapshot);
+    : getReviewedClassificationPair(snapshot, currentRunProposals);
   const categoryId = reviewedPair.categoryId;
   const productTypeId = reviewedPair.productTypeId;
   if (!categoryId || !productTypeId) {
