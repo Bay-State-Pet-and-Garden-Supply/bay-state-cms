@@ -205,6 +205,10 @@ describe('Evidence Extraction — distributor_record source (Amendment A)', () =
 
   function makeDistributorMember(): Record<string, any> {
     return {
+      // Genuine V2 frozen member: the freeze producer self-versions V2
+      // members (`execution-evidence-v2`); the shared frozen mapping only
+      // routes versioned distributor members to `distributor_record`.
+      version: 'execution-evidence-v2',
       onboardingItemId: 'item-dist-1',
       ordinal: 0,
       productSku: '300000000001',
@@ -291,12 +295,12 @@ describe('Evidence Extraction — distributor_record source (Amendment A)', () =
     expect(evidence.some(e => e.sourceField === 'primaryImage')).toBe(false);
     expect(evidence.some(e => e.sourceField === 'someCopy')).toBe(false);
 
-    // Metadata carries sorted attempt/provider ids, generation, hash, per-field provenance.
+    // Metadata carries producer-sorted attempt/provider ids, generation, hash, per-field provenance.
     const nameEntry = evidence.find(e => e.sourceField === 'name' && e.source === 'distributor_record');
     const nameMeta = nameEntry!.metadata;
     expect(nameMeta.provenance).toBe('distributor_record');
     expect(nameMeta.sourcingGenerationId).toBe('gen-dist-1');
-    expect(nameMeta.acceptedEvidenceAttemptIds).toEqual(['a2', 'a1']);
+    expect(nameMeta.acceptedEvidenceAttemptIds).toEqual(['a1', 'a2']);
     expect(nameMeta.acceptedProviderIds).toEqual(['bci', 'phillips']);
     expect(nameMeta.distributorEvidenceHash).toBe(DIST_HASH);
     expect(nameMeta.fieldProvenance).toEqual({ title: 'phillips', brand: 'phillips', weight: 'phillips' });
