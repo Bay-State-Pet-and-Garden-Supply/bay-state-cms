@@ -5,8 +5,10 @@ import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../../classific
 import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../../classification/page-snapshot';
 
 import { hashCanonicalJson } from '../../../shared/stable-id';
+import type { ClassificationConfigBundleV2 } from '../../../shared/schemas/classification';
+import type { Database } from '../../../db/driver';
 interface SeedCanonicalPromotionAuthorityOptions {
-  db: { run: (query: string, parameters?: unknown[]) => unknown };
+  db: Database;
   workspaceId: string;
   workspacePath: string;
   sku: string;
@@ -15,6 +17,8 @@ interface SeedCanonicalPromotionAuthorityOptions {
   requiredAttributeId?: string;
 }
 
+/** Persisted snapshot handle plus the frozen bundle for cache sync. */
+export interface SeededCanonicalPromotionAuthority { id: string; hash: string; bundle: ClassificationConfigBundleV2 }
 /** Seed explicit test-only website mappings and a frozen V2 authority snapshot for promotion tests. */
 export function seedCanonicalPromotionAuthority({
   db,
@@ -24,7 +28,7 @@ export function seedCanonicalPromotionAuthority({
   runId,
   includePair = true,
   requiredAttributeId,
-}: SeedCanonicalPromotionAuthorityOptions): void {
+}: SeedCanonicalPromotionAuthorityOptions): SeededCanonicalPromotionAuthority {
   const now = new Date().toISOString();
   const websiteValues = new Map([
     ['dog-food-dry', { category: 'QA/test-only dog-food category', productType: 'QA/test-only dry dog food' }],
@@ -109,4 +113,5 @@ export function seedCanonicalPromotionAuthority({
       [`decision-${pairProposalId}`, pairProposalId, `decision-token-${pairProposalId}`, now],
     );
   }
+  return { ...persisted, bundle };
 }

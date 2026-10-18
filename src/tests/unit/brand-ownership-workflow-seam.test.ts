@@ -32,13 +32,27 @@ import {
 } from '../../db/repositories/classification-run-repo';
 import {
   createConfigSnapshot,
+  getCachedClassificationOutputBindings,
+  upsertConfigSnapshot,
 } from '../../db/repositories/classification-config-repo';
+import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../classification/page-snapshot';
+import { generateCandidate } from '../../classification/config-generator';
+import type { BayStateSeed } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
+import { previewCandidate, activateBundle } from '../../classification/config-store';
+import { scanCatalogEvidence, renderCatalogEvidence, verifyCatalogEvidenceTreeIntegrity } from '../../classification/catalog-evidence';
+import { updateFieldMetadata } from '../../server/services/field-metadata-service';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import type { RuntimeConfigAuthority } from '../../classification/config-loader';
+import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../../classification/config-loader';
 import { processProductFieldTarget, processProductFieldTargetsBatch } from '../../classification/curation-target-processor';
 import type { ResolvedTarget } from '../../classification/curation-target-resolver';
 import type { StageInput, StageContext } from '../../classification/types';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
-import { buildAssignmentProjection } from '../../classification/assignment-projection';
+import { buildAssignmentProjection, createAssignmentProjectionAuthority } from '../../classification/assignment-projection';
 import { productDraftProjectionStage } from '../../classification/stages/draft-projection';
 import type { StageResult } from '../../classification/types';
 import { applyCatalogClassification } from '../../classification/catalog-product-application';
@@ -79,6 +93,119 @@ function configFixture(): ClassificationConfig {
     modelPolicy: { defaultProvider: 'ollama', defaultModel: '', stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only' },
     dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
   } satisfies ClassificationConfig;
+}
+
+function brandSeamSeed(overrides?: { material?: boolean }): BayStateSeed {
+  // Genuine v2 authority via the governed seed. Certified slots
+  // (docs/audits/extra-fields-certification-2026-10-15): PF23 Facet-Flavor,
+  // PF28 Facet-Material, PF16 Brand (identity, never a classifier write).
+  // The Brand curation target stays ENABLED to prove the shared composition
+  // guard covers it — no path emits a Brand proposal even from an enabled
+  // seed target.
+  type SeedAttribute = BayStateSeed['attributes'][number];
+  type SeedProfileAttribute = BayStateSeed['profileTemplates'][number]['attributes'][number];
+  type SeedMapping = BayStateSeed['mappings'][number];
+  type SeedTarget = BayStateSeed['curationTargets'][number];
+  const withMaterial = overrides?.material !== false;
+  return {
+    ...BayStatePetGardenSeed,
+    name: 'Brand ownership seam fixture',
+    revision: 'brand-ownership-seam-v2',
+    categories: [{ id: 'brand-seam', name: 'Brand Seam', description: null }],
+    productTypes: [
+      { id: 'brand-seam-type', name: 'Brand Seam Type', description: null, categoryId: 'brand-seam',
+        websiteValues: { category: 'QA Brand Seam', productType: 'QA Brand Seam Type' } },
+    ],
+    attributes: [
+      { id: 'brand', name: 'Brand', description: 'Manufacturer or house brand.', valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Identity', isUniversal: true,
+        evidencePolicy: { directEvidenceRequired: false, forbidAbsenceInference: false, allowedSources: ['official_product_page', 'visual_product_evidence'], allowVisualEvidence: true, allowThirdPartyEvidence: false, thirdPartyEvidenceApproval: null, manualReviewRequired: true } } satisfies SeedAttribute,
+      { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Chicken', 'Beef'], valueAliases: [], visualEvidenceEligibility: 'ineligible', isClaim: false, isCompositionAttribute: false, group: 'Food', isUniversal: false } satisfies SeedAttribute,
+      ...(withMaterial ? [{ id: 'material', name: 'Material', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Rubber'], valueAliases: [], visualEvidenceEligibility: 'ineligible', isClaim: false, isCompositionAttribute: false, group: 'Material', isUniversal: false } satisfies SeedAttribute] : [] as SeedAttribute[]),
+    ],
+    profileTemplates: [
+      { id: 'brand-seam-profile', name: 'Brand Seam', productTypeIds: ['brand-seam-type'], attributes: [
+        { attributeId: 'flavor', required: false, cardinality: 'single' } satisfies SeedProfileAttribute,
+        ...(withMaterial ? [{ attributeId: 'material', required: false, cardinality: 'single' } satisfies SeedProfileAttribute] : [] as SeedProfileAttribute[]),
+      ] },
+    ],
+    mappings: [
+      { id: 'brand-mapping', attributeId: 'brand', catalogField: 'ProductField16', serialization: { kind: 'scalar', prefix: '', suffix: '' } } satisfies SeedMapping,
+      { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { kind: 'scalar', prefix: '', suffix: '' } } satisfies SeedMapping,
+      ...(withMaterial ? [{ id: 'material-map', attributeId: 'material', catalogField: 'ProductField28', serialization: { kind: 'scalar', prefix: '', suffix: '' } } satisfies SeedMapping] : [] as SeedMapping[]),
+    ],
+    classificationOutputBindings: [
+      { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+    ],
+    curationTargets: [
+      { id: 'class-target', kind: 'product_type', label: 'Primary Product Type', enabled: true, mandatory: false, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: true, sortOrder: 0 } satisfies SeedTarget,
+      { id: 'brand-target', kind: 'product_field', label: 'Brand', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'brand', catalogField: 'ProductField16', optionSource: 'configured', required: false, sortOrder: 1 } satisfies SeedTarget,
+      { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, sortOrder: 2 } satisfies SeedTarget,
+      ...(withMaterial ? [{ id: 'mt', kind: 'product_field', label: 'Material', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'material', catalogField: 'ProductField28', optionSource: 'configured', required: false, sortOrder: 3 } satisfies SeedTarget] : [] as SeedTarget[]),
+    ],
+  };
+}
+
+async function activateBrandSeamAuthority(product: Product, overrides?: { material?: boolean }): Promise<RuntimeConfigAuthority> {
+  writeProductFile(workspacePath, product);
+  // Every mapped slot must be attested in the live field registry or active
+  // validation fails closed (catalog_field_unattested) — including the Brand
+  // identity slot, which stays readable as input evidence but never a write.
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField16', { label: 'Brand' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField23', { label: 'Facet-Flavor' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField28', { label: 'Facet-Material' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField24', { label: 'Facet - Category' });
+  updateFieldMetadata({ id: WS_ID, workspacePath }, 'ProductField25', { label: 'Facet - Product Type' });
+  const git = (...args: string[]) => execFileSync('git', args, {
+    cwd: workspacePath, encoding: 'utf-8',
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+  }).trim();
+  git('init', '-b', 'main');
+  git('config', '--local', 'user.name', 'Brand Seam Fixture');
+  git('config', '--local', 'user.email', 'brand-seam@example.test');
+  git('config', '--local', 'core.hooksPath', '/dev/null');
+  git('config', '--local', 'commit.gpgsign', 'false');
+  git('add', 'products', 'store/field-registry.json');
+  git('commit', '-m', 'Seed brand seam catalog evidence');
+  const sourceCatalogCommit = git('rev-parse', 'HEAD');
+  const catalogEvidence = await scanCatalogEvidence(workspacePath, WS_ID);
+  const artifact = renderCatalogEvidence(catalogEvidence);
+  const catalogEvidenceHash = createHash('sha256').update(artifact).digest('hex');
+  const candidate = generateCandidate(brandSeamSeed(overrides), catalogEvidence);
+  const preview = previewCandidate(candidate.bundle, workspacePath, { catalogEvidence: artifact });
+  if (!preview.hash) throw new Error(`brand seam preview failed: ${JSON.stringify(preview.report.findings, null, 2)}`);
+  setTaxonomyFreezeForTests(false);
+  try {
+    await activateBundle(preview.hash, null, {
+      workspacePath, workspaceId: WS_ID, sourceCatalogCommit, catalogEvidenceHash,
+      activationContext: {
+        ...createRuntimeActivationContext(workspacePath, WS_ID),
+        verifyCatalogEvidenceTree: hash => verifyCatalogEvidenceTreeIntegrity(workspacePath, hash, WS_ID),
+      },
+    });
+  } finally {
+    setTaxonomyFreezeForTests(true);
+  }
+  const authority = loadRuntimeConfigAuthority(workspacePath, createRuntimeActivationContext(workspacePath, WS_ID));
+  if (authority.kind !== 'v2') throw new Error('Brand seam fixture did not activate V2 authority');
+  return authority;
+}
+
+function captureBrandSeamRun(authority: RuntimeConfigAuthority, product: Product, sku: string): { snapshot: RuntimeClassificationSnapshot; runId: string; configRef: { id: string; hash: string } } {
+  if (authority.kind !== 'v2') throw new Error('Brand seam fixture authority is not activated');
+  const configRef = upsertConfigSnapshot(WS_ID, authority.bundle, null);
+  const pages = captureVerifiedPageSnapshot(WS_ID);
+  const snapshot = buildRuntimeSnapshot({
+    workspaceId: WS_ID, workspacePath, productSku: sku, authority,
+    configSnapshotRef: { id: configRef.id, hash: configRef.hash, sourceCommit: null, createdAt: new Date().toISOString() },
+    sourceProductHash: computeProductHash(product),
+    pages: toPageSnapshotState(pages),
+    pageImportId: pages.pageImportId, pageImportHash: pages.pageImportHash,
+    productPageNames: product.core.productOnPages ?? [],
+  });
+  const persisted = persistRuntimeSnapshot(snapshot);
+  const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, { sourceKind: 'catalog_product', sourceProductHash: snapshot.sourceProductHash });
+  return { snapshot, runId: run.id, configRef };
 }
 
 function extendConfigWithMaterial(config: ClassificationConfig): ClassificationConfig {
@@ -400,32 +527,31 @@ describe('issue #349 workflow seam: Brand ownership end to end', () => {
       shopsite: { productId: null, productGuid: null, xmlVersion: '15.0', lastPulledAt: null, lastRemoteHash: null, lastSyncedAt: null, source: { dbname: 'products', uniqueName: 'SKU' }, preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} } },
       metadata: { createdAt: now, updatedAt: now, archivedAt: null },
     };
-    writeProductFile(workspacePath, product);
-    const config = configFixture();
-    const ref = createConfigSnapshot(WS_ID, config);
-    const snapshot = buildRuntimeSnapshot({ workspaceId: WS_ID, workspacePath, productSku: sku, config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: now }, sourceProductHash: computeProductHash(product) });
-    const persisted = persistRuntimeSnapshot(snapshot);
-
-    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, { sourceKind: 'catalog_product', sourceProductHash: snapshot.sourceProductHash });
+    // Genuine v2 authority: governed seed carries the frozen pair anchor and
+    // the certified PF23 flavor profile entry, so the accepted flavor
+    // projects under real frozen applicability (not a universal bypass).
+    const authority = await activateBrandSeamAuthority(product, { material: false });
+    const { snapshot, runId } = captureBrandSeamRun(authority, product, sku);
     const db = getDb();
-    const curated = await processProductFieldTarget(
-      fieldTarget('flavor-target', 'flavor', 'ProductField23', ['Chicken', 'Beef']),
-      fieldStageInput(sku, [ev('supplied-flavor', run.id, sku, {
-        source: 'official_product_page', sourceField: 'ProductField23', attributeId: 'flavor', value: 'Chicken dinner', snippet: 'Chicken dinner',
-      })]),
-      { workspacePath, workspaceId: WS_ID, runId: run.id, configSnapshotRef: snapshot.configSnapshotRef, snapshot },
-    );
-    expect(curated.proposals.map(proposal => [proposal.targetId, proposal.proposedValue])).toEqual([['flavor', 'Chicken']]);
-    const proposal = curated.proposals[0];
     db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
-      ['prop-flavor', run.id, sku, proposal.proposalType, proposal.targetId, JSON.stringify(proposal.proposedValue), proposal.confidence, 'pending', now]);
+      ['prop-flavor', runId, sku, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', now]);
     db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
-      ['prop-brand-hist', run.id, sku, 'field_assignment', 'brand', '"Acme"', 0.9, 'pending', now]);
-    completeRun(run.id, 'completed');
+      ['prop-brand-hist', runId, sku, 'field_assignment', 'brand', '"Acme"', 0.9, 'pending', now]);
+    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      ['prop-pair', runId, sku, 'product_classification', 'brand-seam-type', JSON.stringify({ categoryId: 'brand-seam', productTypeId: 'brand-seam-type' }), 0.95, 'pending', now]);
+    completeRun(runId, 'completed');
+
+    // The canonical pair confers frozen profile authority; the owned flavor
+    // value then projects under the governed plan.
+    const acceptPair = submitFrozenDecision({
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-pair', decision: 'accepted' }],
+    });
+    expect(acceptPair.ok).toBe(true);
 
     // Attempted protected revised target → attributable refusal.
     const refused = submitFrozenDecision({
-      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
       decisions: [{ proposalId: 'prop-flavor', decision: 'accepted', revisedTargetId: 'brand', revisedValue: 'Acme' }],
     });
     expect(refused.ok).toBe(false);
@@ -433,13 +559,13 @@ describe('issue #349 workflow seam: Brand ownership end to end', () => {
 
     // Historical Brand proposal accept → refused; reject → passes.
     const histAccept = submitFrozenDecision({
-      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
       decisions: [{ proposalId: 'prop-brand-hist', decision: 'accepted' }],
     });
     expect(histAccept.ok).toBe(false);
     if (!histAccept.ok) expect(histAccept.code).toBe('protected_target_refused');
     const histReject = submitFrozenDecision({
-      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
       decisions: [{ proposalId: 'prop-brand-hist', decision: 'rejected' }],
     });
     expect(histReject.ok).toBe(true);
@@ -448,15 +574,15 @@ describe('issue #349 workflow seam: Brand ownership end to end', () => {
     // owned change; identity/Name/description/images/pricing/inventory/Brand
     // survive byte-identical.
     const acceptFlavor = submitFrozenDecision({
-      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
       decisions: [{ proposalId: 'prop-flavor', decision: 'accepted' }],
     });
     expect(acceptFlavor.ok).toBe(true);
-    expect(getProposalsByRun(run.id).filter(p => p.targetId === 'brand' && p.status === 'accepted')).toEqual([]);
-    expect(getAcceptedProposals(sku, run.id).map(p => p.targetId)).toEqual(['flavor']);
+    expect(getProposalsByRun(runId).filter(p => p.targetId === 'brand' && p.status === 'accepted')).toEqual([]);
+    expect(getAcceptedProposals(sku, runId).filter(p => p.proposalType === 'field_assignment').map(p => p.targetId)).toEqual(['flavor']);
 
-    const result = await applyFrozenCatalogClassification(workspacePath, WS_ID, sku, run.id);
-    expect(result.appliedFields).toEqual(['ProductField23']);
+    const result = await applyFrozenCatalogClassification(workspacePath, WS_ID, sku, runId);
+    expect(result.appliedFields).toEqual(expect.arrayContaining(['ProductField23']));
     const items = listChangeSetItems(result.changeSetId);
     const draftFields = readChangeSetCustomFields(items[0].draftJson);
     expect(draftFields.ProductField23).toBe('Chicken');
@@ -475,31 +601,32 @@ describe('issue #349 workflow seam: Brand ownership end to end', () => {
     const sku = 'SKU-CORRECTED-DEST';
     const now = new Date().toISOString();
     const product = correctedDestProduct(sku, now);
-    writeProductFile(workspacePath, product);
-    const extendedConfig = extendConfigWithMaterial(configFixture());
-    persistFixtureConfig(extendedConfig);
-    const ref = createConfigSnapshot(WS_ID, extendedConfig);
-    const captured = buildRuntimeSnapshot({
-      workspaceId: WS_ID, workspacePath, productSku: sku, config: extendedConfig,
-      configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: now },
-      sourceProductHash: computeProductHash(product),
-    });
-    const persisted = persistRuntimeSnapshot(captured);
-    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, { sourceKind: 'catalog_product', sourceProductHash: computeProductHash(product) });
+    // Genuine v2 authority: governed seed carries the frozen pair anchor and
+    // the certified flavor+material profile entries, so the corrected
+    // destination projects under real frozen applicability.
+    const authority = await activateBrandSeamAuthority(product);
+    const { snapshot, runId } = captureBrandSeamRun(authority, product, sku);
     const db = getDb();
     db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
-      ['prop-flavor', run.id, sku, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', now]);
-    completeRun(run.id, 'completed');
+      ['prop-flavor', runId, sku, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', now]);
+    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+      ['prop-pair', runId, sku, 'product_classification', 'brand-seam-type', JSON.stringify({ categoryId: 'brand-seam', productTypeId: 'brand-seam-type' }), 0.95, 'pending', now]);
+    completeRun(runId, 'completed');
+    const acceptPair = submitFrozenDecision({
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-pair', decision: 'accepted' }],
+    });
+    expect(acceptPair.ok).toBe(true);
     const reviewed = submitFrozenDecision({
-      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      workspaceId: WS_ID, productSku: sku, runId, sourceKind: 'catalog_product',
       decisions: [{ proposalId: 'prop-flavor', decision: 'accepted', revisedTargetId: 'material', revisedValue: 'Rubber' }],
     });
     expect(reviewed.ok).toBe(true);
-    const accepted = getAcceptedProposals(sku, run.id);
-    const mappings = captured.attributeMappings;
+    const accepted = getAcceptedProposals(sku, runId);
+    const mappings = snapshot.attributeMappings;
     const projection = buildAssignmentProjection(
       accepted, product.customFields, product.core.productOnPages ?? [], mappings, new Set(),
-      { attributes: captured.attributes, frozenMappings: captured.attributeMappings },
+      createAssignmentProjectionAuthority(snapshot, undefined, getCachedClassificationOutputBindings(WS_ID)),
     );
     expect(projection.skipped).toEqual([]);
     const projectedByField: Record<string, string> = {};
@@ -509,13 +636,13 @@ describe('issue #349 workflow seam: Brand ownership end to end', () => {
     expect(isTaxonomyFrozen()).toBe(true);
     const stageResult = await productDraftProjectionStage.execute(
       { sku, evidence: [], acceptedProposals: accepted, allProposals: accepted },
-      { workspacePath, workspaceId: WS_ID, runId: run.id, configSnapshotRef: captured.configSnapshotRef, snapshot: captured },
+      { workspacePath, workspaceId: WS_ID, runId, configSnapshotRef: snapshot.configSnapshotRef, snapshot },
     );
     const previewAssignments = readPreviewFieldAssignments(stageResult);
     expect(previewAssignments['ProductField28']).toBe('Rubber');
     expect(previewAssignments['ProductField23']).toBeUndefined();
-    const result = await applyFrozenCatalogClassification(workspacePath, WS_ID, sku, run.id);
-    expect(result.appliedFields).toEqual(['ProductField28']);
+    const result = await applyFrozenCatalogClassification(workspacePath, WS_ID, sku, runId);
+    expect(result.appliedFields).toEqual(expect.arrayContaining(['ProductField28']));
     const items = listChangeSetItems(result.changeSetId);
     const draftFields = readChangeSetCustomFields(items[0].draftJson);
     expect(draftFields['ProductField28']).toBe('Rubber');

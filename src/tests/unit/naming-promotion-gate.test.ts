@@ -24,6 +24,8 @@ import { activatePageImportFromRecords } from '../../shopsite/page-import-servic
 import { listVerifiedPageOptions } from '../../db/repositories/page-repo';
 import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
 import { type ExtractionData, ExtractionDataSchema } from '../../shared/schemas/onboarding';
+import { seedCanonicalPromotionAuthority } from './helpers/seed-canonical-promotion-authority';
+import { syncConfigToCache } from '../../db/repositories/classification-config-repo';
 
 describe('Promotion naming gate (issue #106)', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'naming-gate-test.db');
@@ -87,6 +89,10 @@ describe('Promotion naming gate (issue #106)', () => {
       [proposalId, runId, sku, 'category_page', page.id, JSON.stringify({ pageId: page.id, pageName: 'Shoes' }), 1.0, 'accepted', now]);
     db.run(`INSERT OR IGNORE INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at) VALUES (?, ?, 'accepted', ?, ?)`,
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]);
+    // Mirror the frozen bundle's mappings/bindings into the cache tables so
+    // the shared frozen-vs-current resolution compares identical authorities.
+    const persisted = seedCanonicalPromotionAuthority({ db, workspaceId: wsId, workspacePath: tempWorkspaceDir, sku, runId });
+    syncConfigToCache(wsId, persisted.bundle as unknown as Parameters<typeof syncConfigToCache>[1]);
   }
 
   beforeAll(() => {
@@ -281,7 +287,8 @@ describe('Promotion naming gate (issue #106)', () => {
     const batch = createBatch({ workspaceId: wsId, name: 'g10', fileName: 'g10.csv', totalItems: 1 });
     const item = seedItem(batch.id, 'GATE-010', { seoFileName: 'recheck-base' });
     // Pipeline item (run pointer): the naming gate applies. Legacy items
-    // bypass it byte-identical (see the FIX0 regression test below).
+    // without a run pointer refuse with missing classification authority
+    // (#360 fail-closed; see the legacy-authority test below).
     seedGateReady(batch.id, 'GATE-010');
     const fresh = findItemById(item.id)!;
     const before = computePromotionGate(fresh, wsId, buildFilenameOwnershipSnapshot(wsId));
@@ -315,16 +322,20 @@ describe('Promotion naming gate (issue #106)', () => {
     expect(audit?.finalTitle).toBe('Test Brand GATE-011 Product 5 LB');
   });
 
-  it('legacy items (no run pointer) bypass the naming gate byte-identical (FIX0 regression)', () => {
-    // Naming-deficient title (no brand anywhere, no measurement) that would
-    // hold any pipeline item — legacy promotes exactly as before, with or
-    // without a snapshot.
+  it('legacy items (no run pointer) refuse with missing classification authority (#360 fail-closed)', () => {
+    // #360 removed the legacy no-snapshot fallback: missing core/profile
+    // authority never reports ready. Legacy items must reclassify; the naming
+    // gate is unreachable without classification authority.
     const batch = createBatch({ workspaceId: wsId, name: 'g12', fileName: 'g12.csv', totalItems: 1 });
     const item = seedItem(batch.id, 'GATE-012', { title: 'Bare Widget', brandHint: null });
     const fresh = findItemById(item.id)!;
     expect(fresh.curationData?.classificationRunId).toBeUndefined();
-    expect(computePromotionGate(fresh, wsId, buildFilenameOwnershipSnapshot(wsId)).ok).toBe(true);
-    expect(computePromotionGate(fresh, wsId, null).ok).toBe(true);
+    const withSnapshot = computePromotionGate(fresh, wsId, buildFilenameOwnershipSnapshot(wsId));
+    expect(withSnapshot.ok).toBe(false);
+    expect(withSnapshot.reason).toContain('classification');
+    const withoutSnapshot = computePromotionGate(fresh, wsId, null);
+    expect(withoutSnapshot.ok).toBe(false);
+    expect(withoutSnapshot.reason).toContain('classification');
   });
 
   it('single multi-word structured color is one family member, never multicolor (C1)', () => {
