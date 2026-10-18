@@ -4,6 +4,7 @@
  * persistence, and certified Flavor/PF23 and Material/PF28 destinations.
  * No live ShopSite/model transport or internal-module mocks.
  */
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -33,6 +34,7 @@ import { updateFieldMetadata } from '../../server/services/field-metadata-servic
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../../classification/config-loader';
 import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../classification/page-snapshot';
 import { ShopSiteProductCodec } from '../../shopsite/product-codec';
+import type { RuntimeConfigAuthority } from '../../classification/config-loader';
 import { createExportPackage } from '../../shopsite/export-package';
 import type { ClassificationProposal } from '../../shared/schemas/classification';
 import type { Product } from '../../shared/types';
