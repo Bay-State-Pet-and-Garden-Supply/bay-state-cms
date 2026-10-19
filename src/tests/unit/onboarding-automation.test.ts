@@ -62,7 +62,11 @@ import {
 import {
   releaseDomainExtractionItems,
   sweepDomainReleases,
+  DOMAIN_RELEASE_DISCOVERY_PAGE_SIZE,
 } from '../../onboarding/domain-release';
+import {
+  listBlockedExtractionItemsByWorkspace,
+} from '../../db/repositories/onboarding-item-repo';
 import { refreshCandidateCohorts } from '../../onboarding/curation-cohort-service';
 import { listWaitingCohortMemberIdsByWorkspace } from '../../db/repositories/curation-cohort-repo';
 import { onboardingEvents } from '../../onboarding/sse-emitter';
@@ -460,7 +464,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(after.stage).toBe('extraction');
   });
 
-  test('sweepAutoAdvance advances extraction→curation alongside the other legs', () => {
+  test('sweepAutoAdvance advances extraction→curation alongside the other legs', async () => {
     const batch = makeBatch();
     const d1 = makeItem(batch.id, '100035', 'Discovery Ready', 'discovery');
     setDiscoverySourceUrl(d1.id, 'https://brand.example.com/product/ready');
@@ -471,7 +475,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     stampCuration(c1.id, { curatedTitle: 'C1' });
     completeStage(c1.id);
 
-    const result = sweepAutoAdvance(workspaceId);
+    const result = await sweepAutoAdvance(workspaceId);
 
     expect(result.discoveryToExtraction).toEqual([d1.id]);
     expect(result.extractionToCuration).toEqual([e1.id]);
@@ -680,7 +684,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
 
   // ─── Sweep: mixed batch ──────────────────────────────────────────────────
 
-  test('sweepAutoAdvance advances only eligible items', () => {
+  test('sweepAutoAdvance advances only eligible items', async () => {
     const batch = makeBatch();
     const d1 = makeItem(batch.id, '100012', 'Discovery Ready', 'discovery');
     setDiscoverySourceUrl(d1.id, 'https://brand.example.com/product/ready');
@@ -697,12 +701,96 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     });
     db.query(`UPDATE onboarding_items SET stage_status = 'completed' WHERE id = ?`).run(c2.id);
 
-    const result = sweepAutoAdvance(workspaceId);
+    const result = await sweepAutoAdvance(workspaceId);
 
     expect(result.discoveryToExtraction).toEqual([d1.id]);
     expect(result.curationToReview).toEqual([c1.id]);
     expect(findItemById(d2.id)!.stage).toBe('discovery');
     expect(findItemById(c2.id)!.stage).toBe('curation');
+  });
+
+  test('blocked curation prefix cannot strand later review-ready rows (rotation)', async () => {
+    const batch = makeBatch();
+    const db = getDb();
+    const blockedIds: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const blocked = makeItem(batch.id, `200090${i}`, `Blocked Prefix ${i}`, 'curation');
+      stampCuration(blocked.id, {
+        curatedTitle: `B${i}`,
+        semanticValidation: { status: 'blocked', findings: [] },
+      });
+      db.query(`UPDATE onboarding_items SET stage_status = 'completed', row_number = ? WHERE id = ?`).run(i + 1, blocked.id);
+      blockedIds.push(blocked.id);
+    }
+    const ready = makeItem(batch.id, '200099', 'Ready Late Row', 'curation');
+    stampCuration(ready.id, { curatedTitle: 'Ready' });
+    db.query(`UPDATE onboarding_items SET stage_status = 'completed', row_number = ? WHERE id = ?`).run(3, ready.id);
+
+    // Budget of 2 never clears the 2-row blocked prefix in one poll; without
+    // rotation every poll would re-inspect the same prefix and the ready row
+    // would never advance. Rotation resumes after the last inspected row.
+    const advanced: string[] = [];
+    for (let poll = 0; poll < 3 && !advanced.includes(ready.id); poll++) {
+      const res = await sweepAutoAdvance(workspaceId, { limit: 2 });
+      advanced.push(...res.curationToReview);
+    }
+
+    expect(advanced).toContain(ready.id);
+    expect(findItemById(ready.id)!.stage).toBe('review');
+    for (const id of blockedIds) {
+      expect(findItemById(id)!.stage).toBe('curation');
+      expect(findItemById(id)!.stageStatus).toBe('completed');
+    }
+  });
+
+  test('held extraction prefix cannot starve a ready curation row (cross-leg fairness)', async () => {
+    const batch = makeBatch();
+    const db = getDb();
+    // Two held Extraction rows (in-flight cohort parent): the extraction leg
+    // never drains, so without cross-leg fairness every poll would spend its
+    // whole budget there and never visit Curation.
+    const heldIds: string[] = [];
+    const cohortId = 'cohort-held-ext-cross';
+    const cohortRunId = 'cohort-run-held-ext-cross';
+    const now = new Date().toISOString();
+    db.query(
+      `INSERT INTO curation_cohorts (id, workspace_id, batch_id, group_key, group_label, grouping_version, membership_hash, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'ready', ?, ?)`,
+    ).run(cohortId, workspaceId, batch.id, 'brand:stem', 'Brand Stem', 'product-family-v1', 'hash', now, now);
+    db.query(
+      `INSERT INTO classification_cohort_runs (id, workspace_id, cohort_id, candidate_membership_hash, evidence_snapshot_hash, status, created_at)
+       VALUES (?, ?, ?, 'cand-hash', 'evidence-hash', 'running', ?)`,
+    ).run(cohortRunId, workspaceId, cohortId, now);
+    for (let i = 0; i < 2; i++) {
+      const held = makeItem(batch.id, `300090${i}`, `Held Extraction ${i}`, 'extraction');
+      completeStage(held.id);
+      stampExtraction(held.id);
+      db.query(`UPDATE onboarding_items SET row_number = ? WHERE id = ?`).run(i + 1, held.id);
+      db.query(
+        `INSERT INTO curation_cohort_members (cohort_id, onboarding_item_id, product_sku, normalized_brand, normalized_name_stem, ordinal, created_at)
+         VALUES (?, ?, ?, 'brand', 'stem', ?, ?)`,
+      ).run(cohortId, held.id, held.upc, i, now);
+      heldIds.push(held.id);
+    }
+    const ready = makeItem(batch.id, '300099', 'Ready Curation Row', 'curation');
+    stampCuration(ready.id, { curatedTitle: 'Ready' });
+    db.query(`UPDATE onboarding_items SET stage_status = 'completed', row_number = ? WHERE id = ?`).run(3, ready.id);
+
+    // Tiny budget: the held extraction prefix alone could fill it. The
+    // curation row must still advance within a few polls (reserved per-leg
+    // capacity + rotating starting leg).
+    let advancedCuration: string[] = [];
+    for (let poll = 0; poll < 4 && !advancedCuration.includes(ready.id); poll++) {
+      const res = await sweepAutoAdvance(workspaceId, { limit: 2 });
+      advancedCuration.push(...res.curationToReview);
+    }
+
+    expect(advancedCuration).toContain(ready.id);
+    expect(findItemById(ready.id)!.stage).toBe('review');
+    for (const id of heldIds) {
+      expect(findItemById(id)!.stage).toBe('extraction');
+      expect(findItemById(id)!.stageStatus).toBe('completed');
+    }
   });
 
   // ─── Domain release ──────────────────────────────────────────────────────
@@ -886,12 +974,104 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     db.query(`UPDATE extractor_profiles SET updated_at = ? WHERE domain = ?`)
       .run(new Date(Date.now() + 1000).toISOString(), 'brand-a.example.com');
 
-    const result = sweepDomainReleases(workspaceId);
+    const result = await sweepDomainReleases(workspaceId);
 
     expect(result.releasedIds).toEqual([a.id]);
     expect(result.domains).toEqual(['brand-a.example.com']);
     expect(findItemById(b.id)!.stageStatus).toBe('failed');
   });
+
+  test('sweepDomainReleases pages discovery with a yield between pages (no unbounded pre-yield scan)', async () => {
+    // Issue #303 follow-up: the pre-release domain scan must not hold the
+    // loop for the whole blocked pool before the first yield. A pool with
+    // more blocked rows than one discovery page still yields between pages
+    // and releases exactly the eligible rows, with nothing left uncounted.
+    const batch = makeBatch();
+    const domain = 'paged.example.com';
+    const total = DOMAIN_RELEASE_DISCOVERY_PAGE_SIZE + 2;
+    const ids: string[] = [];
+    for (let i = 0; i < total; i += 1) {
+      const item = makeItem(batch.id, `3000${i}`, `Paged Item ${i}`, 'extraction');
+      failAsProfileBlocked(item.id, domain);
+      ids.push(item.id);
+    }
+    await makeDomainHealthy(domain);
+
+    let yields = 0;
+    const result = await sweepDomainReleases(workspaceId, {
+      limit: total,
+      yieldBetweenItems: async () => { yields += 1; },
+    });
+
+    // Two discovery pages (full page + remainder) force at least one
+    // between-pages yield before any per-domain release runs; the per-domain
+    // pass adds its own yield afterwards.
+    expect(yields).toBeGreaterThanOrEqual(2);
+    expect(result.releasedIds).toHaveLength(total);
+    expect(result.releasedIds.toSorted()).toEqual(ids.toSorted());
+    expect(result.eligibleRemaining).toBe(0);
+    for (const id of ids) {
+      expect(findItemById(id)!.stageStatus).toBe('pending');
+    }
+  });
+
+  test('paginated blocked pool returns only blocked rows and narrows via the stage/status index', async () => {
+    // P2 Spec finding: the paginated release query dropped
+    // `stage_status IN ('failed', 'needs_input')`, so unblocked rows entered
+    // discovery/per-domain checks and explicit releaseAllBlocked reported
+    // them as `transition_failed` skips. Unblocked rows must never appear.
+    const batch = makeBatch();
+    const domain = 'blocked-only.example.com';
+    const blocked = makeItem(batch.id, '400001', 'Blocked Item', 'extraction');
+    failAsProfileBlocked(blocked.id, domain);
+    const needsInput = makeItem(batch.id, '400002', 'Needs Input Item', 'extraction');
+    getDb().query(`UPDATE onboarding_items SET stage_status = 'needs_input', source_url = ?, error_message = ?, updated_at = ? WHERE id = ?`)
+      .run(`https://${domain}/product/needs-input`, `No extractor profile for ${domain} — profile required`, new Date().toISOString(), needsInput.id);
+    const pending = makeItem(batch.id, '400003', 'Pending Item', 'extraction');
+    getDb().query(`UPDATE onboarding_items SET stage_status = 'pending', source_url = ?, updated_at = ? WHERE id = ?`)
+      .run(`https://${domain}/product/pending`, new Date().toISOString(), pending.id);
+    const completed = makeItem(batch.id, '400004', 'Completed Item', 'extraction');
+    completeStage(completed.id);
+    getDb().query(`UPDATE onboarding_items SET source_url = ?, updated_at = ? WHERE id = ?`)
+      .run(`https://${domain}/product/completed`, new Date().toISOString(), completed.id);
+
+    // Paginated and unpaginated paths agree, and unblocked rows never appear.
+    const unpaged = listBlockedExtractionItemsByWorkspace(workspaceId);
+    expect(unpaged.map(r => r.id).toSorted()).toEqual([blocked.id, needsInput.id].toSorted());
+    const pageOne = listBlockedExtractionItemsByWorkspace(workspaceId, { limit: 1 });
+    expect(pageOne).toHaveLength(1);
+    const pageTwo = listBlockedExtractionItemsByWorkspace(workspaceId, { afterId: pageOne[0]!.id, limit: 1 });
+    expect(pageTwo).toHaveLength(1);
+    expect([pageOne[0]!.id, pageTwo[0]!.id].toSorted()).toEqual([blocked.id, needsInput.id].toSorted());
+    // Keyset pagination is exhaustive, not lossy: the whole pool is the union.
+    const all: string[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = listBlockedExtractionItemsByWorkspace(workspaceId, { afterId: cursor, limit: 1 });
+      for (const row of page) {
+        all.push(row.id);
+        cursor = row.id;
+      }
+      if (page.length < 1) break;
+    }
+    expect(all.toSorted()).toEqual([blocked.id, needsInput.id].toSorted());
+
+    // P2 Standards finding: the (row_number, id) cursor/order must not scan
+    // the candidate pool. Both production pages (first + keyset-resumed,
+    // production WHERE verbatim) must SEARCH the blocked subset via the
+    // (stage, stage_status) index prefix — leading equality narrows before
+    // any sort. A TEMP B-TREE for the global order is accepted because its
+    // input is the blocked subset only (failed/needs_input extraction rows
+    // — operator-actionable, never pool-scale), and per-page LIMIT +
+    // inter-page yields bound the loop. A (stage, stage_status, row_number,
+    // id) index was measured redundant (planner prefers the narrower
+    // existing prefix and still sorts), so no new index ships.
+    const firstPagePlan = getDb().query(`EXPLAIN QUERY PLAN SELECT i.id FROM onboarding_items i JOIN onboarding_batches b ON b.id = i.batch_id WHERE b.workspace_id = ? AND b.status = 'active' AND (i.stage = ? OR i.stage = ?) AND i.stage_status IN ('failed', 'needs_input') AND (i.source_type IS NULL OR i.source_type != 'distributor_record') ORDER BY i.row_number, i.id LIMIT 1`).all() as Array<Record<string, unknown>>;
+    expect(JSON.stringify(firstPagePlan)).toMatch(/SEARCH i USING INDEX idx_onboarding_items_stage_status/);
+    const resumedPlan = getDb().query(`EXPLAIN QUERY PLAN SELECT i.id FROM onboarding_items i JOIN onboarding_batches b ON b.id = i.batch_id WHERE b.workspace_id = ? AND b.status = 'active' AND (i.stage = ? OR i.stage = ?) AND i.stage_status IN ('failed', 'needs_input') AND (i.source_type IS NULL OR i.source_type != 'distributor_record') AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?) ORDER BY i.row_number, i.id LIMIT 1`).all() as Array<Record<string, unknown>>;
+    expect(JSON.stringify(resumedPlan)).toMatch(/SEARCH i USING INDEX idx_onboarding_items_stage_status/);
+  });
+
 
   // ─── Worker integration ──────────────────────────────────────────────────
 

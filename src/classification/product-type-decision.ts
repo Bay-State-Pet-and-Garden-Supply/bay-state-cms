@@ -49,7 +49,7 @@ import {
 import { matchKeywordOptions } from './curation-target-matcher';
 import { llmRankOptions } from './curation-target-ranker';
 import type { LlmDispatchGuard } from '../onboarding/llm-client';
-import { mapRankedLabelToOptionExactlyOne } from './cohort-product-type-resolver';
+import { mapRankedLabelToOptionExactlyOne, type SiblingProductTypeContext } from './cohort-product-type-resolver';
 import type { ResolvedTarget, ResolvedTargetOption } from './curation-target-resolver';
 import type { ClassificationEvidence, ProposalDerivation } from '../shared/schemas/classification';
 import {
@@ -102,6 +102,19 @@ export interface ProductTypeVetoTypeNode {
   invariantAttributes?: Record<string, string | string[]>;
 }
 
+/**
+ * Issue #304 (family-aware ranker context, candidate fix 1): own-SKU reviewed
+ * precedence. When the member's own frozen snapshot carries a reviewed
+ * Category + Product Type pair for THIS sku, the pair resolves here — before
+ * keyword/LLM/Jev — as a resolved 1.0 `evidence_match`. A partial pair
+ * (missing category or type) or a type id not among the target options never
+ * resolves here; the normal pipeline runs instead. Never a sibling or
+ * family conclusion: only the own-SKU pair counts.
+ */
+export interface ReviewedClassificationPairInput {
+  categoryId: string | null;
+  productTypeId: string | null;
+}
 export interface ProductTypeDecisionParams {
   target: ResolvedTarget;
   evidence: ClassificationEvidence[];
@@ -123,6 +136,13 @@ export interface ProductTypeDecisionParams {
     confidence: number | null;
     source: 'keyword' | null;
   } | null;
+  /**
+   * Issue #304: own-SKU reviewed pair (reviewed precedence) + sibling
+   * context (ranker context only). Absent in legacy direct invocations —
+   * zero behavior change.
+   */
+  reviewedPair?: ReviewedClassificationPairInput | null;
+  siblingContext?: SiblingProductTypeContext | null;
 }
 
 export type ProductTypeDecisionStatus = 'resolved' | 'abstained' | 'failed';
@@ -197,6 +217,8 @@ export interface ClassificationDecisionParams {
     confidence: number | null;
     source: 'keyword' | null;
   } | null;
+  reviewedPair?: ReviewedClassificationPairInput | null;
+  siblingContext?: SiblingProductTypeContext | null;
 }
 
 interface BoundedProductTypeState {
@@ -207,6 +229,13 @@ interface BoundedProductTypeState {
   snippets: string[];
   attributes: Record<string, unknown>;
   evidenceCount: number;
+  /**
+   * Issue #304: sibling context for the run-bound ranker — disambiguating
+   * CONTEXT only (confident sibling verdicts, strongest first). Never
+   * inherited facts, never a force-type. Omitted when no sibling is
+   * confident.
+   */
+  siblingContext?: string | null;
 }
 
 type ProductTypeEvidenceSlot = 'name' | 'brand' | 'description';
@@ -302,6 +331,7 @@ function collectProductTypeStateAttributes(
 function buildProductTypeState(
   evidence: ClassificationEvidence[],
   sku: string,
+  siblingContext?: SiblingProductTypeContext | null,
 ): BoundedProductTypeState {
   const collected = collectProductTypeStateFields(evidence);
   const name = collected.name;
@@ -318,6 +348,9 @@ function buildProductTypeState(
     snippets: truncateSnippets(snippets),
     attributes,
     evidenceCount: evidence.length,
+    ...(siblingContext && siblingContext.siblings.length > 0
+      ? { siblingContext: renderSiblingProductTypeContext(siblingContext) }
+      : {}),
   };
 
   // Ensure state serialization fits within the SystemOne state budget (32,768 bytes)
@@ -326,9 +359,25 @@ function buildProductTypeState(
     if (s.description) {
       s.description = s.description.slice(0, 1000);
     }
+    // Sibling context is advisory — drop it before shrinking evidence.
+    delete s.siblingContext;
   });
 
   return baseState;
+}
+
+/**
+ * Issue #304: render confident sibling verdicts as ranker context text.
+ * Explicitly framed as context — the model still decides from the member's
+ * own evidence. Sibling outcomes never determine or suppress another SKU's
+ * classification (ADR 0041 SKU-local authority): no veto, no inheritance.
+ */
+function renderSiblingProductTypeContext(siblingContext: SiblingProductTypeContext): string {
+  const parts = siblingContext.siblings
+    .slice(0, 3)
+    .map(sibling => `${sibling.label} (${sibling.productTypeId})`);
+  return `Sibling products in the same family were confidently classified as: ${parts.join('; ')}. ` +
+    `Use this only as disambiguating context; decide from this product's own evidence.`;
 }
 
 // ─── Question Builder ─────────────────────────────────────────────────────────
@@ -449,6 +498,41 @@ function matchProductTypeKeyword(input: {
   return null;
 }
 
+/**
+ * Issue #304: own-SKU reviewed precedence. A complete reviewed pair
+ * (category + type present, type among the target options) resolves as a
+ * 1.0 `evidence_match` — reviewer authority outranks keyword/LLM/Jev.
+ * Partial pairs and unconfigured type ids return null (normal pipeline).
+ */
+function checkProductTypeReviewedPair(input: {
+  reviewedPair: ReviewedClassificationPairInput | null | undefined;
+  options: ResolvedTargetOption[];
+  evidenceIds: string[];
+  supportingEvidenceIds: string[];
+  contradictingEvidenceIds: string[];
+}): ProductTypeDecisionResult | null {
+  const { reviewedPair, options, evidenceIds, supportingEvidenceIds, contradictingEvidenceIds } = input;
+  const productTypeId = reviewedPair?.productTypeId ?? null;
+  const categoryId = reviewedPair?.categoryId ?? null;
+  if (!productTypeId || !categoryId) return null;
+  if (!options.some(option => option.value === productTypeId)) return null;
+  return {
+    status: 'resolved',
+    productTypeId,
+    confidence: 1.0,
+    selectedProbability: null,
+    vendorConfidence: null,
+    probabilityBasis: 'deterministic_keyword',
+    source: 'keyword',
+    derivation: { kind: 'evidence_match' },
+    modelCallIds: [],
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  };
+}
+
+
 function checkProductTypeDeterministicMatch(input: {
   options: ResolvedTargetOption[];
   text: string;
@@ -523,30 +607,47 @@ async function callProductTypeLegacyRanker(input: {
   runId: string;
   assertHeld?: () => void;
   dispatchGuard?: LlmDispatchGuard;
+  siblingContext?: SiblingProductTypeContext | null;
 }): Promise<Awaited<ReturnType<typeof llmRankOptions>>> {
   const { target, options, text, effectivePolicy, snapshot, runId, assertHeld } = input;
-    // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
-    const llmResult = await llmRankOptions({
-      targetLabel: target.config.label,
-      options,
-      selectionMode: 'single',
-      evidenceText: text,
-      task: 'product_type_classification',
-      modelPolicy: effectivePolicy,
-      protectedOperation: 'product_type_ranking',
-      modelCall: snapshot ? {
-        runId,
-        snapshotHash: snapshot.snapshotHash,
-        stage: 'primary_product_type_proposal',
-        operation: 'product_type_ranking',
-        attempt: 1,
-        promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
-        ruleVersion: RULE_VERSIONS.product_type_ranking,
-      } : null,
-      snapshot,
-      assertHeld,
-      dispatchGuard: input.dispatchGuard,
-    });
+  // ── Legacy Chat LLM Fallback (OpenAI / Ollama / DeepSeek) ─────────────────
+  // Issue #304: sibling verdicts render as prompt context only (never
+  // inherited facts) so the ranker sees the family signal on terse titles.
+  const siblingSuffix = input.siblingContext && input.siblingContext.siblings.length > 0
+    ? `\n\nFamily context (siblings in the same product line, confident verdicts, strongest first): ${input.siblingContext.siblings.slice(0, 3).map(sibling => `${sibling.label} (${sibling.productTypeId})`).join('; ')}. Use only as disambiguating context; decide from this product's own evidence above.`
+    : '';
+  // Issue #304: the shared `llmRankOptions` transport truncates evidence to
+  // 3,000 chars AFTER this call site, so a max-size evidence packet would
+  // silently drop the entire advisory suffix appended below. Reserve the
+  // suffix's space up front: the own-evidence text is capped at
+  // 3,000 − suffix so the suffix provably survives dispatch — the same
+  // cap the transport applies, so behavior is unchanged when no siblings
+  // are confident.
+  const EVIDENCE_PROMPT_CAP = 3000;
+  const evidenceText = siblingSuffix
+    ? `${text.slice(0, Math.max(0, EVIDENCE_PROMPT_CAP - siblingSuffix.length))}${siblingSuffix}`
+    : text;
+  const llmResult = await llmRankOptions({
+    targetLabel: target.config.label,
+    options,
+    selectionMode: 'single',
+    evidenceText,
+    task: 'product_type_classification',
+    modelPolicy: effectivePolicy,
+    protectedOperation: 'product_type_ranking',
+    modelCall: snapshot ? {
+      runId,
+      snapshotHash: snapshot.snapshotHash,
+      stage: 'primary_product_type_proposal',
+      operation: 'product_type_ranking',
+      attempt: 1,
+      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.product_type_ranking,
+      ruleVersion: RULE_VERSIONS.product_type_ranking,
+    } : null,
+    snapshot,
+    assertHeld,
+    dispatchGuard: input.dispatchGuard,
+  });
   return llmResult;
 }
 
@@ -654,6 +755,7 @@ async function executeProductTypeLegacyFallback(input: {
   evidenceIds: string[];
   supportingEvidenceIds: string[];
   contradictingEvidenceIds: string[];
+  siblingContext?: SiblingProductTypeContext | null;
 }): Promise<ProductTypeDecisionResult> {
   const {
     target,
@@ -676,6 +778,7 @@ async function executeProductTypeLegacyFallback(input: {
     runId,
     assertHeld,
     dispatchGuard: input.dispatchGuard,
+    siblingContext: input.siblingContext,
   });
   return mapProductTypeLlmResult({
     llmResult,
@@ -737,6 +840,7 @@ function prepareProductTypeJevRequest(input: {
   evidenceIds: string[];
   supportingEvidenceIds: string[];
   contradictingEvidenceIds: string[];
+  siblingContext?: SiblingProductTypeContext | null;
 }): ProductTypeJevPreparation {
   const {
     options,
@@ -789,9 +893,11 @@ function prepareProductTypeJevRequest(input: {
 
   assertConnectionEnabledForDispatch(jevConn as any, route.model || TYPESAFE_EVALUATED_MODEL);
 
-  // Build question and bounded state
+  // Build question and bounded state (sibling verdicts ride as ranker
+  // context only — never inherited facts; the model still decides from the
+  // member's own evidence).
   const questionPlan = buildProductTypeChoiceQuestion(options);
-  const state = buildProductTypeState(evidence, sku);
+  const state = buildProductTypeState(evidence, sku, input.siblingContext);
   const ctx = buildProductTypeCallContext({ runId, snapshot });
 
   if (snapshot) {
@@ -933,6 +1039,7 @@ async function executeProductTypeJevChoice(input: {
   evidenceIds: string[];
   supportingEvidenceIds: string[];
   contradictingEvidenceIds: string[];
+  siblingContext?: SiblingProductTypeContext | null;
 }): Promise<ProductTypeDecisionResult> {
   const {
     options,
@@ -961,6 +1068,7 @@ async function executeProductTypeJevChoice(input: {
     evidenceIds,
     supportingEvidenceIds,
     contradictingEvidenceIds,
+    siblingContext: input.siblingContext,
   });
   if (preparation.outcome === 'limited') return preparation.result;
   const { questionPlan, request, callId, jevConn, startedAt } = preparation;
@@ -1210,6 +1318,19 @@ export async function resolveProductTypeDecision(
   const supportingEvidenceIds = packet.supportingEvidenceIds;
   const contradictingEvidenceIds = packet.contradictingEvidenceIds;
 
+  // Issue #304 step 0: own-SKU reviewed precedence. A complete own-SKU
+  // reviewed pair whose type is among the target options resolves as a
+  // 1.0 evidence_match before keyword/LLM/Jev — the reviewer decision is
+  // factual authority, not another signal to re-rank.
+  const reviewed = checkProductTypeReviewedPair({
+    reviewedPair: params.reviewedPair,
+    options,
+    evidenceIds,
+    supportingEvidenceIds,
+    contradictingEvidenceIds,
+  });
+  if (reviewed) return applyProductTypeVeto(reviewed, evidence, params.vetoTypeNodes);
+
   const deterministic = checkProductTypeDeterministicMatch({
     options,
     text,
@@ -1263,7 +1384,10 @@ export async function resolveProductTypeDecision(
       evidenceIds,
       supportingEvidenceIds,
       contradictingEvidenceIds,
+      siblingContext: params.siblingContext,
     });
+    // Sibling context is prompt context only (ADR 0041 SKU-local authority):
+    // sibling outcomes never determine or suppress this SKU's classification.
     return applyProductTypeVeto(legacy, evidence, params.vetoTypeNodes);
   }
 
@@ -1281,6 +1405,7 @@ export async function resolveProductTypeDecision(
     evidenceIds,
     supportingEvidenceIds,
     contradictingEvidenceIds,
+    siblingContext: params.siblingContext,
   });
   return applyProductTypeVeto(jev, evidence, params.vetoTypeNodes);
 }
@@ -1309,6 +1434,8 @@ export async function resolveClassificationDecision(
     assertHeld: params.assertHeld,
     dispatchGuard: params.dispatchGuard,
     deterministicMatch: params.deterministicMatch,
+    reviewedPair: params.reviewedPair,
+    siblingContext: params.siblingContext,
   });
   if (decision.status !== 'resolved' || !decision.productTypeId) {
     return { ...decision, categoryId: null };

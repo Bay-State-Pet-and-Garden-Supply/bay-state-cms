@@ -20,6 +20,8 @@ import { getDb } from '../../db/connection';
 import { createImagesZip } from '../../shopsite/zip-generator';
 import { ShopSiteHttpClient } from '../../shopsite/shopsite-http-client';
 import { preflightPagesSync, reconcileProductsToActivePages } from '../../shopsite/page-sync-preflight';
+import { preflightBackfill } from '../../shopsite/backfill-preflight';
+import { reconcileBackfillImport } from '../../shopsite/backfill-reconcile';
 import type { Product } from '../../shared/types';
 
 const route = new Hono();
@@ -97,9 +99,9 @@ function ensureNoOpenDrift(workspaceId: string, items: Array<{ sku: string }>): 
   return null;
 }
 
-async function directUpload(xml: string, config: ConnectionConfig): Promise<UploadResult> {
+async function directUpload(xml: string, config: ConnectionConfig, backfillMode = false): Promise<UploadResult> {
   const multipart = buildUploadMultipart(xml, {
-    newRecords: 'yes',
+    newRecords: backfillMode ? 'no' : 'yes',
     uniqueName: 'SKU',
   });
 
@@ -200,6 +202,7 @@ async function runDirectSync(options: {
   workspacePath: string;
   changeSetId: string;
   publish: boolean;
+  backfillMode?: boolean;
 }): Promise<ResponseInit & { body: Record<string, unknown> }> {
   const config = getConnectionConfig(options.workspaceId);
   if (!config) {
@@ -265,6 +268,30 @@ async function runDirectSync(options: {
     const xml = ShopSiteProductCodec.encodeMany(products).xml;
     addSyncJobEvent({ syncJobId: job.id, level: 'info', message: `Generated XML for ${products.length} product(s)` });
 
+    // Backfill mode (Milestone 1): census the live catalog BEFORE upload,
+    // refuse whole-record overwrite of changed live fields, and upload
+    // update-only (newRecords=no).
+    const backfillMode = options.backfillMode === true;
+    if (backfillMode) {
+      const liveRes = await client.fetchProductsXml();
+      if (!liveRes.success || !liveRes.data) {
+        throw new Error(`Backfill live census failed: ${(liveRes.errors ?? []).join('; ') || 'no live XML'}`);
+      }
+      const gate = preflightBackfill({
+        workspaceId: options.workspaceId,
+        items,
+        liveXml: liveRes.data,
+        outgoingXml: xml,
+      });
+      if (!gate.ok) {
+        const first = gate.issues[0];
+        throw new Error(
+          `Backfill preflight refused ${gate.issues.length} record(s); first: ${first.sku}/${first.field} ${first.reason}`,
+        );
+      }
+      addSyncJobEvent({ syncJobId: job.id, level: 'info', message: 'Backfill preflight passed (census 1:1, run-bound decisions).' });
+    }
+
     // Generate brand-organized images ZIP
     let zipPath: string | null = null;
     try {
@@ -281,7 +308,7 @@ async function runDirectSync(options: {
       zipPath = null;
     }
 
-    const uploadResult = await directUpload(xml, config);
+    const uploadResult = await directUpload(xml, config, backfillMode);
     addSyncJobEvent({
       syncJobId: job.id,
       level: 'info',
@@ -292,16 +319,19 @@ async function runDirectSync(options: {
     if (!uploadResult.success) throw new Error(`Upload failed: ${uploadResult.error}`);
 
     let cookieHeader = uploadResult.cookieHeader;
+    let dbmakeBody: string | null = null;
     if (uploadResult.dbmakeQuery) {
       const dbmakeResult = await finalizeDbmake(uploadResult.dbmakeQuery, config, cookieHeader);
       if (!dbmakeResult.success) throw new Error(`dbmake finalization failed: ${dbmakeResult.error}`);
       cookieHeader = dbmakeResult.cookieHeader ?? cookieHeader;
+      dbmakeBody = dbmakeResult.response;
       addSyncJobEvent({ syncJobId: job.id, level: 'info', message: 'dbmake finalization completed.' });
     } else {
       addSyncJobEvent({ syncJobId: job.id, level: 'info', message: 'Upload reported success immediately; no dbmake needed.' });
     }
 
     let publishCompleted = false;
+    let publishBody = '';
     if (options.publish) {
       const publishResult = await publishStore(
         buildCgiScriptUrl(config.cgiBaseUrl, 'generate.cgi'),
@@ -310,15 +340,73 @@ async function runDirectSync(options: {
         cookieHeader,
       );
       publishCompleted = publishResult.success;
+      publishBody = publishResult.success
+        ? String(publishResult.data ?? '')
+        : [publishResult.error, ...(publishResult.errors ?? [])].filter(Boolean).join(' | ');
       if (!publishResult.success) {
         addSyncJobEvent({
           syncJobId: job.id,
           level: 'warning',
-          message: `Import completed but storefront generation may need retry. ${publishResult.error}`,
+          message: `Import completed but storefront generation is pending retry. ${publishResult.error ?? ''}`,
         });
       } else {
         addSyncJobEvent({ syncJobId: job.id, level: 'info', message: 'Storefront generation completed.' });
       }
+    }
+
+    // Backfill mode: re-census live, reconcile the import, snapshot redacted
+    // CGI artifacts under exports/<jobId>, and mark SKUs import_reconciled
+    // (never published/skipped vocabulary — the publish state is explicit).
+    let importReconciled = false;
+    const publishState = options.publish ? (publishCompleted ? 'published_verified' : 'pending') : 'skipped';
+    const publishVerified = options.publish ? publishCompleted : false;
+    if (backfillMode) {
+      const freshRes = await client.fetchProductsXml();
+      if (!freshRes.success || !freshRes.data) {
+        throw new Error(`Backfill post-import census failed: ${(freshRes.errors ?? []).join('; ') || 'no live XML'}`);
+      }
+      const reconciliation = reconcileBackfillImport({
+        attemptedSkus: products.map(p => p.sku),
+        outgoingXml: xml,
+        freshLiveXml: freshRes.data,
+      });
+      importReconciled = reconciliation.ok
+        && reconciliation.imported.length === products.length
+        && reconciliation.skipped.length === 0
+        && reconciliation.duplicate.length === 0
+        && reconciliation.mismatched.length === 0
+        && reconciliation.unexpectedNew.length === 0;
+      if (!importReconciled) {
+        throw new Error(
+          `Backfill import not reconciled: imported=${reconciliation.imported.length}/${products.length} ` +
+          `skipped=${reconciliation.skipped.length} duplicate=${reconciliation.duplicate.length} ` +
+          `mismatched=${reconciliation.mismatched.length} unexpected=${reconciliation.unexpectedNew.length}`,
+        );
+      }
+      const jobDir = path.join(options.workspacePath, 'exports', job.id);
+      fs.mkdirSync(jobDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(jobDir, 'dbupload.cgi.redacted.txt'),
+        redactCredentials(uploadResult.rawResponse),
+        'utf-8',
+      );
+      fs.writeFileSync(
+        path.join(jobDir, 'dbmake.cgi.redacted.txt'),
+        redactCredentials(dbmakeBody ?? 'dbmake skipped: upload reported success immediately; no dbmake request occurred.'),
+        'utf-8',
+      );
+      if (options.publish) {
+        fs.writeFileSync(
+          path.join(jobDir, 'generate.cgi.redacted.txt'),
+          redactCredentials(publishBody),
+          'utf-8',
+        );
+      }
+      addSyncJobEvent({
+        syncJobId: job.id,
+        level: 'info',
+        message: `Backfill import reconciled ${reconciliation.imported.length}/${products.length}; publish ${publishState}.`,
+      });
     }
 
     const syncedAt = new Date().toISOString();
@@ -330,20 +418,21 @@ async function runDirectSync(options: {
       // (lastSyncedRemoteHash), and the cached comparison (productHash) all
       // speak the same canonical language drift checking reads. This is a
       // genuine successful sync (not an approval-only local change), so
-      // advancing both pointers here is correct.
+      // advancing both pointers here is correct. Backfill mode marks
+      // import_reconciled instead of synced (publish state stays explicit).
       const canonicalHash = comparisonHashForProduct(product);
       updateProductIndex({
         sku: product.sku,
         productHash: canonicalHash,
-        syncStatus: 'synced',
+        syncStatus: backfillMode ? 'import_reconciled' : 'synced',
         lastSyncedAt: syncedAt,
         lastSyncedRemoteHash: canonicalHash,
         lastPulledRemoteHash: canonicalHash,
       });
     }
-    addSyncJobEvent({ syncJobId: job.id, level: 'info', message: `Marked ${products.length} product(s) as synced.` });
+    addSyncJobEvent({ syncJobId: job.id, level: 'info', message: `Marked ${products.length} product(s) as ${backfillMode ? 'import_reconciled' : 'synced'}.` });
 
-    completeSyncJob(job.id, 'succeeded', { productCount: products.length });
+    completeSyncJob(job.id, backfillMode ? 'import_reconciled' : 'succeeded', { productCount: products.length });
 
     addAuditLog({
       workspaceId: options.workspaceId,
@@ -363,6 +452,7 @@ async function runDirectSync(options: {
         publishCompleted,
         zipPath,
         warnings: options.publish && !publishCompleted ? ['Storefront generation may need retry.'] : [],
+        ...(backfillMode ? { importReconciled, publishState, publishVerified } : {}),
       },
     };
   } catch (err) {
@@ -381,7 +471,7 @@ route.post('/sync/push-publish', async (c) => {
   const workspace = getCurrentWorkspace();
   if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
 
-  const body = await c.req.json().catch(() => ({})) as { changeSetId?: string };
+  const body = await c.req.json().catch(() => ({})) as { changeSetId?: string; backfillMode?: boolean };
   if (!body.changeSetId) return c.json({ error: 'changeSetId is required.' }, 400);
 
   const result = await runDirectSync({
@@ -389,6 +479,7 @@ route.post('/sync/push-publish', async (c) => {
     workspacePath: workspace.workspacePath,
     changeSetId: body.changeSetId,
     publish: true,
+    backfillMode: body.backfillMode === true,
   });
   return c.json(result.body, result.status as 200 | 400 | 409 | 500);
 });
@@ -401,7 +492,7 @@ route.post('/sync/upload-only', async (c) => {
   const workspace = getCurrentWorkspace();
   if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
 
-  const body = await c.req.json().catch(() => ({})) as { changeSetId?: string };
+  const body = await c.req.json().catch(() => ({})) as { changeSetId?: string; backfillMode?: boolean };
   if (!body.changeSetId) return c.json({ error: 'changeSetId is required.' }, 400);
 
   const result = await runDirectSync({
@@ -409,6 +500,7 @@ route.post('/sync/upload-only', async (c) => {
     workspacePath: workspace.workspacePath,
     changeSetId: body.changeSetId,
     publish: false,
+    backfillMode: body.backfillMode === true,
   });
 
   if (result.status === 200) {

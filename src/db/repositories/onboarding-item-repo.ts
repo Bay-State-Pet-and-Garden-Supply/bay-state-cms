@@ -2344,9 +2344,23 @@ const AUTO_ADVANCE_COLUMNS = 'i.id, i.batch_id, i.source_url, i.source_type, i.e
  * distinction from the human-held discovery holds (no-domain-mapped and
  * no-candidate-passed-verification leave the URL NULL).
  */
-export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceRow[] {
+export function listDiscoveryCompletedWithUrl(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [discA, discB] = stagePredicateParams('find_product_page');
+  const params: Array<string | number> = [workspaceId, discA, discB];
+  // Keyset resume: rows strictly after the cursor's (row_number, id) so a
+  // poll never materializes the pool ahead of the cursor. An unknown cursor
+  // id (advanced-away row) yields an empty page; callers wrap from the head.
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
@@ -2354,8 +2368,10 @@ export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceR
      WHERE b.workspace_id = ? AND b.status = 'active'
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
        AND i.source_url IS NOT NULL
-     ORDER BY i.row_number`,
-  ).all(workspaceId, discA, discB) as AutoAdvanceRow[];
+       ${keyset}
+     ORDER BY i.row_number, i.id
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**
@@ -2366,9 +2382,20 @@ export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceR
  * Curation readiness). `extraction_data_json IS NOT NULL` is the data guard
  * — applies to both official-page and distributor-record sources.
  */
-export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
+export function listExtractionCompleted(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [extA, extB] = stagePredicateParams('collect_details');
+  const params: Array<string | number> = [workspaceId, extA, extB];
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
@@ -2376,8 +2403,10 @@ export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
      WHERE b.workspace_id = ? AND b.status = 'active'
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
        AND i.extraction_data_json IS NOT NULL
-     ORDER BY i.row_number`,
-  ).all(workspaceId, extA, extB) as AutoAdvanceRow[];
+       ${keyset}
+     ORDER BY i.row_number, i.id
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**
@@ -2385,17 +2414,30 @@ export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
  * pool. The semantic-blocked / cohort-parent-in-flight guards live in
  * `src/onboarding/auto-advance.ts` (they need the hydrated curation payload).
  */
-export function listCurationCompleted(workspaceId: string): AutoAdvanceRow[] {
+export function listCurationCompleted(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [curA, curB] = stagePredicateParams('prepare_listing');
+  const params: Array<string | number> = [workspaceId, curA, curB];
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
      JOIN onboarding_batches b ON b.id = i.batch_id
      WHERE b.workspace_id = ? AND b.status = 'active'
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
-     ORDER BY i.row_number`,
-  ).all(workspaceId, curA, curB) as AutoAdvanceRow[];
+       ${keyset}
+     ORDER BY i.row_number, i.id
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**
@@ -2404,10 +2446,35 @@ export function listCurationCompleted(workspaceId: string): AutoAdvanceRow[] {
  * domain-release eligibility pool. Official-page items only: a distributor
  * record has no page and its materialization is deterministic (never
  * released by profile availability).
+ *
+ * Issue #303 follow-up: optional keyset pagination (`LIMIT` + resume after
+ * `(row_number, id)`), mirroring the auto-advance pools, so the
+ * domain-release sweep pages discovery instead of materializing the whole
+ * unbounded pool before its first yield. Unpaginated callers keep the full
+ * pool in `(row_number, id)` order.
  */
-export function listBlockedExtractionItemsByWorkspace(workspaceId: string): AutoAdvanceRow[] {
+export function listBlockedExtractionItemsByWorkspace(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [extA, extB] = stagePredicateParams('collect_details');
+  const params: Array<string | number> = [workspaceId, extA, extB];
+  // Keyset resume: rows strictly after the cursor's (row_number, id) so a
+  // poll never materializes the pool ahead of the cursor. An unknown cursor
+  // id yields an empty page; callers stop (discovery mutates nothing, so the
+  // cursor is always known mid-pass).
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
+  // Unpaginated callers keep the legacy `row_number` order verbatim; keyset
+  // pages need the total `(row_number, id)` order so tied rows neither skip
+  // nor repeat at page boundaries.
+  const orderBy = page === undefined ? 'ORDER BY i.row_number' : 'ORDER BY i.row_number, i.id';
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
@@ -2416,9 +2483,10 @@ export function listBlockedExtractionItemsByWorkspace(workspaceId: string): Auto
        AND (i.stage = ? OR i.stage = ?)
        AND i.stage_status IN ('failed', 'needs_input')
        AND (i.source_type IS NULL OR i.source_type != 'distributor_record')
-       AND i.source_url IS NOT NULL
-     ORDER BY i.row_number`,
-  ).all(workspaceId, extA, extB) as AutoAdvanceRow[];
+       ${keyset}
+     ${orderBy}
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**

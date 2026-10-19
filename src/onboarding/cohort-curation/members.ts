@@ -407,6 +407,12 @@ export async function executePreparedMembers(args: {
           memberExtractionMethod,
           correctionOverlay: memberCorrectionOverlay,
           effectiveType: {
+            // Issue #304: the reviewer-corrected own-SKU pair resolves
+            // through the same decision boundary
+            // (`processProductTypeTarget` reviewed precedence), so an
+            // agreeing-reviewed pair curates through instead of hitting the
+            // neutered Rule 2 hatch. Only the member's OWN snapshot pair
+            // counts — never a sibling or family conclusion.
             id: resolvedEffectiveType.effectiveTypeId,
             source: resolvedEffectiveType.source,
           },
@@ -446,6 +452,12 @@ export async function executePreparedMembers(args: {
         // reviewed-first, own-SKU authority used by classification stages.
         // This preserves a compatible frozen pair when the current pass
         // abstains, while never borrowing a sibling or execution pair.
+        // Issue #304 (reviewer-corrected pair cures through): the pipeline
+        // already resolved through the same boundary
+        // (`processProductTypeTarget` reviewed precedence), so a
+        // reviewer-corrected own-SKU pair that agrees with the pass curates
+        // through instead of hitting the neutered Rule 2 hatch. Only the
+        // member's OWN snapshot pair counts — never a sibling conclusion.
         const effectiveClassificationForSemantic = getEffectiveClassification(
           {
             sku: memberSkuForSemantic,

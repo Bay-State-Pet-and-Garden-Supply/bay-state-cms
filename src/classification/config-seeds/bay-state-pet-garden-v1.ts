@@ -50,19 +50,19 @@ export const BayStatePetGardenSeed: BayStateSeed = {
   productTypes: [
     // Department 1: Pet Supplies
     { id: 'dog-food-dry', name: 'Dry Dog Food', description: 'Dry dog food (kibble).', categoryId: 'dog-food' },
-    { id: 'dog-food-wet', name: 'Wet Dog Food', description: 'Canned and pouch wet dog food.', categoryId: 'dog-food' },
-    { id: 'dog-treats', name: 'Dog Treats', description: 'Treats and chews for dogs.', categoryId: 'dog' },
-    { id: 'dog-toys', name: 'Dog Toys', description: 'Toys for dogs.', categoryId: 'dog' },
+    { id: 'dog-food-wet', name: 'Wet Dog Food', description: 'Canned and pouch wet dog food.', categoryId: 'dog-food', websiteValues: { category: 'Dog Food', productType: 'Food' } },
+    { id: 'dog-treats', name: 'Dog Treats', description: 'Treats and chews for dogs.', categoryId: 'dog', websiteValues: { category: 'Dog Treats', productType: 'Treats' } },
+    { id: 'dog-toys', name: 'Dog Toys', description: 'Toys for dogs.', categoryId: 'dog', websiteValues: { category: 'Dog Toys', productType: 'Toys' } },
     { id: 'dog-crates-kennels', name: 'Dog Crates & Kennels', description: 'Wire crates, travel kennels, and outdoor dog runs.', categoryId: 'dog' },
     { id: 'dog-waste-bags', name: 'Dog Waste Bags', description: 'Dog waste bag rolls and dispensers.', categoryId: 'dog' },
     { id: 'cat-food-dry', name: 'Dry Cat Food', description: 'Dry cat food (kibble).', categoryId: 'cat-food' },
     { id: 'cat-food-wet', name: 'Wet Cat Food', description: 'Canned and pouch wet cat food.', categoryId: 'cat-food' },
-    { id: 'cat-treats', name: 'Cat Treats', description: 'Treats for cats.', categoryId: 'cat' },
+    { id: 'cat-treats', name: 'Cat Treats', description: 'Treats for cats.', categoryId: 'cat', websiteValues: { category: 'Cat Treats', productType: 'treats' } },
     { id: 'cat-toys', name: 'Cat Toys', description: 'Toys for cats.', categoryId: 'cat' },
     { id: 'cat-litter', name: 'Cat Litter', description: 'Cat litter and litter accessories.', categoryId: 'cat' },
     { id: 'pet-beds', name: 'Pet Beds', description: 'Dog beds, cat beds, and orthopedic pet pads.', categoryId: 'pet-supplies' },
     { id: 'grooming', name: 'Grooming', description: 'Pet grooming supplies, shampoos, and tools.', categoryId: 'pet-supplies' },
-    { id: 'supplements', name: 'Supplements', description: 'Pet dietary supplements and vitamins.', categoryId: 'pet-health-wellness' },
+    { id: 'supplements', name: 'Supplements', description: 'Pet dietary supplements and vitamins.', categoryId: 'pet-health-wellness', websiteValues: { category: 'Pet Health & Wellness', productType: 'Supplements' } },
     { id: 'collars-leashes', name: 'Collars & Leashes', description: 'Collars, leashes, harnesses, and tags.', categoryId: 'pet-supplies' },
     { id: 'flea-tick-treatment', name: 'Flea & Tick Treatment', description: 'Flea and tick prevention and treatment products.', categoryId: 'pet-health-wellness' },
     { id: 'small-animal-feed-bedding', name: 'Small Animal Feed & Bedding', description: 'Rabbit pellets, guinea pig food, timothy hay, and bedding.', categoryId: 'pet-supplies' },
@@ -131,7 +131,7 @@ export const BayStatePetGardenSeed: BayStateSeed = {
     // Department 9: Wild Bird & Wildlife
     { id: 'bird-food', name: 'Wild Bird Food & Seed', description: 'Black oil sunflower, wild bird seed mixes, nyjer seed, and nectar.', categoryId: 'wild-bird' },
     { id: 'suet-cakes', name: 'Suet Cakes', description: 'High-energy suet cakes, peanut suet, and berry suet.', categoryId: 'wild-bird' },
-    { id: 'wild-bird-feeders', name: 'Wild Bird Feeders', description: 'Tube feeders, hopper feeders, suet feeders, and hummingbird feeders.', categoryId: 'wild-bird' },
+    { id: 'wild-bird-feeders', name: 'Wild Bird Feeders', description: 'Tube feeders, hopper feeders, suet feeders, and hummingbird feeders.', categoryId: 'wild-bird', websiteValues: { category: 'Wild Bird Supplies', productType: 'Bird Feeders' } },
     { id: 'bird-houses-baths', name: 'Bird Houses & Baths', description: 'Wooden birdhouses, bluebird houses, and birdbaths.', categoryId: 'wild-bird' },
     { id: 'deer-wildlife-feed', name: 'Deer & Wildlife Feed', description: 'Whole corn, deer attractant blocks, and food plot seed.', categoryId: 'wild-bird-wildlife' },
 
@@ -142,7 +142,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
     { id: 'overalls-coveralls', name: 'Overalls & Coveralls', description: 'Bib overalls and insulated coveralls.', categoryId: 'apparel-workwear' },
   ],
 
-  // ── Attributes ────────────────────────────────────────────────────────────
   attributes: [
     {
       id: 'brand',
@@ -640,7 +639,6 @@ export const BayStatePetGardenSeed: BayStateSeed = {
     },
   ],
 
-  // ── Reviewed ShopSite field mappings (verified against live Extra Fields) ─
   mappings: [
     { id: 'brand-mapping', attributeId: 'brand', catalogField: 'ProductField16', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
     { id: 'species-mapping', attributeId: 'species', catalogField: 'ProductField17', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
@@ -657,6 +655,14 @@ export const BayStatePetGardenSeed: BayStateSeed = {
     { id: 'packaging-type-mapping', attributeId: 'packaging-type', catalogField: 'ProductField30', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
   ],
 
+  // ── Canonical pair output bindings (issue #356 cutover) ───────────────────
+  // The Product Classification pair is the sole writer of PF24 (Category)
+  // and PF25 (Product Type). Scalar, no affix: website values are written
+  // verbatim as the approved storefront strings.
+  classificationOutputBindings: [
+    { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+    { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+  ],
   // ── Curation targets ──────────────────────────────────────────────────────
   // Product Type enabled; Page target disabled/mandatory:false/required:false;
   // claim/composition fields (dietary-features, health-benefits) have no

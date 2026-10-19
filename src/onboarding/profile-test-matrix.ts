@@ -18,6 +18,16 @@ export interface MatrixSample {
   id: string;
   url: string;
   expectedTitle: string;
+  /** Manager-approved full-page observation (D3): expected values the runner return is compared against. */
+  observation?: {
+    title: string;
+    description: string | null;
+    primaryImage: string | null;
+    variantKey: string | null;
+    contentHash: string | null;
+  };
+  expectedVariantKey?: string | null;
+  expectedContentHash?: string | null;
 }
 
 export interface MatrixCell {
@@ -67,6 +77,84 @@ function useDb(): boolean {
   return isDbInitializedSafe();
 }
 
+/**
+ * Expand one runner return against the sample's manager-approved observation
+ * into per-field cells. Description/image compare verbatim (missing or
+ * different fails); variant compares only when the observation pins one —
+ * a mismatch reports `wrong_variant` so the health gate's identity refusal
+ * fires. Title keeps the runner's own success verdict.
+ */
+function cellsFromObservation(
+  s: MatrixSample,
+  r: {
+    extractedTitle: string | null;
+    provenance: string;
+    artifactHash: string;
+    success: boolean;
+    failureReason?: string | null;
+    extractedVariantKey?: string | null;
+    extractedProduct?: (ExtractedProductPreview & { primaryImage?: string | null; variantKey?: string | null }) | null;
+  },
+): MatrixCell[] {
+  const obs = s.observation!;
+  // Title compares against the approved observation (not runner truthiness):
+  // a different nonempty title is a wrong-product failure. Runner failure
+  // stays an additional refusal.
+  const titleOk = r.success && r.extractedTitle !== null && r.extractedTitle === obs.title;
+  const cells: MatrixCell[] = [{
+    field: 'title',
+    extracted: r.extractedTitle,
+    expected: obs.title,
+    provenance: r.provenance,
+    artifactHash: r.artifactHash,
+    success: titleOk,
+    failureReason: titleOk ? null : (!r.success ? (r.failureReason ?? 'title missing') : 'wrong_product'),
+  }];
+  if (obs.description !== null) {
+    const extracted = r.extractedProduct?.description ?? null;
+    const ok = extracted !== null && extracted === obs.description;
+    cells.push({
+      field: 'description',
+      extracted,
+      expected: obs.description,
+      provenance: r.provenance,
+      artifactHash: r.artifactHash,
+      success: ok,
+      failureReason: ok ? null : 'description mismatch',
+    });
+  }
+  if (obs.primaryImage !== null) {
+    const extracted = r.extractedProduct?.primaryImage
+      ?? r.extractedProduct?.images?.[0] ?? null;
+    const ok = extracted !== null && extracted === obs.primaryImage;
+    cells.push({
+      field: 'primary_image',
+      extracted,
+      expected: obs.primaryImage,
+      provenance: r.provenance,
+      artifactHash: r.artifactHash,
+      success: ok,
+      failureReason: ok ? null : 'primary_image mismatch',
+    });
+  }
+  const expectedVariant = s.expectedVariantKey ?? obs.variantKey;
+  if (expectedVariant !== null && expectedVariant !== undefined) {
+    const extractedVariant = r.extractedVariantKey
+      ?? r.extractedProduct?.variantKey ?? null;
+    const ok = extractedVariant === expectedVariant;
+    cells.push({
+      field: 'variant',
+      extracted: extractedVariant,
+      expected: expectedVariant,
+      provenance: r.provenance,
+      artifactHash: r.artifactHash,
+      success: ok,
+      failureReason: ok ? null : 'wrong_variant',
+    });
+  }
+  return cells;
+}
+
 export async function runMatrix(input: {
   domain: string;
   draftVersion: string;
@@ -91,19 +179,29 @@ export async function runMatrix(input: {
   const rows: MatrixRow[] = [];
   for (const s of input.samples) {
     const r = await input.runner(s);
+    const runner = r as typeof r & {
+      extractedVariantKey?: string | null;
+      extractedProduct?: (ExtractedProductPreview & { primaryImage?: string | null; variantKey?: string | null }) | null;
+    };
+    // D3: when the sample carries a manager-approved observation, expand the
+    // runner return into per-field cells (title/description/primary_image/
+    // variant) so a wrong description, image, or variant fails the version
+    // even when the title passes. Samples without an observation keep the
+    // legacy title-only cell.
+    const cells: MatrixCell[] = r.cells ?? (s.observation ? cellsFromObservation(s, runner) : [{
+      field: 'title',
+      extracted: r.extractedTitle,
+      expected: s.expectedTitle,
+      provenance: r.provenance,
+      artifactHash: r.artifactHash,
+      success: r.success,
+      failureReason: r.failureReason ?? null,
+    }]);
     rows.push({
       sampleId: s.id,
       sampleUrl: s.url,
       extractedProduct: r.extractedProduct ?? { title: r.extractedTitle },
-      cells: r.cells ?? [{
-        field: 'title',
-        extracted: r.extractedTitle,
-        expected: s.expectedTitle,
-        provenance: r.provenance,
-        artifactHash: r.artifactHash,
-        success: r.success,
-        failureReason: r.failureReason ?? null,
-      }],
+      cells,
     });
   }
   const result: MatrixResult = { domain: normalizeDomain(input.domain), draftVersion: input.draftVersion, rows, createdAt: new Date().toISOString() };

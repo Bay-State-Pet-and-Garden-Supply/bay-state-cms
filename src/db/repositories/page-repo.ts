@@ -243,6 +243,40 @@ export function clearProductPages(productSku: string): void {
 }
 
 /**
+ * Replace a SKU's page joins with verified identities only (P2 #23).
+ *
+ * Every name must resolve to exactly one verified + available row in the
+ * active import; ambiguous or unverified names throw WITHOUT touching rows
+ * (validate all, then clear + insert). Returns the resolved assignments.
+ */
+export function replaceProductPageJoins(
+  productSku: string,
+  pageNames: string[],
+): Array<{ pageId: string; pageName: string }> {
+  const resolved = pageNames.map(name => {
+    const db = getDb();
+    const rows = db.query(
+      `SELECT p.* FROM page_index p
+       JOIN page_imports i ON i.id = p.import_id
+       WHERE p.name = ? AND i.status = 'active'
+         AND p.identity_status = 'verified' AND p.availability = 'available'`,
+    ).all(name) as Record<string, unknown>[];
+    if (rows.length !== 1) {
+      throw new Error(
+        `Page "${name}" has no verified identity in the active import ` +
+        `(${rows.length} verified rows); refusing to join.`,
+      );
+    }
+    return mapPageRow(rows[0]);
+  });
+  clearProductPages(productSku);
+  for (const page of resolved) {
+    assignProductToVerifiedPage(productSku, page.id, page.name);
+  }
+  return resolved.map(page => ({ pageId: page.id, pageName: page.name }));
+}
+
+/**
  * Decode common XML entities in a string (e.g. "&amp;" -> "&").
  */
 function decodeXmlEntities(str: string): string {

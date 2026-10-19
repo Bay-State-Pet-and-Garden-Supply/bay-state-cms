@@ -173,6 +173,60 @@ export function matchMemberDeterministically(
 ): DeterministicTypeMatchResult {
   return scoreTypeMatch(memberEvidence, options).match;
 }
+// ─── C3c: family-aware ranker context (issue #304) ────────────────────────────
+// SKU-local factual authority is preserved: every member is still classified
+// from its OWN evidence (no borrowing, no family conclusion, no force-type,
+// no veto). The context below is PROMPT context only for the run-bound
+// ranker: when a terse member title cannot carry the dry/wet signal on its
+// own, the ranker sees the family's confident verdicts as disambiguating
+// context. The model still decides from the member's own evidence.
+// Sibling divergence without consensus, and own-evidence deterministic
+// matches, are never touched by this context.
+
+/** Confident sibling verdicts for ranker context (strongest first). */
+export interface SiblingProductTypeContext {
+  siblings: Array<{ productTypeId: string; label: string; confidence: number }>;
+}
+
+/**
+ * Derive confident sibling types from frozen product-line snapshots (the
+ * same `productLineItems` the pipeline already threads). Each sibling's
+ * frozen name/webTitle/brand/description/flavor/productForm text is scored
+ * with the shared keyword matcher; only matches clearing
+ * `KEYWORD_MATCH_MIN_CONFIDENCE` contribute. Returns null when no sibling is
+ * confident (the ranker then runs exactly as today). Pure: no DB, no model.
+ */
+export function buildSiblingProductTypeContextFromLineItems(
+  productLineItems: ReadonlyArray<{
+    sku: string;
+    name: string;
+    webTitle: string | null;
+    brand: string | null;
+    description: string;
+    flavor: string | null;
+    productForm: string | null;
+  }> | undefined,
+  currentSku: string,
+  options: ResolvedTargetOption[],
+): SiblingProductTypeContext | null {
+  if (!productLineItems || productLineItems.length === 0 || options.length === 0) return null;
+  const siblings: Array<{ productTypeId: string; label: string; confidence: number }> = [];
+  for (const item of productLineItems) {
+    if (!item.sku || item.sku === currentSku) continue;
+    const text = [item.name, item.webTitle, item.brand, item.description, item.flavor, item.productForm]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+      .join(' ');
+    if (text.trim().length < 3) continue;
+    const matches = matchKeywordOptions({ options, text, selectionMode: 'single' });
+    const top = matches[0];
+    if (top && top.confidence >= KEYWORD_MATCH_MIN_CONFIDENCE) {
+      siblings.push({ productTypeId: top.value, label: top.label, confidence: top.confidence });
+    }
+  }
+  if (siblings.length === 0) return null;
+  siblings.sort((a, b) => b.confidence - a.confidence || (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+  return { siblings: siblings.slice(0, 3) };
+}
 
 // ─── C3b: aggregation REMOVED (issue #351 SKU-local evidence) ─────────────────
 // Cross-member aggregation to a cohort/family Product Type conclusion lived

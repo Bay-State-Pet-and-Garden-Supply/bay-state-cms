@@ -24,6 +24,8 @@ import {
 import { verifyTopCandidates, type VerificationResult } from './page-verifier';
 import { findBrandSites } from '../db/repositories/brand-site-repo';
 import { extractProductData, VariantExtractionError } from './page-extractor';
+import { validateExtraction } from './extraction-validator';
+import { listOfficialPageDecisions, recordOfficialPageDecision } from '../db/repositories/official-page-decision-repo';
 import { createVariantResolutionRepo } from '../db/repositories/onboarding-variant-resolution-repo';
 import { getEffectiveVariantResolutionMode } from './variant-flags';
 import { assertSafeVariantDestination } from '../shared/ssrf';
@@ -234,6 +236,15 @@ function loadPreparationRulesConfig(
     return undefined;
   }
 }
+/** Issue #303: one cooperative yield to the event loop via `setImmediate`
+ * (macrotask — socket IO progresses; microtask-only awaits would starve
+ * HTTP exactly the way the wedged iteration did). Passed into the pre-claim
+ * sweeps so a large batch yields between every unit of work. */
+function yieldToEventLoop(): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setImmediate(resolve);
+  return promise;
+}
 
 /**
  * Stage-based worker. Polls for items with stage_status = 'pending' across
@@ -254,6 +265,10 @@ export class OnboardingWorker {
   private maxExtractionConcurrency = 3;
   private extractionRunning = 0;
   private isProcessing = false;
+  /** Issue #303: consecutive poll failures for exponential backoff; reset on a clean pass. */
+  private consecutivePollFailures = 0;
+  /** Issue #303: last completed poll duration (ms); null until the first pass completes. */
+  private lastPollDurationMs: number | null = null;
   /** Reviewer P1: set by stop(), cleared by start() — in-flight polls no-op. */
   private stopped = false;
   /**
@@ -281,6 +296,7 @@ export class OnboardingWorker {
   private deps: {
     discoverSources?: typeof discoverSources;
     verifyTopCandidates?: typeof verifyTopCandidates;
+    extractProductData?: typeof extractProductData;
   } | null;
 
   /**
@@ -301,6 +317,8 @@ export class OnboardingWorker {
       discoverSources?: typeof discoverSources;
       /** Test/embedding seam: candidate verification override (default: real). */
       verifyTopCandidates?: typeof verifyTopCandidates;
+      /** Test/embedding seam: page extraction override (default: real). */
+      extractProductData?: typeof extractProductData;
     },
   ) {
     this.workspaceId = workspaceId;
@@ -382,6 +400,10 @@ export class OnboardingWorker {
   async poll(): Promise<void> {
     if (this.stopped || this.isProcessing) return;
     this.isProcessing = true;
+    // Issue #303: wall-clock the whole iteration. The duration log doubles
+    // as the starvation detector the 23h wedge lacked.
+    const pollStartedAt = Date.now();
+    let pollFailed = false;
 
     try {
       // Epic #46 Phase 2 (automation-owned progression): automatic
@@ -396,7 +418,7 @@ export class OnboardingWorker {
       // Both are deterministic, idempotent, and fail closed into an
       // actionable state; a sweep failure never breaks the poll loop.
       try {
-        const autoAdvance = sweepAutoAdvance(this.workspaceId);
+        const autoAdvance = await sweepAutoAdvance(this.workspaceId, { yieldBetweenItems: yieldToEventLoop });
         if (
           autoAdvance.discoveryToExtraction.length > 0 ||
           autoAdvance.extractionToCuration.length > 0 ||
@@ -408,17 +430,20 @@ export class OnboardingWorker {
             `${autoAdvance.curationToReview.length} curation→review`,
           );
         }
+        await yieldToEventLoop();
       } catch (err) {
         console.error('[OnboardingWorker] Auto-advance sweep failed (non-blocking):', err);
       }
       try {
-        const domainRelease = sweepDomainReleases(this.workspaceId);
-        if (domainRelease.releasedIds.length > 0) {
+        const domainRelease = await sweepDomainReleases(this.workspaceId, { yieldBetweenItems: yieldToEventLoop });
+        if (domainRelease.releasedIds.length > 0 || domainRelease.eligibleRemaining > 0) {
           console.log(
             `[OnboardingWorker] Released ${domainRelease.releasedIds.length} extraction item(s) on domains with usable profiles: ` +
-            `${domainRelease.domains.join(', ')}`,
+            `${domainRelease.domains.join(', ')}` +
+            (domainRelease.eligibleRemaining > 0 ? ` (${domainRelease.eligibleRemaining} eligible remaining for later polls)` : ''),
           );
         }
+        await yieldToEventLoop();
       } catch (err) {
         console.error('[OnboardingWorker] Domain-release sweep failed (non-blocking):', err);
       }
@@ -507,10 +532,41 @@ export class OnboardingWorker {
         }
       }
     } catch (err) {
+      pollFailed = true;
       console.error('[OnboardingWorker] Error in poll loop:', err);
     } finally {
       this.isProcessing = false;
+      // Issue #303: failure accounting + iteration-duration log. A clean
+      // pass resets the backoff; a failed pass counts toward it.
+      const pollDurationMs = Date.now() - pollStartedAt;
+      this.lastPollDurationMs = pollDurationMs;
+      if (pollFailed) {
+        this.consecutivePollFailures += 1;
+      } else {
+        this.consecutivePollFailures = 0;
+      }
+      if (pollDurationMs > 1000 || pollFailed) {
+        console.warn(
+          `[OnboardingWorker] Poll iteration ${pollFailed ? 'failed' : 'slow'}: ${pollDurationMs}ms ` +
+          `(consecutiveFailures=${this.consecutivePollFailures})`,
+        );
+      }
     }
+  }
+
+  /**
+   * Issue #303: observable poll health for tests and operators. The duration
+   * of the last completed iteration (ms), or null before the first pass.
+   */
+  lastPollDuration(): number | null {
+    return this.lastPollDurationMs;
+  }
+
+  /**
+   * Issue #303: consecutive failed poll iterations.
+   */
+  failedPollCount(): number {
+    return this.consecutivePollFailures;
   }
 
   /**
@@ -1917,6 +1973,29 @@ export class OnboardingWorker {
           if (autoSelectedInserted) {
             selectSource(autoSelectedInserted.id);
           }
+          // ADR 0040: automatic selection records the same durable
+          // decision the manual path records — extraction revalidation
+          // requires it. Strong structured-GTIN proof only (verifiedStrong
+          // conjunct above); failure parks visibly, never silently.
+          if (autoSelectedInserted) {
+            try {
+              recordOfficialPageDecision({
+                workspaceId: this.workspaceId,
+                itemId: item.id,
+                sourceId: autoSelectedInserted.id,
+                evidenceKind: 'observed_gtin',
+                pageTitle: autoSelectedResult?.signals?.pageTitle ?? autoSelectedSource.title ?? resolvedUrl,
+                variantKey: null,
+                signals: {
+                  decisionReason: autoSelectedResult?.decisionReason ?? 'verified',
+                  proofClass: autoSelectedResult?.proofClass ?? 'exact_structured_gtin',
+                },
+                sourceRunId: discoveryRunId,
+              });
+            } catch (err) {
+              console.warn(`[OnboardingWorker] Auto-select decision record failed for ${item.id} (extraction will park):`, err);
+            }
+          }
 
           console.log(
             `[OnboardingWorker] ✓ Auto-selected verified source for "${item.name}" (${item.upc}): ` +
@@ -2076,17 +2155,60 @@ export class OnboardingWorker {
             }
           }
         } catch { /* best effort — no variant forwarding */ }
-        const extractedData = await extractProductData(item.sourceUrl, {
+        const extract = this.deps?.extractProductData ?? extractProductData;
+        const extractedData = await extract(item.sourceUrl, {
           name: item.expectedName || item.name,
           brandHint: item.brandHint,
           price: item.price,
           // ADR-0031: enables real identity classification in ladder enrichment.
           gtin: item.upc || undefined,
           variantSelection,
-        } as any);
+        });
 
         if (item.brandHint && !extractedData.brand) extractedData.brand = item.brandHint;
         if (item.price && !extractedData.price) extractedData.price = item.price;
+
+        // ADR 0040 extraction revalidation: a confirmed source URL is only
+        // as fresh as the page behind it. Changed/conflicting pages and
+        // stale variant receipts fail closed (no extraction persisted, no
+        // blind retry); ambiguous pages park for operator review. An
+        // unconfirmed source URL never reaches extraction.
+        const decisions = (() => {
+          try {
+            return listOfficialPageDecisions(item.id);
+          } catch {
+            return [];
+          }
+        })();
+        const confirmed = decisions.find(d => d.url === item.sourceUrl) ?? decisions[0] ?? null;
+        if (!confirmed || confirmed.url !== item.sourceUrl) {
+          updateItemStageStatus(item.id, 'needs_input', 'Source URL is not a confirmed official page');
+          onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', {
+            stage: 'collect_details',
+            error: 'Source URL is not a confirmed official page',
+          });
+          return;
+        }
+        const extractedVariant = (extractedData as unknown as {
+          selectedVariant?: { selectedVariantKey?: string; variantKey?: string } | null;
+        }).selectedVariant ?? null;
+        const revalidation = validateExtraction(extractedData, {
+          name: item.expectedName || item.name,
+          brandHint: item.brandHint ?? null,
+          upc: item.upc ?? null,
+          selectedVariantKey: confirmed.variantKey,
+          extractedVariantKey: extractedVariant?.selectedVariantKey ?? extractedVariant?.variantKey ?? null,
+        });
+        if (!revalidation.valid) {
+          const reason = revalidation.reason ?? 'identity revalidation failed';
+          const needsOperator = reason.includes('needs operator');
+          updateItemStageStatus(item.id, needsOperator ? 'needs_input' : 'failed', reason);
+          onboardingEvents.emitItemStatus(item.batchId, item.id, needsOperator ? 'needs_input' : 'failed', {
+            stage: 'collect_details',
+            error: reason,
+          });
+          return;
+        }
 
         // variant success persistence (M4) — if extraction carried receipt, ensure resolution row exists
         try {

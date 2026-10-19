@@ -1,8 +1,9 @@
 import { acquireLocalSlot, releaseLocalSlot } from '../ai/local-runtime-coordinator';
+import { recordConnectionQuotaExhaustion } from '../ai/connection-health-monitor';
 import { getFullAiRoutingConfig } from '../db/repositories/provider-connection-repo';
 import { getApiKey } from '../db/repositories/api-key-repo';
 import { dispatchWorkloadChat } from '../ai/inference-dispatcher';
-import { resolveWorkloadRoute, isConnectionUsable } from '../ai/provider-connections';
+import { resolveWorkloadRoute, isConnectionUsable, isLoopbackHost, isSystemOneConnection } from '../ai/provider-connections';
 import type { AiTransport } from '../ai/provider-connections';
 import {
   DEFAULT_LOCAL_VISION_MODEL,
@@ -149,6 +150,139 @@ export interface DispatchedVlmResult {
   content: string;
   /** The ModelTarget actually executed (primary or fallback), or null for the legacy direct path. */
   executedTarget: { connectionId: string; modelId: string } | null;
+  /**
+   * Actionable routing note (issue #333): set when the dispatcher path did
+   * NOT serve from the configured primary — a cloud primary that failed
+   * closed on quota (HTTP 429) was served from the enabled local route
+   * instead. Callers persist this in result metadata so the fallback is an
+   * attributable outcome, not just a log line.
+   */
+  warning?: string;
+}
+
+/**
+ * True when the PRIMARY failure behind a dispatcher throw is cloud quota
+ * exhaustion (HTTP 429) — issue #333 P2 alert attribution.
+ *
+ * The dispatcher preserves the primary status as an own `primaryStatusCode`
+ * prop on every post-primary-failure throw (fallback-execution failures AND
+ * fallback rejections) — always set there, even when the primary had no
+ * status, so its PRESENCE means the outer error is the fallback's and the
+ * cause-chain walk below must NOT run (it would see the fallback's own
+ * status and misattribute it). Absent only when the throw IS the primary
+ * failure (or wraps just it, e.g. the fail-closed wrapper): then the first
+ * `statusCode` in the `cause` chain is the primary's own. A non-typed
+ * primary carrying `HTTP 429` prose matches as a last resort.
+ */
+function isPrimaryQuotaFailure(err: unknown): boolean {
+  if (err !== null && (typeof err === 'object' || typeof err === 'function')) {
+    if ('primaryStatusCode' in err) {
+      return err.primaryStatusCode === 429;
+    }
+    // Bounded walk (depth 10 doubles as cycle protection — no Set needed).
+    let cur: unknown = err;
+    for (let depth = 0; depth < 10; depth += 1) {
+      if (cur === null || (typeof cur !== 'object' && typeof cur !== 'function')) break;
+      if ('statusCode' in cur && cur.statusCode === 429) return true;
+      if (!('cause' in cur)) break;
+      cur = cur.cause;
+    }
+  }
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  return /HTTP 429\b/.test(message);
+}
+
+/**
+ * Pin the operator-visible quota alert for a cloud-primary 429 (issue #333).
+ *
+ * Runs BEFORE fallback eligibility is considered so the pin is independent
+ * of the fallback outcome. Best-effort: pinning never changes the throw —
+ * the caller still throws or falls back exactly as before.
+ */
+function pinCloudQuotaAlert(): void {
+  let primaryTarget = { connectionId: 'unknown', modelId: 'unknown' };
+  let primaryIsCloud = false;
+  try {
+    const full = getFullAiRoutingConfig();
+    const route = resolveWorkloadRoute('visionOcr', full);
+    primaryTarget = route.primary;
+    primaryIsCloud = full.connections[route.primary.connectionId]?.trustZone === 'cloud';
+    if (!primaryIsCloud) return;
+  } catch {
+    // Unreadable routing config: still pin against the unknown primary so
+    // the 429 leaves an actionable trace rather than only a log line.
+  }
+  const warning = `Cloud quota exhausted (HTTP 429) on ${primaryTarget.connectionId}:${primaryTarget.modelId}: top up cloud credits or route the visionOcr primary to the local VLM.`;
+  console.warn(`[VlmClient] ${warning}`);
+  // Operator-visible alert: pin the quota condition onto the
+  // dashboard-rendered per-connection health surface (AI Compute settings
+  // renders health.errorMessage per connection) IN ADDITION to the
+  // console.warn + parser-note trace. Display-only: `misconfigured`
+  // records never feed availability failover.
+  try {
+    recordConnectionQuotaExhaustion(primaryTarget.connectionId, warning);
+  } catch {
+    // Alert pinning is best-effort; the throw/fallback stands regardless.
+  }
+}
+
+/**
+ * Enabled local VLM target for cloud-quota fallback (issue #333).
+ *
+ * Preference mirrors the frozen-plan capture (`captureLocalVlmConfig` → the
+ * working local Ollama route): the legacy `api_keys.ollama_vlm` row when
+ * enabled, else the first enabled + usable loopback AI Compute connection
+ * (System One typed-judgment connections never serve vision). Loopback is
+ * permitted under every image data-sharing policy, so this fallback never
+ * violates the data-sharing boundary. Returns null when no enabled local
+ * route exists — callers then rethrow the quota error unchanged.
+ */
+function resolveEnabledLocalVlmTarget(): { connectionId: string; config: VlmConfig } | null {
+  try {
+    const row = getApiKey(OLLAMA_VLM_SERVICE_NAME);
+    if (row && row.api_key === 'enabled') {
+      const rawBaseUrl = row.base_url || 'http://localhost:11434';
+      const baseUrl = rawBaseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '');
+      return {
+        connectionId: OLLAMA_VLM_SERVICE_NAME,
+        config: {
+          baseUrl,
+          model: row.model || DEFAULT_LOCAL_VISION_MODEL,
+          enabled: true,
+          transport: 'ollama-native',
+        },
+      };
+    }
+  } catch {
+    // Legacy lookup failure must never block the AI Compute scan below.
+  }
+  try {
+    const full = getFullAiRoutingConfig();
+    for (const conn of Object.values(full.connections)) {
+      if (!isConnectionUsable(conn) || isSystemOneConnection(conn)) continue;
+      if (conn.transport !== 'openai-compatible' && conn.transport !== 'ollama-native') continue;
+      let hostname = '';
+      try {
+        hostname = new URL(conn.baseUrl).hostname;
+      } catch {
+        continue;
+      }
+      if (!isLoopbackHost(hostname)) continue;
+      return {
+        connectionId: conn.id,
+        config: {
+          baseUrl: conn.baseUrl,
+          model: LEGACY_ROUTE_FALLBACK_VISION_MODEL,
+          enabled: true,
+          transport: conn.transport,
+          ...(conn.credential ? { credential: conn.credential } : {}),
+        },
+      };
+    }
+  } catch {
+    // Unreadable routing config → no local fallback.
+  }
+  return null;
 }
 
 /**
@@ -199,22 +333,76 @@ export async function callVlmWithDispatcher(
   // with `resolveWorkloadRoute`, so primary/fallback and the image
   // data-sharing policy stay consistent with getVlmConfig().
   const dataUri = imageBase64.startsWith('data:') ? imageBase64 : `data:${sniffImageMimeType(imageBase64)};base64,${imageBase64}`;
-  const result = await dispatchWorkloadChat(
-    'visionOcr',
-    [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUri } },
-        ],
-      },
-    ],
-    { requiresImage: true,
-      ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
-      ...(options?.frequencyPenalty !== undefined ? { frequencyPenalty: options.frequencyPenalty } : {}) },
-  );
-  return { content: result.content, executedTarget: result.executedTarget };
+  try {
+    const dispatchResult = await dispatchWorkloadChat(
+      'visionOcr',
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUri } },
+          ],
+        },
+      ],
+      { requiresImage: true,
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+        ...(options?.frequencyPenalty !== undefined ? { frequencyPenalty: options.frequencyPenalty } : {}) },
+    );
+    // A dispatcher-served configured-availability fallback still consumed a
+    // cloud-primary 429 to get there: surface the same actionable alert on
+    // the primary, so the quota condition is visible even though OCR evidence
+    // survived via the fallback. Cause-checked on the primary status the
+    // dispatcher preserved (issue #333 P2): a primary timeout/connection
+    // failure/503 served via fallback must NOT pin "quota exhausted".
+    if (dispatchResult.wasFallback && !dispatchResult.warning && dispatchResult.primaryStatusCode === 429) {
+      pinCloudQuotaAlert();
+    }
+    // Any success through the dispatcher returns as-is: a configured
+    // fallback served by the dispatcher resolves here (dispatcher-owned
+    // behavior), while the throw paths below cover every remaining
+    // cloud-primary 429 — with or without a dispatcher fallback configured.
+    return { content: dispatchResult.content, executedTarget: dispatchResult.executedTarget };
+  } catch (err) {
+    // Issue #333: quota failure on ANY cloud primary surfaces an actionable
+    // alert, not just a log line. The alert pins FIRST — at this primary-
+    // error boundary, before fallback eligibility is considered — so every
+    // cloud-primary 429 lands on the dashboard-rendered per-connection
+    // health surface whether or not a local route exists (no-local-route
+    // throws still carry the pin) and whether fallback later succeeds, fails
+    // differently, or rejects outright (primary 429 + fallback 503 still
+    // alerts; primary 429 + System One fallback rejection still alerts).
+    // Decided on the PRIMARY failure only — the status the dispatcher
+    // preserved — so a primary timeout/503 served or followed by a fallback
+    // 429 never pins "quota exhausted".
+    if (!isPrimaryQuotaFailure(err)) throw err;
+    pinCloudQuotaAlert();
+    // Local rescue for the dispatcher-unserved case only (no configured
+    // fallback in the resolved route): fall back to the enabled local route
+    // — the same local-first preference frozen plans capture. A configured
+    // fallback present (or a non-cloud primary) rethrows unchanged;
+    // frozen-plan (run-bound) calls never reach this path (they use
+    // exact-endpoint `callVlm` directly).
+    let primaryTarget = { connectionId: 'unknown', modelId: 'unknown' };
+    let primaryIsCloud = false;
+    let hasConfiguredFallback = true;
+    try {
+      const full = getFullAiRoutingConfig();
+      const route = resolveWorkloadRoute('visionOcr', full);
+      primaryTarget = route.primary;
+      primaryIsCloud = full.connections[route.primary.connectionId]?.trustZone === 'cloud';
+      hasConfiguredFallback = route.fallback !== null;
+    } catch {
+      throw err;
+    }
+    if (!primaryIsCloud || hasConfiguredFallback) throw err;
+    const local = resolveEnabledLocalVlmTarget();
+    if (!local) throw err;
+    const warning = `Cloud quota exhausted (HTTP 429) on ${primaryTarget.connectionId}:${primaryTarget.modelId}: top up cloud credits or route the visionOcr primary to the local VLM. Falling back to local route ${local.connectionId}.`;
+    console.warn(`[VlmClient] ${warning}`);
+    const content = await callVlm(prompt, imageBase64, options ? { ...local.config, options } : local.config);
+    return { content, executedTarget: { connectionId: local.connectionId, modelId: local.config.model }, warning };
+  }
 }
 
 /**

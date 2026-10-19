@@ -54,6 +54,23 @@ export class GitClient {
     return output.trim();
   }
 
+  /**
+   * Commit ONLY the given pathspecs (P2 #22): pre-staged unrelated files
+   * stay in the index and out of the new commit. Empty paths throws
+   * WITHOUT invoking git (`git commit -m … --` with no paths would commit
+   * the whole staged index); the caller maps it to no-commit.
+   */
+  commitPaths(message: string, paths: string[]): string {
+    if (paths.length === 0) {
+      throw new Error('commitPaths requires at least one pathspec; refusing to commit the staged index');
+    }
+    const output = execFileSync('git', ['commit', '-m', message, '--', ...paths], {
+      cwd: this.repoPath,
+      encoding: 'utf-8',
+    });
+    return output.trim();
+  }
+
   getHeadHash(): string {
     try {
       return execFileSync('git', ['rev-parse', 'HEAD'], {

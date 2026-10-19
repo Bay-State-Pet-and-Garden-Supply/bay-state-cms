@@ -803,8 +803,11 @@ export function ChangeSetReview() {
     try {
       const res = await exportChangeSet(selected);
       if (res.success) {
-        setResult(`Export package created successfully!\nXML: ${res.xmlPath}\nManifest: ${res.manifestPath}`);
-        window.open(`/api/export/change-set/${selected}/images-zip`, '_blank');
+        const warning = res.missingImagesWarning ? `\nWarning: ${res.missingImagesWarning}` : '';
+        setResult(`Export package created successfully!\nXML: ${res.xmlPath}\nManifest: ${res.manifestPath}${warning}`);
+        if (res.zipPath) {
+          window.open(`/api/export/change-set/${selected}/images-zip`, '_blank');
+        }
       } else {
         setError('Export failed');
       }

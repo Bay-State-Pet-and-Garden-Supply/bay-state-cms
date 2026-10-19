@@ -10,6 +10,7 @@
 // Callers own DB lifecycle (initDb + runMigrations); this helper only
 // writes fixture rows.
 import { createVersion, setActiveVersion } from '../../../db/repositories/profile-version-repo';
+import { recordSampleObservation } from '../../../db/repositories/profile-sample-observation-repo';
 import { runMatrix } from '../../../onboarding/profile-test-matrix';
 import { setRepresentativeSuite } from '../../../db/repositories/representative-suite-repo';
 import { createWaiver } from '../../../db/repositories/waiver-repo';
@@ -61,6 +62,16 @@ export async function makeDomainHealthy(
     reason: 'test',
   });
   const hashByUrl = new Map(urls.map((u, i) => [u, `${domain}-hash-${i}`]));
+  urls.forEach((u, i) => {
+    recordSampleObservation({
+      domain,
+      versionId: version.id,
+      sampleUrl: u,
+      expectedTitle: `Product ${i + 1}`,
+      contentHash: hashByUrl.get(u) ?? null,
+      approver: 'tester',
+    });
+  });
   await runTitleMatrix({
     domain,
     versionId: version.id,

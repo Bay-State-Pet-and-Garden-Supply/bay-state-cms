@@ -93,6 +93,10 @@ function compileReleaseInternal(
     departmentId: node.departmentId,
     categoryId: categoryIdFor(node),
     invariantAttributes: extractInvariants(node),
+    // Website values are owner-governed per-type data carried verbatim
+    // from the release node (absent on older releases). Mirrors the seed's
+    // conditional spread so unmapped types simply omit the key.
+    ...('websiteValues' in node && node.websiteValues ? { websiteValues: node.websiteValues } : {}),
   }));
   const categories = [...nodeById.values()]
     .filter(node => !node.classifiable)
@@ -242,6 +246,17 @@ function compileReleaseInternal(
     attributes,
     attributeProfiles,
     attributeMappings,
+    // Canonical pair output bindings are fixed by contract, not curated
+    // per release: the pair is always the sole writer of PF24 (Category)
+    // and PF25 (Product Type), scalar verbatim. Deriving them here (rather
+    // than storing them in the release) keeps every compiled revision
+    // consistent with CANONICAL_CLASSIFICATION_CATALOG_FIELDS by
+    // construction; releases pre-dating the cutover compile to the same
+    // bindings with no file changes.
+    classificationOutputBindings: [
+      { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+    ],
     curationTargets,
     brands,
     guidance,

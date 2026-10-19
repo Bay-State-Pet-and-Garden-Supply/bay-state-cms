@@ -725,6 +725,25 @@ function classifyVlmError(err: unknown): {
   if (statusMatch) {
     return { reasonCode: 'http_error', redactedMessage: message, httpStatus: Number(statusMatch[1]) };
   }
+  // Dispatcher fail-closed wrapper (`Workload ... failed closed: ... (HTTP
+  // 429 from ...)`) carries the transport status in prose. Parse it so quota
+  // exhaustion stays a coded `http_error` with its status (transient →
+  // bounded retry + breaker) instead of degrading to `transport_error`.
+  // A 429 gains an ACTIONABLE suffix (issue #333): top up cloud credits or
+  // route the visionOcr primary to the local VLM. Redirect-shaped messages
+  // (`HTTP 307 redirect from`) never match this pattern.
+  const dispatcherStatusMatch = message.match(/HTTP (\d{3}) from/);
+  if (dispatcherStatusMatch) {
+    const dispatcherStatus = Number(dispatcherStatusMatch[1]);
+    return {
+      reasonCode: 'http_error',
+      redactedMessage:
+        dispatcherStatus === 429
+          ? `${message} Cloud quota exhausted (HTTP 429): top up cloud credits or route the visionOcr primary to the local VLM.`
+          : message,
+      httpStatus: dispatcherStatus,
+    };
+  }
   return { reasonCode: 'transport_error', redactedMessage: message };
 }
 
@@ -1033,6 +1052,9 @@ export async function runPackagingOcrAttempt(
   let transportAttempts = 0;
   let rawResponse: string | null = null;
   let executedVlmTarget: { connectionId: string; modelId: string } | null = null;
+  // Issue #333: set when the dispatcher served from the enabled local route
+  // after a cloud-primary quota failure; persisted as a parser note below.
+  let quotaFallbackToLocal = false;
   while (transportAttempts < maxTransportAttempts) {
     transportAttempts += 1;
     try {
@@ -1047,6 +1069,7 @@ export async function runPackagingOcrAttempt(
         const dispatched = await callVlmWithDispatcher(PACKAGING_OCR_PROMPT, base64Image, vlmConfig.options);
         rawResponse = dispatched.content;
         executedVlmTarget = dispatched.executedTarget;
+        if (dispatched.warning) quotaFallbackToLocal = true;
       } else {
         rawResponse = await callVlm(PACKAGING_OCR_PROMPT, base64Image, vlmConfig, modelFetchFn ?? fetchFn);
       }
@@ -1117,6 +1140,7 @@ export async function runPackagingOcrAttempt(
         // same dispatcher, now carrying the greedy + penalty options.
         const dispatched = await callVlmWithDispatcher(PACKAGING_OCR_PROMPT, base64Image, penaltyConfig.options);
         executedVlmTarget = dispatched.executedTarget;
+        if (dispatched.warning) quotaFallbackToLocal = true;
         retryResponse = dispatched.content;
       } else {
         retryResponse = await callVlm(PACKAGING_OCR_PROMPT, base64Image, penaltyConfig, modelFetchFn ?? fetchFn);
@@ -1145,7 +1169,6 @@ export async function runPackagingOcrAttempt(
   }
 
   // Parse
-  const responseExcerpt = rawResponse.slice(0, 200);
   const parsed = parseJsonFromVlmResponse(rawResponse);
   if (!parsed) {
     if (callId) markTerminal(MODEL_CALL_STATUS.failed, 'Could not parse JSON from local VLM response.');
@@ -1160,6 +1183,12 @@ export async function runPackagingOcrAttempt(
   // provenance correlation via SHA-256 of the raw value. Non-string values
   // are passed through UNCHANGED so the schema still fails closed on them.
   const rawSourceRef = imageSourceUrl ?? imageUrl;
+  // Additive parser notes (P3-T2 repetition retry; issue #333 cloud-quota
+  // local fallback): attributable outcomes persisted on the result metadata,
+  // not just log lines. Empty ⇒ `parser` stays exactly 'packaging-ocr.ts'.
+  const parserNotes: string[] = [];
+  if (retriedRepetition) parserNotes.push('retried_repetition');
+  if (quotaFallbackToLocal) parserNotes.push('cloud_quota_fallback');
   const metadata = {
     imageSourceUrl: typeof rawSourceRef === 'string' ? redactImageUrl(rawSourceRef) : rawSourceRef ?? null,
     imageSourceDigest: typeof rawSourceRef === 'string' ? sha256Hex(rawSourceRef) : null,
@@ -1167,8 +1196,9 @@ export async function runPackagingOcrAttempt(
     model: executedVlmTarget ? `${executedVlmTarget.connectionId}:${executedVlmTarget.modelId}` : vlmConfig.model,
     extractedAt: new Date().toISOString(),
     // P3-T2: additive note when a repetition-tail retry produced this data.
-    parser: retriedRepetition ? 'packaging-ocr.ts (retried_repetition)' : 'packaging-ocr.ts',
-    rawResponseExcerpt: responseExcerpt,
+    // (notes assembled above; the base string is unchanged when empty, so
+    // existing assertions on 'packaging-ocr.ts' keep passing)
+    parser: parserNotes.length > 0 ? `packaging-ocr.ts (${parserNotes.join('; ')})` : 'packaging-ocr.ts',
     ...(callId ? { modelCallIds: [callId] } : {}),
   };
 
@@ -1234,9 +1264,12 @@ export function mergeOcrResults(results: PackagingOcrData[]): PackagingOcrData {
 
   const merged: Record<string, any> = {};
 
-  // Scalar fields — highest-confidence wins
-  // For each scalar field, check all results' confidenceByField,
-  // pick the value from the result with the highest confidence.
+  // Scalar fields — highest-confidence wins, except identity fields
+  // (brand/upc): two images reading DIFFERENT brands or barcodes is a
+  // same-product contradiction, not a vote — the merge abstains (null, 0
+  // confidence) so no confident-wrong identity survives. Agreement still
+  // merges normally. For each other scalar, check all results'
+  // confidenceByField, pick the value with the highest confidence.
   // Falls back to first-non-null when no confidence data exists.
   const scalarFields: Array<keyof PackagingOcrData> = [
     // FIX-C review round 2: `upc` participates like every other scalar —
@@ -1245,7 +1278,20 @@ export function mergeOcrResults(results: PackagingOcrData[]): PackagingOcrData {
     'productName', 'brand', 'upc', 'flavorVariety', 'color', 'material',
     'size', 'weight', 'count', 'lifeStage', 'breedSize', 'productForm',
   ];
+  const identityConflictFields = new Set(['brand', 'upc']);
+  const abstained = new Set<string>();
   for (const field of scalarFields) {
+    const distinct = new Set(
+      results
+        .map(r => r[field])
+        .filter((val): val is string => typeof val === 'string' && val.trim().length > 0)
+        .map(val => val.toLowerCase()),
+    );
+    if (identityConflictFields.has(field) && distinct.size > 1) {
+      merged[field] = null;
+      abstained.add(field);
+      continue;
+    }
     let bestVal: unknown = null;
     let bestConf = -1;
     for (const r of results) {
@@ -1282,7 +1328,7 @@ export function mergeOcrResults(results: PackagingOcrData[]): PackagingOcrData {
     merged[field] = combined;
   }
 
-  // confidenceByField — take max per field
+  // confidenceByField — take max per field; abstained identity fields pin 0.
   const mergedConfidence: Record<string, number> = {};
   for (const r of results) {
     if (r.confidenceByField) {
@@ -1293,6 +1339,7 @@ export function mergeOcrResults(results: PackagingOcrData[]): PackagingOcrData {
       }
     }
   }
+  for (const field of abstained) mergedConfidence[field] = 0;
   merged.confidenceByField = mergedConfidence;
 
   // metadata — keep the primary image's metadata, but UNION the durable

@@ -627,13 +627,22 @@ export function validateClassificationConfigBundle(
 
     const categoryId = type.categoryId;
     if (categoryId) {
+      // Website categories may legitimately be finer than canonical
+      // categories: one internal Category (e.g. `dog`) can span multiple
+      // website Category values (`Dog Treats` vs `Dog Toys`), each proven by
+      // live storefront facet values. The schema places websiteValues on the
+      // Product Type (not the Category) precisely because they vary per type,
+      // and no consumer performs a website→internal category reverse lookup
+      // (pair-level duplicate detection below remains an error and is the
+      // real ambiguity guard). Keep this as a warning so genuine
+      // misconfigurations stay visible without blocking valid taxonomies.
       const priorWebsiteCategory = websiteCategoryByCategoryId.get(categoryId);
       if (priorWebsiteCategory !== undefined && priorWebsiteCategory !== values.category) {
         findings.push({
-          severity: 'error',
+          severity: 'warning',
           code: 'inconsistent_website_category_mapping',
           path: `${path}.category`,
-          message: `Product Type "${type.id}" maps Category "${categoryId}" to a different website Category value.`,
+          message: `Product Type "${type.id}" maps Category "${categoryId}" to website Category "${values.category}", differing from "${priorWebsiteCategory}" used by another type in the same Category. Verify both website values are intentional.`,
         });
       } else {
         websiteCategoryByCategoryId.set(categoryId, values.category);

@@ -4,7 +4,7 @@ import { readProductFile } from '../../git/workspace-files';
 import { classifyCatalogProduct } from '../../classification/catalog-product-classifier';
 import { computeProductHash } from '../../classification/catalog-product-source';
 import { getDb } from '../../db/connection';
-import { getRecentCatalogRun, getAcceptedProposals, getEvidenceByRun, getLiveDecisionsByRun, getProposalsByRun, getStageResults } from '../../db/repositories/classification-run-repo';
+import { getRecentCatalogRun, getAcceptedProposals, getEvidenceByRun, getLiveDecisionsByRun, getProposalsByRun, getStageResults, getRun, createRun, CatalogRunConflictError } from '../../db/repositories/classification-run-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../../classification/config-loader';
 import { authorityConfigHashMatches, getRuntimeSnapshotByHash, runtimeSnapshotHashMatchesConfig } from '../../classification/runtime-snapshot';
 import { projectCurrentReviewedDraft } from '../../classification/stages/draft-projection';
@@ -113,7 +113,11 @@ route.get('/products/:sku/classification', async (c) => {
 
 /**
  * POST /api/products/:sku/classification/runs
- * Run classification for a product SKU.
+ * Run classification for a product SKU. With an `idempotencyKey` body,
+ * the start is queued + idempotent (P2 #19): same key replays the same
+ * run id with 202 (even after completion); a different key against an
+ * active SKU conflicts 409 with the active run id. Without a key, the
+ * legacy synchronous execution path runs unchanged.
  */
 route.post('/products/:sku/classification/runs', async (c) => {
   const workspace = getCurrentWorkspace();
@@ -124,6 +128,22 @@ route.post('/products/:sku/classification/runs', async (c) => {
   // Read product
   const product = readProductFile(workspace.workspacePath, sku);
   if (!product) return c.json({ error: `Product not found: ${sku}` }, 404);
+
+  const keyedBody = (await c.req.json().catch(() => ({}))) as { idempotencyKey?: unknown };
+  const idempotencyKey = typeof keyedBody.idempotencyKey === 'string' && keyedBody.idempotencyKey.trim()
+    ? keyedBody.idempotencyKey.trim()
+    : null;
+  if (idempotencyKey) {
+    try {
+      const run = createRun(workspace.id, sku, null, null, { sourceKind: 'catalog_product', idempotencyKey });
+      return c.json({ runId: run.id, status: run.status, queued: run.status === 'queued' }, 202);
+    } catch (err) {
+      if (err instanceof CatalogRunConflictError) {
+        return c.json({ error: 'A classification run is already in progress for this product.', activeRunId: err.activeRunId }, 409);
+      }
+      throw err;
+    }
+  }
 
   // Check for existing running catalog run
   const runningRun = getDb().query(
@@ -226,6 +246,27 @@ route.post('/products/:sku/classification/runs/:runId/apply', async (c) => {
     console.error(`[CatalogClassificationRoutes] Apply failed for ${sku}:`, err);
     return c.json({ error: err.message || 'Apply failed.' }, 400);
   }
+});
+
+/**
+ * GET /api/products/:sku/classification/runs/:runId (P2 #19)
+ * Run status/review by id. Read-only: never touches latest-run state.
+ */
+route.get('/products/:sku/classification/runs/:runId', (c) => {
+  const workspace = getCurrentWorkspace();
+  if (!workspace) return c.json({ error: 'No workspace loaded.' }, 400);
+  const sku = c.req.param('sku');
+  const runId = c.req.param('runId');
+  const run = getRun(runId);
+  if (!run || run.workspaceId !== workspace.id || run.productSku !== sku || run.sourceKind !== 'catalog_product') {
+    return c.json({ error: 'Run not found for this SKU and workspace.' }, 404);
+  }
+  return c.json({
+    runId: run.id,
+    sku: run.productSku,
+    status: run.status,
+    decisions: getLiveDecisionsByRun(run.id),
+  });
 });
 
 export default route;

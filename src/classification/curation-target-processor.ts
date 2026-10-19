@@ -42,7 +42,8 @@ import {
   type PageAssignmentResult,
 } from './page-assignment-llm';
 import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
-import { getEffectiveCurationProductType } from './effective-curation-type';
+import { getEffectiveCurationProductType, getReviewedClassificationPair } from './effective-curation-type';
+import { buildSiblingProductTypeContextFromLineItems } from './cohort-product-type-resolver';
 import { isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 
 /** Missing or incompatible capture is an authority gap, never a live-config fallback. */
@@ -213,7 +214,25 @@ export async function processProductTypeTarget(
   // approved Category through the frozen snapshot mapping. Only approved
   // configured combinations produce a pair proposal — never an invented
   // taxonomy label or combination.
+  // Issue #304: thread the member's own reviewed pair (reviewed precedence)
+  // + confident sibling verdicts (ranker context only) into the same
+  // decision boundary. Sibling context is prompt context only: it never
+  // inherits facts, never vetoes, never force-types (ADR 0041 SKU-local
+  // authority).
   const { resolveClassificationDecision } = await import('./product-type-decision');
+  // Own-SKU reviewed pair only (a live rejection in this run withdraws
+  // carried authority, mirroring `getEffectiveClassification`); never a
+  // sibling or family conclusion.
+  const reviewedPair = context.snapshot
+    ? getReviewedClassificationPair(context.snapshot, input.allProposals.filter(proposal =>
+        proposal.productSku === input.sku && proposal.runId === context.runId,
+      ))
+    : null;
+  const siblingContext = buildSiblingProductTypeContextFromLineItems(
+    context.productLineItems,
+    input.sku,
+    target.options,
+  );
   const decision = await resolveClassificationDecision({
     target,
     evidence: input.evidence,
@@ -222,6 +241,8 @@ export async function processProductTypeTarget(
     snapshot: context.snapshot,
     modelPolicy,
     assertHeld: context.assertHeld,
+    reviewedPair: reviewedPair ?? undefined,
+    siblingContext: siblingContext ?? undefined,
   });
 
   if (decision.status === 'abstained' || !decision.productTypeId || !decision.categoryId) {

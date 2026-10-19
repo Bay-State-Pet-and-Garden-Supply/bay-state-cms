@@ -24,7 +24,7 @@ import type { VerifiedActivationContext } from '../../classification/config-load
 import type { ModelPolicyConfigV2, DataSharingConfigV2 } from '../../shared/schemas/classification';
 
 const REVIEWED_FIELDS = [
-  'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
+  'ProductField1', 'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
   'ProductField20', 'ProductField21', 'ProductField22', 'ProductField23',
   'ProductField24', 'ProductField25', 'ProductField26', 'ProductField27',
   'ProductField28', 'ProductField29', 'ProductField30', 'ProductField32',

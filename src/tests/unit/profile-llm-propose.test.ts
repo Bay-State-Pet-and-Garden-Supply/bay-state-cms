@@ -9,6 +9,25 @@ vi.mock('@/db/repositories/api-key-repo', () => ({
 }));
 
 import { suggestSelectorsForField, explainValidationFailure, reviseSelectorsFromFeedback, generateSelectorsFromSuite } from '../../server/services/profile-builder/generateSelectorsService';
+import { buildModelPolicyView } from '../../classification/model-policy-gateway';
+
+function cloudAllowedPolicy() {
+  const disabled = { state: 'disabled' as const, qualificationReceiptDigest: null, activatedBy: null, activatedAt: null };
+  return buildModelPolicyView({
+    defaultProvider: 'openai',
+    defaultModel: 'gpt-4o-mini',
+    providerLocalities: { openai: 'cloud' },
+    stageOverrides: {},
+    textDataSharing: 'cloud_allowed',
+    imageDataSharing: 'cloud_allowed',
+    mlFeatures: {
+      productionRetrieval: disabled,
+      pageReranking: disabled,
+      confidenceCalibration: disabled,
+      productionEmbeddings: disabled,
+    },
+  });
+}
 
 describe('profile-llm-propose — task buttons', () => {
   const sampleHtml = '<html><body><h1 class="product-title">Chicken Dinner</h1></body></html>';
@@ -30,7 +49,7 @@ global.fetch = vi.fn().mockResolvedValue({
       json: async () => ({ choices: [{ message: { content: JSON.stringify(payload) } }] }),
       text: async () => '',
     } as any);
-    const res = await suggestSelectorsForField({ fieldKey: 'titleSelector', htmlRefs: ['.baystate-cms/artifacts/a/page.html'], snapshotHtmls: [sampleHtml], sourceUrl: 'https://acme.com/p/1', runtime: 'rendered' } as any, { userId: 'u1', requestId: 'r1' });
+    const res = await suggestSelectorsForField({ fieldKey: 'titleSelector', htmlRefs: ['.baystate-cms/artifacts/a/page.html'], snapshotHtmls: [sampleHtml], sourceUrl: 'https://acme.com/p/1', runtime: 'rendered' }, { userId: 'u1', requestId: 'r1', modelPolicy: cloudAllowedPolicy() });
     expect(res.provenance.provider).toBeDefined();
     expect(res.provenance.configId).toBeDefined();
     expect(res.provenance.promptHash).toBeDefined();

@@ -1711,6 +1711,23 @@ export function runMigrations(): void {
   // idx_classification_runs_one_running_item, migrations.ts:1049-1056).
   db.exec('CREATE INDEX IF NOT EXISTS idx_classification_runs_cohort_run_id ON classification_runs(cohort_run_id);');
 
+  // classification_runs idempotency + lease columns (P2 #19) — same-key
+  // replay returns the same catalog run; claims are atomic worker leases.
+  // PRAGMA-guarded upgrade for pre-P19 databases; fresh installs get the
+  // columns from classification-migration.sql. Legacy rows keep NULL.
+  try {
+    const idemCols = db.query('PRAGMA table_info(classification_runs)').all() as Array<{ name: string }>;
+    for (const col of ['idempotency_key', 'claimed_by', 'claimed_at']) {
+      if (idemCols.length > 0 && !idemCols.some(c => c.name === col)) {
+        db.exec(`ALTER TABLE classification_runs ADD COLUMN ${col} TEXT;`);
+        console.log(`[Migrations] Added classification_runs.${col}.`);
+      }
+    }
+  } catch (e) {
+    console.error('[Migrations] Failed to add idempotency columns to classification_runs:', e);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_classification_runs_idempotency ON classification_runs(workspace_id, product_sku, idempotency_key) WHERE idempotency_key IS NOT NULL;');
+
   // ── classification_cohort_snapshots + evidence_snapshot_id (issue #30 PR3 M2) ─
   //
   // M2 adds the content-addressed execution-evidence snapshot table and links
@@ -1910,6 +1927,71 @@ export function runMigrations(): void {
     console.error('[Migrations] Curation V2 migration failed:', e);
   }
 
+  // Issue #304 follow-up / #356 cutover: widen the classification_proposals
+  // proposal_type CHECK to admit the canonical 'product_classification' pair
+  // kind (schema.sql already declares it; live DBs created before the
+  // cutover still enforce the legacy set and fail every canonical pair
+  // insert). Idempotent: rebuilds only when the CHECK lacks the kind.
+  // SQLite cannot ALTER a CHECK, so this builds a NEW table, copies rows,
+  // drops the original, and renames the new table into place — never
+  // renaming the ORIGINAL (which would rewrite inbound FKs on
+  // classification_proposal_decisions/evidence/dependencies to the legacy
+  // name and break them on drop). One transaction, FKs off; all rows,
+  // defaults and indexes preserved.
+  try {
+    const pairCheck = db.query(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'classification_proposals'`).get() as
+      | { sql: string | null }
+      | undefined;
+    if (pairCheck?.sql && !pairCheck.sql.includes(`'product_classification'`)) {
+      console.log('[Migrations] Widening classification_proposals.proposal_type CHECK to admit product_classification...');
+      const newCols: Record<string, true> = { id: true, run_id: true, product_sku: true, proposal_type: true, target_id: true, proposed_value_json: true, confidence: true, status: true, is_bulk_acceptable: true, is_stale: true, staleness_reason: true, config_snapshot_hash: true, created_at: true, evidence_ids_json: true, stale_at: true, superseded_by_run_id: true, metadata_json: true, model_call_ids_json: true, supporting_evidence_ids_json: true, contradicting_evidence_ids_json: true, derivation_json: true, superseded_at: true, refresh_queue_id: true };
+      const liveCols = (db.query(`PRAGMA table_info(classification_proposals)`).all() as Array<{ name: string }>).map(c => c.name).filter(name => newCols[name]);
+      const cols = liveCols.map(name => `"${name}"`).join(', ');
+      const indexes = (db.query(`SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'classification_proposals' AND sql IS NOT NULL`).all() as Array<{ sql: string }>).map(r => r.sql);
+      db.exec('PRAGMA foreign_keys=OFF;');
+      try {
+        db.transaction(() => {
+          db.exec(`CREATE TABLE classification_proposals_new (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES classification_runs(id) ON DELETE CASCADE,
+            product_sku TEXT NOT NULL,
+            proposal_type TEXT NOT NULL CHECK (proposal_type IN ('primary_product_type', 'product_classification', 'category_page', 'field_assignment', 'configuration_gap', 'reviewable_abstention')),
+            target_id TEXT,
+            proposed_value_json TEXT,
+            confidence REAL NOT NULL DEFAULT 0 CHECK (confidence >= 0 AND confidence <= 1),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'deferred', 'stale')),
+            is_bulk_acceptable INTEGER NOT NULL DEFAULT 0 CHECK (is_bulk_acceptable IN (0, 1)),
+            is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+            staleness_reason TEXT,
+            config_snapshot_hash TEXT,
+            created_at TEXT NOT NULL,
+            evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+            stale_at TEXT,
+            superseded_by_run_id TEXT REFERENCES classification_runs(id),
+            metadata_json TEXT DEFAULT '{}',
+            model_call_ids_json TEXT,
+            supporting_evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+            contradicting_evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+            derivation_json TEXT,
+            superseded_at TEXT,
+            refresh_queue_id TEXT
+          );`);
+          db.exec(`INSERT INTO classification_proposals_new (${cols}) SELECT ${cols} FROM classification_proposals;`);
+          db.exec(`DROP TABLE classification_proposals;`);
+          db.exec(`ALTER TABLE classification_proposals_new RENAME TO classification_proposals;`);
+          for (const sql of indexes) db.exec(sql);
+        })();
+      } finally {
+        db.exec('PRAGMA foreign_keys=ON;');
+      }
+      db.exec(`INSERT INTO app_meta (key, value) VALUES ('classification_pair_check_version', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value;`);
+      console.log('[Migrations] classification_proposals CHECK widened.');
+    }
+  } catch (e) {
+    console.error('[Migrations] classification pair CHECK migration failed:', e);
+    throw e;
+  }
+
   // Classification is item-centric: at most one live run may own an item.
   // Keep this outside the version guard so databases that already recorded
   // curation_v2_schema_version still receive the concurrency constraint.
@@ -1924,6 +2006,15 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_remote_drift_ws_sku_status
     ON remote_drift(workspace_id, sku, status)
   `);
+  // Issue #303 follow-up: the keyset-paginated pool queries filter on
+  // (stage, stage_status) and page in (row_number, id) order. The planner
+  // narrows via the pre-existing (stage, stage_status, claimed_by) prefix
+  // (`SEARCH ... USING INDEX`), so per-page work is bounded by the
+  // eligible-subset size; the residual global-order sort is over that
+  // subset only. No new index: a (stage, stage_status, row_number, id)
+  // variant was measured to be redundant — the planner prefers the narrower
+  // existing index and still sorts. See the EXPLAIN assertion in
+  // onboarding-automation.test.ts.
 
   // ── Catalog Classification Migration ──────────────────────────────────────
   //

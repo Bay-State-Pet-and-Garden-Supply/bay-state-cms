@@ -13,9 +13,11 @@ import {
   findChangeSetById, listChangeSets, listChangeSetItems,
   updateChangeSetStatus, deleteChangeSet,
 } from '../../db/repositories/change-set-repo';
+import { getDb } from '../../db/connection';
 import {
   findProductBySku, insertProductIndex, updateProductIndex,
 } from '../../db/repositories/product-index-repo';
+import { replaceProductPageJoins } from '../../db/repositories/page-repo';
 import { reopenDriftForChangeSet, listLinkedDrifts, resolveDrift, findDriftById, updateDriftHunkState, releaseSingleReconcileDrift } from '../../db/repositories/drift-repo';
 import { findHunkAck } from '../../db/repositories/drift-hunk-repo';
 import { parseDriftDiff } from '../../shopsite/drift-hunks';
@@ -82,10 +84,20 @@ export function approveChangeSet(
   const errors: string[] = [];
   const committedSkus: string[] = [];
 
-  // Write product files and update index
+  // Write product files and update index. Page joins resolve BEFORE the
+  // file write: a rejected page assignment must never leave an approved
+  // file mutated while the SKU is excluded from the commit.
   for (const item of items) {
     try {
       const product = JSON.parse(item.draftJson) as Product;
+      // P2 #23: the approved draft's first-class page list replaces the
+      // SKU's join rows with verified identities only.
+      try {
+        replaceProductPageJoins(item.sku, product.core.productOnPages ?? []);
+      } catch (err) {
+        errors.push(`Failed to sync page joins for ${item.sku}: ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
       writeProductFile(workspacePath, product);
 
       // Update product index
@@ -155,16 +167,17 @@ export function approveChangeSet(
     return { success: false, errors };
   }
 
-  // Git commit
+  // Git commit — scoped to this change set's targets ONLY (P2 #22):
+  // pre-staged unrelated files stay in the index and out of the commit.
   const git = new GitClient(workspacePath);
-  const candidateFiles: string[] = ['products/', 'store/', '.gitignore'];
-
-  // Only add changed product files
+  const targetFiles: string[] = [];
   for (const sku of committedSkus) {
-    candidateFiles.push(skuToProductFilePath(sku));
+    targetFiles.push(skuToProductFilePath(sku));
   }
-
-  const stagedFiles = candidateFiles.filter(f => fs.existsSync(path.join(workspacePath, f)));
+  if (fs.existsSync(path.join(workspacePath, '.gitignore'))) {
+    targetFiles.push('.gitignore');
+  }
+  const stagedFiles = targetFiles.filter(f => fs.existsSync(path.join(workspacePath, f)));
 
   try {
     if (stagedFiles.length > 0) {
@@ -173,13 +186,13 @@ export function approveChangeSet(
     const commitMessage = `Change set: ${changeSet.title} (${committedSkus.length} product(s))`;
     let commitHash: string;
     try {
-      git.commit(commitMessage);
+      git.commitPaths(commitMessage, stagedFiles);
       commitHash = git.getHeadHash();
     } catch (commitErr) {
       const stdout = String((commitErr as any)?.stdout?.toString() ?? '');
       const stderr = String((commitErr as any)?.stderr?.toString() ?? '');
       const errMsg = `${commitErr instanceof Error ? commitErr.message : String(commitErr)} ${stdout} ${stderr}`;
-      if (errMsg.includes('nothing added to commit') || errMsg.includes('nothing to commit') || errMsg.includes('working tree clean')) {
+      if (errMsg.includes('nothing added to commit') || errMsg.includes('nothing to commit') || errMsg.includes('working tree clean') || errMsg.includes('requires at least one pathspec')) {
         commitHash = git.getHeadHash();
       } else {
         throw commitErr;
@@ -267,6 +280,40 @@ export function discardChangeSet(changeSetId: string): { success: boolean; reope
     }
   }
   return { success: true, reopenedDrift: cs.status === 'draft' };
+}
+
+/**
+ * Discard many draft change sets in one atomic call (P2 #25).
+ *
+ * All-or-nothing: every id must resolve to a draft owned by `workspaceId`,
+ * else the whole batch rejects and nothing is deleted. Each discarded set
+ * reuses `discardChangeSet` (drift reopen + audit) inside one transaction
+ * so a 50-draft clear is a single round trip with elapsed instrumentation
+ * at the call site.
+ */
+export function discardDraftChangeSets(
+  changeSetIds: string[],
+  workspaceId: string,
+): { success: boolean; discarded?: string[]; reason?: string } {
+  const rows = changeSetIds.map(id => findChangeSetById(id));
+  const missing = changeSetIds.find((id, i) => !rows[i] || rows[i]!.id !== id);
+  if (missing) {
+    return { success: false, reason: `unknown change set id: ${missing}` };
+  }
+  const bad = (rows as Array<NonNullable<(typeof rows)[number]>>)
+    .find(row => row.workspaceId !== workspaceId || row.status !== 'draft');
+  if (bad) {
+    return { success: false, reason: `not a workspace draft: ${bad.id}` };
+  }
+  const db = getDb();
+  const discarded: string[] = [];
+  db.transaction(() => {
+    for (const id of changeSetIds) {
+      discardChangeSet(id);
+      discarded.push(id);
+    }
+  })();
+  return { success: true, discarded };
 }
 
 /**

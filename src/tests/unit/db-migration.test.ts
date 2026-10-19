@@ -2529,3 +2529,121 @@ describe('classification_stage_results packaging_ocr CHECK expansion (P2-T6 + po
     expect(schemaSql).toContain('derivation_json TEXT');
   });
 });
+
+describe('classification_proposals pair CHECK widening (issue #304 follow-up)', () => {
+  const dbPath = `/tmp/baystate-cms-pair-check-mig-${randomUUID()}.db`;
+
+  beforeAll(() => {
+    try { resetDb(); } catch { /* ok */ }
+    initDb(dbPath);
+    runMigrations();
+
+    const db = getDb();
+    const now = new Date().toISOString();
+    const wsId = randomUUID();
+    insertWorkspace({
+      id: wsId,
+      name: 'Pair Check Mig WS',
+      workspacePath: `/tmp/pair-check-mig-${wsId}`,
+      gitPath: '',
+      createdAt: now,
+      updatedAt: now,
+      bootstrapStatus: 'complete',
+      baselineCommit: null,
+    });
+    const runId = randomUUID();
+    db.run(
+      `INSERT INTO classification_runs (id, workspace_id, product_sku, source_kind, config_snapshot_hash, status, started_at)
+       VALUES (?, ?, ?, 'onboarding', ?, 'completed', ?)`,
+      [runId, wsId, 'PAIR-MIG-SKU', 'f'.repeat(64), now],
+    );
+    // Simulate a LEGACY database: the proposals table with the five-name
+    // CHECK (product_classification absent) holding a row, plus dependent
+    // decision + evidence rows pointing at it.
+    const fkRow = db.query('PRAGMA foreign_keys').get() as { foreign_keys: number };
+    const fkWasOn = Number(fkRow.foreign_keys) === 1;
+    if (fkWasOn) db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        db.exec('DROP TABLE classification_proposals');
+        db.exec(`
+          CREATE TABLE classification_proposals (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES classification_runs(id) ON DELETE CASCADE,
+            product_sku TEXT NOT NULL,
+            proposal_type TEXT NOT NULL CHECK (proposal_type IN ('primary_product_type', 'category_page', 'field_assignment', 'configuration_gap', 'reviewable_abstention')),
+            target_id TEXT,
+            proposed_value_json TEXT,
+            confidence REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL,
+            evidence_ids_json TEXT NOT NULL DEFAULT '[]'
+          );`);
+        db.run(
+          `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+           VALUES ('pair-mig-prop', ?, 'PAIR-MIG-SKU', 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', ?)`,
+          [runId, now],
+        );
+        db.run(
+          `INSERT INTO classification_evidence (id, run_id, product_sku, stage_name, source, reliability, attribute_id, value_json, created_at)
+           VALUES ('pair-mig-ev', ?, 'PAIR-MIG-SKU', 'evidence_extraction', 'official_product_page', 'high', 'flavor', '"Chicken"', ?)`,
+          [runId, now],
+        );
+        db.run(
+          `INSERT INTO classification_proposal_evidence (proposal_id, evidence_id, relation) VALUES ('pair-mig-prop', 'pair-mig-ev', 'supporting')`,
+        );
+        db.run(
+          `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at) VALUES ('pair-mig-dec', 'pair-mig-prop', 'accepted', 'k', ?)`,
+          [now],
+        );
+        db.exec(`DELETE FROM app_meta WHERE key = 'classification_pair_check_version'`);
+      })();
+    } finally {
+      if (fkWasOn) db.exec('PRAGMA foreign_keys = ON');
+    }
+  });
+
+  afterAll(() => {
+    try { closeDb(); } catch { /* ok */ }
+    try { unlinkSync(dbPath); } catch { /* ok */ }
+  });
+
+  it('rebuilds the CHECK, preserves rows, keeps inbound FKs, and accepts the canonical pair kind', () => {
+    runMigrations();
+    const db = getDb();
+    // Legacy row survived.
+    const prop = db.query('SELECT * FROM classification_proposals WHERE id = ?').get('pair-mig-prop') as Record<string, unknown>;
+    expect(prop).toBeDefined();
+    expect(prop.proposal_type).toBe('field_assignment');
+    // Inbound FK consumers still resolve to the live table (not a dropped legacy name).
+    const fkSql = (db.query(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'classification_proposal_evidence'`).get() as { sql: string }).sql;
+    expect(fkSql).toContain('REFERENCES classification_proposals(');
+    expect(fkSql).not.toContain('classification_proposals_legacy');
+    // Subsequent writes through the FK consumers succeed.
+    expect(() =>
+      db.run(`INSERT INTO classification_evidence (id, run_id, product_sku, stage_name, source, reliability, attribute_id, value_json, created_at)
+              SELECT 'pair-mig-ev2', id, 'PAIR-MIG-SKU', 'evidence_extraction', 'official_product_page', 'high', 'flavor', '"Beef"', ? FROM classification_runs LIMIT 1`, [new Date().toISOString()]),
+    ).not.toThrow();
+    expect(() =>
+      db.run(`INSERT INTO classification_proposal_evidence (proposal_id, evidence_id, relation) VALUES ('pair-mig-prop', 'pair-mig-ev2', 'context')`),
+    ).not.toThrow();
+    expect(() =>
+      db.run(`INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at) VALUES (?, 'pair-mig-prop', 'rejected', 'k2', ?)`, [randomUUID(), new Date().toISOString()]),
+    ).not.toThrow();
+    // The canonical pair kind is now accepted; an invalid kind still fails.
+    expect(() =>
+      db.run(
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         SELECT ?, id, 'PAIR-MIG-SKU', 'product_classification', 'dog-food-wet', ?, 0.9, 'pending', ? FROM classification_runs LIMIT 1`,
+        [randomUUID(), JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-wet' }), new Date().toISOString()],
+      ),
+    ).not.toThrow();
+    expect(() =>
+      db.run(
+        `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         SELECT ?, id, 'PAIR-MIG-SKU', 'bogus_kind', NULL, NULL, 0.9, 'pending', ? FROM classification_runs LIMIT 1`,
+        [randomUUID(), new Date().toISOString()],
+      ),
+    ).toThrow();
+  });
+});

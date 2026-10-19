@@ -132,8 +132,9 @@ export interface ExportResult {
   xmlPath: string;
   manifestPath: string;
   instructionsPath: string;
-  zipPath: string;
+  zipPath: string | null;
   productCount: number;
+  missingImagesWarning?: string;
 }
 
 // Store Workspace

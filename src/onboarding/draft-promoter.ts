@@ -1026,9 +1026,11 @@ export function buildNamingAssessmentBase(
       const lowered = cleanAxis.toLowerCase();
       // Color/flavor/formula are NOT measurement: color is governed by the
       // multicolor rule below, and taste attributes never hold a listing.
-      // Capacity + size/weight/count/pack + other declared custom axes are
-      // distinguishing measurement tokens.
-      if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula') continue;
+      // Distributor case-pack counts are fulfillment data, not the
+      // shopper-visible sell unit (we buy bulk, sell individual) — a pack
+      // count never holds a listing either. Size/weight/count/capacity and
+      // other declared custom axes remain distinguishing measurement tokens.
+      if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula' || lowered === 'packcount' || lowered === 'pack') continue;
       tokens.push({
         axis: cleanAxis,
         value: value.trim(),
@@ -1842,7 +1844,7 @@ export async function prepareDraftPromotion(
       // classification slot — stamp only into a mapped slot, never the
       // fallback. No `arrival_date` mapping = no stamp (visible gap, not a
       // misrouted write).
-      if (!existingApproved && !isProtectedCatalogField(arrivalDateCatalogField, 'arrival_date', mappings)) {
+      if (!existingApproved && !isProtectedCatalogField(arrivalDateCatalogField, ARRIVAL_DATE_ATTRIBUTE_ID, mappings)) {
         const d = new Date();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');

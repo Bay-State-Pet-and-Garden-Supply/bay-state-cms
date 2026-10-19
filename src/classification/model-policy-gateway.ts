@@ -39,7 +39,10 @@ export type ProtectedOperation =
   | 'sitemap_selection'
   // P3 value-production ladder (plan B.P3.3): id-constrained residual-gap
   // resolution for the flag-gated `value_gap_abstain` stage.
-  | 'value_gap_resolution';
+  | 'value_gap_resolution'
+  // ADR 0040 guided setup: selector-generation proposals route through the
+  // frozen workspace policy like every other model call.
+  | 'profile_generation';
 
 /**
  * Classification stage key used for `stageOverrides` lookup per protected
@@ -59,6 +62,7 @@ const PROTECTED_OPERATION_STAGE: Readonly<Record<ProtectedOperation, string | nu
   discovery_name_consolidation: 'name_consolidation',
   sitemap_selection: null,
   value_gap_resolution: 'value_gap_abstain',
+  profile_generation: null,
 };
 
 /** Stable denial reason codes (typed; serializable). */

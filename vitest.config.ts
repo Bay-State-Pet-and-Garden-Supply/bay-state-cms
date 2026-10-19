@@ -533,6 +533,17 @@ export default defineConfig({
       'src/tests/unit/sku-local-siblings.test.ts',
       // P1 engine suite imports repository/connection transitively (bun:sqlite); run under bun test via test:db.
       'src/tests/unit/p1-engine-correctness.test.ts',
+      // Issue #303 worker-poll yield regression — bun:test/bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/onboarding-worker-poll-yield.test.ts',
+      // Issue #304 venison cohort fail-closed regression — bun:test/bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/venison-cohort-fail-closed.test.ts',
+      // Profile generation policy — imports bun:test for vi; run under bun test via test:db
+      'src/tests/unit/profile-generation-policy.test.ts',
+      // Backfill preflight/reconcile — transitive bun:sqlite via codec/decision chain; run under bun test (test:db)
+      'src/tests/unit/backfill-preflight.test.ts',
+      'src/tests/unit/backfill-reconcile.test.ts',
+      // Change-set item/run binding — transitive bun:sqlite via repositories; run under bun test (test:db)
+      'src/tests/unit/change-set-item-run-binding.test.ts',
     ],
   },
 });

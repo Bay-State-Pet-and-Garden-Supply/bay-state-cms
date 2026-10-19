@@ -88,6 +88,13 @@ export interface DomainReleaseResult {
   skipped: Array<{ itemId: string; reason: string }>;
   /** Reviewed-health reason when the release was refused (issue #198); null when released or when no profile exists at all. */
   healthReason?: string | null;
+  /**
+   * Issue #303: eligible rows left unreleased because `options.limit`
+   * capped this call. `releasedIds.length + eligibleRemaining` always equals
+   * the total eligible set, so callers can report released-vs-remaining
+   * honestly. Zero when the call was refused or ran unbounded.
+   */
+  eligibleRemaining: number;
 }
 
 /** Reviewed-health verdict for a domain (issue #198). */
@@ -141,6 +148,16 @@ export interface DomainReleaseOptions {
    * sweep always uses the default (profile-blocked errors only).
    */
   releaseAllBlocked?: boolean;
+  /**
+   * Issue #303: maximum eligible items to release in this call. The bound
+   * applies BEFORE any mutation — only the first `limit` eligible rows are
+   * re-queued; the rest are reported via `eligibleRemaining`. Defaults to
+   * unbounded (the explicit operator-triggered endpoint releases everything
+   * on the domain); the worker sweep always passes its remaining
+   * per-iteration budget so one domain can never spend the whole sweep
+   * before the first yield.
+   */
+  limit?: number;
 }
 
 /**
@@ -166,6 +183,7 @@ export function releaseDomainExtractionItems(
       releasedIds: [],
       skipped: [{ itemId: '', reason: health.reason ?? 'not_healthy' }],
       healthReason: health.reason,
+      eligibleRemaining: 0,
     };
   }
 
@@ -221,7 +239,13 @@ export function releaseDomainExtractionItems(
   const eligible = options.releaseAllBlocked
     ? holdSurvivors
     : holdSurvivors.filter(row => PROFILE_BLOCKED_ERROR_PATTERN.test(row.error_message ?? ''));
-  for (const row of eligible) {
+  // Issue #303: bound BEFORE mutating. Thousands of same-domain items must
+  // not all re-queue (guarded UPDATE + SSE emit each) before the first
+  // yield — take at most `limit` eligible rows and release only those. The
+  // remainder stays eligible and is reported via `eligibleRemaining`, so a
+  // later poll (or a post-restart re-poll) picks it up.
+  const toRelease = options.limit === undefined ? eligible : eligible.slice(0, Math.max(0, options.limit));
+  for (const row of toRelease) {
     if (requeueBlockedExtractionItem(row.id)) {
       releasedIds.push(row.id);
       onboardingEvents.emitItemStatus(row.batch_id, row.id, 'pending', {
@@ -234,37 +258,107 @@ export function releaseDomainExtractionItems(
       skipped.push({ itemId: row.id, reason: 'transition_failed' });
     }
   }
-  return { domain: normalized, profileAvailable: true, releasedIds, skipped };
+  return { domain: normalized, profileAvailable: true, releasedIds, skipped, eligibleRemaining: eligible.length - toRelease.length };
 }
 
 export interface DomainReleaseSweepResult {
   releasedIds: string[];
   domains: string[];
+  /**
+   * Issue #303: eligible rows left unreleased across all visited domains
+   * (per-domain remainders beyond the per-iteration budget).
+   * `releasedIds.length + eligibleRemaining` equals the total eligible set.
+   */
+  eligibleRemaining: number;
+}
+
+/**
+ * Issue #303: per-iteration work budget for the domain-release sweep. Same
+ * hazard as the auto-advance sweep: the blocked-item list is unbounded (every
+ * blocked row in the workspace) and each domain runs one reviewed-health
+ * evaluation plus guarded per-item UPDATEs on the poll path. The cap bounds
+ * one iteration; leftovers release on later polls (UPDATEs are guarded and
+ * idempotent, so a restart mid-sweep is safe).
+ */
+export const DOMAIN_RELEASE_SWEEP_LIMIT = 200;
+/**
+ * Issue #303 follow-up: bounded discovery page for the domain-release sweep.
+ * The blocked pool is unbounded (every blocked row in the workspace); the old
+ * full-pool materialize-then-loop held the poll before its first yield on a
+ * huge pool. Discovery pages through `(row_number, id)` keyset order (the same
+ * convention as the auto-advance legs) and yields between pages, so one poll
+ * iteration never holds the event loop for the whole pool ahead of the first
+ * yield. Sized generously: pages carry only the light row projection, and the
+ * per-domain health evaluations below dominate poll cost either way.
+ */
+export const DOMAIN_RELEASE_DISCOVERY_PAGE_SIZE = 500;
+
+export interface DomainReleaseSweepOptions {
+  /** Maximum blocked items released per sweep invocation. Defaults to DOMAIN_RELEASE_SWEEP_LIMIT; callers pass a smaller value only in tests. */
+  limit?: number;
+  /** Cooperative yield called after every processed domain. The worker passes its `setImmediate` yield. */
+  yieldBetweenItems?: () => Promise<void>;
 }
 
 /**
  * Worker poll-loop sweep: find every domain with blocked extraction items
- * that NOW satisfies reviewed health and release those items. One scoped
- * query + per-domain health evaluations; no-op (and cheap) when nothing is
- * blocked. Uses the default profile-blocked-only filter so generic scrape
- * failures never hot-loop.
+ * that NOW satisfies reviewed health and release those items, bounded to
+ * `limit` items per invocation. Discovery pages through the blocked pool
+ * (keyset, `DOMAIN_RELEASE_DISCOVERY_PAGE_SIZE` rows at a time) with a
+ * cooperative yield between pages, so a huge blocked pool cannot hold the
+ * loop before the first yield; then per-domain health evaluations run in
+ * first-seen order with a yield after each domain. No-op (and cheap) when
+ * nothing is blocked. Uses the default profile-blocked-only filter so
+ * generic scrape failures never hot-loop.
+ * The bound is enforced before mutating (passed into each per-domain
+ * release); rows beyond the budget stay eligible and are counted in
+ * `eligibleRemaining`.
  */
-export function sweepDomainReleases(workspaceId: string): DomainReleaseSweepResult {
-  const blocked = listBlockedExtractionItemsByWorkspace(workspaceId);
-  const domains = new Set<string>();
-  for (const row of blocked) {
-    if (!row.source_url) continue;
-    const host = hostOf(row.source_url);
-    if (host) domains.add(host);
+export async function sweepDomainReleases(workspaceId: string, options: DomainReleaseSweepOptions = {}): Promise<DomainReleaseSweepResult> {
+  const limit = options.limit ?? DOMAIN_RELEASE_SWEEP_LIMIT;
+  const yieldBetweenItems = options.yieldBetweenItems;
+  // Issue #303 follow-up: bounded pre-release scan. Page the blocked pool
+  // instead of materializing it whole: each page is one LIMIT query in
+  // `(row_number, id)` order, and the loop yields between pages so the first
+  // yield lands after the first page even when the pool is huge. A final
+  // yield covers a single-page pool whose per-domain loop could otherwise
+  // return without ever yielding.
+  const domains: string[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  for (;;) {
+    const page = listBlockedExtractionItemsByWorkspace(workspaceId, { afterId: cursor, limit: DOMAIN_RELEASE_DISCOVERY_PAGE_SIZE });
+    for (const row of page) {
+      cursor = row.id;
+      if (!row.source_url) continue;
+      const host = hostOf(row.source_url);
+      if (host && !seen.has(host)) {
+        seen.add(host);
+        domains.push(host);
+      }
+    }
+    if (page.length < DOMAIN_RELEASE_DISCOVERY_PAGE_SIZE) break;
+    if (yieldBetweenItems) await yieldBetweenItems();
   }
   const releasedIds: string[] = [];
   const releasedDomains: string[] = [];
+  let eligibleRemaining = 0;
   for (const domain of domains) {
-    const res = releaseDomainExtractionItems(workspaceId, domain);
+    // Issue #303: bound BEFORE mutating — pass the remaining per-iteration
+    // budget into the per-domain release so it re-queues at most that many
+    // rows (the old post-hoc slice mutated every eligible row on the domain
+    // and only trimmed the reported list). Every domain is still visited so
+    // `eligibleRemaining` stays accurate even once the budget is spent (a
+    // zero budget releases nothing but still reports).
+    const remaining = Math.max(0, limit - releasedIds.length);
+    const res = releaseDomainExtractionItems(workspaceId, domain, { limit: remaining });
     if (res.releasedIds.length > 0) {
       releasedIds.push(...res.releasedIds);
       releasedDomains.push(domain);
     }
+    eligibleRemaining += res.eligibleRemaining;
+    if (yieldBetweenItems) await yieldBetweenItems();
   }
-  return { releasedIds, domains: releasedDomains };
+  if (domains.length === 0 && yieldBetweenItems) await yieldBetweenItems();
+  return { releasedIds, domains: releasedDomains, eligibleRemaining };
 }

@@ -10,6 +10,11 @@
 import { createHash } from 'node:crypto';
 import { getLlmTaskConfig } from '../../../db/repositories/llm-task-config-repo';
 import { getApiKey } from '../../../db/repositories/api-key-repo';
+import {
+  ModelPolicyDeniedError,
+  resolveModelRoute,
+  type ModelPolicyView,
+} from '../../../classification/model-policy-gateway';
 import type { LlmProvider } from '../../../shared/schemas/onboarding';
 import type {
   GenerateSelectorsRequest,
@@ -582,9 +587,30 @@ export async function generateSelectorsFromSuite(
 
 export async function suggestSelectorsForField(
   input: { fieldKey: string; htmlRefs: string[]; snapshotHtmls: string[]; sourceUrl: string; runtime: SelectorGenerationRuntime },
-  context: { userId: string; requestId: string },
+  context: { userId: string; requestId: string; modelPolicy?: ModelPolicyView },
 ): Promise<{ fields: Record<string, ValidatedCandidate>; provenance: SuiteProvenance }> {
-  const llmConfig = resolveLlmConfig(context.requestId);
+  // Guided-setup policy gate (ADR 0040): model proposals route through the
+  // frozen workspace policy, and the TRANSPORT uses the authorized route —
+  // never mutable task settings. Absent policy denies; a cloud provider
+  // under a local-only view denies.
+  if (!context.modelPolicy) {
+    throw new ModelPolicyDeniedError('policy_absent', 'profile_generation');
+  }
+  const route = resolveModelRoute(context.modelPolicy, 'profile_generation', {
+    getCredential: (provider: string) => {
+      const row = getApiKey(provider);
+      if (!row?.api_key) return null;
+      return { provider, apiKey: row.api_key, baseUrl: row.base_url, model: row.model };
+    },
+    defaultBaseUrls: DEFAULT_BASE_URLS,
+  });
+  const llmConfig: LlmEndpointConfig = {
+    provider: route.provider as LlmProvider,
+    apiKey: route.apiKey,
+    baseUrl: route.baseUrl,
+    model: route.model,
+    timeoutMs: TIMEOUT_MS[route.provider] ?? 45_000,
+  };
   const fieldKey = input.fieldKey;
   const prompt = buildSelectorGenerationPrompt({ fields: [{ key: fieldKey, label: fieldKey, origin: 'core', valueType: 'text', multiple: false, description: undefined }], sanitizedHtml: (input.snapshotHtmls[0] ?? '').slice(0, 80000), sourceUrl: input.sourceUrl, runtime: input.runtime });
   const provenance = buildProvenance(llmConfig, prompt);

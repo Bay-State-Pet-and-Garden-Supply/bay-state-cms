@@ -43,6 +43,17 @@ export interface DispatchExecutionResult {
   executedTarget: ModelTarget;
   wasFallback: boolean;
   warning?: string;
+  /**
+   * HTTP status of the primary failure that triggered fallback (issue #333:
+   * cause precision). Set on every fallback-served result; undefined on
+   * primary-served results. Lets callers pin quota alerts only when the
+   * primary actually 429'd — a primary timeout/503 served via fallback must
+   * NOT pin "quota exhausted". Preserved through fallback success, fallback
+   * failure, AND fallback rejection: every post-primary-failure throw carries
+   * it as an own `primaryStatusCode` prop (always set, even undefined) plus
+   * the primary error as `cause`.
+   */
+  primaryStatusCode?: number;
 }
 
 export interface DispatchWorkloadOptions extends ChatCompletionOptions {
@@ -245,6 +256,13 @@ export async function dispatchWorkloadChat(
       throw err;
     }
 
+    // Issue #333 cause precision: remember the primary failure's HTTP status
+    // at this boundary (before any fallback executes) so callers can tell a
+    // primary 429 (quota → alert) from a primary timeout/503 (no quota pin).
+    const primaryStatusCode =
+      typeof err?.statusCode === 'number'
+        ? (err.statusCode as number)
+        : /HTTP 429\b/.test(err instanceof Error ? err.message : String(err?.message ?? '')) ? 429 : undefined;
     if (primaryCallId) {
       terminalize(primaryCallId, {
         status: 'failed',
@@ -265,48 +283,65 @@ export async function dispatchWorkloadChat(
     // 4. Evaluate Fallback Target
     if (!fallback) {
       if (terminalBehavior === 'fail_closed') {
-        throw new Error(
+        const failedClosed = new Error(
           `Workload "${workload}" failed closed: primary target failed and no fallback is configured (${err.message}).`,
           { cause: err },
         );
+        (failedClosed as Error & { primaryStatusCode?: number }).primaryStatusCode = primaryStatusCode;
+        throw failedClosed;
       }
       throw err;
     }
 
     const fallbackConn = config.connections[fallback.connectionId];
     if (!fallbackConn || !fallbackConn.enabled) {
-      throw new Error(
+      const rejection = new Error(
         `Fallback connection "${fallback.connectionId}" for workload "${workload}" is not configured or disabled.`,
         { cause: err },
       );
+      (rejection as Error & { primaryStatusCode?: number }).primaryStatusCode = primaryStatusCode;
+      throw rejection;
     }
+    // Issue #333 P2: a rejected fallback must not lose the primary failure.
+    // Chain it as `cause` and tag the primary status (always set — presence
+    // is the signal) so the quota boundary pins on the PRIMARY 429 and the
+    // rethrow still surfaces why the fallback refused.
     if (isSystemOneConnection(fallbackConn)) {
-      throw new AiPolicyDeniedError(
+      const rejection = new AiPolicyDeniedError(
         `Cannot fallback to "${fallbackConn.label}": typed-judgment (System One) connections cannot serve ` +
           `the "${workload}" workload, which requires chat completion.`,
         fallback.connectionId,
         fallback.modelId,
       );
+      (rejection as Error & { cause?: unknown }).cause = err;
+      (rejection as Error & { primaryStatusCode?: number }).primaryStatusCode = primaryStatusCode;
+      throw rejection;
     }
 
     // Validate Data Sharing Policy for Fallback
     const fbTextAllowed = isTargetPermittedByPolicy(fallbackConn.trustZone, textDataSharing);
     if (!fbTextAllowed) {
-      throw new AiPolicyDeniedError(
+      const rejection = new AiPolicyDeniedError(
         `Cannot fallback to "${fallbackConn.label}": Text data sharing policy "${textDataSharing}" forbids transmission to ${fallbackConn.trustZone}.`,
         fallback.connectionId,
         fallback.modelId,
       );
+      (rejection as Error & { cause?: unknown }).cause = err;
+      (rejection as Error & { primaryStatusCode?: number }).primaryStatusCode = primaryStatusCode;
+      throw rejection;
     }
 
     if (requiresImage) {
       const fbImageAllowed = isTargetPermittedByPolicy(fallbackConn.trustZone, imageDataSharing);
       if (!fbImageAllowed) {
-        throw new AiPolicyDeniedError(
+        const rejection = new AiPolicyDeniedError(
           `Cannot fallback to "${fallbackConn.label}": Image data sharing policy "${imageDataSharing}" forbids transmission to ${fallbackConn.trustZone}.`,
           fallback.connectionId,
           fallback.modelId,
         );
+        (rejection as Error & { cause?: unknown }).cause = err;
+        (rejection as Error & { primaryStatusCode?: number }).primaryStatusCode = primaryStatusCode;
+        throw rejection;
       }
     }
 
@@ -326,13 +361,24 @@ export async function dispatchWorkloadChat(
     let fbRes;
     try {
       fbRes = await executeOpenAiChat(fallbackConn, fallback.modelId, messages, options);
-    } catch (fbErr: any) {
+    } catch (fbErr: unknown) {
       if (fbCallId) {
         terminalize(fbCallId, {
           status: 'failed',
-          errorCode: fbErr?.name ?? 'FALLBACK_FAILED',
+          errorCode: fbErr instanceof Error ? fbErr.name : 'FALLBACK_FAILED',
           costBasis: localityOf(fallbackConn) === 'local' ? 'local_zero' : 'unknown',
         });
+      }
+      // Preserve the primary failure through fallback execution: a primary
+      // 429 + fallback 503 must still surface the 429 to the caller (the
+      // dispatcher throws only fbErr, losing the primary error — issue #333
+      // P2). Chain the primary error as `cause` and ALWAYS tag the primary
+      // status (even undefined): the tag's PRESENCE tells callers the outer
+      // error is the fallback's, so a fallback 429 after a primary timeout
+      // can never read as primary quota.
+      if (fbErr instanceof Error) {
+        (fbErr as Error & { cause?: unknown }).cause = err;
+        (fbErr as Error & { primaryStatusCode?: number }).primaryStatusCode = primaryStatusCode;
       }
       throw fbErr;
     }
@@ -359,6 +405,7 @@ export async function dispatchWorkloadChat(
       executedTarget: fallback,
       wasFallback: true,
       warning: misconfigurationWarning,
+      ...(primaryStatusCode !== undefined ? { primaryStatusCode } : {}),
     };
   }
 }

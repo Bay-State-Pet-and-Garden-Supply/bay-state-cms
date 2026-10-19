@@ -5,7 +5,7 @@ import { validateClassificationConfigBundle } from '../../classification/config-
 import type { CatalogEvidence } from '../../classification/catalog-evidence';
 
 const REVIEWED_FIELDS = [
-  'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
+  'ProductField1', 'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
   'ProductField20', 'ProductField21', 'ProductField22', 'ProductField23',
   'ProductField24', 'ProductField25', 'ProductField26', 'ProductField27',
   'ProductField28', 'ProductField29', 'ProductField30', 'ProductField32',

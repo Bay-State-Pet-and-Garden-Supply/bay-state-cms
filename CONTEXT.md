@@ -96,6 +96,30 @@ _Avoid_: Product identity, product family, variant group
 The stable local CMS identity for a product after it becomes a product draft or approved product.
 _Avoid_: SKU, onboarding row
 
+**Product Family**:
+A customer-facing group of variants of the same underlying product under a Family Variant Rule. Members may span onboarding batches and the existing approved catalog; an internal Curation Cohort does not establish membership.
+_Avoid_: Brand-wide product line, Curation Cohort, source-page option state
+
+**Family Variant Rule**:
+A product-type-specific definition of which differences are permitted within a Product Family. Food families preserve brand, recipe, flavor, species, life stage, and form while package size may differ; other variation axes require an explicit rule.
+_Avoid_: Name-stem similarity, universal size/color rule
+
+**Subproduct**:
+A product associated with a main product for joint storefront display, including a package-size member of a Product Family.
+_Avoid_: SKU suffix, ordering option, family identity
+
+**Main Product**:
+The product through which a Product Family is presented. An existing Main Product is preserved; a new family's Main Product is one of its real, purchasable member SKUs.
+_Avoid_: Automatically created display-only parent, synthetic UPC
+
+**Short Name**:
+A concise customer-facing label for a Subproduct, separate from its full product name and Product SKU. In a size-only Product Family, the Short Name identifies the member's package size.
+_Avoid_: Product name, SKU, family name
+
+**Curation Cohort**:
+An internal group of Onboarding Items considered together for coordinated Curation. Its membership does not establish a storefront Product Family.
+_Avoid_: Product Family, published variant relationship
+
 **Unmapped Product Type**:
 A plausible Product Type that is not yet configured for the store.
 _Avoid_: New category, auto-created type
@@ -942,7 +966,7 @@ _Avoid_: Table view, item list, batch detail view
 - There is one canonical **Product Classification**, not independently inferred internal and website types.
 - Ambiguous Category/Product Type results remain **Unresolved Product Classifications**; required gaps keep the product in **Review**, never force a type or silently permit draft creation.
 - Correcting Category or Product Type is a **Proposal Decision Revision** that invalidates dependent proposals while retaining review history.
-- Product-family batching never authorizes inherited product facts or classification assignments; each **Product SKU** uses its own supplied evidence.
+- Curation Cohort membership never authorizes inherited product facts or classification assignments; each **Product SKU** uses its own supplied evidence.
 - "variant data" could mean full family modeling or source-page option selection — resolved: use **Source-Page Variant** only for selecting the correct source-page option state for one imported **Product SKU**.
 - Variant selection could rely on LLM guessing during automated Extraction — resolved: use a reviewed deterministic **Variant Selection Strategy** and fail closed on ambiguity.
 - SKU could be confused with the stable local product identity — resolved: use **Product SKU** for the store-facing onboarding key and **Product Identity** after product draft creation.
@@ -1102,7 +1126,7 @@ The human-facing name for the combined URL-verification + extractor-profile oper
 _Avoid_: Mentally switching between "Discovery" and "Extraction" as unrelated stages
 
 **Family Readiness Barrier**:
-The Curation gate: a product family (ADR 0013 durable candidate cohort) waits until every active member is Extraction-ready. There is no default partial-family Curation ("curate the available 3 of 4"). Ready cohorts may run automatically under the cohort Curation worker path (feature-flagged). Waiting vs blocked members are distinguished; blocking siblings link directly to their Needs Attention task.
+The Curation gate: a candidate Curation Cohort waits until every active member is Extraction-ready. There is no default partial-cohort Curation ("curate the available 3 of 4"). Ready cohorts may run automatically under the cohort Curation worker path (feature-flagged). Waiting vs blocked members are distinguished; blocking siblings link directly to their Needs Attention task.
 _Avoid_: Per-SKU Curation as the default operator model, manual "curate now" partial-family actions
 
 **Durable Review State**:

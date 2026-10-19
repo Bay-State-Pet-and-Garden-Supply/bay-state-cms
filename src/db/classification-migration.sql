@@ -171,7 +171,10 @@ CREATE TABLE IF NOT EXISTS classification_runs (
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'completed', 'completed_with_abstentions', 'failed', 'cancelled')),
   started_at TEXT NOT NULL,
   completed_at TEXT,
-  error_message TEXT
+  error_message TEXT,
+  idempotency_key TEXT,
+  claimed_by TEXT,
+  claimed_at TEXT
 );
 
 -- Result of one stage within a classification run.

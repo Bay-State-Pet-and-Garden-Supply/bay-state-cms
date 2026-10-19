@@ -26,7 +26,7 @@ import { sha256Hex } from '../../shared/stable-id';
 import type { ClassificationConfigBundleV2 } from '../../shared/schemas/classification';
 
 const REVIEWED_FIELDS = [
-  'ProductField8', 'ProductField16', 'ProductField17', 'ProductField18',
+  'ProductField1', 'ProductField8', 'ProductField16', 'ProductField17', 'ProductField18',
   'ProductField19', 'ProductField20', 'ProductField21', 'ProductField22',
   'ProductField23', 'ProductField24', 'ProductField25', 'ProductField26',
   'ProductField27', 'ProductField28', 'ProductField29', 'ProductField30',

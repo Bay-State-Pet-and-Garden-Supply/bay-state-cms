@@ -63,6 +63,7 @@ route.post('/export/change-set/:id', async (c) => {
       instructionsPath: exportResult.instructionsPath,
       zipPath: exportResult.zipPath,
       productCount: exportResult.productCount,
+      ...(exportResult.missingImagesWarning ? { missingImagesWarning: exportResult.missingImagesWarning } : {}),
     });
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : 'Export failed' }, 500);
