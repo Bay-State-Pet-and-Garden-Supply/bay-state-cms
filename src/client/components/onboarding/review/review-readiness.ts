@@ -293,6 +293,7 @@ const BLOCKER_TEXT: Record<ReviewCompletenessBlockerCode, string> = {
   missing_primary_image: 'No primary image',
   missing_pages: 'No verified Catalog Page assignment',
   duplicate_filename: 'File name is owned by another product',
+  listing_evidence_unresolved: 'Listing has unsupported or contradicted claims needing review',
 };
 
 const WARNING_TEXT: Record<ReviewCompletenessWarningCode, string> = {

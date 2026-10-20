@@ -46,10 +46,41 @@ export interface CohortSiblingInput {
    */
   ocrWeight?: string | null;
   /**
+   * Structured OCR size the T-hash claims (issue #365: consumed naming
+   * input — a size-only change invalidates reuse instead of replaying a
+   * superseded set). Absent = no size segment rendered.
+   */
+  ocrSize?: string | null;
+  /**
+   * Structured OCR count (issue #365: same reuse-invalidation contract as
+   * size). Absent = no count segment rendered.
+   */
+  ocrCount?: string | null;
+  /**
    * PR6 hardening B (issue #30 P1-3): structured OCR flavor the T-hash
    * claims. Absent = normal — flavor absence renders no flavor segment.
    */
   ocrFlavor?: string | null;
+  /**
+   * Structured OCR species values (issue #365 follow-up): identity
+   * attributes, prompt-normalized and sorted for determinism upstream.
+   * Absent/empty = no species segment rendered.
+   */
+  ocrSpecies?: string[];
+  /**
+   * Structured OCR product form (issue #365 follow-up): null when absent.
+   */
+  ocrProductForm?: string | null;
+  /**
+   * Eligible distributor naming inputs for distributor-record members
+   * (issue #365): extraction title/weight plus structured variant axes.
+   * Empty/absent for official-page/manual members.
+   */
+  distributorNaming?: Array<{ field: string; value: string }>;
+  /**
+   * Operator-attested manual naming input (issue #365): null when unattested.
+   */
+  manualNaming?: { attestationId: string; title: string } | null;
 }
 
 /**
@@ -81,8 +112,14 @@ export function buildCohortPrompt(
       // (flavor absence is normal), so legacy callers stay byte-identical.
       const webBrand = s.webBrand?.trim() ? ` | Web Brand: "${s.webBrand}"` : '';
       const ocrWeight = s.ocrWeight?.trim() ? ` | OCR Weight: "${s.ocrWeight}"` : '';
+      const ocrSize = s.ocrSize?.trim() ? ` | OCR Size: "${s.ocrSize}"` : '';
+      const ocrCount = s.ocrCount?.trim() ? ` | OCR Count: "${s.ocrCount}"` : '';
       const ocrFlavor = s.ocrFlavor?.trim() ? ` | OCR Flavor: "${s.ocrFlavor}"` : '';
-      return `${i + 1}. [${s.upc}] Raw Spreadsheet: "${s.name}" | Expected: "${expectedName}" | Web: "${webTitle}" | OCR: "${ocrTitle}" | Brand: "${brand}"${webBrand}${ocrWeight}${ocrFlavor}`;
+      const ocrSpecies = (s.ocrSpecies ?? []).filter(v => v.trim()).length > 0 ? ` | OCR Species: "${(s.ocrSpecies ?? []).filter(v => v.trim()).join(', ')}"` : '';
+      const ocrProductForm = s.ocrProductForm?.trim() ? ` | OCR Form: "${s.ocrProductForm}"` : '';
+      const distributorNaming = (s.distributorNaming ?? []).length > 0 ? ` | Distributor: "${(s.distributorNaming ?? []).map(d => `${d.field}=${d.value}`).join('; ')}"` : '';
+      const manualNaming = s.manualNaming?.title?.trim() ? ` | Manual: "${s.manualNaming.title}" (${s.manualNaming.attestationId})` : '';
+      return `${i + 1}. [${s.upc}] Raw Spreadsheet: "${s.name}" | Expected: "${expectedName}" | Web: "${webTitle}" | OCR: "${ocrTitle}" | Brand: "${brand}"${webBrand}${ocrWeight}${ocrSize}${ocrCount}${ocrFlavor}${ocrSpecies}${ocrProductForm}${distributorNaming}${manualNaming}`;
     })
     .join('\n');
 

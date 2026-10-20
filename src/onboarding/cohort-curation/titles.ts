@@ -805,8 +805,39 @@ export interface CohortTitleAuthorityMember {
   packagingOcrTitle: string | null;
   /** Title-format-relevant OCR weight (DECISION-Q); null when OCR is absent. */
   ocrWeight: string | null;
+  /** Title-format-relevant OCR size (issue #365: consumed naming input — size-only changes invalidate reuse). */
+  ocrSize: string | null;
+  /** Title-format-relevant OCR count (issue #365: consumed naming input — count-only changes invalidate reuse). */
+  ocrCount: string | null;
   /** Title-format-relevant OCR flavor (DECISION-Q); null when OCR is absent. */
   ocrFlavor: string | null;
+  /**
+   * Structured OCR species values (issue #365 follow-up): identity
+   * attributes from `packagingOcrData.species`, prompt-normalized and
+   * sorted for determinism. A species change invalidates reuse instead of
+   * replaying a superseded set.
+   */
+  ocrSpecies: string[];
+  /**
+   * Structured OCR product form (issue #365 follow-up):
+   * `packagingOcrData.productForm`. A form change invalidates reuse.
+   */
+  ocrProductForm: string | null;
+  /**
+   * Eligible distributor naming inputs for distributor-record members —
+   * the extraction title/weight plus the structured variant axes
+   * (`variantAttributes` allowlist: size/capacity/weight/count/packCount/
+   * color), prompt-normalized (500) and sorted by field for determinism.
+   * Empty for official-page/manual members. Bullet/description free text
+   * and distributorSku codes are never naming inputs and stay excluded.
+   */
+  distributorNaming: Array<{ field: string; value: string }>;
+  /**
+   * Operator-attested manual naming input (`manualEvidenceAttestationId` +
+   * attested title), prompt-normalized; null when unattested. A manual
+   * attestation change invalidates reuse instead of replaying a stale set.
+   */
+  manualNaming: { attestationId: string; title: string } | null;
   /**
    * Milestone E: source-kind/provenance binding of the frozen member. A
    * distributor-record member differs in input identity from an official-page
@@ -835,6 +866,27 @@ export function titleAuthorityFromProjectionMember(
   const ocr = member.extraction.ocr.packagingOcrData;
   const brandMax = TITLE_AUTHORITY_TRUNCATION.brandMaxChars;
   const signalMax = TITLE_AUTHORITY_TRUNCATION.signalMaxChars;
+  const norm = (v: unknown): string | null => normalizeTitleAuthorityString(typeof v === 'string' ? v : null, signalMax);
+  const itemSourceType = (member as Partial<ExecutionEvidenceProjectionMemberV2>).itemSourceType;
+  const extractionSourceType = (member as Partial<ExecutionEvidenceProjectionMemberV2>).extractionSourceType;
+  const isDistributor = itemSourceType === 'distributor_record' || extractionSourceType === 'distributor_record';
+  const distributorNaming: Array<{ field: string; value: string }> = [];
+  if (isDistributor) {
+    const webTitle = norm(member.extraction.title);
+    if (webTitle) distributorNaming.push({ field: 'title', value: webTitle });
+    const webWeight = norm(member.extraction.weight);
+    if (webWeight) distributorNaming.push({ field: 'weight', value: webWeight });
+    const variantAttributes = (member.extraction as Partial<ExecutionEvidenceProjectionMemberV2['extraction']>).variantAttributes ?? {};
+    for (const field of ['size', 'capacity', 'weight', 'count', 'packCount', 'color']) {
+      const raw = (variantAttributes as Record<string, unknown>)[field];
+      const value = norm(raw);
+      if (value) distributorNaming.push({ field, value });
+    }
+    distributorNaming.sort((a, b) => a.field < b.field ? -1 : a.field > b.field ? 1 : a.value < b.value ? -1 : 1);
+  }
+  const attestationId = typeof member.extraction.manualEvidenceAttestationId === 'string'
+    ? member.extraction.manualEvidenceAttestationId.trim() : '';
+  const manualTitle = norm(member.extraction.title);
   return {
     productSku: member.productSku,
     spreadsheetName: normalizeTitleAuthorityString(member.spreadsheetIdentity.name, signalMax) ?? '',
@@ -844,7 +896,19 @@ export function titleAuthorityFromProjectionMember(
     webBrand: normalizeTitleAuthorityString(member.extraction.brand, brandMax),
     packagingOcrTitle: normalizeTitleAuthorityString(ocr?.productName ?? member.extraction.packagingTitle, signalMax),
     ocrWeight: normalizeTitleAuthorityString(ocr?.weight ?? null, signalMax),
+    ocrSize: normalizeTitleAuthorityString(ocr?.size ?? null, signalMax),
+    ocrCount: normalizeTitleAuthorityString(ocr?.count ?? null, signalMax),
     ocrFlavor: normalizeTitleAuthorityString(ocr?.flavorVariety ?? null, signalMax),
+    ocrSpecies: Array.isArray(ocr?.species)
+      ? [...new Set(ocr.species
+          .filter((v): v is string => typeof v === 'string')
+          .map(v => normalizeTitleAuthorityString(v, signalMax))
+          .filter((v): v is string => v !== null))].sort()
+      : [],
+    ocrProductForm: normalizeTitleAuthorityString(
+      typeof ocr?.productForm === 'string' ? ocr.productForm : null, signalMax),
+    distributorNaming,
+    manualNaming: attestationId && manualTitle ? { attestationId, title: manualTitle } : null,
     // Milestone E: the frozen source-kind/provenance binding participates in
     // the T-hash (drift changes the input identity — stale distributor
     // evidence can never reuse title outputs).

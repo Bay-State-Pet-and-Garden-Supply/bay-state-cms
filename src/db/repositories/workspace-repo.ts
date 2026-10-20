@@ -35,6 +35,22 @@ export function findWorkspace(): Workspace | null {
   }
 }
 
+/**
+ * Workspace path for one workspace id (change-set validation seam).
+ * Null when the row is absent — callers fail closed, never fall back to
+ * the global workspace. SQL stays inside this repository.
+ */
+export function findWorkspacePathById(workspaceId: string): string | null {
+  try {
+    const row = getDb()
+      .query('SELECT workspace_path FROM workspace WHERE id = ?')
+      .get(workspaceId) as { workspace_path?: unknown } | undefined;
+    return typeof row?.workspace_path === 'string' ? String(row.workspace_path) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function insertWorkspace(ws: Workspace): void {
   const db = getDb();
   db.run(

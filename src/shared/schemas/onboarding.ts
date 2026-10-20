@@ -1002,6 +1002,164 @@ export const PageDecisionStatusRecordSchema = z.object({
 });
 
 export type PageDecisionStatusRecord = z.infer<typeof PageDecisionStatusRecordSchema>;
+/**
+ * Issue #365: persisted evidence-backed name decision for one SKU.
+ *
+ * Written by the name-consolidation stage (singleton) and by the cohort
+ * member path (cohort) from the SAME candidate authority — never invented
+ * text. The review completion gate, draft projection, and promotion read
+ * this record (never a re-derivation); history stays readable after cutover
+ * because legacy `titleSource`-only rows keep parsing (the key is optional).
+ *
+ * Producer truthfulness: `producer` is the actual path that produced the
+ * title — `typesafe` (bounded Choice selection), `deterministic` (single
+ * or stylistically-equivalent candidate, zero calls), or `manual` (operator
+ * correction overlay). `modelCallIds` carries the ACTUAL producing call ids
+ * (empty for deterministic/manual). A model failure is never recorded as a
+ * successful typed selection.
+ */
+export const NameCandidateSchema = z.object({
+  /** Stable candidate id (1-based ordinal within this decision). */
+  id: z.string().min(1),
+  /** Complete candidate title text. */
+  title: z.string().min(1).max(500),
+  /** Exact source spans / raw components the candidate was built from. */
+  components: z.array(z.string().min(1)),
+  /** Evidence ids backing this candidate (subset of the eligible bundle). */
+  evidenceIds: z.array(z.string()).default(() => []),
+});
+
+export type NameCandidate = z.infer<typeof NameCandidateSchema>;
+
+export const NameDecisionSchema = z.object({
+  /** The exact selected title (byte-identical to curatedTitle when decided). */
+  selectedTitle: z.string().min(1).max(500),
+  /** Selected candidate id, or null for deterministic/manual/unresolved paths. */
+  selectedCandidateId: z.string().nullable().default(null),
+  /** Complete candidates offered (bounded: at most 16 when typed selection ran). */
+  candidates: z.array(NameCandidateSchema).default(() => []),
+  /** True when more valid candidates existed than the 16-candidate bound. */
+  overflow: z.boolean().default(false),
+  /** Exact selected components and their source spans. */
+  selectedComponents: z.array(z.string().min(1)).default(() => []),
+  /** Evidence ids backing the selected title. */
+  selectedEvidenceIds: z.array(z.string()).default(() => []),
+  /** Approved normalization rule version (single-sourced from the registry). */
+  normalizationVersion: z.string().min(1),
+  /** Hash of the eligible evidence input bundle. */
+  inputHash: z.string().regex(/^[a-f0-9]{64}$/),
+  /** Hash of the final selected title. */
+  titleHash: z.string().regex(/^[a-f0-9]{64}$/),
+  /** True producer of this title. */
+  producer: z.enum(['typesafe', 'deterministic', 'manual']),
+  /** Actual producing model-call ids (empty for deterministic/manual). */
+  modelCallIds: z.array(z.string()).default(() => []),
+  /** ISO timestamp of the decision. */
+  decidedAt: z.string().min(1),
+  /** Typed-selection outcome when a Choice call ran. */
+  selectionOutcome: z.enum(['selected', 'no_match', 'insufficient_evidence']).nullable().default(null),
+  /** Human-readable reason for unresolved or fallback outcomes. */
+  reason: z.string().nullable().default(null),
+  /** True when this is a visibly-labeled safe deterministic fallback. */
+  fallbackLabeled: z.boolean().default(false),
+});
+export type NameDecision = z.infer<typeof NameDecisionSchema>;
+
+/**
+ * Issue #366: persisted listing-evidence check for the exact projected
+ * listing. Records claim units built in code from the final title,
+ * description sentences/bullets, and included variant facts — never a
+ * generative extractor — plus deterministic-first verdicts and one bounded
+ * per-claim Choice outcome each. Evidence considered is exactly the
+ * eligible bundle consulted (never an invented supporting quote).
+ *
+ * Producer truthfulness: `producer` is `deterministic` for claims resolved
+ * by exact checks in code, `typesafe` for claims resolved by the bounded
+ * Choice judgment, `operator_verified` for operator-attested resolutions
+ * (ticket #367), `unavailable` for service failure, and `stale` when the
+ * record no longer matches current listing/evidence/rule inputs.
+ * `modelCallIds` carries the ACTUAL producing call ids (empty for
+ * deterministic/unavailable/stale outcomes). Unknown keys rejected
+ * (strict parser at the gate).
+ */
+export const ListingEvidenceClaimSchema = z.object({
+  /** Stable claim id (1-based ordinal within this validation). */
+  id: z.string().min(1).max(32),
+  /** Listing field carrying the claim: title | description | variant. */
+  field: z.enum(['title', 'description', 'variant']),
+  /** Character offsets of the claim span within the field text. */
+  span: z.tuple([z.number().int().min(0), z.number().int().min(0)]),
+  /** Exact claim text (block passes only when ALL assertions hold). */
+  text: z.string().min(1).max(2000),
+  /** Hash of the normalized claim text. */
+  claimHash: z.string().regex(/^[a-f0-9]{64}$/),
+  /** True when the claim is material (optional-field absence never claims). */
+  material: z.boolean().default(true),
+  /** Claim verdict. */
+  verdict: z.enum(['supported', 'contradicted', 'insufficient', 'unavailable', 'stale']),
+  /** True producer of this verdict (never relabeled). */
+  producer: z.enum(['deterministic', 'typesafe', 'operator_verified', 'unavailable', 'stale']),
+  /** Exact eligible evidence ids considered for this claim. */
+  evidenceConsidered: z.array(z.string()).default(() => []),
+  /** Actual producing model-call id (empty unless typesafe). */
+  modelCallId: z.string().nullable().default(null),
+  /** Human-readable deterministic/model reason (bounded). */
+  reason: z.string().max(500).nullable().default(null),
+});
+
+export type ListingEvidenceClaim = z.infer<typeof ListingEvidenceClaimSchema>;
+
+export const ListingEvidenceValidationSchema = z.object({
+  /** Record version marker (present on every evaluated record; absent on legacy pre-feature rows which carry no record at all). */
+  recordVersion: z.number().int().min(1).default(1),
+  /** Hash of the exact final projected listing checked. */
+  listingHash: z.string().regex(/^[a-f0-9]{64}$/),
+  evidenceHash: z.string().regex(/^[a-f0-9]{64}$/),
+  /** Configured requiredness snapshot (title/description required flags). */
+  requiredFields: z.array(z.string().min(1).max(64)).default(() => []),
+  /** Deterministic rule version (single-sourced from the registry). */
+  rulesVersion: z.string().min(1),
+  /** Model-policy digest frozen at evaluation time (fail-closed staleness leg). */
+  modelPolicyDigest: z.string(),
+  /** Selected-source authority frozen at evaluation/verification time (`official:<url>` | `distributor:<upc>`). Absent on pre-feature records (grandfathered); present records must match the live authority at every release gate or fail closed as stale. */
+  sourceAuthority: z.string().min(1).max(500).nullable().optional(),
+  /** Per-claim verdicts with field/span/hash/producer/evidence. */
+  claims: z.array(ListingEvidenceClaimSchema).default(() => []),
+  /** True when the semantic bundle exceeded the 24-claim bound. */
+  overflow: z.boolean().default(false),
+  /** Actual producing model-call ids (empty for all-deterministic runs). */
+  modelCallIds: z.array(z.string()).default(() => []),
+  /** Aggregate status: blocked by any included unsafe claim. */
+  status: z.enum(['passed', 'needs_review', 'blocked', 'unavailable', 'stale']),
+  /** Unresolved finding messages (bounded, operator-actionable). */
+  findings: z.array(z.string().max(500)).default(() => []),
+  /** ISO timestamp of the evaluation. */
+  evaluatedAt: z.string().min(1),
+});
+
+export type ListingEvidenceValidation = z.infer<typeof ListingEvidenceValidationSchema>;
+
+/**
+ * Issue #367: operator verification of an unresolved listing claim.
+ * Strict request shape — the server derives ALL authority (actor,
+ * workspace, eligibility, currentness); no client-supplied provenance
+ * survives. Closed (strict) so smuggled authority fails validation.
+ *
+ * Intentional: no separate `reason` input. The claim reason is
+ * server-generated (`Operator-verified by <actor> at <ts>: <observation>
+ * [provenance: <provenance>]`) so the verdict reason is always the exact
+ * bound attestation — a client-supplied reason would fork provenance and
+ * let a verdict claim words the operator never wrote.
+ */
+export const VerifyListingEvidenceRequestSchema = z
+  .object({
+    claimIds: z.array(z.string().min(1).max(32)).min(1).max(8),
+    observation: z.string().min(12).max(2000),
+    provenance: z.string().min(12).max(2000),
+    expectedEvidenceHash: z.string().regex(/^[a-f0-9]{64}$/),
+    expectedRevision: z.string().min(1).max(256),
+  })
+  .strict();
 
 /**
  * e09 round-3 FIX 1 (adjudication #10): reviewer manual-selection correction
@@ -1069,7 +1227,23 @@ export const CurationDataSchema = z.object({
     }
     return val;
   }, z.string().nullable().default(null)),
-  titleSource: z.enum(['web', 'ocr', 'llm', 'manual', 'llm_cohort', 'cohort_fallback']).default('web'),
+  titleSource: z.enum(['web', 'ocr', 'llm', 'manual', 'llm_cohort', 'cohort_fallback', 'typesafe', 'deterministic']).default('web'),
+  /**
+   * Issue #365: persisted evidence-backed name decision (see
+   * NameDecisionSchema). Additive optional key: absent in legacy runs
+   * (byte-identical). The review completion gate, draft projection, and
+   * promotion read this record for provenance; legacy `titleSource`-only
+   * rows keep parsing.
+   */
+  nameDecision: NameDecisionSchema.nullable().optional(),
+  /**
+   * Issue #366: persisted listing-evidence validation for the exact
+   * projected listing (see ListingEvidenceValidationSchema). Additive
+   * optional key: absent in legacy runs (byte-identical). The single
+   * server-owned gate evaluator, not the UI, interprets this record;
+   * consequential listing/evidence/rule edits invalidate it (stale).
+   */
+  listingEvidenceValidation: ListingEvidenceValidationSchema.nullable().optional(),
   /** Factual consolidated copy from multi-provider distributor bundle. */
   curatedDescription: z.string().nullable().default(null),
   /** The evidence attempt IDs whose copy contributed to curatedDescription. */
@@ -1191,6 +1365,9 @@ export const REVIEW_COMPLETENESS_BLOCKER_CODES = [
   'missing_pages',
   // Issue #106: a draft claiming a filename owned by another product.
   'duplicate_filename',
+  // Issue #366: an included unsupported/contradicted material claim blocks
+  // release even when its field is optional; absent optional facts stay out.
+  'listing_evidence_unresolved',
 ] as const;
 export type ReviewCompletenessBlockerCode = (typeof REVIEW_COMPLETENESS_BLOCKER_CODES)[number];
 

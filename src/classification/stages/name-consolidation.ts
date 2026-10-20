@@ -11,11 +11,12 @@
  * Dependencies: evidence_extraction (needs spreadsheet/web/OCR evidence signals)
  */
 import type { StageDefinition, StageContext, StageInput, StageResult } from '../types';
-import { consolidateProductTitle } from '../../onboarding/title-consolidation';
-import { ensureBrandInTitle, titleContainsBrand, ensureVariantTokensInTitle, ensureColorInTitle, knownVariantTokens, knownColorsAcross, resolveOwnColor, extractLabeledColors, colorTokenPresentInTitle, variantTokenPresentInTitle } from '../../onboarding/title-prompt-template';
-import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
-import { buildModelCallContext } from '../runtime-snapshot';
+import { resolveNameSelection, toNameDecision } from '../name-decision';
+import type { NameEvidenceText } from '../name-candidates';
+import { assembleNameSpans } from '../name-span-contract';
+import { titleContainsBrand, knownVariantTokens, knownColorsAcross, resolveOwnColor, extractLabeledColors, colorTokenPresentInTitle, variantTokenPresentInTitle } from '../../onboarding/title-prompt-template';
 import type { ModelPolicyConfigV2 } from '../../shared/schemas/classification';
+import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 
 /**
  * Extract the best title signal from evidence of a given sourceField.
@@ -301,7 +302,13 @@ export const nameConsolidationStage: StageDefinition = {
       evidenceValue(input.evidence, 'expected_name', 'spreadsheet') ??
       evidenceValue(input.evidence, 'name', 'spreadsheet');
 
-    const webTitle = evidenceValue(input.evidence, 'title', 'official_product_page');
+    // Authority-preserving contract (see `../name-span-contract`): frozen
+    // evidence historically emitted the official title as `name` while live
+    // extraction emits `title` — read the canonical field first with the
+    // frozen alias as fallback (first-hit wins, never unioned) so a freshly
+    // generated decision hashes the same span bundle at review.
+    const webTitle = evidenceValue(input.evidence, 'title', 'official_product_page')
+      ?? evidenceValue(input.evidence, 'name', 'official_product_page');
     // Parent #101 (manual-evidence route, ticket #104): the
     // operator-transcribed per-SKU title is an eligible title signal with
     // source `manual`. It never bypasses synthesis or cohort validation —
@@ -336,12 +343,19 @@ export const nameConsolidationStage: StageDefinition = {
     const ocrSize = evidenceValue(input.evidence, 'size', 'visual_product_evidence');
     const ocrCount = evidenceValue(input.evidence, 'count', 'visual_product_evidence');
     const ocrFlavor = evidenceValue(input.evidence, 'flavor', 'visual_product_evidence');
-    const ocrProductForm = evidenceValue(input.evidence, 'productForm', 'visual_product_evidence')
-      ?? evidenceValue(input.evidence, 'food-form', 'visual_product_evidence');
-    const ocrSpecies = evidenceValue(input.evidence, 'species', 'visual_product_evidence');
     // Color from packaging OCR (issue #112): structured color alongside the
     // OCR title/measurements.
     const ocrColor = evidenceValue(input.evidence, 'color', 'visual_product_evidence');
+    // Species + product form from packaging OCR (issue #365 follow-up):
+    // identity attributes, never candidate bodies. Species emits one
+    // evidence row per value; productForm reads the canonical field with
+    // the frozen `food-form` alias as fallback (same alias the legacy
+    // prompt path used).
+    const ocrSpeciesRows = input.evidence.filter(e =>
+      e.source === 'visual_product_evidence' && e.sourceField === 'species'
+      && typeof e.value === 'string' && e.value.trim().length > 0);
+    const ocrProductForm = evidenceValue(input.evidence, 'productForm', 'visual_product_evidence')
+      ?? evidenceValue(input.evidence, 'food-form', 'visual_product_evidence');
 
     // Merged known-variant sources from every origin (issue #111):
     // spreadsheet names, web/OCR/manual titles, OCR measurements, official
@@ -503,16 +517,18 @@ export const nameConsolidationStage: StageDefinition = {
         const sizeHold = checkDurableSize();
         if (sizeHold) return sizeHold;
         // Issue #112 (mirrors the size check, one deliberate asymmetry):
-        // the durable title must carry the item's own color when the family
-        // is multi-color. The multi-color gate (familyColors.length >= 2)
-        // mirrors the authorship guarantee (ensureColorInTitle is a no-op
-        // for single-color families), so single-color items are unaffected.
-        // Authored-evidenced colors contradicting a brandless-of-color
-        // durable title mean a stale parent (throw, same philosophy as
-        // size); member-only colors (manual, distributor rows, labeled
-        // specs) mean an evidence gap (hold, don't throw). No own color
-        // at all passes silently — absence is never a hold.
-        if (ownColor && familyColors.length >= 2 && !colorTokenPresentInTitle(preComputedTitle, ownColor)) {
+        // an authored own color dropped from the durable title means the
+        // parent output is stale or corrupt (throw, same philosophy as
+        // size) — authorship reads the same spreadsheet/extraction/OCR
+        // channels, so it could always have seen the color, in a
+        // single-color family or not. A member-only own color (manual,
+        // distributor rows, labeled specs) missing from the durable title
+        // is an evidence gap, never a stale parent: hold for multi-color
+        // families (the authorship guarantee engages there), pass silently
+        // for single-color families (the authorship post-step is a no-op
+        // there, so the parent is contract-compliant). No own color at
+        // all passes silently — absence is never a hold.
+        if (ownColor && !colorTokenPresentInTitle(preComputedTitle, ownColor)) {
           const authoredOwn = authoredColors.some(
             c => c.toLowerCase() === ownColor.toLowerCase(),
           );
@@ -523,10 +539,12 @@ export const nameConsolidationStage: StageDefinition = {
                 're-run coordination. The member never mutates a durable title.',
             );
           }
-          return {
-            status: 'abstained',
-            reason: `missing_color: durable coordinated title ("${preComputedTitle}") lacks the manually- or distributor-evidenced color (${ownColor}) invisible to coordination — re-run coordination or supply an operator manual title/color.`,
-          };
+          if (familyColors.length >= 2) {
+            return {
+              status: 'abstained',
+              reason: `missing_color: durable coordinated title ("${preComputedTitle}") lacks the manually- or distributor-evidenced color (${ownColor}) invisible to coordination — re-run coordination or supply an operator manual title/color.`,
+            };
+          }
         }
         return {
           status: 'succeeded',
@@ -541,6 +559,13 @@ export const nameConsolidationStage: StageDefinition = {
               packagingOcrTitle: null,
               brandApplied: brandHint,
               colorApplied: ownColor && familyColors.length >= 2 ? ownColor : null,
+              modelCallIds: [],
+              // Issue #365: the durable name decision rides the parent
+              // output — consumed verbatim, never re-derived. Unknown-typed
+              // at the context boundary; parsed strictly at the gate.
+              ...(context.preComputedNameDecision !== undefined
+                ? { nameDecision: context.preComputedNameDecision }
+                : {}),
               signalsUsed: { source: 'cohort_coordination', sourceType: source, brandHint },
             },
           },
@@ -557,129 +582,146 @@ export const nameConsolidationStage: StageDefinition = {
           '(PR8 review R1): failing closed — the member never synthesizes a replacement title.',
       );
     }
+    // Issue #365: evidence-backed name selection. Eligible per-SKU spans are
+    // built from the SAME signal authority above (register, confirmed
+    // official, accepted distributor, existing OCR, current manual) — no
+    // fetch/enrich/new OCR. Candidates are constructed deterministically;
+    // single/stylistic cases resolve with zero calls; ambiguity uses bounded
+    // TypeSafe Choice. No chat-generation fallback chain.
+    const evidenceIdOf = (source: string, sourceField: string): string | undefined => {
+      const match = input.evidence.find(e => e.source === source && e.sourceField === sourceField
+        && typeof e.value === 'string' && e.value.trim().length > 0);
+      return match?.id;
+    };
+    // Distributor provenance: per-attempt rows carry metadata.attemptId (the
+    // collector preserves provider/attempt/confidence per signal). Match the
+    // collected title/variant signal back to its evidence row by value +
+    // provider/attempt so the span carries a real evidence id — never
+    // undefined for distributor-sourced names.
+    const distributorEvidenceIdOf = (sourceField: string, value: string, providerId: string, attemptId: string): string | undefined => {
+      const val = value.trim().toLowerCase();
+      const hit = input.evidence.find(e => {
+        if (typeof e.value !== 'string' || e.value.trim().toLowerCase() !== val) return false;
+        if (e.sourceField !== sourceField) return false;
+        if (e.source !== 'distributor_record' && e.source !== 'third_party_page') return false;
+        const meta = (e.metadata ?? {}) as Record<string, unknown>;
+        const rowAttempt = typeof meta.attemptId === 'string' ? meta.attemptId : '';
+        const rowProvider = typeof meta.providerId === 'string' ? meta.providerId
+          : typeof (meta as Record<string, unknown>).distributorProvider === 'string'
+            ? (meta as Record<string, unknown>).distributorProvider as string : null;
+        if (attemptId && rowAttempt && rowAttempt !== attemptId) return false;
+        if (providerId !== 'unknown' && rowProvider && rowProvider !== providerId) return false;
+        return true;
+      });
+      return hit?.id;
+    };
+    // ONE shared assembler (name-span-contract): register, official,
+    // distributor, OCR, manual — identical normalization and ordering to the
+    // cohort/review/legacy/adapter paths, so a freshly generated decision
+    // hashes the same bundle at review without edits.
+    const spans: NameEvidenceText[] = assembleNameSpans({
+      registerName: rawRegisterName ?? null,
+      registerNameEvidenceId: evidenceIdOf('spreadsheet', 'name'),
+      expectedName: spreadsheetName && spreadsheetName !== rawRegisterName ? spreadsheetName : null,
+      expectedNameEvidenceId: evidenceIdOf('spreadsheet', 'expected_name'),
+      // Alias-aware provenance: the canonical `title` row when present, else
+      // the frozen `name` row — the span is first-hit either way.
+      officialTitle: webTitle ?? null,
+      officialTitleEvidenceId: evidenceIdOf('official_product_page', 'title') ?? evidenceIdOf('official_product_page', 'name'),
+      officialWeight: officialWeight ?? null,
+      officialWeightEvidenceId: evidenceIdOf('official_product_page', 'weight'),
+      distributor: [
+        ...distributorSignals.titles.map(sig => ({
+          value: sig.title,
+          evidenceId: distributorEvidenceIdOf('name', sig.title, sig.providerId, sig.attemptId) ?? distributorEvidenceIdOf('title', sig.title, sig.providerId, sig.attemptId),
+        })),
+        ...distributorVariants.map(v => ({
+          value: v.value,
+          evidenceId: distributorEvidenceIdOf(v.field, v.value, v.providerId, v.attemptId),
+        })),
+      ],
+      ocrTitle: ocrTitle ? { value: ocrTitle, evidenceId: evidenceIdOf('visual_product_evidence', 'name') } : undefined,
+      ocrWeight: ocrWeight ? { value: ocrWeight, evidenceId: evidenceIdOf('visual_product_evidence', 'weight') } : undefined,
+      ocrSize: ocrSize ? { value: ocrSize, evidenceId: evidenceIdOf('visual_product_evidence', 'size') } : undefined,
+      ocrCount: ocrCount ? { value: ocrCount, evidenceId: evidenceIdOf('visual_product_evidence', 'count') } : undefined,
+      ocrFlavor: ocrFlavor ? { value: ocrFlavor, evidenceId: evidenceIdOf('visual_product_evidence', 'flavor') } : undefined,
+      ocrSpecies: ocrSpeciesRows.map(e => ({ value: (e.value as string).trim(), evidenceId: e.id })),
+      ocrProductForm: ocrProductForm ? {
+        value: ocrProductForm,
+        evidenceId: evidenceIdOf('visual_product_evidence', 'productForm')
+          ?? evidenceIdOf('visual_product_evidence', 'food-form'),
+      } : undefined,
+      manualTitle: manualTitle ?? null,
+      manualEvidenceId: evidenceIdOf('operator_manual', 'name'),
+    });
 
-    // Remaining per-item signals were gathered above, before the cohort
-    // branch, so every path shares one brand AND variant authority.
-    const fallbackName = spreadsheetName ?? webTitle ?? 'Unknown Product';
-
-    // Consider distributor titles as valid signals for availability
-    const hasDistributorTitles = distributorSignals.titles.length > 0;
-    if (!spreadsheetName && !webTitle && !ocrTitle && !manualTitle && !hasDistributorTitles) {
-      return {
-        status: 'abstained',
-        reason: 'No title signals available from evidence (no spreadsheet name, web title, OCR title, manual title, or distributor titles).',
-      };
-    }
-
-    // Issue #108: no brand in any evidence → hold for a manual title.
-    // The guarantee cannot be verified, and inventing a brand is forbidden —
-    // abstaining surfaces a reviewable_abstention with the coded reason
-    // instead of shipping a brandless name. Skips the LLM call entirely.
-    if (!brandHint) {
-      return {
-        status: 'abstained',
-        reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
-      };
-    }
-
-    // Issue #111: no size/capacity/weight/count in any evidence → hold.
-    // Same fail-closed shape as missing_brand: the variant guarantee cannot
-    // be verified, and inventing a size is forbidden. Skips the LLM call.
-    const knownSize = knownVariantTokens(variantSources);
-    if (knownSize.length === 0) {
-      return {
-        status: 'abstained',
-        reason: 'missing_size: no size/capacity/weight/count in spreadsheet, web/OCR/manual titles, measurements, or distributor variant attributes — supply an operator manual title/size and re-run.',
-      };
-    }
-
-    // Check for product-line sibling context
+    // Sibling context is presentation-only: it rides the Choice state as
+    // disambiguating context, never as candidate input — another SKU's
+    // facts can never be inherited into this name.
     const productLine = context.productLineContext;
-    const siblingContext = productLine && productLine.siblingNames.length > 0
-      ? {
-          groupLabel: productLine.groupLabel,
-          siblingNames: productLine.siblingNames,
-          siblingWebTitles: productLine.siblingWebTitles,
-          siblingOcrTitles: productLine.siblingOcrTitles,
-          siblingSkus: productLine.siblingSkus,
-        }
+    const siblingTitles = productLine && productLine.siblingNames.length > 0
+      ? [...productLine.siblingNames, ...productLine.siblingWebTitles, ...productLine.siblingOcrTitles]
       : undefined;
 
     try {
-      const result = await consolidateProductTitle(
-        {
-          name: spreadsheetName ?? fallbackName,
-          rawRegisterName: rawRegisterName ?? undefined,
-          brandHint: brandHint ?? undefined,
-          webTitle: webTitle ?? undefined,
-          manualTitle: manualTitle ?? undefined,
-          ocrTitle: ocrTitle ?? undefined,
-          ocrFlavor: ocrFlavor ?? undefined,
-          ocrProductForm: ocrProductForm ?? undefined,
-          ocrSpecies: ocrSpecies ?? undefined,
-          ocrWeight: ocrWeight ?? undefined,
-          ocrSize: ocrSize ?? undefined,
-          ocrCount: ocrCount ?? undefined,
-          ocrColor: ocrColor ?? undefined,
-          siblingContext,
-          distributorTitles: distributorSignals.titles.length > 0 ? distributorSignals.titles : undefined,
-          distributorBrands: distributorSignals.brands.length > 0 ? distributorSignals.brands : undefined,
-          distributorVariants: distributorVariants.length > 0
-            ? distributorVariants.map(v => ({ field: v.field, value: v.value, providerId: v.providerId, attemptId: v.attemptId, confidence: v.confidence }))
-            : undefined,
-          extractionWeight: officialWeight ?? undefined,
-          labeledColors: labeledColors.length > 0 ? labeledColors : undefined,
-        },
-        context.snapshot
+      const decision = await resolveNameSelection({
+        evidence: input.evidence,
+        spans,
+        brand: brandHint,
+        sku: input.sku,
+        runId: context.runId,
+        snapshot: context.snapshot,
+        modelPolicy: context.snapshot
           ? modelPolicyViewFromConfig(
+              // Snapshot carries the config loosely typed; the view builder
+              // revalidates shape and returns null for legacy payloads.
               context.snapshot.modelPolicy as unknown as ModelPolicyConfigV2,
               context.snapshot.snapshotHash,
             )
           : null,
-        context.snapshot
-          ? {
-              modelCall: buildModelCallContext(context.snapshot, context.runId, 'title_consolidation', 1),
-              snapshot: context.snapshot,
-            }
-          : undefined,
-      );
-
-      // Defensive: the consolidator reports brandUnverified/sizeUnverified
-      // when it somehow produced a title without brand/size evidence (e.g.
-      // mocked consolidator in tests) — hold rather than ship it.
-      if (result.brandUnverified) {
+        ...(context.assertHeld ? { assertHeld: context.assertHeld } : {}),
+        ...(siblingTitles ? { siblingTitles } : {}),
+      });
+      const knownSize = knownVariantTokens(variantSources);
+      if (decision.status === 'abstained' || decision.status === 'failed' || !decision.title) {
         return {
           status: 'abstained',
-          reason: 'missing_brand: no brand in spreadsheet, official-page, or distributor evidence — supply an operator manual title/brand and re-run.',
+          reason: decision.abstentionReason ?? 'Name selection abstained without a reason.',
         };
       }
-      if (result.sizeUnverified) {
+      // Safe deterministic fallback labeling: a deterministic producer with
+      // zero calls is visibly labeled and must independently pass the
+      // brand/variant guards below (fail-closed, never silent). A null
+      // decision (the persistence recheck rejected the title — same
+      // eligibility as the builder) abstains instead of persisting a
+      // successful title with no decision record.
+      const nameDecision = toNameDecision({ result: decision, spans, brand: brandHint });
+      if (!nameDecision) {
         return {
           status: 'abstained',
-          reason: 'missing_size: no size/capacity/weight/count in spreadsheet, web/OCR/manual titles, measurements, or distributor variant attributes — supply an operator manual title/size and re-run.',
+          reason: 'name_decision_rejected: the resolved title failed persistence validation against eligible evidence — supply an operator manual title or re-run.',
         };
       }
-
+      const producerSource = decision.producer === 'typesafe' ? 'typesafe'
+        : decision.producer === 'manual' ? 'manual' : 'deterministic';
+      const message = siblingTitles
+        ? `Evidence-backed name ${producerSource} (${siblingTitles.length} sibling titles as presentation context): "${decision.title}"`
+        : `Evidence-backed name ${producerSource}: "${decision.title}"`;
       return {
         status: 'succeeded',
         output: {
           evidence: [],
           proposals: [],
           abstained: false,
-          message: siblingContext
-            ? `Title consolidated via ${result.source} with sibling context (${siblingContext.siblingNames.length} siblings): "${result.title}"`
-            : `Title consolidated via ${result.source}: "${result.title}"`,
+          message,
           metadata: {
-            curatedTitle: result.title,
-            titleSource: result.source,
-            brandApplied: result.brandApplied ?? brandHint,
-            sizeApplied: result.sizeApplied ?? knownSize,
-            // Issue #112: the consolidator's color verdict (null for
-            // single-color/unknown — correctly untouched, never a hold).
-            colorApplied: result.colorApplied ?? null,
-            // Durable model-call IDs that produced this title (issue #17 E):
-            // carried in stage metadata so the run's provenance is complete.
-            modelCallIds: result.modelCallIds ?? [],
+            curatedTitle: decision.title,
+            titleSource: producerSource,
+            brandApplied: brandHint,
+            sizeApplied: knownSize,
+            colorApplied: ownColor && familyColors.length >= 2 ? ownColor : null,
+            modelCallIds: decision.modelCallIds,
+            nameDecision,
             packagingOcrTitle: ocrTitle ?? null,
             signalsUsed: {
               spreadsheetName: spreadsheetName ?? null,
@@ -693,7 +735,6 @@ export const nameConsolidationStage: StageDefinition = {
               ocrColor: ocrColor ?? null,
               brandHint: brandHint ?? null,
               officialWeight: officialWeight ?? null,
-              distributorVariantCount: distributorVariants.length,
               groupId: productLine?.groupId ?? null,
               siblingCount: productLine?.siblingNames.length ?? 0,
               distributorTitleCount: distributorSignals.titles.length,
@@ -702,58 +743,12 @@ export const nameConsolidationStage: StageDefinition = {
           },
         },
       };
-    } catch (err: any) {
-      console.error(`[NameConsolidation] Failed to consolidate title: ${err.message}`);
-
-      // Fallback: use best available signal (including distributor titles
-      // and the operator-verified manual title). Non-manual items carry no
-      // manual signal, so their fallback order is byte-identical.
-      // Issue #108: brandHint is non-null on this path (missing brand
-      // abstains above), so the fallback gets the same brand guarantee.
-      // Issue #111: knownSize is non-empty on this path (missing size
-      // abstains above) — the fallback gets the variant guarantee too.
-      // Issue #112: the color guarantee applies with the stage-computed
-      // own/family colors (single-color/unknown leaves it unchanged),
-      // ordered brand → color → variant (FORMAT_RULES size-final).
-      const bestDistributorTitle = distributorSignals.titles[0]?.title ?? null;
-      const rawFallback = ocrTitle ?? webTitle ?? manualTitle ?? spreadsheetName ?? bestDistributorTitle ?? 'Unknown Product';
-      const fallback = ensureVariantTokensInTitle(ensureColorInTitle(ensureBrandInTitle(rawFallback, brandHint), ownColor, familyColors), variantSources);
-      const fallbackSource = ocrTitle ? 'ocr' : (webTitle ? 'web' : (manualTitle ? 'manual' : (bestDistributorTitle ? 'web' : 'web')));
-
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[NameConsolidation] Evidence-backed name selection failed: ${msg}`);
       return {
-        status: 'succeeded',
-        output: {
-          evidence: [],
-          proposals: [],
-          abstained: false,
-          message: siblingContext
-            ? `Title consolidation failed (sibling context available), using fallback: "${fallback}"`
-            : `Title consolidation failed, using fallback: "${fallback}"`,
-          metadata: {
-            curatedTitle: fallback,
-            titleSource: fallbackSource,
-            brandApplied: brandHint,
-            sizeApplied: knownSize,
-            colorApplied: ownColor && familyColors.length >= 2 ? ownColor : null,
-            packagingOcrTitle: ocrTitle ?? null,
-            signalsUsed: {
-              spreadsheetName: spreadsheetName ?? null,
-              rawRegisterName: rawRegisterName ?? null,
-              webTitle: webTitle ?? null,
-              manualTitle: manualTitle ?? null,
-              ocrTitle: ocrTitle ?? null,
-              ocrWeight: ocrWeight ?? null,
-              ocrSize: ocrSize ?? null,
-              ocrCount: ocrCount ?? null,
-              ocrColor: ocrColor ?? null,
-              brandHint: brandHint ?? null,
-              groupId: productLine?.groupId ?? null,
-              siblingCount: productLine?.siblingNames.length ?? 0,
-              distributorTitleCount: distributorSignals.titles.length,
-              distributorBrandCount: distributorSignals.brands.length,
-            },
-          },
-        },
+        status: 'abstained',
+        reason: `service_failure: name selection failed (${msg}) — supply an operator manual title or re-run.`,
       };
     }
   },

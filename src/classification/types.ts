@@ -166,7 +166,9 @@ export interface StageContext {
    *  (legacy/shadow keep the coordinator + `cohortCache` path). */
   preComputedTitle?: string;
   /** Source of the pre-computed title, required when preComputedTitle is set. */
-  preComputedTitleSource?: 'llm_cohort' | 'cohort_fallback';
+  preComputedTitleSource?: 'llm_cohort' | 'cohort_fallback' | 'typesafe' | 'deterministic';
+  /** Durable name decision accompanying the pre-computed title (issue #365). */
+  preComputedNameDecision?: unknown;
   /**
    * Frozen member execution-evidence projection (issue #30 PR3 M2, cohort
    * mode; Amendment A V2 with source provenance). When present, the

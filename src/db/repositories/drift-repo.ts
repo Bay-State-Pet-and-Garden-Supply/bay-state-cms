@@ -287,6 +287,23 @@ export function hasBlockingDriftForSku(workspaceId: string, sku: string): boolea
   return !!row;
 }
 
+/**
+ * Blocking drift excluding one change set's own reconcile work (linked-group
+ * approval seam): open/in_reconcile drift on the SKU that is NOT linked to
+ * the given change set. SQL stays inside this repository; callers fail
+ * closed on throw.
+ */
+export function hasBlockingDriftForSkuExcludingChangeSet(workspaceId: string, sku: string, changeSetId: string): boolean {
+  const db = getDb();
+  const row = db.query(
+    `SELECT 1 FROM remote_drift
+     WHERE workspace_id = ? AND sku = ? AND (status = 'open' OR status = 'in_reconcile')
+       AND (reconcile_change_set_id IS NULL OR reconcile_change_set_id != ?)
+     LIMIT 1`,
+  ).get(workspaceId, sku, changeSetId) as Record<string, unknown> | undefined;
+  return !!row;
+}
+
 export function hasOpenDriftForSku(workspaceId: string, sku: string): boolean {
   const db = getDb();
   const row = db.query(

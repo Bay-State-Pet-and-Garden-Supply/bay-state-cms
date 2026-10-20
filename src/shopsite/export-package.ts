@@ -4,7 +4,7 @@ import { ShopSiteProductCodec, assertNoPreservedCorruption } from './product-cod
 import { deterministicStringify } from '../git/deterministic-json';
 import { createImagesZip, assertZipHasImages } from './zip-generator';
 import type { Product } from '../shared/types';
-
+import type { LinkedManifest } from '../shared/schemas/change-set';
 export interface ExportPackageResult {
   exportDir: string;
   xmlPath: string;
@@ -29,6 +29,12 @@ export async function createExportPackage(
     xmlVersion?: string;
     newProductTag?: string;
     changeSetTitle?: string;
+    approvedCommit?: string;
+    linkedManifest?: LinkedManifest;
+    /** Issue #373: exact hash of the complete-family upload payload bytes. */
+    pushPayloadHash?: string;
+    /** Issue #373: stable SKU document order of the complete upload set. */
+    pushSkus?: string[];
   },
 ): Promise<ExportPackageResult> {
   const exportDir = path.join(workspacePath, 'exports', changeSetId);
@@ -73,7 +79,10 @@ export async function createExportPackage(
       `images from onboarding extraction data, then re-export.`;
   }
 
-  // Generate manifest
+  // Generate manifest. Issue #363: approved export data and its dependency
+  // manifest describe the same immutable catalog commit — the package is
+  // commit-bound, never mutable-workspace-bound.
+  const linkedManifest = options?.linkedManifest;
   const manifest = {
     schemaVersion: 1,
     changeSetId,
@@ -84,9 +93,12 @@ export async function createExportPackage(
     xmlVersion: options?.xmlVersion ?? '15.0',
     notes: 'Export package for ShopSite product import.',
     imagesZip: missingImagesWarning ? null : path.basename(zipPath),
+    ...(options?.approvedCommit ? { approvedCommit: options.approvedCommit } : {}),
+    ...(linkedManifest ? { linkedManifest } : {}),
+    ...(options?.pushPayloadHash ? { pushPayloadHash: options.pushPayloadHash } : {}),
+    ...(options?.pushSkus ? { pushSkus: options.pushSkus } : {}),
     ...(missingImagesWarning ? { warning: missingImagesWarning } : {}),
   };
-
   const manifestPath = path.join(exportDir, 'manifest.json');
   fs.writeFileSync(manifestPath, deterministicStringify(manifest), 'utf-8');
 

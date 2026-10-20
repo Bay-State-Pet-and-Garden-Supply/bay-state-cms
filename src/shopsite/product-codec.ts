@@ -13,7 +13,9 @@ import {
   uniquifyFileNames,
   classifyBaseFileNameSource,
 } from './file-name';
+import { managedSubproductsXml } from './storefront-subproducts';
 import { getFieldByTag } from './field-catalog';
+import { hashCanonicalJson } from '../shared/stable-id';
 
 export interface ProductCodecDecodeOptions {
   workspaceId?: string;
@@ -725,10 +727,17 @@ export class ShopSiteProductCodec {
       lines.push(`  <${field}>${escapeXml(value)}</${field}>`);
     }
 
-    // 21. Preserved advanced blocks (excluding ProductOnPages)
+    // 21. Preserved advanced blocks (excluding ProductOnPages). A managed
+    // family product emits its single codec-built Subproducts block instead
+    // of any preserved raw block: exactly one writer, never a duplicate.
+    const managed = managedSubproductsXml(product);
     const preserved = product.shopsite.preserved;
+    if (managed) {
+      lines.push(`  ${managed.xml}`);
+    }
     for (const [blockName, blockXml] of Object.entries(preserved.advancedBlocks)) {
       if (blockName.toLowerCase() === 'productonpages') continue;
+      if (managed && blockName.toLowerCase() === 'subproducts') continue;
       if (PRESERVED_CORRUPTION_RE.test(blockXml)) {
         warnings.push(`Refusing to emit corrupted preserved block "${blockName}" (contains "[object Object]"); repair the draft before upload.`);
         continue;
@@ -736,7 +745,9 @@ export class ShopSiteProductCodec {
       lines.push(`  ${blockXml}`);
     }
 
-    // 22. Preserved unknown elements
+    // 22. Preserved unknown elements. Managed-family markers live in
+    // preserved.rawAttributes (a local-only bucket) and are never emitted
+    // on the wire here — rawAttributes has no wire emitter by design.
     for (const [tag, rawValue] of Object.entries(preserved.unknownElements)) {
       if (tag.toLowerCase() === 'productonpages') continue;
       if (tag === 'GTIN' || tag === 'GoogleGTIN' || tag === 'Google_GTIN') continue;
@@ -869,6 +880,65 @@ export function extractPageNamesFromBlock(rawXml: string): string[] {
   return Array.from(names);
 }
 
+
+/**
+ * Extract distinct nested Subproduct SKUs referenced by a product's preserved
+ * native blocks (issue #363 structural consistency contract): document order,
+ * deduped. Reads only the codec-owned raw slices; a reference is a structural
+ * dependency, never a storefront-family claim.
+ */
+export function extractSubproductSkus(product: Product): string[] {
+  const seen: Record<string, true> = {};
+  const out: string[] = [];
+  for (const sku of extractSubproductSkuOccurrences(product)) {
+    if (!seen[sku]) {
+      seen[sku] = true;
+      out.push(sku);
+    }
+  }
+  return out;
+}
+
+/**
+ * Extract nested Subproduct SKUs in document order WITH multiplicity (no
+ * dedupe): drives the ambiguous-duplicate verdict. `extractSubproductSkus`
+ * dedupes for membership comparison; this reader preserves repeats so a
+ * double-listed member refuses instead of silently collapsing.
+ */
+export function extractSubproductSkuOccurrences(product: Product): string[] {
+  const advancedBlocks: Record<string, string> = product.shopsite?.preserved?.advancedBlocks ?? {};
+  const blocks: string[] = [];
+  for (const tag of Object.keys(advancedBlocks)) {
+    if (tag.toLowerCase() === 'subproducts') blocks.push(advancedBlocks[tag]);
+  }
+  const refs: string[] = [];
+  const skuRe = /<SKU\s*>([^<]*)<\/SKU\s*>/gi;
+  for (const block of blocks) {
+    let match: RegExpExecArray | null;
+    skuRe.lastIndex = 0;
+    while ((match = skuRe.exec(block)) !== null) {
+      const sku = match[1].trim();
+      if (sku) refs.push(sku);
+    }
+  }
+  return refs;
+}
+
+
+/**
+ * Exact native-reference hash for a product: canonical digest over the sorted
+ * referenced Subproduct SKUs plus the sorted raw block bytes. Combined with
+ * the catalog comparison hash it pins the full write/read dependency.
+ */
+export function hashNativeReferences(product: Product): string {
+  const advancedBlocks: Record<string, string> = product.shopsite?.preserved?.advancedBlocks ?? {};
+  const blocks: string[] = [];
+  for (const tag of Object.keys(advancedBlocks)) {
+    if (tag.toLowerCase() === 'subproducts') blocks.push(advancedBlocks[tag].trim());
+  }
+  blocks.sort();
+  return hashCanonicalJson({ blocks, skus: extractSubproductSkus(product) });
+}
 /**
  * Resolve effective page names for a Product, preferring canonical core.productOnPages.
  */

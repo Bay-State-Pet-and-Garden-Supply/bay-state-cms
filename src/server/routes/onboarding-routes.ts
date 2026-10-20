@@ -59,6 +59,7 @@ import {
   releaseBatchItems,
   holdBatchItems,
   bulkAssignBrandToItems,
+  updateItemCurationField,
 } from '../../db/repositories/onboarding-item-repo';
 import {
   previewBatchFilenames,
@@ -75,7 +76,8 @@ import {
   type StageVocabularyVersion,
 } from '../onboarding-stage-api';
 import { isStageV1String, parseV2StageInput, V1_TO_V2 } from '../../shared/onboarding-stage-vocabulary';
-import { ResolveSourcingRequestSchema, FallbackSourcingItemsRequestSchema, MediaSelectionRequestSchema } from '../../shared/schemas/onboarding';
+import { ListingEvidenceValidationSchema, type ListingEvidenceValidation } from '../../shared/schemas/onboarding';
+import { ResolveConflictRequestSchema } from '../../shared/schemas/distributor';
 import { readStorageVersion, encodeForStorage, toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 
 /**
@@ -114,8 +116,8 @@ import {
   ProductIdentityEvidenceSchema,
   type EvidenceAttempt,
 } from '../../shared/schemas/distributor-evidence';
-import { ResolveConflictRequestSchema } from '../../shared/schemas/distributor';
-import { listSourcesByItem, selectSource } from '../../db/repositories/onboarding-source-repo';
+import { confirmOfficialPageCandidate, OfficialPageConfirmationError } from '../../onboarding/official-page-confirmation';
+import { listSourcesByItem } from '../../db/repositories/onboarding-source-repo';
 import {
   getLatestExtraction,
   updateLatestExtractionData
@@ -208,6 +210,9 @@ import {
   type ProfileBlockedItem,
   DistributorEvidenceAttemptViewSchema,
   type DistributorEvidenceAttemptView,
+  FallbackSourcingItemsRequestSchema,
+  MediaSelectionRequestSchema,
+  ResolveSourcingRequestSchema,
 } from '../../shared/schemas/onboarding';
 import {
   SnapshotRequestSchema,
@@ -264,10 +269,48 @@ import {
   getStageResults,
   getValidatedOnboardingRun,
 } from '../../db/repositories/classification-run-repo';
+import { NAME_NORMALIZATION_VERSION, type NameEvidenceText } from '../../classification/name-candidates';
+import { hashNameInput } from '../../classification/name-decision';
+import { sha256Hex } from '../../shared/stable-id';
+
+/**
+ * Build a truthful `manual`-producer name decision for a reviewer-corrected
+ * title at the PUT layer (issue #365): the Review correction is operator
+ * authority — the record carries `manual` provenance, an explicit
+ * attestation evidence id, empty call ids, and the gate's canonical
+ * eligible-input hash (`hashNameInput` over the CURRENT eligible spans,
+ * same contract as every generation path) so the corrected record passes
+ * currentness instead of failing `name_decision_stale` immediately. Never
+ * the previous producer label.
+ */
+function buildManualNameDecision(correctedTitle: string, eligibleSpans: NameEvidenceText[]): Record<string, unknown> {
+  return {
+    selectedTitle: correctedTitle,
+    selectedCandidateId: null,
+    candidates: [],
+    overflow: false,
+    selectedComponents: [correctedTitle],
+    selectedEvidenceIds: ['manual:operator-attestation'],
+    normalizationVersion: NAME_NORMALIZATION_VERSION,
+    inputHash: hashNameInput(eligibleSpans),
+    titleHash: sha256Hex(correctedTitle),
+    producer: 'manual',
+    modelCallIds: [],
+    decidedAt: new Date().toISOString(),
+    selectionOutcome: null,
+    reason: 'review_correction: operator-corrected title recorded with manual provenance; re-run naming to re-verify against eligible evidence.',
+    fallbackLabeled: false,
+  };
+}
+import { validateReviewCompletionGate, validateItemCategoryPagesAssigned, validateListingEvidenceForReview, currentNameEligibleSpans } from '../../classification/review-completion-gate';
 import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from '../../classification/consistency-validator';
-import { validateReviewCompletionGate, validateItemCategoryPagesAssigned } from '../../classification/review-completion-gate';
-import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
 import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
+import { blockingPreparationFields } from '../../db/repositories/preparation-gap-repo';
+import { buildClaimUnits, deterministicClaimCheck, eligibleEvidenceFor, hashEvidenceBundle, hashFinalListing, toDeterministicClaimRecord, LISTING_EVIDENCE_RULES_VERSION } from '../../classification/listing-evidence';
+import { evaluateListingEvidence } from '../../classification/listing-evidence-service';
+import { captureModelPolicySnapshot } from '../../onboarding/model-policy-snapshot';
+import { currentSourceAuthority } from '../../classification/listing-evidence-currentness';
+import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
 import { projectCurrentReviewedDraft } from '../../classification/stages/draft-projection';
 import {
   buildReviewCompletenessContext,
@@ -494,6 +537,10 @@ const runOwnedCurationKeys = [
   'classificationDecisions',
   'classificationHistory',
   'classificationDraftProjection',
+  // Issue #365: the name decision is run-produced provenance — a generic
+  // client save can never author it. It is restored from the persisted run
+  // below (and dropped when the title changed, invalidating dependents).
+  'nameDecision',
 ] as const;
 
 function withoutRunOwnedCurationData(data: Record<string, unknown>): Record<string, unknown> {
@@ -1727,24 +1774,39 @@ route.post('/onboarding/batches/:id/promote', async (c) => {
     // valid release decision. All-or-nothing, matching the route's existing
     // stage validation shape.
     const approvalFailures: Array<{ itemId: string; reason: string }> = [];
-    for (const id of itemIds) {
-      const item = findItemById(id);
-      if (!item) {
-        approvalFailures.push({ itemId: id, reason: 'item_not_found' });
-        continue;
-      }
-      const reviewState = getReviewState(id);
-      if (reviewState?.reviewInvalidatedAt) {
-        // Invalidation clears approved_at — check it FIRST or the reason below
-        // is unreachable for edited-after-approval items.
-        approvalFailures.push({ itemId: id, reason: 'approval_invalidated' });
-        continue;
-      }
-      if (!reviewState?.approvedAt) {
-        approvalFailures.push({ itemId: id, reason: 'approval_required' });
-        continue;
-      }
-    }
+     for (const id of itemIds) {
+       const item = findItemById(id);
+       if (!item) {
+         approvalFailures.push({ itemId: id, reason: 'item_not_found' });
+         continue;
+       }
+       // Issue #366: draft creation refuses when the single listing-evidence
+       // gate refuses (route layer only — draft-promoter internals
+       // untouched). Grandfathers absent records; stale/blocked/unavailable
+       // records refuse with the gate code. Live policy digest so rotation
+       // invalidates.
+       try {
+        const gate = validateListingEvidenceForReview(id, { workspacePath: workspace.workspacePath, workspaceId: workspace.id });
+        if (gate && !gate.ok) {
+          approvalFailures.push({ itemId: id, reason: `${gate.code}: ${gate.reason}` });
+          continue;
+        }
+       } catch {
+         approvalFailures.push({ itemId: id, reason: 'listing_evidence_unavailable: evaluation unavailable; resolve before promotion.' });
+         continue;
+       }
+       const reviewState = getReviewState(id);
+       if (reviewState?.reviewInvalidatedAt) {
+         // Invalidation clears approved_at — check it FIRST or the reason below
+         // is unreachable for edited-after-approval items.
+         approvalFailures.push({ itemId: id, reason: 'approval_invalidated' });
+         continue;
+       }
+       if (!reviewState?.approvedAt) {
+         approvalFailures.push({ itemId: id, reason: 'approval_required' });
+         continue;
+       }
+     }
     if (approvalFailures.length > 0) {
       return c.json({
         error: 'All items must be approved before promotion. None were mutated.',
@@ -2172,7 +2234,6 @@ route.put('/onboarding/items/:id', async (c) => {
       );
     }
   }
-
   db.transaction(() => {
     if (body.name) {
       db.query('UPDATE onboarding_items SET name = ? WHERE id = ?').run(body.name, itemId);
@@ -2219,10 +2280,14 @@ route.put('/onboarding/items/:id', async (c) => {
       updateLatestExtractionData(itemId, json);
     }
     if (body.curation_data) {
-      // Strip all run-owned fields from generic client input, even for a legacy
-      // item without a valid run. Only a validated persisted run may restore
-      // canonical state below.
-      const nextCurationData: Record<string, any> = withoutRunOwnedCurationData(body.curation_data);
+      // Merge, never replace: start from the persisted payload so a
+      // single-field correction (e.g. description only) keeps unrelated
+      // curated fields (title, weight, keywords). Client-supplied keys win;
+      // run-owned keys are stripped from client input and restored from the
+      // validated run below.
+      const priorCurationData = (item.curationData ?? {}) as Record<string, unknown>;
+      const clientCurationData = withoutRunOwnedCurationData(body.curation_data as Record<string, unknown>);
+      const nextCurationData: Record<string, any> = { ...priorCurationData, ...clientCurationData };
       // e10s04: reviewedMedia is written ONLY by PUT /items/:id/media after
       // candidate-set validation. A generic listing save must neither overwrite
       // nor erase it — strip any client-supplied value and carry the persisted
@@ -2248,26 +2313,124 @@ route.put('/onboarding/items/:id', async (c) => {
       if (priorReviewedMedia !== undefined && priorReviewedMedia !== null) {
         nextCurationData.reviewedMedia = priorReviewedMedia;
       }
+      // Issue #365: supporting-evidence edits invalidate the name decision
+      // UNCONDITIONALLY — including requests without `curation_data` (a PUT
+      // changing `extraction_data.title`, `name`, or any other supporting
+      // input drops the inherited decision; run-linked Review hashes the
+      // unchanged gateway evidence and accepts the stale record otherwise).
+      // This block executes when the client sent `curation_data` OR
+      // `extraction_data` OR `name` (any supporting-input change): the
+      // persisted decision is dropped first, on run-linked AND runless
+      // (legacy) rows alike — no titleHash-only grandfathering survives an
+      // edit. A fresh decision is recomputed at the next curation run and
+      // re-verified at the gate via inputHash/titleHash. Existing approved
+      // URLs are never renamed here. A reviewer-corrected title
+      // (`curation_data.curatedTitle` differing from the persisted one) is
+      // recorded with truthful `manual` provenance — never the previous
+      // producer label — hashing the gate's canonical eligible-input bundle
+      // so the corrected record passes currentness.
+      const priorCuration = item.curationData as { curatedTitle?: unknown; nameDecision?: unknown; listingEvidenceValidation?: unknown } | null | undefined;
+      const incomingTitle = (body.curation_data as Record<string, unknown> | null | undefined)?.curatedTitle;
+      const priorTitle = priorCuration?.curatedTitle;
+      const supportingEdit =
+        body.curation_data !== undefined || body.extraction_data !== undefined || body.name !== undefined;
+      if (supportingEdit) delete nextCurationData.nameDecision;
+      if (typeof incomingTitle === 'string' && incomingTitle.trim()
+        && incomingTitle.trim() !== (typeof priorTitle === 'string' ? priorTitle : '')) {
+        const eligibleSpans = currentNameEligibleSpans(itemId, nextCurationData);
+        nextCurationData.nameDecision = buildManualNameDecision(incomingTitle.trim(), eligibleSpans ?? []);
+      }
+      // Issue #366: listing edits retain the listing-evidence record so hash
+      // mismatch yields `listing_evidence_stale` (fail closed) instead of
+      // silently clearing the check. Legacy pre-feature rows carry no record
+      // at all (grandfathered); every evaluated record stamps recordVersion
+      // so the gate never confuses the two. The record is only refreshed by
+      // the re-run endpoint below — never synthesized here.
+      const priorValidation = priorCuration?.listingEvidenceValidation;
+      if (priorValidation !== undefined && priorValidation !== null) {
+        nextCurationData.listingEvidenceValidation = priorValidation;
+      }
 
       db.query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(
         JSON.stringify(nextCurationData),
         itemId,
       );
     }
+    // Issue #367 gap 3: a supported PUT carrying ONLY `source_url` (no
+    // `curation_data`) still changes the selected source authority, so a
+    // verified record must regress OUTSIDE the curation-data branch above —
+    // operator_verified verdicts rooted in the old source authority must not
+    // survive a source change on any supported PUT shape. The rerun/in-run
+    // update layers also persist `sourceAuthority` at evaluation time, and
+    // every release gate (`validateListingEvidenceForReview`, change-set
+    // validation, draft creation) compares the stamped authority against
+    // the live one — a mismatch fails closed as stale even when text and
+    // evidence hashes still match.
+    if (body.source_url !== undefined) {
+      try {
+        const row = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(itemId) as { curation_data_json: string | null } | undefined;
+        if (row?.curation_data_json) {
+          const next = JSON.parse(String(row.curation_data_json)) as Record<string, unknown>;
+          const current = next.listingEvidenceValidation;
+          if (current !== undefined && current !== null) {
+            const parsedPrior = ListingEvidenceValidationSchema.safeParse(current);
+            if (parsedPrior.success) {
+              const record: ListingEvidenceValidation = parsedPrior.data;
+              const hasVerified = record.claims.some((claim) => claim.producer === 'operator_verified');
+              if (hasVerified) {
+                const claims = record.claims.map((claim) =>
+                  claim.producer === 'operator_verified'
+                    ? { ...claim, verdict: 'insufficient' as const, producer: 'deterministic' as const, modelCallId: null, reason: 'Selected source changed after verification; re-run the listing check or re-verify against the new source.' }
+                    : claim,
+                );
+                const remainingUnresolved = claims.filter((claim) => claim.material && (claim.verdict === 'insufficient' || claim.verdict === 'unavailable' || claim.verdict === 'stale'));
+                const remainingContradicted = claims.filter((claim) => claim.material && claim.verdict === 'contradicted');
+                const status = record.overflow
+                  ? 'unavailable' as const
+                  : remainingContradicted.length > 0
+                    ? 'blocked' as const
+                    : remainingUnresolved.length > 0
+                      ? 'needs_review' as const
+                      : 'passed' as const;
+                const nextRecord = { ...record, claims, status };
+                const reparse = ListingEvidenceValidationSchema.safeParse(nextRecord);
+                if (reparse.success) {
+                  next.listingEvidenceValidation = reparse.data;
+                  db.query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(JSON.stringify(next), itemId);
+                }
+              }
+            }
+          }
+        }
+      } catch { /* fail-open to the gate: text/evidence staleness still refuses */ }
+    }
+    // Issue #365: supporting-input edits WITHOUT `curation_data` (a PUT
+    // changing only `extraction_data` or `name`) also invalidate the
+    // inherited decision — the block above never runs for those requests.
+    if (body.curation_data === undefined && (body.extraction_data !== undefined || body.name !== undefined)) {
+      try {
+        const row = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(itemId) as { curation_data_json: string | null } | undefined;
+        if (row?.curation_data_json) {
+          const next = JSON.parse(String(row.curation_data_json)) as Record<string, unknown>;
+          if ('nameDecision' in next) {
+            delete next.nameDecision;
+            db.query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(JSON.stringify(next), itemId);
+          }
+        }
+      } catch { /* fail-open to the gate: inputHash mismatch still refuses */ }
+    }
   })();
 
   // Epic #46 Phase 6: a consequential edit invalidates any prior durable
   // review (and clears any approval). The edited fields affect the approved
   // output — the item must be re-reviewed and is never bulk-approvable while
-  // invalidated. No-op when the item was never reviewed.
-  const consequentialKeys = ['name', 'price', 'quantity', 'brandHint', 'source_url', 'extraction_data', 'curation_data'] as const;
-  const isConsequentialEdit = consequentialKeys.some(key => body[key] !== undefined);
-  // Epic #46 audit fix (fix 3): an APPROVED promotion-stage item whose
-  // output was edited must return to an actionable review state — its
-  // durable approval is cleared below, and it can never export again without
-  // a fresh review + approval. Capture the pre-edit state BEFORE invalidation
+  // invalidated. No-op when the item was never reviewed. fix 3: an APPROVED
+  // promotion-stage item whose output was edited must return to an
+  // actionable review state — capture the pre-edit state BEFORE invalidation
   // (invalidation nulls approved_at).
   const reviewBeforeEdit = getReviewState(itemId);
+  const consequentialKeys = ['name', 'price', 'quantity', 'brandHint', 'source_url', 'extraction_data', 'curation_data'] as const;
+  const isConsequentialEdit = consequentialKeys.some((key) => body[key] !== undefined);
   const wasApprovedInPromotion =
     routeStageIs(item.stage, 'create_drafts') &&
     Boolean(reviewBeforeEdit?.approvedAt) &&
@@ -2286,8 +2449,152 @@ route.put('/onboarding/items/:id', async (c) => {
 });
 
 /**
+ * POST /api/onboarding/items/:id/listing-evidence-rerun (issue #366).
+ * Server-owned re-run/re-evaluate path for the retained listing-evidence
+ * record: rebuilds the final projected listing from live state, evaluates it
+ * against the eligible bundle, and persists the fresh record. After optional-
+ * text removal, remaining coverage that resolves deterministically (no model
+ * call needed) recovers to `passed` without another source/model call;
+ * anything needing the bounded Choice runs it (blocking until resolved).
+ * Fail closed: evaluation failure persists `unavailable`, never a pass.
+ */
+route.post('/onboarding/items/:id/listing-evidence-rerun', async (c) => {
+  const itemId = c.req.param('id');
+  const workspace = findWorkspace();
+  if (!workspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
+  const item = findItemById(itemId);
+  if (!item) {
+    return c.json({ error: 'Item not found' }, 404);
+  }
+  const ownershipError = itemWorkspaceError(c, item);
+  if (ownershipError) return ownershipError;
+  try {
+    const curationValue = item.curationData as unknown;
+    const curation: Record<string, unknown> = curationValue && typeof curationValue === 'object' ? { ...(curationValue as Record<string, unknown>) } : {};
+    const extractionValue = item.extractionData as unknown;
+    const extraction: Record<string, unknown> = extractionValue && typeof extractionValue === 'object' ? (extractionValue as Record<string, unknown>) : {};
+    const readString = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value : null);
+    const REMOVED = '__listing_evidence_removed__';
+    const curatedSlot = (value: unknown): { text: string | null; removed: boolean } =>
+      (typeof value === 'string' && value.trim() === REMOVED)
+        ? { text: null, removed: true }
+        : { text: readString(value), removed: false };
+    const extractionTitle = 'title' in extraction ? extraction.title : null;
+    const extractionDescription = 'description' in extraction ? extraction.description : null;
+    const extractionWeight = 'weight' in extraction ? extraction.weight : null;
+    const variantAttrs = 'variantAttributes' in extraction ? extraction.variantAttributes : null;
+    // Gap 2: the intentional-absence sentinel projects to null with NO
+    // extraction fallback (removal stays removed through re-evaluation).
+    const titleSlot = curatedSlot(curation.curatedTitle);
+    const title = titleSlot.text ?? (titleSlot.removed ? null : (readString(extractionTitle) ?? (item.name?.trim() ? item.name : null)));
+    const descriptionSlot = curatedSlot(curation.curatedDescription);
+    const description = descriptionSlot.text ?? (descriptionSlot.removed ? null : (readString(extractionDescription) ?? null));
+    const variantFacts: Record<string, string> = {};
+    if (variantAttrs && typeof variantAttrs === 'object' && !Array.isArray(variantAttrs)) {
+      for (const [axis, value] of Object.entries(variantAttrs)) {
+        if (typeof value === 'string' && value.trim()) variantFacts[String(axis).trim()] = value.trim();
+      }
+    }
+    const curatedWeight = readString(curation.curatedWeight);
+    const weight = curatedWeight ?? readString(extractionWeight);
+    if (weight) variantFacts.weight = weight;
+    let requiredFields: string[];
+    try {
+      requiredFields = blockingPreparationFields();
+    } catch {
+      requiredFields = ['title'];
+    }
+    const runId = typeof curation.classificationRunId === 'string' ? curation.classificationRunId : null;
+    let allEvidence: import('../../shared/schemas/classification').ClassificationEvidence[] = [];
+    if (runId) {
+      try {
+        allEvidence = getEvidenceByRun(runId);
+      } catch {
+        allEvidence = [];
+      }
+    }
+    const eligible = eligibleEvidenceFor(allEvidence, item.upc);
+    const listing = { title, description, variantFacts, requiredFields };
+    // Stamp the CURRENT policy at evaluation time (both branches): a fresh
+    // deterministic result must carry the live digest so the policy leg of
+    // the gate compares current-vs-current instead of rejecting its own
+    // fresh stamp as stale.
+    const policySnapshot = captureModelPolicySnapshot(workspace.workspacePath, undefined, workspace.id);
+    const modelPolicy = policySnapshot.state === 'configured' ? policySnapshot.view : null;
+    const liveDigest = modelPolicy?.policyDigest ?? 'policy_unavailable';
+    const liveSourceAuthority = currentSourceAuthority(itemId);
+    // Deterministic remaining-coverage fast path: no model call.
+    // (Oversized units fail closed in the full evaluator below — the fast
+    // path only shortcuts listings whose every remaining claim already
+    // resolves deterministically.)
+    const { claims, overflow, oversized } = buildClaimUnits(listing);
+    if (!overflow && !oversized && claims.length > 0 && claims.every((claim) => {
+      if (!claim.material) return true;
+      const verdict = deterministicClaimCheck(claim, eligible);
+      return verdict.verdict === 'supported' || verdict.verdict === 'contradicted';
+    })) {
+      const records = claims.map((claim) => toDeterministicClaimRecord(claim, deterministicClaimCheck(claim, eligible), eligible));
+      const listingHash = hashFinalListing(listing);
+      const evidenceHash = hashEvidenceBundle(eligible);
+      const status = records.some((r) => r.material && r.verdict === 'contradicted') ? 'blocked' as const : 'passed' as const;
+      const record = {
+        recordVersion: 1,
+        listingHash,
+        evidenceHash,
+        requiredFields: [...requiredFields].sort(),
+        rulesVersion: LISTING_EVIDENCE_RULES_VERSION,
+        modelPolicyDigest: liveDigest,
+        sourceAuthority: liveSourceAuthority,
+        claims: records,
+        overflow: false,
+        modelCallIds: [],
+        status,
+        findings: status === 'blocked' ? records.filter((r) => r.material && r.verdict === 'contradicted').map((r) => `Contradicted ${r.field} "${r.text.slice(0, 80)}": ${r.reason ?? 'eligible evidence denies it'}`) : [],
+        evaluatedAt: new Date().toISOString(),
+      };
+      // Verifying write (no stale-snapshot overwrite): re-reads the CURRENT
+      // stored curation document and replaces ONLY `listingEvidenceValidation`
+      // — reviewer edits made during evaluation survive.
+      updateItemCurationField(itemId, 'listingEvidenceValidation', record);
+      return c.json({ success: true, status, deterministic: true });
+    }
+    const { record } = await evaluateListingEvidence(listing, allEvidence, item.upc, { runId: runId ?? itemId, modelPolicy, sourceAuthority: liveSourceAuthority });
+    // Same verifying write after the model-call await: reviewer edits made
+    // during the await survive (only the evaluated field is replaced).
+    updateItemCurationField(itemId, 'listingEvidenceValidation', record);
+    return c.json({ success: true, status: record.status, deterministic: false });
+  } catch (err) {
+    // Fail closed: evaluation failure persists `unavailable` (never a pass,
+    // never a silent 500 with no record). Grandfather bypass is impossible:
+    // new evaluations always write a recordVersion-stamped record.
+    try {
+      const liveCuration = (findItemById(itemId)?.curationData ?? null) as Record<string, unknown> | null;
+      const priorRaw = liveCuration?.listingEvidenceValidation;
+      const prior = priorRaw && typeof priorRaw === 'object' ? { ...(priorRaw as Record<string, unknown>) } : null;
+      const unavailableRecord = {
+        recordVersion: 1,
+        listingHash: typeof prior?.listingHash === 'string' ? prior.listingHash : '0'.repeat(64),
+        evidenceHash: typeof prior?.evidenceHash === 'string' ? prior.evidenceHash : '0'.repeat(64),
+        requiredFields: Array.isArray(prior?.requiredFields) ? prior.requiredFields : [],
+        rulesVersion: LISTING_EVIDENCE_RULES_VERSION,
+        modelPolicyDigest: (() => { try { const s = captureModelPolicySnapshot(workspace.workspacePath, undefined, workspace.id); return s.state === 'configured' ? s.view.policyDigest : 'policy_unavailable'; } catch { return 'policy_unavailable'; } })(),
+        sourceAuthority: (() => { try { return currentSourceAuthority(itemId); } catch { return typeof prior?.sourceAuthority === 'string' ? prior.sourceAuthority : null; } })(),
+        claims: Array.isArray(prior?.claims) ? prior.claims : [],
+        overflow: false,
+        modelCallIds: [],
+        status: 'unavailable' as const,
+        findings: [err instanceof Error ? err.message.slice(0, 500) : 'Listing-evidence re-run failed; resolve before release.'],
+        evaluatedAt: new Date().toISOString(),
+      };
+      updateItemCurationField(itemId, 'listingEvidenceValidation', unavailableRecord);
+    } catch { /* best-effort persistence; the 500 below still refuses */ }
+    return c.json({ error: err instanceof Error ? err.message : 'Listing-evidence re-run failed; resolve before release.' }, 500);
+  }
+});
+/**
  * PUT /api/onboarding/items/:id/media (story e10s04)
- * Persist the reviewer's media selection into `curation_data.reviewedMedia`.
  *
  * Validation contract (spec §Surface + OVERWRITE consequences):
  * - every requested URL must belong to the candidate-set UNION: the item's
@@ -2354,7 +2661,7 @@ route.put('/onboarding/items/:id/media', async (c) => {
       400,
     );
   }
-  const roleOverlap = selection.orderedAdditional.filter((url) => suppressedSelection.has(url));
+  const roleOverlap = selection.orderedAdditional.filter((url: string) => suppressedSelection.has(url));
   if (roleOverlap.length > 0) {
     return c.json(
       { error: 'orderedAdditional URLs cannot also appear in suppressed.', urls: roleOverlap },
@@ -2568,7 +2875,10 @@ route.post('/onboarding/items/:id/retry', async (c) => {
  */
 route.post('/onboarding/items/:id/select-source', async (c) => {
   const itemId = c.req.param('id');
-  const { sourceId } = await c.req.json();
+  const { sourceId, expectedUpdatedAt, expectedDiscoveryRunId, attestedProductAndVariant } = await c.req.json() as {
+    sourceId?: string; expectedUpdatedAt?: string; expectedDiscoveryRunId?: string;
+    attestedProductAndVariant?: boolean;
+  };
   if (!sourceId) {
     return c.json({ error: 'sourceId is required' }, 400);
   }
@@ -2660,8 +2970,58 @@ route.post('/onboarding/items/:id/select-source', async (c) => {
       503,
     );
   }
-  selectSource(sourceId);
-  setDiscoverySourceUrl(itemId, selected.url);
+  // Confirmation currentness (issue #364): the client MUST bind the
+  // confirmation to the revision and discovery run it rendered, and MUST
+  // carry the explicit visible-page attestation. The live path routes
+  // through the guarded verifier (confirmOfficialPageCandidate): fetch,
+  // identity/variant, and the atomic decision write — never a direct
+  // operator_name approval, never an invented attestation, never a URL
+  // substitution.
+  // Legacy rows with discovery_run_id NULL predate run-bound discovery and
+  // are explicitly unconfirmable: identify them BEFORE the generic binding
+  // validation. The real UI sends expectedDiscoveryRunId: null for these
+  // rows, so the typeof check below would otherwise mask them as a silent
+  // currentness_required instead of the actionable re-run directive.
+  if (selected.discoveryRunId === null || selected.discoveryRunId === undefined) {
+    return c.json({ error: 'legacy_run_unbound', code: 'legacy_run_unbound', message: 'This candidate predates run-bound discovery. Re-run discovery, then confirm the current page.' }, 409);
+  }
+  // A direct POST without the bindings fails closed (400) — opt-in checks
+  // leave a fail-open bypass.
+  if (typeof expectedUpdatedAt !== 'string' || typeof expectedDiscoveryRunId !== 'string') {
+    return c.json({ error: 'currentness_required', code: 'currentness_required', message: 'Reload the candidates and confirm the current page.' }, 400);
+  }
+  if (typeof attestedProductAndVariant !== 'boolean') {
+    return c.json({ error: 'attestation_required', code: 'attestation_required', message: 'Check the visible product name and exact size/flavor, then explicitly confirm the match.' }, 400);
+  }
+  if (selected.discoveryRunId !== expectedDiscoveryRunId) {
+    return c.json({ error: 'stale_item', code: 'stale_item', message: 'This candidate came from an older discovery run. Re-run discovery first.' }, 409);
+  }
+  const live = findItemById(itemId);
+  if (live && live.updatedAt !== expectedUpdatedAt) {
+    return c.json({ error: 'stale_item', code: 'stale_item', message: 'This product changed while the confirmation was in flight. Reload and confirm the current page.' }, 409);
+  }
+  if (live && live.stageStatus === 'in_progress') {
+    return c.json({ error: 'stale_item', code: 'stale_item', message: 'Discovery is still running for this product. Wait for the current run, then confirm its page.' }, 409);
+  }
+  const decisionWorkspace = findWorkspace();
+  if (!decisionWorkspace) {
+    return c.json({ error: 'No active workspace loaded' }, 400);
+  }
+  try {
+    await confirmOfficialPageCandidate({
+      item,
+      source: selected,
+      workspaceId: decisionWorkspace.id,
+      attestedProductAndVariant,
+      expectedUpdatedAt,
+      expectedDiscoveryRunId,
+    });
+  } catch (err) {
+    const code = err instanceof OfficialPageConfirmationError ? err.code : (/stale|running/i.test(err instanceof Error ? err.message : String(err)) ? 'stale_item' : 'source_not_selectable');
+    const message = err instanceof Error ? err.message : String(err);
+    const status = code === 'stale_item' ? 409 : code === 'strategy_guard_unavailable' ? 503 : code === 'legacy_run_unbound' ? 409 : code === 'attestation_required' ? 400 : code === 'identity_needs_review' || code === 'variant_unresolved' ? 409 : 400;
+    return c.json({ error: code, code, message }, status as 400);
+  }
 
   return c.json({ success: true });
 });

@@ -38,7 +38,7 @@ import {
   parseStorefrontFamilyPlan,
 } from '../../db/repositories/storefront-family-plan-repo';
 import { listConflictingDraftChangeSets } from '../../db/repositories/change-set-repo';
-import { findCurationDataJsonByUpc, findItemById, findLatestItemIdByWorkspaceAndUpc } from '../../db/repositories/onboarding-item-repo';
+import { findCurationDataJsonById, findItemById } from '../../db/repositories/onboarding-item-repo';
 import { listOutstandingDriftForSku } from '../../db/repositories/drift-repo';
 import { StorefrontFamilyStagingInputSchema, NonFoodFamilyStagingInputSchema } from '../../validation/storefront-family-validation';
 import { getAcceptedProposals } from '../../db/repositories/classification-run-repo';
@@ -2036,9 +2036,20 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
   } catch {
     base = null;
   }
-  let curationJson: string | null;
+  // Workspace-scoped route-seam lookup (Slice C workaround: no
+  // workspace-scoped by-UPC helpers exist on onboarding-item-repo, so the
+  // route resolves the newest batch-scoped equality row through existing
+  // `findCurationDataJsonById` — never a whole-catalog model scan).
+  let curationJson: string | null = null;
   try {
-    curationJson = findCurationDataJsonByUpc(sku);
+    const db = getDb();
+    const row = db.query(
+      `SELECT i.id AS id FROM onboarding_items i
+       JOIN onboarding_batches b ON b.id = i.batch_id
+       WHERE b.workspace_id = ? AND i.upc = ?
+       ORDER BY i.created_at DESC, i.row_number ASC LIMIT 1`,
+    ).get(resolvedWorkspaceId, sku) as { id: string } | undefined;
+    curationJson = row ? findCurationDataJsonById(row.id) : null;
   } catch {
     return null;
   }
@@ -2071,7 +2082,14 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
   let resolvedItemQuantity: number | null = null;
   if (resolvedWorkspaceId) {
     try {
-      const itemId = findLatestItemIdByWorkspaceAndUpc(resolvedWorkspaceId, sku);
+      const db = getDb();
+      const itemRow = db.query(
+        `SELECT i.id AS id FROM onboarding_items i
+         JOIN onboarding_batches b ON b.id = i.batch_id
+         WHERE b.workspace_id = ? AND i.upc = ?
+         ORDER BY i.created_at DESC, i.row_number ASC LIMIT 1`,
+      ).get(resolvedWorkspaceId, sku) as { id: string } | undefined;
+      const itemId = itemRow?.id ?? null;
       if (itemId) {
         const hashes = currentListingEvidenceHashes(itemId, parsed as Record<string, unknown>, { workspacePath, workspaceId: resolvedWorkspaceId });
         if (hashes.evidenceHash) liveEvidenceHash = hashes.evidenceHash;
@@ -2304,9 +2322,9 @@ function stagedFactorProjectionOf(member: {
   safetyDose?: string | null; strength?: string | null; fit?: string | null;
   recipe?: string | null; flavor?: string | null; species?: string | null;
   lifeStage?: string | null; form?: string | null;
-  sizeRaw: string | null; colorRaw?: string | null; countRaw?: string | null; countQuantity?: number | null;
-  comparableOunces: number | null; retailUnit: string | null;
-  packCountDeclared: boolean; packCount: number | null;
+  sizeRaw?: string | null; colorRaw?: string | null; countRaw?: string | null; countQuantity?: number | null;
+  comparableOunces?: number | null; retailUnit?: string | null;
+  packCountDeclared?: boolean; packCount?: number | null;
   reviewedTypeHash: string; productTypeId?: string | null; evidenceHash: string;
   sku: string; purchasable?: boolean; purchasableKnown?: boolean;
 }): string {

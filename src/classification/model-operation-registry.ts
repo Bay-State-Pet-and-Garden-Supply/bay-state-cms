@@ -26,7 +26,7 @@ export type { ProtectedOperation };
 export { CATEGORY_PAGE_CORRECTNESS_VERSION } from './category-page-correctness';
 
 /** Bump ONLY when the operation→rule/prompt/parameter contract changes. */
-export const MODEL_OPERATION_REGISTRY_VERSION = 3;
+export const MODEL_OPERATION_REGISTRY_VERSION = 4;
 
 /**
  * Built-in ShopSite output policy version participating in runs. Single
@@ -55,6 +55,8 @@ export const PROMPT_TEMPLATE_VERSIONS: Readonly<Record<ProtectedOperation, strin
   sitemap_selection: 'sitemap-selection-prompt-v1',
   value_gap_resolution: 'value-gap-resolution-prompt-v1',
   profile_generation: 'profile-generation-prompt-v1',
+  listing_evidence_check: 'listing-evidence-check-prompt-v1',
+  family_membership_proposal: 'family-membership-proposal-prompt-v1',
 };
 
 /**
@@ -76,6 +78,8 @@ export const RULE_VERSIONS: Readonly<Record<ProtectedOperation, string>> = {
   sitemap_selection: 'sitemap-selection-rules-v1',
   value_gap_resolution: 'value-gap-resolution-rules-v1',
   profile_generation: 'profile-generation-rules-v1',
+  listing_evidence_check: 'listing-evidence-check-rules-v1',
+  family_membership_proposal: 'family-membership-proposal-rules-v1',
 };
 
 /**
@@ -99,6 +103,8 @@ export const OPERATION_PARAMETERS: Readonly<
   sitemap_selection: { temperature: 0.0, maxTokens: null },
   value_gap_resolution: { temperature: 0.0, maxTokens: null },
   profile_generation: { temperature: 0.0, maxTokens: null },
+  listing_evidence_check: { temperature: 0.0, maxTokens: null },
+  family_membership_proposal: { temperature: 0.0, maxTokens: null },
 };
 
 /**
@@ -120,6 +126,8 @@ export const OPERATION_TO_STAGE: Readonly<Record<ProtectedOperation, Classificat
   sitemap_selection: null,
   value_gap_resolution: 'value_gap_abstain',
   profile_generation: null,
+  listing_evidence_check: null,
+  family_membership_proposal: null,
 };
 
 /** Run-bound protected operations (those mapped to a classification stage). */

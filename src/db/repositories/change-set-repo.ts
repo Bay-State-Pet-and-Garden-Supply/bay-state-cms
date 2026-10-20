@@ -342,6 +342,13 @@ function deleteChangeSetItem(changeSetId: string, sku: string): void {
 export function deleteChangeSet(id: string): void {
   const db = getDb();
   db.run('DELETE FROM change_set_items WHERE change_set_id = ?', [id]);
+  // A linked manifest is meaningless without its change set (issue #363):
+  // drop it here so discarding a linked group — approved, failed, or
+  // interrupted — never trips the manifest foreign key.
+  try {
+    ensureLinkedManifestTable();
+    db.run('DELETE FROM change_set_linked_manifests WHERE change_set_id = ?', [id]);
+  } catch { /* manifest cleanup best-effort; set deletion below still runs */ }
   db.run('DELETE FROM change_sets WHERE id = ?', [id]);
 }
 
@@ -443,4 +450,159 @@ export function listNonDiscardedChangeSetDrafts(workspaceId: string): Array<{ sk
      ORDER BY csi.sku ASC`,
   ).all(...[workspaceId]) as Array<Record<string, unknown>>;
   return rows.map((row) => ({ sku: String(row.sku ?? ''), draftJson: String(row.draft_json ?? '') }));
+}
+
+// ── Linked/consistency-group approval manifest store (issue #363) ────────────
+// Structural contract: full changed-product write set + unchanged-member read
+// deps with true approved bases, exact product/native-reference hashes, and
+// workspace ownership. No model or inferred family semantics.
+
+export type LinkedManifestStatus = 'pending' | 'committed' | 'recovered';
+
+export interface LinkedManifestRow {
+  changeSetId: string;
+  workspaceId: string;
+  manifestJson: string;
+  status: LinkedManifestStatus;
+  commitHash: string | null;
+  snapshotJson: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Create the linked-manifest table on databases that predate the migration
+ * (integration fixtures call runMigrations; direct table users converge here).
+ */
+export function ensureLinkedManifestTable(): void {
+  const db = getDb();
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS change_set_linked_manifests (
+      change_set_id TEXT PRIMARY KEY REFERENCES change_sets(id),
+      workspace_id TEXT NOT NULL REFERENCES workspace(id),
+      manifest_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'committed', 'recovered')),
+      commit_hash TEXT,
+      snapshot_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );`,
+  );
+  try {
+    const cols = db.query('PRAGMA table_info(change_set_linked_manifests)').all() as Array<{ name: string }>;
+    if (cols.length > 0 && !cols.some((c) => c.name === 'snapshot_json')) {
+      db.exec('ALTER TABLE change_set_linked_manifests ADD COLUMN snapshot_json TEXT;');
+    }
+  } catch { /* best-effort convergence; saves below stay compatible */ }
+}
+
+export function saveLinkedManifest(row: {
+  changeSetId: string;
+  workspaceId: string;
+  manifestJson: string;
+  status?: LinkedManifestStatus;
+  commitHash?: string | null;
+  snapshotJson?: string | null;
+}): LinkedManifestRow {
+  ensureLinkedManifestTable();
+  const db = getDb();
+  const now = new Date().toISOString();
+  const hasSnapshot = row.snapshotJson !== undefined;
+  db.run(
+    `INSERT INTO change_set_linked_manifests
+      (change_set_id, workspace_id, manifest_json, status, commit_hash, snapshot_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(change_set_id) DO UPDATE SET
+      manifest_json = EXCLUDED.manifest_json,
+      status = EXCLUDED.status,
+      -- A pending-manifest save is the pre-mutation honesty anchor: it must
+      -- clear any stale commit hash, never preserve one via COALESCE. Only
+      -- committed/recovered saves carry a commit hash.
+      commit_hash = CASE WHEN EXCLUDED.status = 'pending' THEN NULL ELSE COALESCE(EXCLUDED.commit_hash, change_set_linked_manifests.commit_hash) END,
+      snapshot_json = ${hasSnapshot ? 'EXCLUDED.snapshot_json' : 'change_set_linked_manifests.snapshot_json'},
+      updated_at = EXCLUDED.updated_at`,
+    [
+      row.changeSetId,
+      row.workspaceId,
+      row.manifestJson,
+      row.status ?? 'pending',
+      row.commitHash ?? null,
+      hasSnapshot ? (row.snapshotJson ?? null) : null,
+      now,
+      now,
+    ],
+  );
+  return findLinkedManifest(row.changeSetId)!;
+}
+
+export function findLinkedManifest(changeSetId: string): LinkedManifestRow | null {
+  ensureLinkedManifestTable();
+  const db = getDb();
+  const row = db.query(
+    'SELECT * FROM change_set_linked_manifests WHERE change_set_id = ?',
+  ).get(changeSetId) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    changeSetId: String(row.change_set_id),
+    workspaceId: String(row.workspace_id),
+    manifestJson: String(row.manifest_json),
+    status: String(row.status) as LinkedManifestStatus,
+    commitHash: row.commit_hash ? String(row.commit_hash) : null,
+    snapshotJson: typeof row.snapshot_json === 'string' && row.snapshot_json ? String(row.snapshot_json) : null,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function markLinkedManifestCommitted(changeSetId: string, commitHash: string): void {
+  ensureLinkedManifestTable();
+  const db = getDb();
+  db.run(
+    `UPDATE change_set_linked_manifests
+       SET status = 'committed', commit_hash = ?, updated_at = ?
+     WHERE change_set_id = ?`,
+    [commitHash, new Date().toISOString(), changeSetId],
+  );
+}
+
+export function markLinkedManifestRecovered(changeSetId: string, commitHash: string): void {
+  ensureLinkedManifestTable();
+  const db = getDb();
+  db.run(
+    `UPDATE change_set_linked_manifests
+       SET status = 'recovered', commit_hash = ?, updated_at = ?
+     WHERE change_set_id = ?`,
+    [commitHash, new Date().toISOString(), changeSetId],
+  );
+}
+
+/**
+ * Conflicting drafts for the whole linked group (issue #363 pre-mutation
+ * gate): every draft/reviewing change set in this workspace that carries any
+ * of the given SKUs, excluding the change set under review. Approved, pushed,
+ * and discarded history never blocks — only open competing drafts do. One
+ * invalid dep blocks the whole group.
+ */
+export function listConflictingDraftChangeSets(
+  workspaceId: string,
+  skus: string[],
+  excludeChangeSetId: string,
+): Array<{ changeSetId: string; sku: string; status: string }> {
+  const db = getDb();
+  if (skus.length === 0) return [];
+  const placeholders = skus.map(() => '?').join(', ');
+  const rows = db.query(
+    `SELECT csi.change_set_id AS change_set_id, csi.sku AS sku, cs.status AS status
+       FROM change_set_items csi
+       JOIN change_sets cs ON cs.id = csi.change_set_id
+      WHERE cs.workspace_id = ? AND cs.status IN ('draft', 'reviewing')
+        AND csi.sku IN (${placeholders})
+        AND csi.change_set_id != ?
+      ORDER BY csi.sku ASC, csi.change_set_id ASC`,
+  ).all(workspaceId, ...skus, excludeChangeSetId) as Array<Record<string, unknown>>;
+  return rows.map((row) => ({
+    changeSetId: String(row.change_set_id),
+    sku: String(row.sku),
+    status: String(row.status),
+  }));
 }

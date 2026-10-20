@@ -42,7 +42,15 @@ export type ProtectedOperation =
   | 'value_gap_resolution'
   // ADR 0040 guided setup: selector-generation proposals route through the
   // frozen workspace policy like every other model call.
-  | 'profile_generation';
+  | 'profile_generation'
+  // Issue #366: bounded per-claim supported/contradicted/insufficient Choice
+  // over the eligible SKU-local evidence bundle for the final listing.
+  // Onboarding-only (not a classification stage): resolves from the snapshot
+  // default provider/model like sitemap_selection, never run-bound.
+  | 'listing_evidence_check'
+  // Slice C #371: bounded closed-set family-membership proposals route
+  // through the frozen workspace policy like every other model call.
+  | 'family_membership_proposal';
 
 /**
  * Classification stage key used for `stageOverrides` lookup per protected
@@ -63,6 +71,8 @@ const PROTECTED_OPERATION_STAGE: Readonly<Record<ProtectedOperation, string | nu
   sitemap_selection: null,
   value_gap_resolution: 'value_gap_abstain',
   profile_generation: null,
+  listing_evidence_check: null,
+  family_membership_proposal: null,
 };
 
 /** Stable denial reason codes (typed; serializable). */

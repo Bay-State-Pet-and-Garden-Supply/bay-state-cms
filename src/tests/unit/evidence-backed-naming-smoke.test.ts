@@ -30,11 +30,10 @@ import { insertItems, updateItemCurationData, findCurationDataJsonById } from '.
 import { createRun, completeRun } from '../../db/repositories/classification-run-repo';
 import { buildNameCandidates } from '../../classification/name-candidates';
 import { resolveNameSelection, toNameDecision, hashNameInput } from '../../classification/name-decision';
-import { memberTitleSpans } from '../../onboarding/cohort-curation/titles';
+import { assembleNameSpans } from '../../classification/name-span-contract';
 import { validateNameDecisionForReview } from '../../classification/review-completion-gate';
 import type { ClassificationEvidence } from '../../shared/schemas/classification';
 import type { NameDecision } from '../../shared/schemas/onboarding';
-import type { ExecutionEvidenceProjectionMemberV2 } from '../../shared/schemas/cohorts';
 const silentFetch: typeof fetch = (async () => {
   throw new Error('smoke: no network — deterministic paths must not dispatch');
 }) as unknown as typeof fetch;
@@ -76,31 +75,22 @@ describe('evidence-backed naming smoke (isolated, no network)', () => {
     expect(built.kind).toBe('overflow');
   });
 
-  it('cohort memberTitleSpans tag distributor spans (never undefined)', () => {
-    const member = {
-      version: 'execution-evidence-v2',
-      itemSourceType: 'distributor_record',
-      extractionSourceType: 'distributor_record',
-      acceptedEvidenceAttemptIds: ['a1'],
-      acceptedProviderIds: ['bradley'],
-      spreadsheetIdentity: { name: 'Acme Kibble', expectedName: null, brandHint: 'Acme' },
-      extraction: {
-        title: 'Acme Kibble 5 lb',
-        weight: '5 lb',
-        bulletPoints: ['Grain-free recipe'],
-        variantAttributes: { size: '5 lb' },
-        merchandisingProvenance: {},
-        ocr: { packagingOcrData: null },
-        manualEvidenceAttestationId: null,
-      },
-    } as unknown as ExecutionEvidenceProjectionMemberV2;
-    const spans = memberTitleSpans(member);
-    const dist = spans.filter(s => s.channel === 'distributor');
+  it('cohort distributor spans assemble through the shared contract (never undefined)', () => {
+    const spans = assembleNameSpans({
+      registerName: 'Acme Kibble',
+      registerNameEvidenceId: 'frozen-evidence:test',
+      distributor: [
+        { value: 'Acme Kibble 5 lb', evidenceId: 'distributor:bradley:a1' },
+        { value: '5 lb', evidenceId: 'distributor:bradley:a1' },
+        { value: '5 lb', evidenceId: 'distributor:bradley:a1' },
+      ],
+    });
+    const dist = spans.filter((s: { channel: string; evidenceId?: string }) => s.channel === 'distributor');
     expect(dist.length).toBeGreaterThan(0);
-    expect(dist.every(s => typeof s.evidenceId === 'string' && s.evidenceId.length > 0)).toBe(true);
+    expect(dist.every((s: { evidenceId?: string }) => typeof s.evidenceId === 'string' && (s.evidenceId as string).length > 0)).toBe(true);
     // Span parity: register, then distributor (title/weight/variant) —
     // bullet free text is never a naming input.
-    expect(spans.map(s => s.channel)).toEqual(['register', 'distributor', 'distributor', 'distributor']);
+    expect(spans.map((s: { channel: string }) => s.channel)).toEqual(['register', 'distributor', 'distributor', 'distributor']);
   });
 
   it('manual corrections carry the manual span only + attestation marker', async () => {
@@ -194,26 +184,11 @@ describe('evidence-backed naming smoke (integrated: cohort + replay + Review + d
       // weight to the distributor channel (never `official`) with real
       // markers; the register name + distributor weight resolve to one
       // complete candidate with zero calls.
-      const member = {
-        version: 'execution-evidence-v2',
-        itemSourceType: 'distributor_record',
-        extractionSourceType: 'distributor_record',
-        extractionMethod: 'distributor_record_v2',
-        acceptedEvidenceAttemptIds: ['a1'],
-        acceptedProviderIds: ['bradley'],
-        evidenceHash: 'frozen-smoke-1',
-        spreadsheetIdentity: { name: 'Acme Chicken Dinner', expectedName: null, brandHint: 'Acme' },
-        extraction: {
-          title: null,
-          weight: '5 lb',
-          bulletPoints: [],
-          variantAttributes: {},
-          merchandisingProvenance: {},
-          ocr: { outcome: null, packagingOcrData: null, ocrInputHash: 'x' },
-          manualEvidenceAttestationId: null,
-        },
-      } as unknown as ExecutionEvidenceProjectionMemberV2;
-      const spans = memberTitleSpans(member);
+      const spans = assembleNameSpans({
+        registerName: 'Acme Chicken Dinner',
+        registerNameEvidenceId: 'frozen-evidence:smoke-1',
+        distributor: [{ value: '5 lb', evidenceId: 'distributor:bradley:a1' }],
+      });
       expect(spans.some(s => s.channel === 'official')).toBe(false);
       const first = await resolveNameSelection({
         evidence: [], spans, brand: 'Acme', sku: 'SMOKE-COHORT-1',

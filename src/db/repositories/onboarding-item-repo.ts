@@ -1537,6 +1537,50 @@ export function updateItemCurationData(id: string, curationDataJson: string): vo
   ).run(curationDataJson, now, id);
 }
 
+/**
+ * Verify-and-write one curation-document field (listing-evidence rerun +
+ * operator verification): re-reads the CURRENT stored document, re-applies
+ * the field onto the live bytes, and writes it back inside one transaction.
+ * Reviewer edits (title, description, media, other curation keys) made while
+ * an evaluation await was in flight survive — only the named field is
+ * replaced, never a stale pre-await snapshot spread over the row. The
+ * optional `expectRevision` guard fails closed (`null` return, no write)
+ * when the live document changed since the caller read it; the route then
+ * persists nothing and reports the conflict instead of clobbering.
+ */
+export function updateItemCurationField(
+  id: string,
+  field: string,
+  value: unknown,
+  options?: { expectRevision?: string | null },
+): { ok: true } | { ok: false; code: 'revision_stale' } {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.transaction(() => {
+    const row = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(id) as
+      | { curation_data_json: string | null } | undefined;
+    if (!row) return { ok: false as const, code: 'revision_stale' as const };
+    let live: Record<string, unknown>;
+    try {
+      const parsed: unknown = row.curation_data_json ? JSON.parse(String(row.curation_data_json)) : {};
+      live = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      live = {};
+    }
+    if (options && options.expectRevision !== undefined && options.expectRevision !== null) {
+      if (hashCanonicalJson(live) !== options.expectRevision) {
+        return { ok: false as const, code: 'revision_stale' as const };
+      }
+    }
+    const next = { ...live, [field]: value };
+    db.query(
+      'UPDATE onboarding_items SET curation_data_json = ?, updated_at = ? WHERE id = ?',
+    ).run(JSON.stringify(next), now, id);
+    return { ok: true as const };
+  })();
+}
+
 export function updateItemBrandHint(id: string, brandHint: string | null): void {
   const db = getDb();
   const now = new Date().toISOString();

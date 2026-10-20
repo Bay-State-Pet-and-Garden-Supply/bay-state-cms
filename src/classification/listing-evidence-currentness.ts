@@ -21,7 +21,6 @@ import {
   eligibleEvidenceFor,
   hashEvidenceBundle,
   hashFinalListing,
-  type BuiltClaim,
   type EligibleEvidence,
   type FinalListingInput,
 } from './listing-evidence';

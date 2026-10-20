@@ -94,6 +94,9 @@ export function sourceProvenanceFromMember(
 ): SourceProvenanceSlice {
   // V2 members carry the provenance fields; V1 members (distributor routing
   // did not exist when V1 was written) normalize to official_page.
+  // Partial V2 shapes (test-built mutations carrying only the distributor
+  // slice) also normalize absent provenance arrays to empty — the binding
+  // slice never crashes on missing optional provenance.
   const v2 = 'itemSourceType' in member;
   const m = member as ExecutionEvidenceProjectionMemberV2;
   return {
@@ -105,12 +108,12 @@ export function sourceProvenanceFromMember(
     // normalization (extractionMethod: '') so V1 and normalized-V2 hash
     // identically (V1 compatibility contract).
     extractionMethod: v2 ? m.extractionMethod : '',
-    sourcingGenerationId: v2 ? m.sourcingGenerationId : null,
-    acceptedEvidenceAttemptIds: v2 ? [...m.acceptedEvidenceAttemptIds].sort() : [],
+    sourcingGenerationId: (v2 ? m.sourcingGenerationId : null) ?? null,
+    acceptedEvidenceAttemptIds: v2 && Array.isArray(m.acceptedEvidenceAttemptIds) ? [...m.acceptedEvidenceAttemptIds].sort() : [],
     // V2 names the provider set `acceptedProviderIds` (cohorts.ts); V1 has
     // no provider set and normalizes empty.
-    providerIds: v2 ? [...m.acceptedProviderIds].sort() : [],
-    distributorEvidenceHash: v2 ? m.distributorEvidenceHash : null,
+    providerIds: v2 && Array.isArray(m.acceptedProviderIds) ? [...m.acceptedProviderIds].sort() : [],
+    distributorEvidenceHash: v2 ? (m.distributorEvidenceHash ?? null) : null,
   };
 }
 

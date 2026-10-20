@@ -224,6 +224,34 @@ export function getProductPageAssignments(productSku: string): Array<{ pageId: s
   const rows = db.query('SELECT page_id, page_name FROM product_pages WHERE product_sku = ?').all(productSku) as Array<{ page_id: string | null; page_name: string }>;
   return rows.map(r => ({ pageId: r.page_id ? String(r.page_id) : null, pageName: String(r.page_name) }));
 }
+/**
+ * Owned-write restore (issue #363): replace one SKU's page joins with the
+ * exact snapshot taken before approval. Callers snapshot via
+ * `getProductPageAssignments` and restore here — no direct
+ * `product_pages` SQL outside this repository.
+ */
+export function restoreProductPageJoins(
+  productSku: string,
+  joins: Array<{ pageId: string | null; pageName: string }>,
+): void {
+  const db = getDb();
+  db.transaction(() => {
+    db.run('DELETE FROM product_pages WHERE product_sku = ?', [productSku]);
+    for (const join of joins) {
+      if (join.pageId) {
+        db.run(
+          'INSERT OR IGNORE INTO product_pages (product_sku, page_name, page_id, created_at) VALUES (?, ?, ?, ?)',
+          [productSku, join.pageName, join.pageId, new Date().toISOString()],
+        );
+      } else {
+        db.run(
+          'INSERT OR IGNORE INTO product_pages (product_sku, page_name, created_at) VALUES (?, ?, ?)',
+          [productSku, join.pageName, new Date().toISOString()],
+        );
+      }
+    }
+  });
+}
 
 /**
  * Distinct assigned page names across ALL products — the catalog-wide name

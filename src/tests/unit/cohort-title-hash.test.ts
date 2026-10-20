@@ -247,6 +247,10 @@ function siblingFromAuthority(a: CohortTitleAuthorityMember): CohortSiblingInput
     ocrSize: a.ocrSize,
     ocrCount: a.ocrCount,
     ocrFlavor: a.ocrFlavor,
+    ocrSpecies: a.ocrSpecies,
+    ocrProductForm: a.ocrProductForm,
+    distributorNaming: a.distributorNaming,
+    manualNaming: a.manualNaming,
   };
 }
 

@@ -802,12 +802,8 @@ export function stageFamilyJoin(input: StageFamilyJoinInput): { row: StorefrontF
       };
     }),
     stagedCatalogCommit: readHeadCommit(input.workspacePath),
-    ...(input.membershipProposal
-      ? {
-          membershipProposalId: input.membershipProposal.proposalId,
-          membershipProposalOutcome: input.membershipProposal.outcome as JoinOrigin['membershipProposalOutcome'],
-        }
-      : {}),
+    membershipProposalId: input.membershipProposal ? input.membershipProposal.proposalId : null,
+    membershipProposalOutcome: input.membershipProposal ? (input.membershipProposal.outcome as JoinOrigin['membershipProposalOutcome']) : null,
   };
   const plan: StorefrontFamilyPlan = {
     id: randomUUID(),
@@ -829,6 +825,7 @@ export function stageFamilyJoin(input: StageFamilyJoinInput): { row: StorefrontF
         reviewedTypeHash: evidence.reviewedTypeHash,
         evidenceHash: evidence.evidenceHash,
         baseHash: evidence.base ? comparisonHashForProduct(evidence.base) : null,
+        stagedLabel: null,
         productTypeId: evidence.productTypeId,
         model: evidence.model,
         material: evidence.material,
@@ -945,7 +942,7 @@ export function reviewFamilyJoin(input: {
     return {
       sku: member.sku,
       origin: (joined ? 'import' : 'catalog') as 'catalog' | 'import',
-      baseHash: member.baseHash,
+      baseHash: member.baseHash ?? null,
       reviewedTypeHash: member.reviewedTypeHash,
       evidenceHash: member.evidenceHash,
     };
@@ -1010,10 +1007,10 @@ export function reviewFamilyJoin(input: {
   // size+ounces branch.
   const varyingAxes: Array<{ sku: string; sizeRaw: string; ounces: number | null; colorRaw?: string | null; countRaw?: string | null; countQuantity?: number | null }> =
     plan.members.map((member) => {
-      if (isFood) return { sku: member.sku, sizeRaw: member.sizeRaw ?? '', ounces: member.comparableOunces };
+      if (isFood) return { sku: member.sku, sizeRaw: member.sizeRaw ?? '', ounces: member.comparableOunces ?? null };
       const permitted = NON_FOOD_FAMILY_PERMITTED_AXES[plan.ruleVersion as Exclude<FamilyVariantRuleVersion, typeof FOOD_FAMILY_VARIANT_RULE_VERSION>] ?? [];
       const row: { sku: string; sizeRaw: string; ounces: number | null; colorRaw?: string | null; countRaw?: string | null; countQuantity?: number | null } =
-        { sku: member.sku, sizeRaw: permitted.includes('size') ? (member.sizeRaw ?? '') : '', ounces: member.comparableOunces };
+        { sku: member.sku, sizeRaw: permitted.includes('size') ? (member.sizeRaw ?? '') : '', ounces: member.comparableOunces ?? null };
       if (permitted.includes('color')) row.colorRaw = member.colorRaw ?? null;
       if (permitted.includes('count')) {
         row.countRaw = member.countRaw ?? null;

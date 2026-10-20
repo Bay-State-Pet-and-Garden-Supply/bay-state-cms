@@ -17,6 +17,7 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
 import { readStorageVersion, encodeForStorage, stagePredicateParams } from './onboarding-stage-vocabulary-repo';
+import { validateListingEvidenceForReview } from '../../classification/review-completion-gate';
 
 export interface OnboardingReviewState {
   itemId: string;
@@ -404,6 +405,26 @@ export function approveAndAdvanceItems(input: {
             ? findings[0].message
             : 'A hard cohort semantic validation finding blocks this item.';
         rejected.push({ itemId: id, reason: `semantic_validation_blocked: ${firstMessage}` });
+        continue;
+      }
+      // Issue #366: durable approval refuses when the single listing-evidence
+      // gate refuses. Grandfathers legacy rows (absent record passes); a
+      // present-but-stale/blocked/unavailable record refuses with the gate
+      // code. Fail closed on unexpected throw (never an invented pass).
+      try {
+        const wsPathRow = db.query('SELECT workspace_path FROM workspace LIMIT 1').get() as
+          | { workspace_path: string }
+          | undefined;
+        const gate = validateListingEvidenceForReview(
+          id,
+          wsPathRow?.workspace_path ? { workspacePath: wsPathRow.workspace_path, workspaceId: input.workspaceId ?? wsId ?? undefined } : undefined,
+        );
+        if (gate && !gate.ok) {
+          rejected.push({ itemId: id, reason: `${gate.code}: ${gate.reason}` });
+          continue;
+        }
+      } catch {
+        rejected.push({ itemId: id, reason: 'listing_evidence_unavailable: evaluation unavailable; resolve before approval.' });
         continue;
       }
 
