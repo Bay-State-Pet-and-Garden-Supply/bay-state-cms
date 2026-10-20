@@ -7,6 +7,7 @@ import { deterministicStringify } from '../git/deterministic-json';
 import { resolveWebsiteClassification, type BundleView } from './product-classification';
 import { resolveCanonicalClassificationOutputBindings, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
+import { classifyClassifierFamilyWrite } from '../validation/storefront-family-validation';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
 import { composeEffectiveReviewedFacts, findRejectedProductClassificationProposal } from './reviewed-facts';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
@@ -385,6 +386,12 @@ export function buildAssignmentProjection(
       const targets = [...new Set([proposal.targetId, targetId].filter((id): id is string => !!id))];
       let invalid = false;
       for (const id of targets) {
+        const familyRefusal = classifyClassifierFamilyWrite(id);
+        if (familyRefusal) {
+          refuse(`${familyRefusal.code}: ${familyRefusal.reason}`);
+          invalid = true;
+          break;
+        }
         if (isProtectedTargetId(id, mappings)) {
           const refusal = protectedTargetRefusal(id);
           refuse(`${refusal.code}: ${refusal.reason}`);
@@ -395,6 +402,14 @@ export function buildAssignmentProjection(
         const mapping = matches[0];
         if (matches.length !== 1 || !mapping?.catalogField || mapping.isStale) {
           refuse('Missing, ambiguous, empty or stale attribute mapping');
+          invalid = true;
+          break;
+        }
+        // Variant-ID/binding bypass (#368 §7): the resolved catalog field
+        // is checked against the family classifier too.
+        const boundFamilyRefusal = classifyClassifierFamilyWrite(mapping.catalogField);
+        if (boundFamilyRefusal) {
+          refuse(`${boundFamilyRefusal.code}: ${boundFamilyRefusal.reason}`);
           invalid = true;
           break;
         }

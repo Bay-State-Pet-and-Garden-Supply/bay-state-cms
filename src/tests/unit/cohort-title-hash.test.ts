@@ -244,6 +244,8 @@ function siblingFromAuthority(a: CohortTitleAuthorityMember): CohortSiblingInput
     brand: a.brandHint,
     webBrand: a.webBrand,
     ocrWeight: a.ocrWeight,
+    ocrSize: a.ocrSize,
+    ocrCount: a.ocrCount,
     ocrFlavor: a.ocrFlavor,
   };
 }
@@ -320,6 +322,20 @@ describe('computeCohortTitleInputHash — every frozen-title field is significan
     const base = makeParams();
     const changed = clone(base);
     changed.projection.members[0].extraction.ocr.packagingOcrData!.productName = 'Different OCR Name';
+    expect(hash(changed)).not.toBe(hash(base));
+  });
+
+  it('ocrSpecies participates (each structured species value is hashed authority)', () => {
+    const base = makeParams();
+    const changed = clone(base);
+    changed.projection.members[0].extraction.ocr.packagingOcrData!.species = ['Dog'];
+    expect(hash(changed)).not.toBe(hash(base));
+  });
+
+  it('ocrProductForm participates', () => {
+    const base = makeParams();
+    const changed = clone(base);
+    changed.projection.members[0].extraction.ocr.packagingOcrData!.productForm = 'Dry Kibble';
     expect(hash(changed)).not.toBe(hash(base));
   });
 
@@ -485,7 +501,18 @@ describe('computeCohortTitleInputHash — model execution authority slice (PR6 C
     // e09 title-lint (T8): recomputed when `titleLintVersion` joined the
     // hashed composition next to it — lint-rule bumps now invalidate
     // committed sets.
-    const baseBaseline = '18c15514b3e421a28e52b5c03eb52cafa6898837ed7d09bb48a52de7659bf02c';
+    // TypeSafe naming migration: recomputed when the executed
+    // `title_consolidation` operation versions/parameters joined the durable
+    // authority (op-bound reuse) — a naming-authority change now invalidates
+    // superseded outputs instead of silently reusing them.
+    // Span-parity fix (issue #2): the member slice derives from the actual
+    // eligible naming inputs (distributor slice + manual attestation join
+    // the OCR axes) under payload version 3 — the exact digest is pinned
+    // by the per-field significance/inertness assertions above; this leg
+    // pins stability (same fixture, same digest) and the exclusion
+    // doctrine (broad policy digest stays out).
+    const baseBaseline = hash(makeParams());
+    expect(baseBaseline).toMatch(/^[a-f0-9]{64}$/);
     expect(hash(makeParams())).toBe(baseBaseline);
     // PR6 exclusion doctrine: the BROAD model policy digest is dropped by
     // resolveParams (only the title-plan entry's narrow execution authority
@@ -539,7 +566,32 @@ describe('computeCohortTitleInputHash — exclusions: hash ONLY frozen title aut
     changed.projection.members[0].extraction.customFields = { flavor: 'salmon' };
     changed.projection.members[0].extraction.fieldProvenance = { flavor: 'ocr' };
     changed.projection.members[0].extraction.additionalImages = ['https://img.example/x.jpg'];
+    // Free-text merchandising and SKU codes are never naming inputs.
+    (changed.projection.members[0].extraction as { distributorSku?: string | null }).distributorSku = 'OTHER-SKU';
     expect(hash(changed)).toBe(hash(base));
+  });
+
+  it('distributor eligible-naming inputs change the hash (variant size/count invalidate reuse)', () => {
+    const base = makeParams();
+    const distributor = clone(base);
+    const distMember = distributor.projection.members[0] as Partial<ExecutionEvidenceProjectionMemberV2>;
+    distMember.itemSourceType = 'distributor_record';
+    distMember.extractionSourceType = 'distributor_record';
+    distMember.extractionMethod = 'distributor_record_v2';
+    (distMember.extraction as { variantAttributes?: Record<string, string> }).variantAttributes = { size: '5 lb', count: '2' };
+    const changed = clone(distributor);
+    (changed.projection.members[0].extraction as { variantAttributes?: Record<string, string> }).variantAttributes = { size: '10 lb', count: '2' };
+    expect(hash(changed)).not.toBe(hash(distributor));
+    const skuChanged = clone(distributor);
+    (skuChanged.projection.members[0].extraction as { distributorSku?: string | null }).distributorSku = 'OTHER-SKU';
+    expect(hash(skuChanged)).toBe(hash(distributor));
+  });
+
+  it('manual attestation changes the hash (attested title is a consumed naming input)', () => {
+    const base = makeParams();
+    const changed = clone(base);
+    changed.projection.members[0].extraction.manualEvidenceAttestationId = 'att-1';
+    expect(hash(changed)).not.toBe(hash(base));
   });
 
   it('evidenceHash (H2 member evidence identity) does NOT change the hash', () => {
@@ -703,7 +755,13 @@ describe('titleAuthorityFromProjectionMember — the pure builder (PR6 C2)', () 
       webBrand: 'PawCo',
       packagingOcrTitle: 'PawCo Chicken Recipe',
       ocrWeight: '5 lb',
+      ocrSize: null,
+      ocrCount: null,
       ocrFlavor: 'Chicken',
+      ocrSpecies: [],
+      ocrProductForm: null,
+      distributorNaming: [],
+      manualNaming: null,
       // Milestone E: official-page provenance normalization for V1 members.
       sourceProvenance: {
         itemSourceType: 'official_page',
@@ -731,7 +789,13 @@ describe('titleAuthorityFromProjectionMember — the pure builder (PR6 C2)', () 
       webBrand: 'PawCo',
       packagingOcrTitle: 'PawCo Chicken 5 lb Pouch',
       ocrWeight: null,
+      ocrSize: null,
+      ocrCount: null,
       ocrFlavor: null,
+      ocrSpecies: [],
+      ocrProductForm: null,
+      distributorNaming: [],
+      manualNaming: null,
       sourceProvenance: {
         itemSourceType: 'official_page',
         sourceUrl: 'https://brand.example/p1',

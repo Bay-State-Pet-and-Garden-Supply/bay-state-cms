@@ -1,0 +1,788 @@
+{
+"corpusId": "naming-listing-holdout-v1",
+"description": "Sealed HOLDOUT corpus for joint naming + listing-evidence qualification (issue #375). FAMILY-DISJOINT from dev: zero familyId overlap. NOT RUN: unseal only after the dev-fitted policy is published and a reviewer authorizes the holdout run. 15 rows, 14 distinct families (hold-10/hold-14 share one family by design: two cohort members of the same 12 oz / 24 oz family). Covers official/abbreviated/OCR/manual inputs, conflicting/missing facts, unsupported text + correction, optional omission, singleton/cohort behavior.",
+"frozenVersions": {
+"listingRules": "listing-evidence-rules-v1",
+"model": "jev-1.13.0",
+"normalization": "name-normalization-v1",
+"policy": "naming-listing-task-policy-v1-dev"
+},
+"rows": [
+{
+"brand": "Beacon",
+"category": "official_agree_deterministic",
+"evidence": [
+{
+"id": "hold01-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Salmon Feast 12OZ"
+},
+{
+"id": "hold01-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Beacon Salmon Feast 12 oz"
+},
+{
+"id": "hold01-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 12 oz"
+}
+],
+"familyId": "holdfam-beacon-salmon-12oz",
+"id": "hold-01",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Salmon Feast 12 oz",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold01-ev-r1",
+"span": "BEACON Salmon Feast 12OZ"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-01-BCN-SAL12",
+"variantFacts": {
+"weight": "12 oz"
+}
+},
+{
+"brand": "Beacon",
+"category": "abbreviated_distributor_needs_selection",
+"evidence": [
+{
+"id": "hold02-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Slmn Fst 12OZ"
+},
+{
+"id": "hold02-ev-d1",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "title",
+"value": "Beacon Salmon Feast 12 oz"
+},
+{
+"id": "hold02-ev-d2",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "weight",
+"value": "Net weight 12 oz"
+}
+],
+"familyId": "holdfam-beacon-abbr-12oz",
+"id": "hold-02",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Salmon Feast 12 oz",
+"mode": "singleton",
+"nameExpected": {
+"kind": "needs_selection"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold02-ev-r1",
+"span": "BEACON Slmn Fst 12OZ"
+},
+{
+"channel": "distributor",
+"evidenceId": "hold02-ev-d1",
+"span": "Beacon Salmon Feast 12 oz"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-02-BCN-ABBR12",
+"variantFacts": {
+"weight": "12 oz"
+}
+},
+{
+"brand": "Beacon",
+"category": "ocr_single_source",
+"evidence": [
+{
+"id": "hold03-ev-c1",
+"reliability": "medium",
+"sku": "self",
+"source": "visual_product_evidence",
+"sourceField": "package_text",
+"value": "Beacon Garden Blend 4 lb"
+},
+{
+"id": "hold03-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "Beacon Garden Blend 4 lb"
+},
+{
+"id": "hold03-ev-c2",
+"reliability": "medium",
+"sku": "self",
+"source": "visual_product_evidence",
+"sourceField": "weight",
+"value": "Net weight 4 lb"
+}
+],
+"familyId": "holdfam-beacon-garden-4lb",
+"id": "hold-03",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Garden Blend 4 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "ocr",
+"evidenceId": "hold03-ev-c1",
+"span": "Beacon Garden Blend 4 lb"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-03-BCN-GRDN4",
+"variantFacts": {
+"weight": "4 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "manual_supplies_evidence",
+"evidence": [
+{
+"id": "hold04-ev-m1",
+"reliability": "low",
+"sku": "self",
+"source": "operator_manual",
+"sourceField": "observed_title",
+"value": "Beacon Garden Blend 4 lb"
+},
+{
+"id": "hold04-ev-m2",
+"reliability": "low",
+"sku": "self",
+"source": "operator_manual",
+"sourceField": "observed_weight",
+"value": "Net weight 4 lb"
+}
+],
+"familyId": "holdfam-beacon-manual-4lb",
+"id": "hold-04",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Garden Blend 4 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "manual",
+"evidenceId": "hold04-ev-m1",
+"span": "Beacon Garden Blend 4 lb"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-04-BCN-MAN4",
+"variantFacts": {
+"weight": "4 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "conflicting_sizes",
+"evidence": [
+{
+"id": "hold05-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Dog Food 8LB"
+},
+{
+"id": "hold05-ev-o1",
+"reliability": "conflicting",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Beacon Dog Food 20 lb"
+},
+{
+"id": "hold05-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 8 lb"
+}
+],
+"familyId": "holdfam-beacon-conflict-8-20",
+"id": "hold-05",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Dog Food 8 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "conflict"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold05-ev-r1",
+"span": "BEACON Dog Food 8LB"
+},
+{
+"channel": "official",
+"evidenceId": "hold05-ev-o1",
+"span": "Beacon Dog Food 20 lb"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-05-BCN-CONF",
+"variantFacts": {
+"weight": "8 lb"
+}
+},
+{
+"brand": null,
+"category": "missing_brand",
+"evidence": [
+{
+"id": "hold06-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "Garden Blend 4LB"
+}
+],
+"familyId": "holdfam-nobrand-garden-4lb",
+"id": "hold-06",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Garden Blend 4 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "missing"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold06-ev-r1",
+"span": "Garden Blend 4LB"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-06-NOBRAND",
+"variantFacts": {
+"weight": "4 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "unsupported_text_blocked",
+"evidence": [
+{
+"id": "hold07-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Bird Seed 5LB"
+},
+{
+"id": "hold07-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Beacon Bird Seed 5 lb"
+},
+{
+"id": "hold07-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "holdfam-beacon-bird-5lb",
+"id": "hold-07",
+"listingCorrectedDescription": "Wild bird seed mix.",
+"listingDescription": "Wild bird seed mix. Number one vet recommended.",
+"listingExpectedStatus": "blocked",
+"listingTitle": "Beacon Bird Seed 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "official",
+"evidenceId": "hold07-ev-o1",
+"span": "Beacon Bird Seed 5 lb"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-07-BCN-BIRD5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "negation_contradiction",
+"evidence": [
+{
+"id": "hold08-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Cat Food 6LB"
+},
+{
+"id": "hold08-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Made with tuna, salmon, and chicken broth."
+},
+{
+"id": "hold08-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 6 lb"
+}
+],
+"familyId": "holdfam-beacon-negation-6lb",
+"id": "hold-08",
+"listingDescription": "Made with tuna, salmon, and chicken broth. No tuna or salmon.",
+"listingExpectedStatus": "blocked",
+"listingTitle": "Beacon Cat Food 6 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold08-ev-r1",
+"span": "BEACON Cat Food 6LB"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-08-BCN-NEG6",
+"variantFacts": {
+"weight": "6 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "optional_omission_passes",
+"evidence": [
+{
+"id": "hold09-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Dog Toy Rope LG"
+},
+{
+"id": "hold09-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "size",
+"value": "Size Large"
+}
+],
+"familyId": "holdfam-beacon-toy-lg",
+"id": "hold-09",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Dog Toy Rope LG",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold09-ev-r1",
+"span": "BEACON Dog Toy Rope LG"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-09-BCN-TOYLG",
+"variantFacts": {}
+},
+{
+"brand": "Beacon",
+"category": "cohort_sibling_excluded",
+"evidence": [
+{
+"id": "hold10-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Salmon Feast 12OZ"
+},
+{
+"id": "hold10-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 12 oz"
+},
+{
+"id": "hold10-ev-sib1",
+"reliability": "high",
+"sku": "sibling",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 24 oz"
+}
+],
+"familyId": "holdfam-beacon-cohort-12-24",
+"id": "hold-10",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Salmon Feast 12 oz",
+"mode": "cohort",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold10-ev-r1",
+"span": "BEACON Salmon Feast 12OZ"
+}
+],
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-10-BCN-COH12",
+"variantFacts": {
+"weight": "12 oz"
+}
+},
+{
+"brand": "Beacon",
+"category": "missing_size",
+"evidence": [
+{
+"id": "hold11-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "Beacon Garden Toppers"
+}
+],
+"familyId": "holdfam-beacon-toppers-nosize",
+"id": "hold-11",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Garden Toppers",
+"mode": "singleton",
+"nameExpected": {
+"kind": "missing"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold11-ev-r1",
+"span": "Beacon Garden Toppers"
+}
+],
+"note": "No size/capacity/weight/count anywhere in eligible evidence: naming holds instead of guessing. Mirrors dev-07 in a disjoint Beacon family.",
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-11-BCN-TOPNOSIZE",
+"variantFacts": {}
+},
+{
+"brand": "Beacon",
+"category": "shipping_weight_ignored",
+"evidence": [
+{
+"id": "hold12-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Dog Food 8LB"
+},
+{
+"id": "hold12-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Beacon Dog Food 8 lb"
+},
+{
+"id": "hold12-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 8 lb"
+},
+{
+"id": "hold12-ev-s1",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "shipping",
+"value": "Shipping weight 16 lb"
+},
+{
+"id": "hold12-ev-o3",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Crunchy kibble for adult dogs."
+}
+],
+"familyId": "holdfam-beacon-ship-8lb",
+"id": "hold-12",
+"listingDescription": "Crunchy kibble for adult dogs.",
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Dog Food 8 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold12-ev-r1",
+"span": "BEACON Dog Food 8LB"
+}
+],
+"note": "Shipping weight is parcel evidence, never net contents: every candidate carries 8 lb and none is sized 16 lb. Mirrors dev-08 in a disjoint Beacon family.",
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-12-BCN-SHIP8",
+"variantFacts": {
+"weight": "8 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "quantity_mismatch_blocked",
+"evidence": [
+{
+"id": "hold13-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Cat Food 6LB"
+},
+{
+"id": "hold13-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 6 lb"
+}
+],
+"familyId": "holdfam-beacon-qty-6lb",
+"id": "hold-13",
+"listingDescription": null,
+"listingExpectedStatus": "blocked",
+"listingTitle": "Beacon Cat Food 6 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold13-ev-r1",
+"span": "BEACON Cat Food 6LB"
+}
+],
+"note": "Included variant fact 12 lb contradicts evidenced 6 lb on the same axis: blocked. Mirrors dev-11 in a disjoint Beacon family.",
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-13-BCN-QTY6",
+"variantFacts": {
+"weight": "12 lb"
+}
+},
+{
+"brand": "Beacon",
+"category": "cohort_same_family_distinct_sku",
+"evidence": [
+{
+"id": "hold14-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Salmon Feast 24OZ"
+},
+{
+"id": "hold14-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 24 oz"
+},
+{
+"id": "hold14-ev-sib1",
+"reliability": "high",
+"sku": "sibling",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 12 oz"
+}
+],
+"familyId": "holdfam-beacon-cohort-12-24",
+"id": "hold-14",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Beacon Salmon Feast 24 oz",
+"mode": "cohort",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "hold14-ev-r1",
+"span": "BEACON Salmon Feast 24OZ"
+}
+],
+"note": "Second member of the hold-10 family keeps its own SKU-local facts: 24 oz from its own evidence only, never inherited from its 12 oz sibling. Mirrors dev-14.",
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-14-BCN-COH24",
+"variantFacts": {
+"weight": "24 oz"
+}
+},
+{
+"brand": "Beacon",
+"category": "unsupported_text_blocked",
+"evidence": [
+{
+"id": "hold15-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "BEACON Ferret Feast 2LB"
+},
+{
+"id": "hold15-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Beacon Ferret Feast 2 lb"
+},
+{
+"id": "hold15-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Crunchy kibble for ferrets."
+},
+{
+"id": "hold15-ev-o3",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 2 lb"
+}
+],
+"familyId": "holdfam-beacon-ferret-2lb",
+"id": "hold-15",
+"listingCorrectedDescription": "Crunchy kibble for ferrets.",
+"listingDescription": "Crunchy kibble for ferrets. Guaranteed to add nine lives.",
+"listingExpectedStatus": "blocked",
+"listingTitle": "Beacon Ferret Feast 2 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "official",
+"evidenceId": "hold15-ev-o1",
+"span": "Beacon Ferret Feast 2 lb"
+}
+],
+"note": "Included unsafe optional marketing text blocks release; removing it (correction) passes. Second holdout correction demonstration in a disjoint family.",
+"requiredFields": [
+"title"
+],
+"sku": "HOLD-15-BCN-FER2",
+"variantFacts": {
+"weight": "2 lb"
+}
+}
+]
+}
