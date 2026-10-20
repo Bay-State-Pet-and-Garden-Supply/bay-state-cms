@@ -1,0 +1,20 @@
+{
+  "activation": "OFF — activation is explicitly NOT granted by this policy. Requires: (1) sealed-holdout run authorized + passing, (2) live canary with operator review, (3) routing/data-sharing approval, (4) disable-to-manual verification, recorded in the qualification report and approved by the store manager. No paid calls, no store writes were made.",
+  "effectivePolicyHash": "snap-sitemap-qualification-offline",
+  "fittedOn": "sitemap-selection-dev-v1 (dev corpus only; holdout sealed at fit time)",
+  "modelPin": "jev-1.13.0",
+  "operation": "sitemap_selection",
+  "policyId": "sitemap-selection-task-policy-v1-dev",
+  "promptTemplate": "jev-sitemap-selection-v2",
+  "publishedBeforeHoldoutInspection": true,
+  "rule": "accept-when-all-retrieval-candidates-share-one-approved-domain-and-variant-tokens-match-else-abstain; single-candidate-or-exact-identity → deterministic verify path (no model call); empty retrieval → coverage_gap; off-domain-only candidates → insufficient_evidence (never select); mixed-domain sets with no in-domain match → no_match; low-probability (P<0.50) → low_model_probability abstention; never clip, never fall back to chat, never select an unseen URL.",
+  "ruleVersion": "sitemap-selection-rules-v1",
+  "selectionFloor": 0.5,
+  "sha256": "4ae609d550fa53eafe8372f8b75f1c4e0cd3917b732f46d8d11ed7183c6f9e54",
+  "holdoutSha256": "2db0602d67151cd82c7a4cc1e8a07b7b2e33bf939565ac60157658b584c5ca20",
+  "fitExecutedAt": "2026-10-19T18:10:56Z",
+  "fitExecutedBeforeFreezeNote": "The dev corpus was executed through selectOfficialPageWithTypesafe with a stubbed Choice transport (offline mechanics check) BEFORE the frozen bytes above were hashed; the corpus was then re-frozen and re-hashed. publishedBeforeHoldoutInspection attests the holdout seal ordering (dev fit + policy publish happened before any holdout-corpus RUN was executed or unsealed), not that dev was frozen before it was ever run.",
+  "frozenRecordedAt": "2026-10-20T00:12:17Z",
+  "frozenCommit": "untracked-working-tree (new pack files, never committed; HEAD 079b9a4aede0fc48a056166de3c1c998bc3462cd is the unrelated base)",
+  "frozenRefreezeNote": "2026-10-20 refreeze: holdout custody header reworded from payload-sealed to RUN-sealed (the disjointness/hash check reads bytes; the RUN is what stays sealed) and HOLDOUT_UNSEAL=<review-id> authorized-unseal path added; dev bytes untouched. Holdout still sealed."
+}

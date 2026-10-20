@@ -217,6 +217,52 @@ export function runMigrations(): void {
     console.log('[Migrations] Discovery-runs indexes complete.');
   }
 
+  // ── Discovery model-call audit (issue #364) ──
+  // Durable start/terminal provenance for the `sitemap_selection` protected
+  // TypeSafe dispatch, bound to `onboarding_discovery_runs(id)`. The shared
+  // `classification_model_calls` table cannot hold discovery-run ids
+  // (`run_id REFERENCES classification_runs(id)` with FK enforcement), and
+  // weakening it would break the classification orphan-integrity checks — so
+  // the selector persists here instead. Additive + idempotent.
+  const discoveryModelCallsVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('discovery_model_calls_schema_version') as { value: string } | undefined;
+  if (discoveryModelCallsVersion?.value !== '1') {
+    console.log('[Migrations] Creating discovery_model_calls audit table...');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS discovery_model_calls (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES onboarding_discovery_runs(id) ON DELETE CASCADE,
+        operation TEXT NOT NULL,
+        attempt INTEGER NOT NULL DEFAULT 1,
+        provider TEXT,
+        model TEXT,
+        requested_model TEXT,
+        resolved_model TEXT,
+        typed_result_metadata_json TEXT,
+        locality TEXT,
+        snapshot_hash TEXT,
+        model_policy_digest TEXT,
+        prompt_template_version TEXT,
+        rule_version TEXT,
+        prompt_hash TEXT,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        duration_ms INTEGER,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('started', 'success', 'failed', 'policy_denied', 'unavailable')),
+        error_message TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_discovery_model_calls_run ON discovery_model_calls(run_id);
+      CREATE INDEX IF NOT EXISTS idx_discovery_model_calls_snapshot ON discovery_model_calls(snapshot_hash);
+      INSERT INTO app_meta (key, value) VALUES ('discovery_model_calls_schema_version', '1')
+      ON CONFLICT(key) DO UPDATE SET value = '1';
+    `);
+    console.log('[Migrations] Discovery model-call audit table complete.');
+  }
+
   // ── Epic #46 operator work-state: durable review/approval/export state ──
   // New table `onboarding_review_state` (version-gated marker
   // `operator_state_schema_version`). Runs AFTER the onboarding migration

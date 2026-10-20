@@ -1,35 +1,44 @@
 /**
  * Sitemap URL matching for the onboarding Discovery stage.
  *
- * Strategy (three passes):
+ * Strategy (three deterministic passes + one typed judgment):
  *
  * 1. **UPC exact match** — if any sitemap URL contains the UPC literal
  *    (digits, ignoring case/whitespace), return that URL at 0.95
  *    confidence. This is the strongest deterministic signal we have
- *    and short-circuits the rest of the pipeline.
+ *    and short-circuits the rest of the pipeline. UPC text in a URL alone
+ *    is never treated as identity proof downstream (the page verifier still
+ *    demands structured proof), and its absence is never a mismatch —
+ *    matching only ranks retrieval, never verifies.
  *
  * 2. **Product URL filter** — if the extractor profile supplies a
  *    `productUrlPattern` (regex string), filter the sitemap down to
  *    URLs that match it. Otherwise apply a generic heuristic that
  *    keeps only paths that look like product detail pages.
  *
- * 3. **Token overlap pre-filter + LLM selection** — tokenize the
- *    consolidated (or fallback) product name, score every filtered
- *    URL by name-token ↔ URL-slug overlap, keep the top 10, and let
- *    the LLM pick the best one (when 2+ candidates and an LLM is
- *    configured). The LLM pick receives a +0.15 confidence boost.
+ * 3. **Token overlap pre-filter + TypeSafe closed-set selection** —
+ *    tokenize the consolidated (or fallback) product name, score every
+ *    filtered URL by name-token ↔ URL-slug overlap, keep the top 10, and
+ *    run the closed-set Choice selector (`./sitemap-selection`) over the
+ *    supplied candidate IDs (+ no_match / insufficient_evidence). The model
+ *    returns an ID; the code maps it to the exact original URL. Out-of-set
+ *    answers, correlation failures, low probabilities, and abstentions never
+ *    persist a selection — the matcher retains the ranked
+ *    retrieval-ordered token-overlap candidates for operator inspection.
  *
- * Confidence formula:
+ * Confidence formula (retrieval rank only — never a model claim, never a boost):
  *   - UPC exact  → 0.95 (matchType: 'upc_exact')
- *   - LLM pick   → 0.7 + 0.25 * tokenOverlapRatio + 0.15 (matchType: 'llm_selected')
+ *   - Selected   → 0.7 + 0.25 * tokenOverlapRatio (matchType: 'llm_selected')
  *   - Fallback   → 0.7 + 0.25 * tokenOverlapRatio  (matchType: 'token_overlap')
  *
  * `sourceMethod` is `'sitemap_upc'` for the UPC pass and `'sitemap_name'`
- * for the filtered/token/LLM passes, so downstream consumers can
+ * for the filtered/token/selected passes, so downstream consumers can
  * distinguish how a candidate was discovered.
  */
 
-import { callLlmForTask, getLlmConfigForTask } from './llm-client';
+import { selectOfficialPageWithTypesafe, type SitemapSelectionCandidate } from './sitemap-selection';
+import { verifyDiscoveryModelCallsBelongToRun } from '../db/repositories/discovery-model-call-repo';
+import type { ModelPolicyView } from '../classification/model-policy-gateway';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -38,12 +47,17 @@ export interface SitemapMatchResult {
   confidence: number;
   sourceMethod: 'sitemap_name' | 'sitemap_upc';
   matchType: 'upc_exact' | 'llm_selected' | 'token_overlap';
+  /** Durable selection audit ids bound to the owning discovery run (empty for deterministic passes). */
+  selectionModelCallIds?: string[];
+  /** Discovery run the selection audit rows belong to (null for deterministic passes). */
+  selectionAuditRunId?: string | null;
 }
 
 /**
- * Optional extra context for the LLM sitemap selector.
- * When available, the prompt becomes much more specific about
- * the product identity, helping the LLM reject near-misses.
+ * Retrieval context for the TypeSafe sitemap selector.
+ * Carries the original Register Name evidence, retrieval ranks, and cached
+ * metadata into the closed-set judgment — never an invented expected name,
+ * never an external search result.
  */
 export interface SitemapLlmContext {
   /** Raw register/row name (pre-consolidation). */
@@ -101,8 +115,9 @@ export async function matchSitemapUrls(
   upc: string,
   domain: string,
   productUrlPattern?: string | null,
-  modelPolicy?: import('../classification/model-policy-gateway').ModelPolicyView | null,
+  modelPolicy?: ModelPolicyView | null,
   variantTokens?: string[],
+  retrieval?: { brandHint?: string | null; approvedDomains?: string[]; sku?: string | null; runId?: string | null; itemId?: string | null; snapshotHash?: string | null; assertHeld?: () => void },
 ): Promise<SitemapMatchResult[]> {
   const results: SitemapMatchResult[] = [];
 
@@ -116,102 +131,84 @@ export async function matchSitemapUrls(
     return results;
   }
 
-  // ── Pass 1: UPC exact match ──────────────────────────────────────────
-  const upcHit = findUpcExactHit(sitemapUrls, upc);
+  // Passes 1–3 (UPC-exact, product filter, token-overlap top-10) run
+  // through the shared ranker — the same implementation the v2 live
+  // evaluation crawls with, so qualification measures production ranking.
+  const ranked = rankSitemapCandidates(sitemapUrls, itemName, consolidatedName, upc, domain, productUrlPattern ?? null);
+  const upcHit = ranked.find(r => r.upcExact)?.url ?? null;
   if (upcHit) {
-    console.log(`[SitemapMatcher] UPC exact match for ${upc}: ${upcHit}`);
-    results.push({
+    console.log(`[SitemapMatcher] UPC exact match for ${upc}: ${upcHit} — bypassing selection (verified_unique_identity).`);
+    return [{
       url: upcHit,
       confidence: 0.95,
       sourceMethod: 'sitemap_upc',
       matchType: 'upc_exact',
-    });
-  } else {
-    console.log(`[SitemapMatcher] No UPC exact match for ${upc} in ${sitemapUrls.length} URLs.`);
+      selectionModelCallIds: [],
+      selectionAuditRunId: retrieval?.runId ?? null,
+    }];
   }
-
-  // ── Pass 2: Product URL filter ───────────────────────────────────────
-  const productUrls = filterProductUrls(sitemapUrls, productUrlPattern);
-  console.log(
-    `[SitemapMatcher] Product URL filter: ${productUrls.length} of ${sitemapUrls.length} URLs survive ` +
-      `(pattern: ${productUrlPattern || 'generic heuristic'}).`,
-  );
-
-  if (productUrls.length === 0) {
-    console.log(`[SitemapMatcher] No product URLs survived filter for UPC ${upc}; returning early.`);
+  console.log(`[SitemapMatcher] No UPC exact match for ${upc} in ${sitemapUrls.length} URLs.`);
+  if (ranked.length === 0) {
+    console.log(`[SitemapMatcher] No ranked candidates for UPC ${upc} (empty filter or no positive token overlap); returning early.`);
     return results;
   }
-
-  // ── Pass 3: Token overlap pre-filter + LLM selection ────────────────
+  const scored = ranked.map(c => ({ url: c.url, overlap: { ratio: c.overlapRatio, matches: c.overlapMatches } }));
   const matchName = consolidatedName || itemName;
-  // Exclude the domain name (and any token it fully contains) from
-  // matching — every page on mywoof.com mentions "woof".
-  const domainBaseName = extractDomainBaseName(domain);
-  const tokens = tokenizeName(matchName, domainBaseName);
-  console.log(
-    `[SitemapMatcher] Tokenized "${matchName}" → ${tokens.length} tokens` +
-      (domainBaseName ? ` (excluded domain name: "${domainBaseName}")` : '') +
-      `: [${tokens.join(', ')}]`,
-  );
-
-  if (tokens.length === 0) {
-    console.log(
-      `[SitemapMatcher] No usable tokens from name for UPC ${upc}; returning only UPC-exact result.`,
-    );
-    return results;
-  }
-
-  const scored = productUrls
-    .map(url => ({ url, overlap: computeTokenOverlap(url, tokens) }))
-    .filter(c => c.overlap.ratio > 0)
-    .sort((a, b) => b.overlap.ratio - a.overlap.ratio)
-    .slice(0, 10);
-
   console.log(
     `[SitemapMatcher] Top ${scored.length} candidates by token overlap for UPC ${upc}:` +
       scored
         .slice(0, 5)
-        .map(c => `\n  · ${c.url} (ratio=${c.overlap.ratio.toFixed(2)}, matches=${c.overlap.matches}/${tokens.length})`)
+        .map(c => `\n  · ${c.url} (ratio=${c.overlap.ratio.toFixed(2)}, matches=${c.overlap.matches})`)
         .join(''),
   );
 
-  if (scored.length === 0) {
-    console.log(`[SitemapMatcher] No candidates with positive token overlap for UPC ${upc}.`);
-    return results;
-  }
-
-  // Try LLM selection first (when 2+ candidates and an LLM is configured).
-  // Build rich context from the available product info so the LLM can make
-  // a more informed decision and reject non-product pages.
+  // TypeSafe closed-set selection over the top-10 retrieval set (or a
+  // deterministic bypass when the set is already unambiguous). Rich context
+  // (register name, UPC, overlaps, variant tokens) rides as judgment state —
+  // never as invented URLs, never as an expected name.
   const effectiveVariantTokens = (variantTokens && variantTokens.length > 0) ? variantTokens : deriveVariantTokensForMatcher(matchName, domain);
-  const llmContext: SitemapLlmContext = {
+  const selectionContext: SitemapLlmContext = {
     itemName,
+    brandHint: retrieval?.brandHint ?? undefined,
     upc,
     candidateOverlaps: new Map(scored.map(c => [c.url, c.overlap.ratio])),
     variantTokens: effectiveVariantTokens,
   };
-  const selectedUrl = await selectWithLlm(scored.map(c => c.url), matchName, llmContext, modelPolicy);
+  const frozenDomains = retrieval?.approvedDomains && retrieval.approvedDomains.length > 0
+    ? retrieval.approvedDomains
+    : [domain];
+  const selection = await selectClosedSetId(scored, matchName, selectionContext, modelPolicy, frozenDomains, upc, itemName, retrieval?.sku ?? null, retrieval?.runId ?? null, retrieval?.itemId ?? null, retrieval?.snapshotHash ?? null, retrieval?.assertHeld);
+  const selectedUrl = selection.url;
 
   if (selectedUrl) {
-    console.log(`[SitemapMatcher] LLM selected ${selectedUrl} for UPC ${upc}.`);
     const picked = scored.find(c => c.url === selectedUrl);
     if (picked) {
-      const confidence = clamp01(0.7 + 0.25 * picked.overlap.ratio + 0.15);
+      console.log(`[SitemapMatcher] TypeSafe selected ${picked.url} for UPC ${upc}.`);
+      // Retrieval rank only: 0.7 + 0.25 * overlap. The legacy +0.15 model
+      // boost is removed — a Choice probability never inflates confidence.
+      const confidence = clamp01(0.7 + 0.25 * picked.overlap.ratio);
       results.push({
         url: picked.url,
         confidence,
         sourceMethod: 'sitemap_name',
         matchType: 'llm_selected',
+        selectionModelCallIds: selection.modelCallIds,
+        selectionAuditRunId: selection.auditRunId,
       });
+      return results;
     }
-    return results;
+    // Defensive: the selector maps IDs to exact supplied URLs, so an
+    // unmapped selection can never occur — but it must never persist an
+    // unknown URL. Fall through to ranked retrieval candidates below.
+    console.warn(`[SitemapMatcher] TypeSafe selection is outside the supplied set for UPC ${upc} — retaining ranked candidates.`);
   }
 
-  // Fallback: emit the top-3 token-overlap candidates so downstream
-  // consumers still see multiple options when the LLM is unavailable.
+  // Ranked retrieval fallback: emit the top-3 token-overlap candidates so
+  // downstream consumers (verification, operator inspection) still see the
+  // safe ranked options when the judgment abstains, fails, or is bypassed.
   const fallbackCount = Math.min(scored.length, 3);
   console.log(
-    `[SitemapMatcher] LLM unavailable or returned no pick; using top ${fallbackCount} token-overlap ` +
+    `[SitemapMatcher] TypeSafe selection unresolved; using top ${fallbackCount} token-overlap ` +
       `candidate(s) for UPC ${upc}.`,
   );
   for (const candidate of scored.slice(0, fallbackCount)) {
@@ -220,6 +217,8 @@ export async function matchSitemapUrls(
       confidence: clamp01(0.7 + 0.25 * candidate.overlap.ratio),
       sourceMethod: 'sitemap_name',
       matchType: 'token_overlap',
+      selectionModelCallIds: selection.modelCallIds,
+      selectionAuditRunId: selection.auditRunId,
     });
   }
   return results;
@@ -425,160 +424,149 @@ function computeTokenOverlap(
   return { ratio: matches / tokens.length, matches };
 }
 
-// ── LLM selection ──────────────────────────────────────────────────────────
+/** One ranked retrieval candidate (no judgment attached). */
+export interface RankedSitemapCandidate {
+  url: string;
+  overlapRatio: number;
+  overlapMatches: number;
+  upcExact: boolean;
+}
+
+/** Deterministic bypass derived from ONE ranked set (shared rule): single candidate verifies as ordinary work; exactly one ratio-1.0 hit among multiples verifies as the unique exact identity. Anything else faces judgment. */
+export function rankedBypassReason(
+  ranked: Pick<RankedSitemapCandidate, 'overlapRatio'>[],
+): 'single_candidate_verify' | 'verified_unique_identity' | null {
+  if (ranked.length === 1) return 'single_candidate_verify';
+  if (ranked.filter(c => c.overlapRatio >= 1).length === 1) return 'verified_unique_identity';
+  return null;
+}
 
 /**
- * Ask the LLM to pick the best URL from a short list.
- * Returns the picked URL (must be in the input list), or `null` when
- * the LLM is unconfigured / the call fails / the response is unparseable
- * / the LLM explicitly says "null" (no good match).
- *
- * Uses the `discovery_candidate_selection` task (→ `sitemap_selection`
- * operation, alias `product_url_selection`) governed by the workspace
- * classification model policy. Falls back silently to the top token-overlap
- * candidate upstream so a missing LLM/policy denial never throws.
- *
- * @param candidates  The candidate URLs (up to 10).
- * @param productName The consolidated (or fallback) product name.
- * @param context     Optional extra identity context (brand, UPC, price,
- *                    token overlap data, variant tokens). When provided,
- *                    the prompt becomes a more specific matching question
- *                    with explicit reject rules.
+ * Rank-only retrieval (v2 live evaluation): UPC-exact hit + product-URL
+ * filter + name-token overlap scoring + top-10 slice. Identical to passes
+ * 1–3 of `matchSitemapUrls` but performs NO TypeSafe selection — the v2
+ * eval runner judges the ranked set separately so retrieval quality is
+ * measured independently of selection. Returns [] when nothing scores.
  */
-async function selectWithLlm(
-  candidates: string[],
-  productName: string,
-  context?: SitemapLlmContext,
-  modelPolicy?: import('../classification/model-policy-gateway').ModelPolicyView | null,
-): Promise<string | null> {
-  if (candidates.length < 2) {
-    // With 0 or 1 candidate, there is nothing to disambiguate.
-    return null;
-  }
-
-  // Resolve config first (without making a call) so we can short-circuit
-  // when no LLM is configured. This avoids hitting the network just to
-  // log "no LLM configured" downstream.
-  let config: ReturnType<typeof getLlmConfigForTask>;
-  try {
-    config = getLlmConfigForTask('discovery_candidate_selection', {
-      allowFallback: true,
-      modelPolicy,
-    });
-  } catch (err) {
-    console.warn(
-      `[SitemapMatcher] getLlmConfigForTask threw — falling back to token overlap:`,
-      err,
-    );
-    return null;
-  }
-  if (!config) {
-    console.log(`[SitemapMatcher] No LLM configured — using token overlap fallback.`);
-    return null;
-  }
-
-  const numbered = candidates
-    .map((u, i) => {
-      const overlap = context?.candidateOverlaps?.get(u);
-      const overlapNote =
-        overlap !== undefined
-          ? ` (name-token overlap: ${(overlap * 100).toFixed(0)}%)`
-          : '';
-      return `${i + 1}. ${u}${overlapNote}`;
+export function rankSitemapCandidates(
+  sitemapUrls: string[],
+  itemName: string,
+  consolidatedName: string | null,
+  upc: string,
+  domain: string,
+  productUrlPattern?: string | null,
+): RankedSitemapCandidate[] {
+  const upcHit = findUpcExactHit(sitemapUrls, upc);
+  if (upcHit) return [{ url: upcHit, overlapRatio: 1, overlapMatches: 1, upcExact: true }];
+  const productUrls = filterProductUrls(sitemapUrls, productUrlPattern);
+  if (productUrls.length === 0) return [];
+  const matchName = consolidatedName || itemName;
+  const domainBaseName = extractDomainBaseName(domain);
+  const tokens = tokenizeName(matchName, domainBaseName);
+  if (tokens.length === 0) return [];
+  return productUrls
+    .map(url => {
+      const overlap = computeTokenOverlap(url, tokens);
+      return { url, overlapRatio: overlap.ratio, overlapMatches: overlap.matches, upcExact: false };
     })
-    .join('\n');
+    .filter(c => c.overlapRatio > 0)
+    .sort((a, b) => b.overlapRatio - a.overlapRatio)
+    .slice(0, 10);
+}
 
-  // Build a richer product identity section when context is provided.
-  const productDetailLines: string[] = [];
-  if (context?.itemName) {
-    productDetailLines.push(`Register name: "${context.itemName}"`);
-  }
-  productDetailLines.push(`Consolidated name: "${productName}"`);
-  if (context?.brandHint) {
-    productDetailLines.push(`Brand: "${context.brandHint}"`);
-  }
-  if (context?.upc) {
-    productDetailLines.push(`UPC: ${context.upc}`);
-  }
-  if (context?.price !== undefined && context.price !== null) {
-    productDetailLines.push(`Expected price: $${context.price}`);
-  }
-  if (context?.variantTokens && context.variantTokens.length > 0) {
-    productDetailLines.push(
-      `Known variant tokens (size/color/flavor): ${context.variantTokens.join(', ')}`,
-    );
-  }
-  const productDetail = productDetailLines.join('\n');
+// ── TypeSafe closed-set selection ────────────────────────────────────────────
 
-  const prompt =
-    `You must select the correct product page URL from the list below, or return "null" if none matches exactly.` +
-    `\n\n` +
-    `--- PRODUCT IDENTITY ---\n` +
-    `${productDetail}\n` +
-    `\n` +
-    `--- RULES ---\n` +
-    `1. Choose ONLY a product detail page. NEVER choose a category listing, collection, search result, blog post, information page, or homepage.` +
-    `\n` +
-    `2. The URL must be the exact product page for the product described above, not a similar or related product.` +
-    `\n` +
-    `3. If none of the URLs looks like the exact product page, return the literal string "null". Do NOT guess.` +
-    `\n` +
-    `4. Return ONLY one of: the exact URL (no numbering, no explanation) or the literal string "null".` +
-    `\n` +
-    `--- CANDIDATE URLs (with name-token overlap % as a hint) ---\n` +
-    `${numbered}`;
-
-  const systemPrompt =
-    'You are a precise product cataloging assistant. Your job is to pick the SINGLE correct product page URL ' +
-    'for the described product from the list, or say "null" if no URL is the exact product. ' +
-    'Never guess. Never pick a category, collection, search results, or blog page.';
-
-  let raw: string | null;
+/**
+ * Closed-set Choice over the retrieval-supplied candidate set (issue #364).
+ * Builds stable `cand_<index>` IDs over the EXACT supplied URLs, invokes the
+ * typed `sitemap_selection` judgment with the register name, SKU/UPC, brand
+ * and package clues, frozen approved domains, and cached metadata, then maps
+ * the returned ID back to the exact original URL. Out-of-set answers,
+ * unknown keys, substring content, correlation failures, low probabilities,
+ * and abstentions all resolve to `null` — the caller retains the ranked
+ * retrieval candidates for verification/operator inspection.
+ *
+ * Deterministic bypass (no model call): a single ranked candidate passes
+ * through as ordinary verification (`single_candidate_verify` — there is
+ * nothing to choose between); a verified unique exact identity likewise
+ * avoids the call. UPC text in a URL is retrieval rank only — never proof,
+ * and its absence is never a mismatch.
+ */
+async function selectClosedSetId(
+  scored: Array<{ url: string; overlap: { ratio: number; matches: number } }>,
+  productName: string,
+  context: SitemapLlmContext | undefined,
+  modelPolicy: ModelPolicyView | null | undefined,
+  approvedDomains: string[],
+  upc: string,
+  registerName: string,
+  sku: string | null = null,
+  runId: string | null = null,
+  itemId: string | null = null,
+  snapshotHash: string | null = null,
+  assertHeld?: () => void,
+): Promise<{ url: string | null; modelCallIds: string[]; auditRunId: string | null }> {
+  if (scored.length === 0) return { url: null, modelCallIds: [], auditRunId: runId };
+  const candidates: SitemapSelectionCandidate[] = scored.map((c, i) => ({
+    id: `cand_${i}`,
+    url: c.url,
+    retrievalRank: c.overlap.ratio,
+    title: null,
+    upc: context?.upc ?? upc,
+    sku,
+  }));
+  // Deterministic bypass producer (shared rule with the v2 eval runner):
+  // a single ranked candidate needs no Choice. A verified unique exact
+  // identity (exactly one candidate holding the full name-token overlap
+  // while others hold only partial overlap) likewise bypasses the model
+  // call — the sole exact-identity URL goes straight to ordinary
+  // verification. UPC text in a URL is retrieval rank only, never proof,
+  // and its absence is never a mismatch.
+  const skipReason = rankedBypassReason(scored.map(c => ({ overlapRatio: c.overlap.ratio })));
   try {
-    raw = await callLlmForTask('discovery_candidate_selection', prompt, systemPrompt, {
-      allowFallback: true,
-      temperature: 0,
-      modelPolicy,
+    const result = await selectOfficialPageWithTypesafe({
+      candidates,
+      meta: {
+        registerName,
+        consolidatedName: productName,
+        upc: context?.upc ?? upc,
+        sku,
+        brandHint: context?.brandHint ?? null,
+        variantTokens: context?.variantTokens ?? [],
+        approvedDomains,
+      },
+      modelPolicy: modelPolicy ?? null,
+      runId,
+      itemId,
+      snapshotHash,
+      assertHeld,
+      skipReason,
     });
+    // Bind audit rows to the owning run before trusting them: a completed
+    // call id from another run/snapshot is never our provenance.
+    if (result.modelCallIds.length > 0 && runId && snapshotHash) {
+      const check = verifyDiscoveryModelCallsBelongToRun(runId, snapshotHash, result.modelCallIds);
+      if (!check.ok) {
+        console.warn(`[SitemapMatcher] Selection audit not bound to run ${runId} (missing: ${check.missing.join(',')}) — retaining ranked candidates.`);
+        return { url: null, modelCallIds: [], auditRunId: runId };
+      }
+    }
+    const bound = { url: null as string | null, modelCallIds: result.modelCallIds, auditRunId: runId };
+    if (result.outcome === 'selected' && result.selectedUrl) return { ...bound, url: result.selectedUrl };
+    if (result.outcome !== 'verified_unique_identity') {
+      console.log(
+        `[SitemapMatcher] TypeSafe selection ${result.outcome} (${result.abstentionCode ?? result.abstentionReason ?? 'unresolved'}) — retaining ranked candidates.`,
+      );
+    }
+    return bound;
   } catch (err) {
-    console.warn(
-      `[SitemapMatcher] LLM call failed for "${productName}" — falling back to token overlap:`,
-      err,
-    );
-    return null;
+    // Ownership loss is never a ranked fallback: a superseded worker must
+    // stop, not return ordinary candidates the caller would persist over
+    // the new owner's run. Every other failure retains ranked candidates.
+    if (err instanceof Error && /Heartbeat|heartbeat|lease lost|claim lost/i.test(err.message)) throw err;
+    console.warn(`[SitemapMatcher] TypeSafe selection failed — retaining ranked candidates:`, err);
+    return { url: null, modelCallIds: [], auditRunId: runId };
   }
-
-  if (!raw) return null;
-
-  // Handle explicit "null" response — the LLM says none of the URLs match.
-  const trimmed = raw.trim().toLowerCase();
-  if (trimmed === 'null' || trimmed === '"null"' || trimmed === "'null'") {
-    console.log(
-      `[SitemapMatcher] LLM explicitly returned null for "${productName}" — no URL is the exact product page.`,
-    );
-    return null;
-  }
-
-  // Normalize the LLM response: strip whitespace, trailing punctuation,
-  // and matching surrounding quotes.
-  const cleaned = raw
-    .trim()
-    .replace(/^['"`\s]+|['"`\s]+$/g, '')
-    .replace(/[).,;]+$/, '');
-
-  // Find the candidate that the LLM response refers to. We accept an
-  // exact match first; if the model added numbering or wrapping, fall
-  // back to substring containment.
-  const exact = candidates.find(u => u === cleaned);
-  if (exact) return exact;
-
-  const substring = candidates.find(u => cleaned.includes(u) || u.includes(cleaned));
-  if (substring) return substring;
-
-  console.warn(
-    `[SitemapMatcher] LLM response "${raw}" did not match any candidate URL — falling back to token overlap.`,
-  );
-  return null;
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────

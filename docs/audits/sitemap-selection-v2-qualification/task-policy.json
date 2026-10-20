@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "calibration": "descriptive only at n<=14; full Choice distributions retained per row; no threshold change post hoc",
+    "confirmedPagePrecision": "reported as attempts/fetches/detail-pages/confirmations; value null until a product-detail page with identity/variant match is demonstrated",
+    "correctAbstentions": "all gold-abstain rows abstain (currently includes dev-05 off-domain and dev-14; dev-06/dev-08/dev-11 class noted below)",
+    "knownDeviations": "dev-11 selects at high confidence against an abstain gold (variant-verification gap, recorded as failed frozen decision \u2014 must not be relabeled without variant evidence)",
+    "retrieval": "every row retains retrieval time, source revision, approved-domain authority, candidate URLs+ranks+provenance, and failures/missing products \u2014 fixed population including negatives",
+    "selectorCorrectGivenCoverage": ">= 0.80 on frozen dev set (fixed population, abstentions scored separately)"
+  },
+  "activation": "OFF \u2014 activation is explicitly NOT granted by this policy. v2 binds live retrieval + verifier evidence. Requires: (1) independent freeze attestation (different reviewer instance) with corpus + source-revision pins, (2) authorized holdout evaluation with logged unseal, (3) reviewed live canary with operator attestation, (4) routing/data-sharing approval of the evaluated pins, (5) disable-to-manual verification. No paid calls beyond the bounded evaluation budget; no store writes.",
+  "effectivePolicyHash": null,
+  "evaluatedCorpusId": "sitemap-selection-dev-v1-live-retrieval",
+  "evaluationBudget": {
+    "concurrency": 1,
+    "maxAttemptsPerRow": 2,
+    "maxPaidDispatchesPerRun": 20
+  },
+  "fittedOn": "sitemap-selection-dev-v2 (live retrieval; holdout sealed at fit time)",
+  "fixtureRoot": "src/tests/fixtures/sitemap-selection-v2-qualification",
+  "freezeReview": {
+    "reviewer": "UNASSIGNED - independent reviewer sign-off required (different reviewer instance from the implementing agent)",
+    "scope": "Attest corpus bytes + source revision + pins match; v1 preserved byte-identical.",
+    "statement": "No independent review yet. Activation stays OFF until status=signed.",
+    "status": "pending"
+  },
+  "frozenCommit": null,
+  "frozenRecordedAt": null,
+  "holdoutStatus": "NOT CREATED \u2014 requires independent custody/versioning procedure; v1 holdout untouched and unexecuted",
+  "holdoutUnseal": {
+    "accessControl": "HOLDOUT_UNSEAL=<review-id> env token (auditable approval id, never a source edit), same as v1",
+    "requirement": "activation-time requirement: reviewer id, date, purpose, and verified holdoutSha256 logged in the v2 qualification report before any v2 holdout row is executed. No post-holdout fitting."
+  },
+  "modelPin": "jev-1.13.0",
+  "noFurtherEditLock": false,
+  "operation": "sitemap_selection",
+  "policyId": "sitemap-selection-task-policy-v2-live",
+  "policyPath": "docs/audits/sitemap-selection-v2-qualification/task-policy.json",
+  "promptTemplate": "jev-sitemap-selection-v2",
+  "rule": "accept-when-all-retrieval-candidates-share-one-approved-domain-and-variant-tokens-match-else-abstain; single-candidate-or-exact-identity \u2192 deterministic verify path (no model call); empty retrieval \u2192 coverage_gap; off-domain-only candidates \u2192 insufficient_evidence (never select); mixed-domain sets with no in-domain match \u2192 no_match; low-probability (P<0.50) \u2192 low_model_probability abstention; never clip, never fall back to chat, never select an unseen URL. v2 addition: actual live retrieval precedes selection (retained with time/source/provenance); verifier fetch + identity/variant evidence required per selected URL; deterministic-bypass handoffs verified the same way; confirmed-page precision counts only product-detail pages with identity/variant match, never bare fetches.",
+  "ruleVersion": "sitemap-selection-rules-v1",
+  "selectionFloor": 0.5,
+  "sha256": null,
+  "sourceRevision": null,
+  "sourceRevisionNote": "Per-row sitemapSourceUrl + fetchedAt retained; no content hash of the live sitemap is pinned yet. A freeze must either pin sitemap content hashes or declare crawl-time capture as the evaluated source with its fetchedAt.",
+  "supersedes": "sitemap-selection-task-policy-v1-dev"
+}

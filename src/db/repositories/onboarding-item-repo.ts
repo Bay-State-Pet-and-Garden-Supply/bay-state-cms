@@ -380,6 +380,22 @@ export function findCurationDataJsonById(id: string): string | null {
   return row?.curation_data_json ?? null;
 }
 
+/**
+ * Held-claim guard for discovery selection audit (issue #364): re-reads the
+ * claim pair (stage_status + claimed_by) the owning worker set at claim time.
+ * A superseded/requeued/reclaimed item fails here so a stale owner never
+ * writes run-bound selection audit rows. Returns the raw pair; null when no
+ * row matches.
+ */
+export function getDiscoveryClaimState(itemId: string): { stageStatus: string; claimedBy: string | null } | null {
+  const db = getDb();
+  const row = db.query(
+    `SELECT stage_status, claimed_by FROM onboarding_items WHERE id = ?`,
+  ).get(itemId) as { stage_status: string; claimed_by: string | null } | undefined;
+  if (!row) return null;
+  return { stageStatus: row.stage_status, claimedBy: row.claimed_by };
+}
+
 export function insertItems(
   batchId: string,
   items: InsertItemData[],

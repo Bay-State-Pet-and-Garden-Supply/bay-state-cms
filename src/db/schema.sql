@@ -475,6 +475,39 @@ CREATE TABLE IF NOT EXISTS classification_model_calls (
 CREATE INDEX IF NOT EXISTS idx_classification_model_calls_run ON classification_model_calls(run_id);
 CREATE INDEX IF NOT EXISTS idx_classification_model_calls_snapshot ON classification_model_calls(snapshot_hash);
 
+-- Discovery model-call audit (issue #364): durable start/terminal provenance
+-- for the `sitemap_selection` protected dispatch, bound to
+-- `onboarding_discovery_runs(id)`. Mirrors the guarded migration in
+-- `src/db/migrations.ts`; `classification_model_calls` cannot hold
+-- discovery-run ids (FK to `classification_runs(id)`).
+CREATE TABLE IF NOT EXISTS discovery_model_calls (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES onboarding_discovery_runs(id) ON DELETE CASCADE,
+  operation TEXT NOT NULL,
+  attempt INTEGER NOT NULL DEFAULT 1,
+  provider TEXT,
+  model TEXT,
+  requested_model TEXT,
+  resolved_model TEXT,
+  typed_result_metadata_json TEXT,
+  locality TEXT,
+  snapshot_hash TEXT,
+  model_policy_digest TEXT,
+  prompt_template_version TEXT,
+  rule_version TEXT,
+  prompt_hash TEXT,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  duration_ms INTEGER,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  status TEXT NOT NULL CHECK (status IN ('started', 'success', 'failed', 'policy_denied', 'unavailable')),
+  error_message TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_discovery_model_calls_run ON discovery_model_calls(run_id);
+CREATE INDEX IF NOT EXISTS idx_discovery_model_calls_snapshot ON discovery_model_calls(snapshot_hash);
+
 INSERT OR IGNORE INTO app_meta (key, value) VALUES ('schema_version', '1');
 INSERT OR IGNORE INTO app_meta (key, value) VALUES ('app_version', '0.1.0');
 

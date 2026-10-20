@@ -111,26 +111,56 @@ export function recordOfficialPageDecision(input: {
   variantKey: string | null;
   signals: Record<string, unknown>;
   sourceRunId: string | null;
+  /** Expected live item revision; when provided the decision fails closed when the item moved (atomic with the write). */
+  expectedUpdatedAt?: string | null;
+  /** Expected claim owner; when provided the decision fails closed when another worker owns the item (atomic with the write). */
+  expectedClaimedBy?: string | null;
 }): OfficialPageDecision {
   ensureDecisionTable();
   const db = getDb();
   return db.transaction(() => {
     const row = db.query(`
-      SELECT i.stage, i.source_type, s.url, s.source_method, s.discovery_run_id,
+      SELECT i.stage, i.stage_status, i.updated_at, i.claimed_by, i.source_type, s.url, s.source_method, s.discovery_run_id,
              b.workspace_id, s.item_id
       FROM onboarding_sources s
       JOIN onboarding_items i ON i.id = s.item_id
       JOIN onboarding_batches b ON b.id = i.batch_id
       WHERE s.id = ? AND i.id = ? AND b.workspace_id = ?
     `).get(input.sourceId, input.itemId, input.workspaceId) as {
-      stage: string; source_type: string | null; url: string; source_method: string;
+      stage: string; stage_status: string | null; updated_at: string; claimed_by: string | null; source_type: string | null; url: string; source_method: string;
       discovery_run_id: string | null; workspace_id: string; item_id: string;
     } | undefined;
     if (!row || row.source_type === 'distributor_record' || toCanonicalStored(row.stage) !== 'find_product_page') {
       throw new Error('Official page candidate is not selectable for this item and workspace');
     }
+    // Atomic in-progress guard: a decision landing while Discovery is running
+    // for this item (stage_status in_progress — the worker owns the claim) is
+    // stale by definition: the run that produced the candidate no longer
+    // owns the item. Refused inside the same transaction as the write, so no
+    // interleaving discovery completion can slip between a route pre-check
+    // and this decision commit.
+    if (row.stage_status === 'in_progress') {
+      throw new Error('Official page candidate is stale: discovery is still running for this product');
+    }
+    // Atomic revision guard: when the caller binds the expected live
+    // revision, a moved item fails closed here — inside the transaction —
+    // rather than relying on a pre-check the worker could invalidate.
+    if (input.expectedUpdatedAt != null && row.updated_at !== input.expectedUpdatedAt) {
+      throw new Error('Official page candidate is stale: product changed while the confirmation was in flight');
+    }
+    // Atomic claim-owner guard: the auto-select path passes the worker id it
+    // discovered under; a reclaimed/superseded item fails here instead of
+    // letting a stale worker confirm over the new owner's run.
+    if (input.expectedClaimedBy != null && row.claimed_by !== input.expectedClaimedBy) {
+      throw new Error('Official page candidate is stale: discovery ownership changed while the confirmation was in flight');
+    }
     const pageTitle = input.pageTitle.trim();
     if (!pageTitle || pageTitle.length > 500) throw new Error('A visible product page title is required');
+    // Currentness: when the caller binds the decision to a discovery run,
+    // a source row from any other run is stale and must never be confirmed.
+    if (input.sourceRunId !== null && row.discovery_run_id !== input.sourceRunId) {
+      throw new Error('Official page candidate is stale: source run changed since selection');
+    }
     const decision: OfficialPageDecision = {
       id: randomUUID(), workspaceId: input.workspaceId, itemId: input.itemId,
       url: row.url, candidateOrigin: candidateOrigin(row.source_method),

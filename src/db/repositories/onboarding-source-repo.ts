@@ -133,6 +133,11 @@ export function stampSourcesWithDiscoveryRun(itemId: string, runId: string): voi
   );
 }
 
+/** Stamp one candidate row with its producing run (no-op when already bound). */
+export function stampSourceWithDiscoveryRun(sourceId: string, runId: string): void {
+  getDb().query('UPDATE onboarding_sources SET discovery_run_id = ? WHERE id = ? AND discovery_run_id IS NULL').run(runId, sourceId);
+}
+
 /** Latest run for an item (most recently created), or null. */
 export function getLatestDiscoveryRunForItem(itemId: string): DiscoveryRunRow | null {
   const db = getDb();
@@ -166,6 +171,7 @@ export interface OnboardingSourceRow {
   is_selected: number;
   source_method: string;
   metadata_json: string | null;
+  discovery_run_id?: string | null;
   review_status?: string | null;
   decision_origin?: string | null;
   decision_reason?: string | null;
@@ -181,6 +187,8 @@ export interface InsertSourceData {
   confidence: number;
   sourceMethod?: string;
   metadataJson?: string | null;
+  /** Owning discovery run; stamped at insert so currentness checks never see NULL on live rows. */
+  discoveryRunId?: string | null;
 }
 
 function mapRowToSource(row: OnboardingSourceRow): OnboardingSource {
@@ -195,6 +203,7 @@ function mapRowToSource(row: OnboardingSourceRow): OnboardingSource {
     isSelected: row.is_selected === 1,
     sourceMethod: row.source_method,
     metadataJson: row.metadata_json,
+    discoveryRunId: row.discovery_run_id ?? null,
     reviewStatus: row.review_status ?? 'pending',
     decisionOrigin: row.decision_origin ?? null,
     decisionReason: row.decision_reason ?? null,
@@ -208,8 +217,8 @@ export function insertSources(itemId: string, sources: InsertSourceData[]): Onbo
   const now = new Date().toISOString();
   const stmt = db.query(
     `INSERT INTO onboarding_sources
-      (id, item_id, url, title, snippet, domain, confidence, is_selected, source_method, metadata_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      (id, item_id, url, title, snippet, domain, confidence, is_selected, source_method, metadata_json, discovery_run_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
   );
 
   const inserted: OnboardingSource[] = [];
@@ -227,6 +236,7 @@ export function insertSources(itemId: string, sources: InsertSourceData[]): Onbo
         source.confidence,
         source.sourceMethod ?? 'unknown',
         source.metadataJson ?? null,
+        source.discoveryRunId ?? null,
         now,
       );
       inserted.push({
@@ -240,6 +250,7 @@ export function insertSources(itemId: string, sources: InsertSourceData[]): Onbo
         isSelected: false,
         sourceMethod: source.sourceMethod ?? 'unknown',
         metadataJson: source.metadataJson ?? null,
+        discoveryRunId: source.discoveryRunId ?? null,
         reviewStatus: 'pending',
         createdAt: now,
       });
