@@ -42,7 +42,7 @@ function seedBatch(batchId: string, itemIds: string[]): void {
 function reserve(input: { id: string; itemId: string; batchId: string; costMicros: number | null; itemLimits?: ItemAcquisitionLimits; batchLimits?: ItemAcquisitionLimits }) {
   return reserveItemAcquisitionBudgetAttempt({
     id: input.id, workspaceId: WORKSPACE, batchId: input.batchId, itemId: input.itemId,
-    runId: `run-${input.itemId}`, provider: 'fixture', model: 'fixture-v1', kind: 'brave_search',
+    runId: `run-${input.itemId}`, provider: 'fixture', model: 'fixture-v1', kind: 'serper_search',
     policyHash: 'policy-hash', pricingHash: 'pricing-hash', reservedResources: RESOURCES,
     costMicros: input.costMicros, itemLimits: input.itemLimits ?? LIMITS, batchLimits: input.batchLimits ?? LIMITS,
   });

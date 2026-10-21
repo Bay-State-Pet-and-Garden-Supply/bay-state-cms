@@ -40,7 +40,7 @@ itemAcquisitionRoutes.get('/onboarding/item-acquisition/settings', (c) => {
   if (!scope.workspace) return scope.response!;
   try {
     const snapshot = readItemAcquisitionPolicy(scope.workspace.workspacePath);
-    const credential = getApiKey('brave_search');
+    const credential = getApiKey('serper_search');
     return c.json({
       ...snapshot,
       hasCredential: Boolean(credential?.api_key),
@@ -89,12 +89,12 @@ itemAcquisitionRoutes.post('/onboarding/item-acquisition/credential', async (c) 
   const user = authorized(c, true);
   if (user instanceof Response) return user;
   const body = CredentialInput.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ code: 'invalid_brave_search_credential' }, 400);
+  if (!body.success) return c.json({ code: 'invalid_serper_search_credential' }, 400);
   try {
-    if (body.data.apiKey === null) deleteApiKey('brave_search');
-    else upsertApiKey('brave_search', body.data.apiKey);
-    return c.json({ hasCredential: Boolean(getApiKey('brave_search')?.api_key) });
+    if (body.data.apiKey === null) deleteApiKey('serper_search');
+    else upsertApiKey('serper_search', body.data.apiKey);
+    return c.json({ hasCredential: Boolean(getApiKey('serper_search')?.api_key) });
   } catch {
-    return c.json({ code: 'brave_search_credential_update_failed' }, 422);
+    return c.json({ code: 'serper_search_credential_update_failed' }, 422);
   }
 });

@@ -57,7 +57,7 @@ export interface ItemAcquisitionBudgetScopeInput {
 }
 
 export interface ItemAcquisitionAttemptInput {
-  kind: 'model' | 'brave_search' | 'browser';
+  kind: 'model' | 'serper_search' | 'browser';
   provider: string;
   model: string;
   resources: ItemAcquisitionResources;

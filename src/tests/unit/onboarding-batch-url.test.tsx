@@ -95,7 +95,7 @@ describe('Onboarding Batch URL Persistence', () => {
       sourcing: { engineEnabled: true },
       vlmOcr: { available: true },
       brightData: { available: true },
-      braveSearch: { available: true },
+      serperSearch: { available: true },
     } as any);
 
     vi.mocked(getBrandSites).mockResolvedValue({

@@ -116,12 +116,12 @@ export function ItemAcquisitionSettings() {
         headers: { 'Content-Type': 'application/json', ...getApiAuthHeaders() },
         body: JSON.stringify({ apiKey: apiKeyValue }),
       });
-      if (!response.ok) throw new Error(`Brave Search credential could not be updated (${response.status}).`);
+      if (!response.ok) throw new Error(`Serper Search credential could not be updated (${response.status}).`);
       setApiKey('');
       await load();
-      setNotice(apiKeyValue === null ? 'The Brave Search credential was removed.' : 'The Brave Search credential was saved. The secret is not displayed again.');
+      setNotice(apiKeyValue === null ? 'The Serper Search credential was removed.' : 'The Serper Search credential was saved. The secret is not displayed again.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Brave Search credential could not be updated.');
+      setError(cause instanceof Error ? cause.message : 'Serper Search credential could not be updated.');
     } finally {
       setBusy(false);
     }
@@ -145,7 +145,7 @@ export function ItemAcquisitionSettings() {
 
     {snapshot ? <div aria-live="polite" style={{ margin: '14px 0', padding: '10px 0', borderTop: `1px solid ${colors.cardBorder}`, borderBottom: `1px solid ${colors.cardBorder}` }}>
       <p style={{ margin: '4px 0' }}>Policy status: <strong>{snapshot.policyStatus}</strong></p>
-      <p style={{ margin: '4px 0', color: colors.mulchBrown }}>Brave Search credential: {snapshot.hasCredential ? 'configured' : 'not configured'} · credential values are never returned to this page.</p>
+      <p style={{ margin: '4px 0', color: colors.mulchBrown }}>Serper Search credential: {snapshot.hasCredential ? 'configured' : 'not configured'} · credential values are never returned to this page.</p>
       {snapshot.policyHash && <p style={{ margin: '4px 0', color: colors.mulchBrown }}>Policy hash <code>{snapshot.policyHash}</code> · pricing hash <code>{snapshot.pricingHash}</code></p>}
       {snapshot.gitHead && <p style={{ margin: '4px 0', color: colors.mulchBrown }}>Workspace Git revision <code>{snapshot.gitHead}</code></p>}
       {!snapshot.policy && <p style={{ margin: '8px 0', color: colors.mulchBrown }}>No policy is configured. Enter a complete reviewed policy below; the editor does not populate production caps or prices.</p>}
@@ -183,12 +183,12 @@ export function ItemAcquisitionSettings() {
     </div>}
 
     <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${colors.cardBorder}` }}>
-      <h4 style={{ margin: '0 0 8px' }}>Brave Search credential</h4>
+      <h4 style={{ margin: '0 0 8px' }}>Serper Search credential</h4>
       <p style={{ maxWidth: '72ch', color: colors.mulchBrown, lineHeight: 1.5 }}>
         Stored through the credential repository. Existing secret material cannot be read back; enter the complete key to replace it.
       </p>
-      <label htmlFor="brave-search-api-key" style={{ display: 'block', fontWeight: 600 }}>API key</label>
-      <input id="brave-search-api-key" type="password" autoComplete="new-password" value={apiKey} onChange={event => setApiKey(event.target.value)} style={fieldStyle} />
+      <label htmlFor="serper-search-api-key" style={{ display: 'block', fontWeight: 600 }}>API key</label>
+      <input id="serper-search-api-key" type="password" autoComplete="new-password" value={apiKey} onChange={event => setApiKey(event.target.value)} style={fieldStyle} />
       <button type="button" disabled={busy || apiKey.trim().length === 0} onClick={() => { void saveCredential(apiKey); }} style={buttonStyle}>Save credential</button>
       {snapshot?.hasCredential && <button type="button" disabled={busy} onClick={() => { void saveCredential(null); }} style={{ ...buttonStyle, marginLeft: 8 }}>Remove credential</button>}
     </div>

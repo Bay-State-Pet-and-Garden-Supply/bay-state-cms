@@ -34,8 +34,7 @@ export const ItemAcquisitionModelPriceSchema = z.object({
 export type ItemAcquisitionModelPrice = z.infer<typeof ItemAcquisitionModelPriceSchema>;
 
 export const ItemAcquisitionServicePriceSchema = z.object({
-  service: z.enum(['brave_search', 'browser']),
-  /** Price for each externally dispatched attempt, null means unknown (not free). */
+  service: z.enum(['brave_search', 'serper_search', 'browser']),
   costMicrosPerAttempt: NonnegativeIntegerSchema.nullable(),
 }).strict();
 export type ItemAcquisitionServicePrice = z.infer<typeof ItemAcquisitionServicePriceSchema>;

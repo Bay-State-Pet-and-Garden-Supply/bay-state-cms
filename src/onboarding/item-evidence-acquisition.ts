@@ -12,7 +12,7 @@ import { getAllowedOfficialPageDomains, isAuthorizedOfficialPageUrl } from './of
 import { refreshItemEvidence, admitItemEvidenceContribution } from './item-evidence';
 import { loadItemListingReadinessForRun, type ItemListingReadiness } from '../classification/item-listing-readiness';
 import { checkItemAcquisitionActionRoute, decideItemAcquisitionAction, type ItemAcquisitionActionOption } from '../classification/item-acquisition-action-decision';
-import { BraveSearchError, BRAVE_SEARCH_MAX_RESPONSE_BYTES, BRAVE_SEARCH_TIMEOUT_MS, searchBraveWeb } from './brave-search';
+import { SerperSearchError, SERPER_SEARCH_MAX_RESPONSE_BYTES, SERPER_SEARCH_TIMEOUT_MS, searchSerperWeb } from './serper-search';
 import { collectItemEvidenceBrowser, ItemEvidenceBrowserError, type ItemEvidenceBrowserCandidate, type ItemEvidenceBrowserAction } from './item-evidence-browser';
 import {
   createItemAcquisitionBudgetLedger,
@@ -30,7 +30,7 @@ import type { ModelPolicyView } from '../classification/model-policy-gateway';
 
 export type ItemEvidenceAcquisitionStatus = 'completed' | 'needs_attention' | 'unavailable' | 'conflict' | 'stale' | 'cancelled' | 'budget_exhausted';
 export interface ItemEvidenceAcquisitionCall {
-  kind: 'brave_search' | 'typesafe_action_selection' | 'guarded_browser';
+  kind: 'serper_search' | 'typesafe_action_selection' | 'guarded_browser';
   attempts: number;
   billing: 'flat_rate' | 'rate_derived' | 'unavailable' | 'not_applicable';
   modelCallIds: string[];
@@ -613,15 +613,15 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
 
     if (sourceCandidates.size === 0) {
       if (input.modelPolicy?.textDataSharing !== 'cloud_allowed') {
-        return { status: 'needs_attention', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Brave Search requires explicit cloud text-sharing permission; no query was sent.' };
+        return { status: 'needs_attention', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search requires explicit cloud text-sharing permission; no query was sent.' };
       }
       const item = findItemById(input.itemId);
       if (!item || !item.upc || !item.name) return { status: 'stale', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'The current imported item identity is unavailable.' };
-      const reservedBytes = Math.min(scope.policy.itemLimits.bytes, BRAVE_SEARCH_MAX_RESPONSE_BYTES);
-      if (reservedBytes < 1) return { status: 'budget_exhausted', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'The approved byte budget cannot cover even a bounded Brave response.' };
+      const reservedBytes = Math.min(scope.policy.itemLimits.bytes, SERPER_SEARCH_MAX_RESPONSE_BYTES);
+      if (reservedBytes < 1) return { status: 'budget_exhausted', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'The approved byte budget cannot cover even a bounded Serper response.' };
       const reservation = reserveItemAcquisitionAttempt({
-        kind: 'brave_search', provider: 'brave_search', model: 'web',
-        resources: { attempts: 1, pages: 0, actions: 0, redirects: 0, bytes: reservedBytes, artifacts: 0, durationMs: BRAVE_SEARCH_TIMEOUT_MS, inputTokens: 0, outputTokens: 0 },
+        kind: 'serper_search', provider: 'serper_search', model: 'web',
+        resources: { attempts: 1, pages: 0, actions: 0, redirects: 0, bytes: reservedBytes, artifacts: 0, durationMs: SERPER_SEARCH_TIMEOUT_MS, inputTokens: 0, outputTokens: 0 },
       });
       let dispatched = false;
       let searchReservationSettled = false;
@@ -639,7 +639,7 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
           releaseItemAcquisitionReservation(reservation.id, 'manufacturer_authority_changed_before_search');
           return { status: 'stale', evidence: beforeSearch.evidence, checklist: beforeSearch.readiness.evaluation, modelCallIds: [], usage, reason: 'Manufacturer-domain authority changed before search dispatch.' };
         }
-        const results = await searchBraveWeb(`${item.upc} ${item.name}`, {
+        const results = await searchSerperWeb(`${item.upc} ${item.name}`, {
           count: 20, maxResponseBytes: reservedBytes, signal: scope.signal,
           onDispatch: () => { scope.assertHeld(); markItemAcquisitionDispatched(reservation.id); dispatched = true; },
         });
@@ -649,7 +649,7 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
         usage.attempts += 1;
         usage.requestAttempts += 1;
         usage.bytes += results.responseBytes;
-        usage.calls.push({ kind: 'brave_search', attempts: 1, billing: reservation.costMicros === null ? 'unavailable' : 'flat_rate', modelCallIds: [] });
+        usage.calls.push({ kind: 'serper_search', attempts: 1, billing: reservation.costMicros === null ? 'unavailable' : 'flat_rate', modelCallIds: [] });
         for (const result of results.results) {
           const url = isSafeOfficialCandidate(result.url, domains);
           if (url) sourceCandidates.set(url, { id: candidateIds(input.runId, currentBinding(initial.readiness), url).candidateId, url });
@@ -660,16 +660,16 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
           usage.attempts += 1;
           usage.requestAttempts += 1;
           usage.unknownBytes += reservation.resources.bytes;
-          usage.calls.push({ kind: 'brave_search', attempts: 1, billing: 'unavailable', modelCallIds: [] });
+          usage.calls.push({ kind: 'serper_search', attempts: 1, billing: 'unavailable', modelCallIds: [] });
         } else if (!dispatched) {
-          try { releaseItemAcquisitionReservation(reservation.id, error instanceof BraveSearchError && error.code === 'credential_missing' ? 'brave_credential_missing' : 'brave_search_not_dispatched'); } catch { /* A failed release retains the safe reservation. */ }
+          try { releaseItemAcquisitionReservation(reservation.id, error instanceof SerperSearchError && error.code === 'credential_missing' ? 'serper_credential_missing' : 'serper_search_not_dispatched'); } catch { /* A failed release retains the safe reservation. */ }
         }
-        if (error instanceof BraveSearchError && error.code === 'cancelled' || scope.signal.aborted) return { status: 'cancelled', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Brave Search was cancelled.' };
-        if (error instanceof BraveSearchError && error.code === 'credential_missing') return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Brave Search credential is missing; configure the server-side brave_search API key.' };
+        if (error instanceof SerperSearchError && error.code === 'cancelled' || scope.signal.aborted) return { status: 'cancelled', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search was cancelled.' };
+        if (error instanceof SerperSearchError && error.code === 'credential_missing') return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search credential is missing; configure the server-side serper_search API key.' };
         if (error instanceof ItemAcquisitionBudgetDeniedError) { const failure = mapBudgetFailure(error); return { ...failure, evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: failure.reason }; }
-        return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Brave Search did not return a complete usable response; no snippet was treated as evidence.' };
+        return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search did not return a complete usable response; no snippet was treated as evidence.' };
       }
-      if (sourceCandidates.size === 0) return { status: 'needs_attention', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Brave Search found no URLs inside the currently approved manufacturer domains.' };
+      if (sourceCandidates.size === 0) return { status: 'needs_attention', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search found no URLs inside the currently approved manufacturer domains.' };
       if (sourceCandidates.size > scope.policy.itemLimits.pages) return { status: 'budget_exhausted', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'The complete approved candidate set exceeds the per-item page budget; candidates were not truncated.' };
     }
 

@@ -6584,6 +6584,63 @@ export function runMigrations(): void {
   installListingCompletenessExceptionSchema(db);
   installItemAcquisitionBudgetSchema(db);
   installSecuritySettingsSchema(db);
+  // Brave→Serper cutover: widen the ledger CHECK for existing databases
+  // (fresh installs get the widened constraint from the installer) and
+  // carry any stored Brave credential forward under the Serper key.
+  try {
+    const ddl = db.query(
+      `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'item_acquisition_budget_reservations'`,
+    ).get() as { sql: string } | undefined;
+    if (ddl?.sql && !ddl.sql.includes('serper_search')) {
+      db.exec(`
+        CREATE TABLE item_acquisition_budget_reservations_new (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          batch_id TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          run_id TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          model TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK (kind IN ('model', 'brave_search', 'serper_search', 'browser')),
+          policy_hash TEXT NOT NULL,
+          pricing_hash TEXT NOT NULL,
+          reserved_resources_json TEXT NOT NULL,
+          actual_resources_json TEXT,
+          cost_micros INTEGER,
+          actual_cost_micros INTEGER,
+          billing_status TEXT NOT NULL CHECK (billing_status IN ('pending', 'known', 'unknown', 'not_applicable')),
+          status TEXT NOT NULL CHECK (status IN ('reserved', 'dispatched', 'settled', 'released')),
+          release_reason TEXT,
+          created_at TEXT NOT NULL,
+          dispatched_at TEXT,
+          settled_at TEXT,
+          CHECK (workspace_id <> '' AND batch_id <> '' AND item_id <> '')
+        );
+        INSERT INTO item_acquisition_budget_reservations_new SELECT * FROM item_acquisition_budget_reservations;
+        DROP TABLE item_acquisition_budget_reservations;
+        ALTER TABLE item_acquisition_budget_reservations_new RENAME TO item_acquisition_budget_reservations;
+        CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_item_status
+          ON item_acquisition_budget_reservations(workspace_id, item_id, status);
+        CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_batch_status
+          ON item_acquisition_budget_reservations(workspace_id, batch_id, status);
+        CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_run
+          ON item_acquisition_budget_reservations(workspace_id, item_id, run_id, status);
+      `);
+    }
+    const braveRow = db.query(`SELECT api_key FROM api_keys WHERE service = 'brave_search'`).get() as
+      | { api_key: string }
+      | undefined;
+    const serperRow = db.query(`SELECT id FROM api_keys WHERE service = 'serper_search'`).get() as
+      | { id: string }
+      | undefined;
+    if (braveRow && !serperRow) {
+      db.query(`UPDATE api_keys SET service = 'serper_search', updated_at = ? WHERE service = 'brave_search'`).run(
+        new Date().toISOString(),
+      );
+    }
+  } catch (e) {
+    console.error('[Migrations] Brave→Serper acquisition cutover failed:', e);
+  }
 
 
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as

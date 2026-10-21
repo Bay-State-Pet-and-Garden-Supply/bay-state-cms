@@ -22,7 +22,7 @@ export interface ItemAcquisitionReservationRecord {
   runId: string;
   provider: string;
   model: string;
-  kind: 'model' | 'brave_search' | 'browser';
+  kind: 'model' | 'brave_search' | 'serper_search' | 'browser';
   policyHash: string;
   pricingHash: string;
   reservedResources: ItemAcquisitionResources;
@@ -46,7 +46,7 @@ export function installItemAcquisitionBudgetSchema(db: Database): void {
       run_id TEXT NOT NULL,
       provider TEXT NOT NULL,
       model TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('model', 'brave_search', 'browser')),
+      kind TEXT NOT NULL CHECK (kind IN ('model', 'brave_search', 'serper_search', 'browser')),
       policy_hash TEXT NOT NULL,
       pricing_hash TEXT NOT NULL,
       reserved_resources_json TEXT NOT NULL,
