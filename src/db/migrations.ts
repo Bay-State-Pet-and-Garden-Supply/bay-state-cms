@@ -6592,40 +6592,51 @@ export function runMigrations(): void {
       `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'item_acquisition_budget_reservations'`,
     ).get() as { sql: string } | undefined;
     if (ddl?.sql && !ddl.sql.includes('serper_search')) {
-      db.exec(`
-        CREATE TABLE item_acquisition_budget_reservations_new (
-          id TEXT PRIMARY KEY,
-          workspace_id TEXT NOT NULL,
-          batch_id TEXT NOT NULL,
-          item_id TEXT NOT NULL,
-          run_id TEXT NOT NULL,
-          provider TEXT NOT NULL,
-          model TEXT NOT NULL,
-          kind TEXT NOT NULL CHECK (kind IN ('model', 'brave_search', 'serper_search', 'browser')),
-          policy_hash TEXT NOT NULL,
-          pricing_hash TEXT NOT NULL,
-          reserved_resources_json TEXT NOT NULL,
-          actual_resources_json TEXT,
-          cost_micros INTEGER,
-          actual_cost_micros INTEGER,
-          billing_status TEXT NOT NULL CHECK (billing_status IN ('pending', 'known', 'unknown', 'not_applicable')),
-          status TEXT NOT NULL CHECK (status IN ('reserved', 'dispatched', 'settled', 'released')),
-          release_reason TEXT,
-          created_at TEXT NOT NULL,
-          dispatched_at TEXT,
-          settled_at TEXT,
-          CHECK (workspace_id <> '' AND batch_id <> '' AND item_id <> '')
-        );
-        INSERT INTO item_acquisition_budget_reservations_new SELECT * FROM item_acquisition_budget_reservations;
-        DROP TABLE item_acquisition_budget_reservations;
-        ALTER TABLE item_acquisition_budget_reservations_new RENAME TO item_acquisition_budget_reservations;
-        CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_item_status
-          ON item_acquisition_budget_reservations(workspace_id, item_id, status);
-        CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_batch_status
-          ON item_acquisition_budget_reservations(workspace_id, batch_id, status);
-        CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_run
-          ON item_acquisition_budget_reservations(workspace_id, item_id, run_id, status);
-      `);
+      // Atomic swap: an interrupted startup must never commit a partial
+      // rebuild (dropped ledger, stranded _new table, reset accounting).
+      db.transaction(() => {
+        db.exec(`DROP TABLE IF EXISTS item_acquisition_budget_reservations_new`);
+        db.exec(`
+          CREATE TABLE item_acquisition_budget_reservations_new (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            batch_id TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('model', 'brave_search', 'serper_search', 'browser')),
+            policy_hash TEXT NOT NULL,
+            pricing_hash TEXT NOT NULL,
+            reserved_resources_json TEXT NOT NULL,
+            actual_resources_json TEXT,
+            cost_micros INTEGER,
+            actual_cost_micros INTEGER,
+            billing_status TEXT NOT NULL CHECK (billing_status IN ('pending', 'known', 'unknown', 'not_applicable')),
+            status TEXT NOT NULL CHECK (status IN ('reserved', 'dispatched', 'settled', 'released')),
+            release_reason TEXT,
+            created_at TEXT NOT NULL,
+            dispatched_at TEXT,
+            settled_at TEXT,
+            CHECK (workspace_id <> '' AND batch_id <> '' AND item_id <> '')
+          );
+        `);
+        db.exec(`INSERT INTO item_acquisition_budget_reservations_new SELECT * FROM item_acquisition_budget_reservations`);
+        db.exec(`DROP TABLE item_acquisition_budget_reservations`);
+        db.exec(`ALTER TABLE item_acquisition_budget_reservations_new RENAME TO item_acquisition_budget_reservations`);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_item_status
+            ON item_acquisition_budget_reservations(workspace_id, item_id, status);
+        `);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_batch_status
+            ON item_acquisition_budget_reservations(workspace_id, batch_id, status);
+        `);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_run
+            ON item_acquisition_budget_reservations(workspace_id, item_id, run_id, status);
+        `);
+      })();
     }
     // Retired provider cleanup: a Brave-issued secret is not a Serper
     // credential and must never be relabeled as one (wrong-provider
