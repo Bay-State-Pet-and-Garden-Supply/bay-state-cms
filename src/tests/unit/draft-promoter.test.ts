@@ -29,7 +29,7 @@ import { SOURCING_ENTRY_POLICY_VERSION } from '../../onboarding/sourcing/entry-p
 import { createDistributor, createConnection, updateConnection } from '../../db/repositories/distributor-repo';
 import { materializeDistributorRecordExtraction } from '../../onboarding/sourcing/distributor-record-materializer';
 import { seedCanonicalPromotionAuthority } from './helpers/seed-canonical-promotion-authority';
-import { seedPromotionEvidenceAuthority } from './helpers/seed-promotion-evidence-authority';
+import { seedPromotionEvidenceAuthority, seedOfficialEvidenceAuthority } from './helpers/seed-promotion-evidence-authority';
 
 describe('Draft Promoter Service', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'promoter-test.db');
@@ -559,7 +559,11 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(draftProduct.core.price).toBe('19999.95'); // cleaned price
   });
 
-  it('refuses promotion when the spreadsheet price is empty: price stays spreadsheet-only and never falls back to extraction data', async () => {
+  it('falls back to the admitted official extraction price when the spreadsheet price is empty', async () => {
+    // Price fallback is live production behavior for official-path items
+    // (draft-promoter rawPrice: spreadsheet first, then extractionData.price;
+    // distributor is the only excluded source). The admitted official
+    // extraction preserves the staged price, unlike manual transcription.
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo D',
@@ -568,7 +572,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     });
 
     const extractionData: ExtractionData = ExtractionDataSchema.parse({
-      title: 'DogCo Premium Dog Treat 5 LB',
+      title: 'DogCo Hearty Chicken Dinner 5 LB',
       brand: 'DogCo',
       description: 'Tasty treat.',
       bulletPoints: [],
@@ -589,7 +593,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const items = insertItems(batch.id, [{
       upc: '777777777777',
-      name: 'Dog Treat',
+      name: 'DogCo Hearty Chicken Dinner 5 LB',
       price: null, // empty in spreadsheet
       brandHint: 'DogCo',
       rowNumber: 2
@@ -597,7 +601,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const item = items[0];
     const curationData = {
-      curatedTitle: 'DogCo Premium Dog Treat 5 LB',
+      curatedTitle: 'DogCo Hearty Chicken Dinner 5 LB',
       titleSource: 'web',
       suggestedPages: ['Dog Treats'],
       suggestedProductType: 'Treat',
@@ -612,15 +616,42 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       item.id
     );
 
-    seedAcceptedCategoryProposal(db, '777777777777', 'Dog Treats');
+    const runId = `run-777777777777`;
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT OR IGNORE INTO classification_runs
+       (id, workspace_id, onboarding_item_id, product_sku, status, started_at)
+       VALUES (?, ?, ?, ?, 'completed', ?)`,
+      [runId, wsId, item.id, item.upc, now],
+    );
+    const pageId = activateVerifiedPage('Dog Treats', '777777777777');
+    const proposalId = `prop-777777777777-dog-treats`;
+    db.run(
+      `INSERT OR IGNORE INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'category_page', ?, ?, 1.0, 'accepted', ?)`,
+      [proposalId, runId, item.upc, pageId, JSON.stringify({ pageId, pageName: 'Dog Treats' }), now],
+    );
+    db.run(
+      `INSERT OR IGNORE INTO classification_proposal_decisions
+       (id, proposal_id, decision, decision_key, created_at)
+       VALUES (?, ?, 'accepted', ?, ?)`,
+      [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
+    );
+    seedCanonicalAuthority(db, item.upc, runId);
+    // Official admission preserves the staged extraction price; assert the
+    // precondition holds immediately before promotion.
+    seedOfficialEvidenceAuthority(wsId, db, item.upc, runId, 'https://dogco.com/treat');
+    const prePayload = JSON.parse((db.query('SELECT extraction_data_json FROM onboarding_items WHERE id = ?').get(item.id) as { extraction_data_json: string }).extraction_data_json) as { price?: unknown };
+    expect(prePayload.price).toBe('$12.50');
 
-        seedApproved(item.id, batch.id);
-const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
-    // The manual extraction carries identity/copy only — no price — so an
-    // empty spreadsheet price is a missing mandatory, not an extraction fallback.
-    expect(promoteRes.count).toBe(0);
-    expect(promoteRes.failures.length).toBe(1);
-    expect(promoteRes.failures[0].error).toContain('Missing mandatory fields: Price');
+    seedApproved(item.id, batch.id);
+    const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    expect(promoteRes.failures).toHaveLength(0);
+    expect(promoteRes.count).toBe(1);
+
+    const csItems = listChangeSetItems(promoteRes.changeSetId!);
+    const draftProduct = JSON.parse(csItems[0].draftJson);
+    expect(draftProduct.core.price).toBe('12.50'); // fallback to cleaned extracted price
   });
 
   it('should mark items as failed on missing mandatory fields and return failures list', async () => {

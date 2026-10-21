@@ -266,7 +266,7 @@ describe('naming + listing-evidence joint qualification (offline, #375)', () => 
     expect(dev.frozenVersions).toEqual({
       listingRules: 'listing-evidence-rules-v1',
       model: TYPESAFE_EVALUATED_MODEL,
-      normalization: 'name-normalization-v1',
+      normalization: 'name-normalization-v2-applicable-variant',
       policy: 'naming-listing-task-policy-v1-dev',
     });
     expect(holdout.frozenVersions).toEqual(dev.frozenVersions);

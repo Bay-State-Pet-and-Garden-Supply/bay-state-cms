@@ -55,3 +55,9 @@ Per-row naming: dev-01/03/04/08/09/10/11/12/13/14 deterministic `resolved` (sing
 ## 5. Activation record
 
 ACTIVATION: OFF. No feature flag, policy state, or default was changed by this ticket. Only this ticket's 4 new files were created/edited (2 corpora, task policy, test + this report); no shared-file edits. Naming and listing checks resolve from frozen policy and fail closed without credentials (ambiguity abstains; no TypeSafe route ⇒ no dispatch, no chat fallback). The distributor-record path stays deterministic, URL-null, profile-free, zero-model/fetch/OCR/image; immutable source payloads were not rewritten. Closing this ticket as a release is explicitly refused until §4 clears.
+
+## 6. Amendment record (2026-10-21, activation still OFF)
+
+- **dev-07 expectation (missing→resolved):** the frozen §2 accounting (10 resolved / 2 missing-held) predates the N2 applicable-variant rule in spec §6.1. Under N2 a complete brand+title with no evidenced quantity resolves instead of holding, so dev-07 (sizeless complete title) now expects `resolved`: 11 resolved / 1 missing-held (dev-06). Category stays `missing_size` (row still documents the sizeless case). Counts in §2 above are historical; the harness enforces the amended 11/1.
+- **Normalization pin (v1→v2-applicable-variant):** dev+holdout `frozenVersions.normalization`, policy `namingRuleVersion`, and the test literal now pin the rule production executes (`name-normalization-v2-applicable-variant`). Holdout ROW content is unchanged (one-line label only); `holdoutSha256` re-pinned accordingly. Both corpus shas re-pinned in `task-policy.json`; `freezeReview` pending independent sign-off.
+- Sections 1–5 above are the frozen historical record and are intentionally NOT rewritten; this section amends them.

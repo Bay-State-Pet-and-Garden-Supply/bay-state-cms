@@ -4,7 +4,7 @@
 "frozenVersions": {
 "listingRules": "listing-evidence-rules-v1",
 "model": "jev-1.13.0",
-"normalization": "name-normalization-v1",
+"normalization": "name-normalization-v2-applicable-variant",
 "policy": "naming-listing-task-policy-v1-dev"
 },
 "rows": [

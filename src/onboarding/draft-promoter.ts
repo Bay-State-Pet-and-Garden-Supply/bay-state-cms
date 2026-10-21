@@ -70,6 +70,7 @@ import { getRuntimeSnapshotByHash } from '../classification/runtime-snapshot';
 import { validatePromotionGate, resolvePromotionEffectiveTypeId } from '../classification/promotion-gate';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
 import { loadItemListingReadiness } from '../classification/item-listing-readiness';
+import { getCurrentItemEvidenceView } from './item-evidence';
 import { evaluateListingCompletenessGate } from '../classification/listing-evidence-gate';
 import { modelPolicyViewFromConfig } from './model-policy-snapshot';
 import { validateLiveItemExecutionCurrentness } from '../classification/item-execution-currentness';
@@ -152,11 +153,11 @@ async function downloadAndProcessImages(
   imageStem: string,
   primaryUrl: string | null,
   additionalUrls: string[],
+  resolveImageRights?: (sourceUrl: string) => { approvalId: string; authorityHash: string } | null,
 ): Promise<ProcessedImageResult> {
   const imagesDir = path.join(workspacePath, 'products', 'images', brandFolder);
   if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
   const result: ProcessedImageResult = { primaryImage: null, additionalImages: [], imageProvenance: [] };
-
   // Build deduplicated candidate list across primary and additionals
   const seenCanonical = new Set<string>();
   const seenContentHashes = new Set<string>();
@@ -284,13 +285,19 @@ async function downloadAndProcessImages(
       } else {
         result.additionalImages.push(relativePath);
       }
-      result.imageProvenance.push({
-        localPath: relativePath,
-        sourceUrl: url,
-        contentHash: createHash('sha256').update(resizedBuffer).digest('hex'),
-        rightsApprovalId: `distributor:${sku}:${contentHash.slice(0, 16)}`,
-        rightsAuthorityHash: createHash('sha256').update(`${sku}:${relativePath}:${contentHash}`).digest('hex'),
-      });
+      const rights = resolveImageRights?.(url) ?? null;
+      if (rights) {
+        result.imageProvenance.push({
+          localPath: relativePath,
+          sourceUrl: url,
+          contentHash: createHash('sha256').update(resizedBuffer).digest('hex'),
+          rightsApprovalId: rights.approvalId,
+          rightsAuthorityHash: rights.authorityHash,
+        });
+      }
+      // No accepted rights for this source URL: the image still becomes the
+      // commerce reference, but no provenance is minted — downstream rights
+      // checks fail closed instead of trusting a synthesized approval.
     } catch (err) {
       console.error(`[DraftPromoter] Error downloading image ${url}:`, err);
     }
@@ -384,6 +391,24 @@ export function computePromotionGate(
     if (!classificationReadiness.ok) {
       return { ok: false, reason: `${classificationReadiness.code}: ${classificationReadiness.reason}`, activeRun, activeProposals };
     }
+  }
+  // Ticket #124: an unresolved Listing Evidence Gap refuses promotion
+  // BEFORE any image side effects (phase-a gate), mirroring the approve
+  // guard. Tolerant of minimal DBs without the gaps table.
+  try {
+    const gapRow = getDb().query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(item.id) as
+      | { status: string }
+      | undefined;
+    if (gapRow?.status === 'open') {
+      return {
+        ok: false,
+        reason: 'preparation_gap_unresolved: resolve the open Listing Evidence Gap before promotion',
+        activeRun,
+        activeProposals,
+      };
+    }
+  } catch {
+    // Minimal DBs without the gaps table: no gap can be open.
   }
   const gate = validatePromotionGate({
     workspaceId,
@@ -1538,6 +1563,20 @@ export async function prepareDraftPromotion(
     }
 
     try {
+      // Image-rights provenance (reviewer P1): resolve each downloaded source
+      // URL against the item's CURRENT accepted evidence. Only URLs with an
+      // accepted rights-bearing image fact get a provenance entry carrying the
+      // REAL approvalId/authorityHash — never a synthesized approval. URLs
+      // without accepted rights still download, but downstream rights checks
+      // fail closed on the missing binding.
+      const acceptedEvidence = getCurrentItemEvidenceView(workspaceId, item.id).evidence;
+      const resolveImageRights = (sourceUrl: string): { approvalId: string; authorityHash: string } | null => {
+        const fact = acceptedEvidence?.facts.find((entry) =>
+          /image|photo|media/i.test(entry.field) && entry.value.trim() === sourceUrl && entry.rights
+          && entry.rights.assetUrl === sourceUrl,
+        );
+        return fact?.rights ? { approvalId: fact.rights.approvalId, authorityHash: fact.rights.authorityHash } : null;
+      };
       const processed = await downloadAndProcessImages(
         workspacePath,
         item.upc,
@@ -1545,6 +1584,7 @@ export async function prepareDraftPromotion(
         imageStem,
         downloaderPrimary,
         downloaderAdditional.filter((u) => u !== downloaderPrimary),
+        resolveImageRights,
       );
       processedImagesMap.set(item.id, processed);
     } catch (err) {
@@ -1903,6 +1943,11 @@ export async function prepareDraftPromotion(
           createdAt: existingApproved?.metadata?.createdAt || now,
           updatedAt: now,
           archivedAt: null,
+          // Reviewer P1: persist the downloader's real rights bindings with
+          // the final media so change-set approval can verify exact accepted
+          // receipts. Entries exist only for source URLs with accepted
+          // rights-bearing image facts; anything else fails closed downstream.
+          ...((processed?.imageProvenance?.length ?? 0) > 0 ? { imageProvenance: processed!.imageProvenance } : {}),
         },
       };
 
