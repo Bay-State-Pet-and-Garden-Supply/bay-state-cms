@@ -46,3 +46,12 @@ Bay State CMS fully deprecates all external search engines and SERP API usage ac
 - **100% Deterministic & Local Discovery:** Zero runtime external search API dependencies, zero per-item search API costs, and full compatibility with air-gapped or `local_only` data governance models.
 - **Enhanced Accuracy:** Candidates are restricted strictly to operator-configured official brand domains and verified sitemap URLs, preventing third-party marketplace pollution.
 - **Observability:** Discovery telemetry (`sitemap_discovery_events`, `sitemap_refresh_history`) tracks local hit rates, sitemap freshness, and domain health across all brand catalogs.
+
+## Amendment (2026-10-21): bounded Serper fallback reintroduced
+
+The cost rationale for the platform-wide prohibition no longer holds: Serper offers 2,500 free queries with no credit card, an order of magnitude cheaper than the Brave subscription it replaces. The remaining rationale — noisy non-deterministic discovery, outbound GTIN leakage, external latency dependency — stands and constrains the reintroduction:
+
+- Serper is a **bounded acquisition fallback only** (missing item evidence, per ADR 0042), never a discovery-tier replacement. Sitemap/indexed retrieval stays first; `local_only` policy still denies cloud search.
+- Results are **discovery clues, never evidence**: every candidate URL passes the existing manufacturer-domain authority filter (`isSafeOfficialCandidate`) before entering the pipeline.
+- Calls remain **budget-enclosed** (reservation/billing/cancellation semantics unchanged) and credential-managed through the existing `api_keys` + Settings UI pattern (`serper_search` service key).
+- The Brave adapter is retired; the Serper adapter (`src/onboarding/serper-search.ts`) mirrors its bounds (15s timeout, 1MB cap, fixed origin, validated queries). Historic `brave_search` ledger kinds remain readable; no legacy SERP code, caches, or `serper_cache` table are restored.
