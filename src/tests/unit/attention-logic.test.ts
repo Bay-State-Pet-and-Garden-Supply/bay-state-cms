@@ -203,33 +203,38 @@ describe('deriveProfileReadiness', () => {
     makeDiagnostics('nutro.com', { latestGenerationStatus: 'failed' }),
     makeDiagnostics('royalcanin.com'),
   ];
+  const healthy = { healthy: true, reason: null, versionId: 'v1' };
+  const blocked = { healthy: false, reason: 'matrix_failed', versionId: 'v2' };
 
-  it('returns ready when an active profile exists', () => {
-    const r = deriveProfileReadiness('www.bluebuffalo.com', entries);
+  it('requires reviewed health to report ready despite an active profile', () => {
+    expect(deriveProfileReadiness('www.bluebuffalo.com', entries).state).toBe('unknown');
+    const r = deriveProfileReadiness('www.bluebuffalo.com', entries, healthy);
     expect(r.state).toBe('ready');
     expect(r.entry?.activeProfileId).toBe('p1');
   });
 
-  it('returns failed when generation failed and no active profile', () => {
-    expect(deriveProfileReadiness('nutro.com', entries).state).toBe('failed');
+  it('reports blocked and stale active profiles as non-ready with the verdict', () => {
+    const r = deriveProfileReadiness('bluebuffalo.com', entries, blocked);
+    expect(r.state).toBe('blocked');
+    expect(r.reviewedHealth).toEqual(blocked);
+    const staleEntry = makeDiagnostics('bluebuffalo.com', { hasActiveProfile: true, healthStale: true });
+    expect(deriveProfileReadiness('bluebuffalo.com', [staleEntry], blocked).state).toBe('stale');
   });
 
-  it('returns missing when no profile has been attempted', () => {
-    expect(deriveProfileReadiness('royalcanin.com', entries).state).toBe('missing');
+  it('keeps generation failure distinct from ready review', () => {
+    expect(deriveProfileReadiness('nutro.com', entries, blocked).state).toBe('failed');
+    expect(deriveProfileReadiness('royalcanin.com', entries, blocked).state).toBe('blocked');
   });
 
-  it('returns unknown when the domain has no diagnostics entry', () => {
-    expect(deriveProfileReadiness('unknownbrand.com', entries).state).toBe('unknown');
+  it('returns unknown for missing domain, null domain, or missing verdict', () => {
+    expect(deriveProfileReadiness('unknownbrand.com', entries, healthy).state).toBe('unknown');
+    expect(deriveProfileReadiness(null, entries, healthy).state).toBe('unknown');
+    expect(deriveProfileReadiness('bluebuffalo.com', entries).state).toBe('unknown');
   });
 
-  it('returns unknown for a null domain', () => {
-    expect(deriveProfileReadiness(null, entries).state).toBe('unknown');
-  });
-
-  it('matches every readiness label', () => {
-    expect(PROFILE_READINESS_LABELS.ready).toBe('Extractor ready');
-    expect(PROFILE_READINESS_LABELS.missing).toBe('No working extractor for this domain');
-    expect(PROFILE_READINESS_LABELS.failed).toBe('Extractor generation failed');
+  it('labels non-ready reviewed health separately from definite absence', () => {
+    expect(PROFILE_READINESS_LABELS.blocked).toContain('not approved');
+    expect(PROFILE_READINESS_LABELS.stale).toContain('stale');
     expect(PROFILE_READINESS_LABELS.unknown).toBe('Extractor status unknown');
   });
 });

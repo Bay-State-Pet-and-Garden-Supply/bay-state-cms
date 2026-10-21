@@ -6582,6 +6582,7 @@ export function runMigrations(): void {
   installManualEvidenceIdentityBindingSchema(db);
   installAcceptedItemEvidenceSchema(db);
   installListingCompletenessExceptionSchema(db);
+  installItemAcquisitionBudgetSchema(db);
   installSecuritySettingsSchema(db);
 
 

@@ -213,29 +213,36 @@ export function normalizeDomain(domain: string): string {
 
 // ─── Extractor profile readiness ───────────────────────────────────────────────
 
-export type ProfileReadinessState = 'ready' | 'missing' | 'failed' | 'unknown';
+export type ProfileReadinessState = 'ready' | 'missing' | 'failed' | 'unknown' | 'stale' | 'blocked';
+
+export interface ReviewedHealth {
+  healthy: boolean;
+  reason: string | null;
+  versionId: string | null;
+}
 
 export interface ProfileReadiness {
   state: ProfileReadinessState;
-  /** The matched diagnostics entry (null when the domain has no diagnostics row). */
   entry: DomainDiagnosticsEntry | null;
+  reviewedHealth: ReviewedHealth | null;
 }
 
-/**
- * Derive whether a domain has a usable extractor profile from the
- * domain-diagnostics snapshot. The diagnostics entry is authoritative:
- * `hasActiveProfile` → ready; a failed generation with no active profile →
- * failed; otherwise missing (never attempted or still generating). Unknown
- * only when the domain itself is missing (no diagnostics entry).
- */
-export function deriveProfileReadiness(domain: string | null, entries: DomainDiagnosticsEntry[]): ProfileReadiness {
-  if (!domain) return { state: 'unknown', entry: null };
+/** Readiness requires the authoritative reviewed-health verdict, not a legacy active-profile row. */
+export function deriveProfileReadiness(
+  domain: string | null,
+  entries: DomainDiagnosticsEntry[],
+  reviewedHealth: ReviewedHealth | null = null,
+): ProfileReadiness {
+  if (!domain) return { state: 'unknown', entry: null, reviewedHealth };
   const target = normalizeDomain(domain);
   const entry = entries.find((e) => normalizeDomain(e.domain) === target) ?? null;
-  if (!entry) return { state: 'unknown', entry: null };
-  if (entry.hasActiveProfile) return { state: 'ready', entry };
-  if (entry.latestGenerationStatus === 'failed') return { state: 'failed', entry };
-  return { state: 'missing', entry };
+  if (!entry) return { state: 'unknown', entry: null, reviewedHealth };
+  if (!reviewedHealth) return { state: 'unknown', entry, reviewedHealth: null };
+  if (reviewedHealth.healthy) return { state: 'ready', entry, reviewedHealth };
+  if (reviewedHealth.reason === 'health_check_failed') return { state: 'unknown', entry, reviewedHealth };
+  if (entry.healthStale) return { state: 'stale', entry, reviewedHealth };
+  if (entry.latestGenerationStatus === 'failed' && !entry.hasActiveProfile) return { state: 'failed', entry, reviewedHealth };
+  return { state: 'blocked', entry, reviewedHealth };
 }
 
 export const PROFILE_READINESS_LABELS: Record<ProfileReadinessState, string> = {
@@ -243,7 +250,10 @@ export const PROFILE_READINESS_LABELS: Record<ProfileReadinessState, string> = {
   missing: 'No working extractor for this domain',
   failed: 'Extractor generation failed',
   unknown: 'Extractor status unknown',
+  stale: 'Extractor health is stale',
+  blocked: 'Extractor is not approved for release',
 };
+
 
 // ─── Queue grouping ────────────────────────────────────────────────────────────
 

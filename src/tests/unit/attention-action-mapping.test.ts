@@ -6,10 +6,10 @@ import {
 
 describe('getAttentionActions — retry-first resolution (audit HIGH 4)', () => {
   it('offers retry FIRST for extraction_profile_failed, setup second', () => {
-    expect(getAttentionActions('extraction_profile_failed')).toEqual([
-      'retry_extraction',
-      'setup_extractor_profile',
-    ]);
+    const actions = getAttentionActions('extraction_profile_failed');
+    expect(actions).toEqual(['retry_extraction', 'setup_extractor_profile']);
+    // Readiness becoming unknown or blocked does not reorder the explicit retry-first choice.
+    expect(actions[0]).toBe('retry_extraction');
   });
 
   it('offers only setup for extractor_profile_required', () => {
