@@ -24,6 +24,18 @@ function securityStatus() {
 }
 
 securityRoutes.post('/settings/security/token', (c) => {
+  // Generating a stored token while the environment override is active would
+  // produce a credential that can never authenticate: both authorization
+  // gates prefer the env token. Refuse loudly instead of minting a dead token.
+  if (process.env.BAYSTATE_CMS_API_TOKEN !== undefined) {
+    return c.json(
+      {
+        error: 'API token is managed by the BAYSTATE_CMS_API_TOKEN environment variable. Unset it to manage the token here.',
+        code: 'environment_token_active',
+      },
+      409,
+    );
+  }
   const apiToken = randomBytes(32).toString('base64url');
   saveSecuritySettings({ apiToken });
   return c.json({ ...securityStatus(), generatedToken: apiToken });

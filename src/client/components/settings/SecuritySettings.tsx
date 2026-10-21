@@ -12,17 +12,16 @@ export function SecuritySettings() {
     void getSecuritySettings().then(setSettings).catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
-  async function installBrowserCredential(token: string): Promise<void> {
-    // The client authenticates via window.__BAYSTATE_TOKEN__ or
-    // localStorage['baystate_cms_api_token'] (see api.ts getApiAuthHeaders).
-    // A freshly generated/rotated token must become the browser credential
-    // immediately, or every subsequent mutating request (including the
-    // admin toggle) 401s against the new server-side value.
+  // getApiAuthHeaders() prefers window.__BAYSTATE_TOKEN__ over localStorage,
+  // so a rotation must replace BOTH, with the window credential winning.
+  // Writing localStorage alone leaves the stale window token in force.
+  function installBrowserCredential(token: string): void {
     try {
       window.localStorage.setItem('baystate_cms_api_token', token);
     } catch {
-      (window as Window & { __BAYSTATE_TOKEN__?: string }).__BAYSTATE_TOKEN__ = token;
+      // Storage unavailable (private mode): fall through to window credential.
     }
+    (window as Window & { __BAYSTATE_TOKEN__?: string }).__BAYSTATE_TOKEN__ = token;
   }
 
   async function generateToken() {
@@ -34,7 +33,7 @@ export function SecuritySettings() {
       const updated = await generateSecurityToken();
       setSettings(updated);
       setGeneratedToken(updated.generatedToken);
-      await installBrowserCredential(updated.generatedToken);
+      installBrowserCredential(updated.generatedToken);
       setMessage('Token installed as the browser credential. Copy it now for API clients — it will not be shown again.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -62,10 +61,16 @@ export function SecuritySettings() {
     {error && <p role="alert" style={{ color: '#dc2626' }}>{error}</p>}
     {message && <p role="status" style={{ color: '#166534' }}>{message}</p>}
     <p>API token: {settings?.tokenMask ?? 'Not configured'} ({settings?.apiTokenSource ?? 'loading'})</p>
+    {settings?.apiTokenSource === 'environment' && (
+      <p style={{ fontSize: 13, color: '#6b7280' }}>
+        Token is managed by the <code>BAYSTATE_CMS_API_TOKEN</code> environment variable.
+        Generation is disabled here — unset it and restart to manage the token in this UI.
+      </p>
+    )}
     {generatedToken && <label style={{ display: 'block', marginBottom: 12 }}>New token — copy now
       <input aria-label="New API token" readOnly value={generatedToken} onFocus={(event) => event.currentTarget.select()} style={{ width: '100%', padding: 8, fontFamily: 'monospace' }} />
     </label>}
-    <button type="button" disabled={busy} onClick={() => void generateToken()}>{settings?.tokenConfigured ? 'Rotate API token' : 'Generate API token'}</button>
+    <button type="button" disabled={busy || settings?.apiTokenSource === 'environment'} onClick={() => void generateToken()}>{settings?.tokenConfigured ? 'Rotate API token' : 'Generate API token'}</button>
     <div style={{ marginTop: 20 }}>
       <label><input type="checkbox" checked={settings?.releaseAdminEnabled ?? false} disabled={busy || !settings} onChange={(event) => void setAdmin(event.currentTarget.checked)} /> Enable taxonomy release administration</label>
       <p style={{ fontSize: 13, color: '#6b7280' }}>Effective setting source: {settings?.releaseAdminSource ?? 'loading'}.</p>

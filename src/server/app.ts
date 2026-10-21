@@ -50,10 +50,26 @@ import { timingSafeCompare } from '../shared/timing-safe';
 const app = new Hono();
 
 // API token middleware
-// When BAYSTATE_CMS_API_TOKEN is set, all mutating (non-GET) requests must include
-// an Authorization: Bearer <token> header matching the configured token.
+// The autoload below initializes the database on demand, so resolve the
+// stored token lazily *after* initialization. Reading it here (before the
+// autoload middleware below runs) crashes cold starts without an env token:
+// getStoredApiToken() touches getDb(), which throws "Database not initialized".
+function resolveEffectiveApiToken(): string | undefined {
+  if (process.env.BAYSTATE_CMS_API_TOKEN) return process.env.BAYSTATE_CMS_API_TOKEN;
+  // getCurrentWorkspace() triggers migration/initialization on demand; the
+  // stored-token read happens only once the database is ready.
+  getCurrentWorkspace();
+  try {
+    return getStoredApiToken();
+  } catch {
+    // Initialization just ran (or is still settling); treat as no stored
+    // token rather than failing the request — the autoload middleware below
+    // completes setup and later requests resolve the stored value.
+    return undefined;
+  }
+}
 app.use('/api/*', async (c, next) => {
-  const apiToken = process.env.BAYSTATE_CMS_API_TOKEN ?? getStoredApiToken();
+  const apiToken = resolveEffectiveApiToken();
   if (!apiToken || c.req.method === 'GET' || c.req.method === 'HEAD') {
     await next();
     return;
