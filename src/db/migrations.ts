@@ -6627,17 +6627,11 @@ export function runMigrations(): void {
           ON item_acquisition_budget_reservations(workspace_id, item_id, run_id, status);
       `);
     }
-    const braveRow = db.query(`SELECT api_key FROM api_keys WHERE service = 'brave_search'`).get() as
-      | { api_key: string }
-      | undefined;
-    const serperRow = db.query(`SELECT id FROM api_keys WHERE service = 'serper_search'`).get() as
-      | { id: string }
-      | undefined;
-    if (braveRow && !serperRow) {
-      db.query(`UPDATE api_keys SET service = 'serper_search', updated_at = ? WHERE service = 'brave_search'`).run(
-        new Date().toISOString(),
-      );
-    }
+    // Retired provider cleanup: a Brave-issued secret is not a Serper
+    // credential and must never be relabeled as one (wrong-provider
+    // exposure) nor resurrected after operator removal. Drop the Brave row;
+    // the operator supplies a real Serper key through Settings.
+    db.query(`DELETE FROM api_keys WHERE service = 'brave_search'`).run();
   } catch (e) {
     console.error('[Migrations] Brave→Serper acquisition cutover failed:', e);
   }
