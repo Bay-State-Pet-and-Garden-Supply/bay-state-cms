@@ -31,6 +31,8 @@ import {
   upsertWorkloadRoute,
   getFullAiRoutingConfig,
 } from '../../db/repositories/provider-connection-repo';
+import { upsertApiKey, getApiKey, deleteApiKey } from '../../db/repositories/api-key-repo';
+import { resolveSystemOneCredential } from '../../classification/systemone-decision-core';
 
 describe('Provider Connections & Trust Zone Governance', () => {
   describe('IP & Host Classification', () => {
@@ -590,8 +592,26 @@ describe('Database Repository Integration & Redaction', () => {
     expect(deepseek?.credential).toBe('sk-operator-key');
     expect(deepseek?.baseUrl).toBe('https://custom.deepseek.example/v1');
   });
-});
+  it('resolves a TypeSafe credential from the disposable api_keys row and removes the fake key', () => {
+    const fakeKey = 'fake-typesafe-key-for-unit-test';
+    runMigrations();
+    upsertApiKey('typesafe', fakeKey, 'https://api.typesafe.ai/v1');
 
+    try {
+      expect(resolveSystemOneCredential('typesafe')).toEqual({
+        provider: 'typesafe',
+        apiKey: fakeKey,
+        baseUrl: 'https://api.typesafe.ai/v1',
+        model: null,
+      });
+    } finally {
+      deleteApiKey('typesafe');
+    }
+
+    expect(getApiKey('typesafe')).toBeFalsy();
+  });
+
+});
 describe('End-to-End Production Routing, Failover & Authority Integration', () => {
   beforeEach(() => {
     initDb(':memory:');

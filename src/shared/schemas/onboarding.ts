@@ -1466,6 +1466,7 @@ export const ApiKeyServiceEnum = z.enum([
   'openai',
   'deepseek',
   'ollama',
+  'typesafe',
   'ollama_vlm',
   'firecrawl',
 ]);

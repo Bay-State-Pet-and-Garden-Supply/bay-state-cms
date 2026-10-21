@@ -223,6 +223,7 @@ export function Settings({ onSelectProduct }: SettingsProps) {
           </button>
         </div>
       </div>
+      <ItemAcquisitionSettings />
       </SettingsTabPanel>
 
       {/* AI Routes Section — canonical global AI infrastructure surface */}
@@ -369,7 +370,6 @@ export function Settings({ onSelectProduct }: SettingsProps) {
           <TypesAttributesView />
           <ListingStandardsEditor />
         </SettingsClassificationTab>
-        <ItemAcquisitionSettings />
       </SettingsTabPanel>
 
       {/* Mappings & Health — read-only release-derived views, stacked */}

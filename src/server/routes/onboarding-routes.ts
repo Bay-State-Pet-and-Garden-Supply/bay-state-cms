@@ -77,7 +77,7 @@ import {
   type StageVocabularyVersion,
 } from '../onboarding-stage-api';
 import { isStageV1String, parseV2StageInput, V1_TO_V2 } from '../../shared/onboarding-stage-vocabulary';
-import { ListingEvidenceValidationSchema, type ListingEvidenceValidation } from '../../shared/schemas/onboarding';
+import { ListingEvidenceValidationSchema, ApiKeyConfigSchema, type ListingEvidenceValidation } from '../../shared/schemas/onboarding';
 import { ResolveConflictRequestSchema } from '../../shared/schemas/distributor';
 import { readStorageVersion, encodeForStorage, toCanonicalStored } from '../../db/repositories/onboarding-stage-vocabulary-repo';
 
@@ -3729,11 +3729,13 @@ route.get('/onboarding/settings/openai/models', async (c) => {
 
 route.put('/onboarding/settings/api-keys/:service', async (c) => {
   const service = c.req.param('service');
-  const { apiKey, baseUrl, model } = await c.req.json();
-  if (!apiKey) {
-    return c.json({ error: 'apiKey is required' }, 400);
+  const body = await c.req.json();
+  const parsed = ApiKeyConfigSchema.safeParse({ ...body, service });
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid API key configuration.' }, 400);
   }
 
+  const { apiKey, baseUrl, model } = parsed.data;
   upsertApiKey(service, apiKey, baseUrl, model);
   return c.json({ success: true });
 });

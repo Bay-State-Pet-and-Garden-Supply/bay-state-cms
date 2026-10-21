@@ -2,8 +2,9 @@ import React from 'react';
 import { FrozenBanner } from './FrozenBanner';
 
 /**
- * Composition component for the read-only classification surfaces inside
- * Store Settings (P1 UI revamp).
+ * Composition component for the read-only classification surfaces hosted in
+ * Store Settings: Catalog Fields, Types & Attributes, and Mappings & Health.
+ * The TaxonomyReleaseCard is owned by its separate Taxonomy Release tab.
  *
  * Wraps a reused catalog-workbench view with the FrozenBanner pattern and a
  * "Back to onboarding settings" cross-link, so managers operate taxonomy
@@ -33,7 +34,7 @@ const CROSS_LINK_STYLE: React.CSSProperties = {
 export function SettingsClassificationTab({ view, revision, showBanner = true, children }: SettingsClassificationTabProps): React.ReactElement {
   const note =
     view === 'types-attributes'
-      ? 'Editing Product Types, Attributes, and Mappings is available in Onboarding Settings → Curation.'
+      ? 'Product Types, Attributes, and Mappings are read-only in this release. Changes require authoring and activating a new taxonomy release.'
       : undefined;
   return (
     <div>

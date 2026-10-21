@@ -307,4 +307,14 @@ describe('Settings tab accessibility', () => {
     });
     container.remove();
   });
+
+  it('preserves the Taxonomy Release deep link and renders its card', async () => {
+    const { container, unmount } = await renderSettings('&tab=taxonomy-release');
+    const taxonomyReleaseTab = getTab(container, 'taxonomy-release');
+    expect(taxonomyReleaseTab.getAttribute('aria-selected')).toBe('true');
+    expect(getPanel(container, 'taxonomy-release').textContent).toContain('Taxonomy Release');
+    expect(window.location.search).toContain('tab=taxonomy-release');
+    await unmount();
+  });
+
 });

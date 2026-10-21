@@ -61,7 +61,6 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
     setWorkspaceDomain(null);
   };
 
-  const [localDomain, setLocalDomain] = useState('');
   const [settingsTab, setSettingsTab] = useState<OnboardingSettingsTab>(resolveOnboardingSettingsTab(initialTab));
   const [sourcingEngineEnabled, setSourcingEngineEnabled] = useState(false);
   // B4 — Brands stays mounted while hidden; bump the signal so it refetches
@@ -203,11 +202,10 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
 
       <AiRouteSummary />
 
-      {/* P1 UI revamp: cross-link to the top-level taxonomy administration
-          surface (Store Settings → Types & Attributes / Mappings & Health). */}
+      {/* P1 UI revamp: cross-link to taxonomy release management in Store Settings. */}
       <p style={{ fontSize: 13, margin: '0 0 12px' }}>
-        <a href="/?view=settings&tab=types" style={{ color: '#14532D', fontWeight: 600 }}>
-          Manage types, mappings & releases →
+        <a href="/?view=settings&tab=taxonomy-release" style={{ color: '#14532D', fontWeight: 600 }}>
+          Manage taxonomy releases, types, mappings & health →
         </a>
       </p>
 
@@ -728,53 +726,6 @@ export function OnboardingSettings({ onBack, initialTab }: OnboardingSettingsPro
       </div>
       </div>
 
-      <div style={{ display: settingsTab === 'profiles' ? 'block' : 'none' }}>
-      {/* ── Profile Builder Landing ── */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 8px', color: '#111827' }}>
-          Profile Builder
-        </h2>
-        <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 20px', lineHeight: 1.5 }}>
-          Build a domain extractor profile by entering a product URL and assigning CSS selectors.
-          The profile defines how product data is extracted from a specific e-commerce domain.
-        </p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            type="text"
-            value={localDomain}
-            onChange={(e) => setLocalDomain(e.target.value)}
-            placeholder="Enter domain (e.g. acmepet.com)"
-            style={{
-              flex: 1,
-              maxWidth: 400,
-              padding: '8px 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: 6,
-              fontSize: 14,
-              fontFamily: 'monospace',
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => navigateToProfileWorkspace(localDomain)}
-            disabled={!localDomain.trim()}
-            style={{
-              background: '#2563eb',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              padding: '8px 20px',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: localDomain.trim() ? 'pointer' : 'not-allowed',
-              opacity: localDomain.trim() ? 1 : 0.6,
-            }}
-          >
-            Open Profile Builder
-          </button>
-        </div>
-      </div>
-      </div>
 
       {/* ── Profile Workspace link (e06s01) — dedicated page replaces inline builder ── */}
       {workspaceDomain && (

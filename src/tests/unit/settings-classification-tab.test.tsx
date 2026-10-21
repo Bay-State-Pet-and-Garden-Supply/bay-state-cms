@@ -83,6 +83,38 @@ async function renderSettings(search = ''): Promise<{ container: HTMLElement; un
   };
 }
 
+/**
+ * No taxonomy mutation affordances: no enabled data entry, no submit
+ * buttons, no mutation-labeled buttons. Exempt: the sanctioned back-link,
+ * product-navigation links, read-only affordances (Refresh, filter tabs,
+ * disclose toggles), and the listing-standards authoring section (versioned
+ * Git-backed config with its own server-side gates, not a taxonomy
+ * mutation).
+ */
+const READONLY_BUTTON_LABELS = /^\d*(refresh|all|blockers|warnings|infos?|\+ format|×|reload standards|←.*|open product:.*)$/i;
+const MUTATION_BUTTON_LABELS = /save|apply|update|delete|activate|create|edit|commit/i;
+function assertNoTaxonomyMutationControls(panel: HTMLElement): void {
+  const mutationControls = Array.from(panel.querySelectorAll('button, input, select, textarea, a'))
+    .filter((control) => {
+      if (control.closest('section[aria-labelledby="listing-standards-heading"]')) return false;
+      if (control instanceof HTMLAnchorElement) {
+        return control.getAttribute('href') !== '/?view=onboarding&settingsTab=curation'
+          && !/^open product:/i.test(control.textContent ?? '');
+      }
+      if (control instanceof HTMLButtonElement) {
+        if (control.disabled) return false;
+        const label = (control.textContent ?? '').trim();
+        if (READONLY_BUTTON_LABELS.test(label)) return false;
+        return true;
+      }
+      return true;
+    });
+  const mutationLabeled = Array.from(panel.querySelectorAll('button'))
+    .filter((b) => !(b as HTMLButtonElement).disabled && MUTATION_BUTTON_LABELS.test((b.textContent ?? '').trim()));
+  expect(mutationLabeled).toHaveLength(0);
+  expect(mutationControls).toHaveLength(0);
+}
+
 describe('Settings classification tabs (P1 UI revamp)', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
@@ -94,7 +126,7 @@ describe('Settings classification tabs (P1 UI revamp)', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('shows the frozen banner on read-only Types & Attributes with no mutation controls', async () => {
+  it('shows frozen copy and no mutation controls on Types & Attributes', async () => {
     const { container, unmount } = await renderSettings('&tab=types');
     const panel = container.querySelector<HTMLElement>('#settings-tabpanel-types');
     expect(panel).not.toBeNull();
@@ -103,17 +135,29 @@ describe('Settings classification tabs (P1 UI revamp)', () => {
     expect(banner).not.toBeNull();
     expect(banner!.textContent).toContain('immutable taxonomy release');
     expect(banner!.textContent).toContain('read-only');
-
-    // Configuration controls are intentionally available on this read-only
-    // surface; the frozen banner protects taxonomy mutations, not settings.
-    expect(panel!.querySelectorAll('button').length).toBeGreaterThan(0);
-    // Reused workbench content renders (product types list)
+    expect(banner!.textContent).toContain('new release');
+    expect(banner!.textContent).not.toContain('Editing');
     expect(panel!.textContent).toContain('Dog Food');
     expect(getClassificationConfig).toHaveBeenCalled();
+
+    // No taxonomy mutation affordances (see helper above).
+    assertNoTaxonomyMutationControls(panel!);
     await unmount();
   });
 
-  it('shows the frozen banner on Mappings & Health without mutation controls', async () => {
+  it('shows item acquisition settings only on General', async () => {
+    const general = await renderSettings();
+    const generalPanel = general.container.querySelector<HTMLElement>('#settings-tabpanel-general');
+    expect(generalPanel?.textContent).toContain('Item acquisition policy');
+    await general.unmount();
+
+    const types = await renderSettings('&tab=types');
+    const typesPanel = types.container.querySelector<HTMLElement>('#settings-tabpanel-types');
+    expect(typesPanel?.textContent).not.toContain('Item acquisition policy');
+    await types.unmount();
+  });
+
+  it('shows frozen copy and no mutation controls on Mappings & Health', async () => {
     const { container, unmount } = await renderSettings('&tab=mappings-health');
     const panel = container.querySelector<HTMLElement>('#settings-tabpanel-mappings-health');
     expect(panel).not.toBeNull();
@@ -121,12 +165,14 @@ describe('Settings classification tabs (P1 UI revamp)', () => {
     const banners = panel!.querySelectorAll('[data-frozen-banner="true"]');
     expect(banners.length).toBeGreaterThanOrEqual(1);
     for (const banner of banners) {
+      expect(banner.textContent).toContain('immutable taxonomy release');
       expect(banner.textContent).toContain('read-only');
+      expect(banner.textContent).toContain('new release');
+      expect(banner.textContent).not.toContain('Editing');
     }
 
-    // Mapping selects are disabled under the freeze; no enabled selects exist
-    const enabledSelects = Array.from(panel!.querySelectorAll('select')).filter((s) => !s.disabled);
-    expect(enabledSelects.length).toBe(0);
+    // No taxonomy mutation affordances (see helper above).
+    assertNoTaxonomyMutationControls(panel!);
     await unmount();
   });
 });

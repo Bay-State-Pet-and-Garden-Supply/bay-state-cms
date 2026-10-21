@@ -184,7 +184,7 @@ function App() {
     // forces a specific tab.
     if (newView === 'settings') {
       const settingsTab = url.searchParams.get('tab');
-      const validSettingsTabs = ['ai', 'catalog', 'types', 'mappings-health'];
+      const validSettingsTabs = ['general', 'ai', 'catalog', 'types', 'mappings-health', 'taxonomy-release'];
       if (!validSettingsTabs.includes(settingsTab ?? '')) {
         url.searchParams.delete('tab');
       }

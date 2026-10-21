@@ -7,11 +7,9 @@
  * Provenance is hash of canonical raw+normalized.
  */
 import { z } from 'zod';
-import { createHash } from 'node:crypto';
 import type { ColumnMapping } from '../shared/schemas/onboarding';
 import { normalizeImportedProductName, splitGluedSizeBeforeBrand, moveTrailingBrandToFront } from './spreadsheet-parser';
-import { canonicalJsonStringify, hashCanonicalJson } from '../shared/stable-id';
-
+import { canonicalJsonStringify, hashCanonicalJson, sha256Hex } from '../shared/stable-id';
 export const IDENTITY_NORMALIZER_VERSION = 1;
 export const RAW_IDENTITY_VERSION = 1;
 export const NORMALIZED_IDENTITY_VERSION = 1;
@@ -96,11 +94,11 @@ export function computeMappingHash(mapping: ColumnMapping): string {
     department: mapping.department ?? null,
     sourceUrl: mapping.sourceUrl ?? null,
   });
-  return createHash('sha256').update(canonical, 'utf8').digest('hex');
+  return sha256Hex(canonical);
 }
 
 export function hashValue(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
+  return sha256Hex(value);
 }
 
 export function computeIdentityProvenanceHash(rawJson: string | null, normalizedJson: string | null): string {
@@ -118,7 +116,7 @@ export function computeIdentityProvenanceHash(rawJson: string | null, normalized
     raw: canonical(rawJson),
     normalized: canonical(normalizedJson),
   });
-  return createHash('sha256').update(payload, 'utf8').digest('hex');
+  return sha256Hex(payload);
 }
 
 export function computeLegacyProvenanceHash(normalizedJson: string): string {
@@ -129,7 +127,7 @@ export function computeLegacyProvenanceHash(normalizedJson: string): string {
     lossy: true,
     raw: null,
   });
-  return createHash('sha256').update(payload, 'utf8').digest('hex');
+  return sha256Hex(payload);
 }
 
 export interface CapturedIdentity {
