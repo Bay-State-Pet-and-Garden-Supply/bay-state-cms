@@ -42,7 +42,9 @@ import { profileInspectRoutes } from './routes/profile-inspect-routes';
 import { browserInvestigationRoutes } from './routes/browser-investigation-routes';
 import storefrontFamilyRoutes from './routes/storefront-family-routes';
 import releaseRoutes from './routes/release-routes';
+import securitySettingsRoutes from './routes/security-settings-routes';
 import { getCurrentWorkspace } from './services/workspace-service';
+import { getStoredApiToken } from '../db/repositories/security-settings-repo';
 import { timingSafeCompare } from '../shared/timing-safe';
 
 const app = new Hono();
@@ -50,20 +52,18 @@ const app = new Hono();
 // API token middleware
 // When BAYSTATE_CMS_API_TOKEN is set, all mutating (non-GET) requests must include
 // an Authorization: Bearer <token> header matching the configured token.
-const apiToken = process.env.BAYSTATE_CMS_API_TOKEN;
-if (apiToken) {
-  app.use('/api/*', async (c, next) => {
-    if (c.req.method === 'GET' || c.req.method === 'HEAD') {
-      await next();
-      return;
-    }
-    const auth = c.req.header('Authorization') ?? '';
-    if (!timingSafeCompare(auth, `Bearer ${apiToken}`)) {
-      return c.json({ error: 'Unauthorized. Provide a valid API token via Authorization: Bearer header.' }, 401);
-    }
+app.use('/api/*', async (c, next) => {
+  const apiToken = process.env.BAYSTATE_CMS_API_TOKEN ?? getStoredApiToken();
+  if (!apiToken || c.req.method === 'GET' || c.req.method === 'HEAD') {
     await next();
-  });
-}
+    return;
+  }
+  const auth = c.req.header('Authorization') ?? '';
+  if (!timingSafeCompare(auth, `Bearer ${apiToken}`)) {
+    return c.json({ error: 'Unauthorized. Provide a valid API token via Authorization: Bearer header.' }, 401);
+  }
+  await next();
+});
 
 // Restricted CORS - only allow local UI origins
 app.use('*', cors({
@@ -130,6 +130,7 @@ app.route('/api', browserInvestigationRoutes);
 app.route('/api', storefrontFamilyRoutes);
 // P4: taxonomy release status + sanctioned pin activation (sole state.json writer).
 app.route('/api', releaseRoutes);
+app.route('/api', securitySettingsRoutes);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

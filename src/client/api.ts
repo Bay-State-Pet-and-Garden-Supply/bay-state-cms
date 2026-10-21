@@ -1106,3 +1106,26 @@ export function applyClassificationPolicy(payload: ApplyPolicyInputPayload) {
     body: JSON.stringify(payload),
   });
 }
+
+export interface SecuritySettings {
+  tokenConfigured: boolean;
+  tokenMask: string | null;
+  releaseAdminEnabled: boolean;
+  apiTokenSource: 'environment' | 'database' | 'unset';
+  releaseAdminSource: 'environment' | 'database';
+}
+
+export function getSecuritySettings() {
+  return request<SecuritySettings>('/settings/security');
+}
+
+export function generateSecurityToken() {
+  return request<SecuritySettings & { generatedToken: string }>('/settings/security/token', { method: 'POST' });
+}
+
+export function updateSecuritySettings(releaseAdminEnabled: boolean) {
+  return request<SecuritySettings>('/settings/security', {
+    method: 'PUT',
+    body: JSON.stringify({ releaseAdminEnabled }),
+  });
+}
