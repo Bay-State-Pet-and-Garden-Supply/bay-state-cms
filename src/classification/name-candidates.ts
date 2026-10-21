@@ -27,22 +27,22 @@
 import {
   ensureBrandInTitle,
   extractProtectedTokens,
-  knownVariantTokens,
   normalizeProtectedToken,
   variantTokenPresentInTitle,
 } from '../onboarding/title-prompt-template';
+import type { AcceptedItemEvidence } from '../shared/schemas/item-evidence';
 import { formatDeterministicTitle } from '../onboarding/cohort-name-coordinator';
 /** Approved normalization rule version for name candidates (single-sourced here; persisted into inputHash + normalizationVersion). */
-export const NAME_NORMALIZATION_VERSION = 'name-normalization-v1';
+export const NAME_NORMALIZATION_VERSION = 'name-normalization-v2-applicable-variant';
 
  /** Maximum complete candidates offered to typed selection. */
  export const MAX_NAME_CANDIDATES = 16;
 
-/** Eligible evidence channels for naming (per-SKU only). */
 export type NameEvidenceChannel =
   | 'register'
   | 'official'
   | 'distributor'
+  | 'retailer'
   | 'ocr'
   | 'manual';
 
@@ -54,12 +54,10 @@ export interface NameEvidenceText {
   /** Evidence id backing the span (empty when the caller has none). */
   evidenceId?: string;
   /**
-   * Semantic kind for OCR structured-attribute spans (issue #365): species
-   * and product-form values are identity attributes, never candidate
-   * bodies. Hash-neutral (hashNameInput maps channel+span only) — reuse
-   * invalidation flows from the spans themselves, not the tag.
+   * Semantic kind for structured identity components. Attribute-only values
+   * can complete a real product body but never create a name by themselves.
    */
-  kind?: 'species' | 'form';
+  kind?: 'species' | 'form' | 'flavor' | 'formula' | 'recipe' | 'lifestage' | 'material' | 'color' | 'pack_count' | 'strength';
 }
 
 export interface NameCandidateInput {
@@ -84,7 +82,19 @@ export type NameCandidateOutcome =
  * `assembleCandidate`); callers pass null so no brand is invented.
  */
 function normalizeSpan(span: string): string {
-  return formatDeterministicTitle(span, null);
+  let normalized = formatDeterministicTitle(span, null);
+  const modelTokens = span.match(/\b[A-Z]{2,}(?:[-/][A-Z0-9]+|\d[A-Z0-9]*)+\b/g) ?? [];
+  for (const token of modelTokens) {
+    const index = normalized.toLocaleLowerCase().indexOf(token.toLocaleLowerCase());
+    if (index >= 0) normalized = `${normalized.slice(0, index)}${token}${normalized.slice(index + token.length)}`;
+  }
+  const negation = /\b(?:not|no|never|without|avoid(?:s|ed)?|cannot|can't|won't|don't|doesn't|isn't|aren't|shouldn't|mustn't)\b[\s\S]*$/i.exec(span);
+  if (negation) {
+    const formattedNegation = formatDeterministicTitle(negation[0], null);
+    const index = normalized.toLocaleLowerCase().lastIndexOf(formattedNegation.toLocaleLowerCase());
+    if (index >= 0) normalized = `${normalized.slice(0, index)}${negation[0]}${normalized.slice(index + formattedNegation.length)}`;
+  }
+  return normalized;
 }
 
 function isShippingWeightSpan(span: string): boolean {
@@ -177,17 +187,14 @@ export const SPECIES_IDENTITY_WORDS = [
   'farm animal', 'caged bird',
 ];
 /**
- * Attribute-only spans carry no complete product identity: a bare quantity
- * (or brand + quantity), a lone variant token, or a bare color word. They
- * supply completion detail through the shared quantity union — they never
- * stand as candidate bodies, so an evidenced attribute can never mint an
- * incomplete title (`Acme Red 5 lb` from distributor color `Red`).
+ * Reject evidence spans that contain only measurements, brand/color words,
+ * a lone variant token, or explicitly typed identity attributes. Typed
+ * attributes supply completion detail to genuine product-name bodies; they
+ * never stand as bodies by themselves, so a flavor cannot mint a title such
+ * as `Acme Chicken 12 oz` without a product identity.
  */
 function isAttributeOnlySpan(span: string, brand: string | null, kind?: NameEvidenceText['kind']): boolean {
-  // OCR structured species/form attributes (issue #365) are identity
-  // detail, never candidate bodies: a bare `Dog` or `Dry Kibble` span must
-  // not mint `Acme Dog 5 lb` the way a bare color never mints `Acme Red`.
-  if (kind === 'species' || kind === 'form') return true;
+  if (kind !== undefined) return true;
   if (isMeasurementOnlySpan(span, brand)) return true;
   const normalized = normalizeSpan(span);
   let rest = normalized;
@@ -246,10 +253,13 @@ function findSizeConflict(netTokens: string[]): string[] {
  * quantity-last detail. Returns null when the body carries no substance
  * beyond the brand (never a brand-only invention).
  */
-function assembleCandidate(body: string, brand: string | null, quantityTokens: string[]): string | null {
+function assembleCandidate(body: string, brand: string | null, quantityTokens: string[], requiredDetails: string[] = []): string | null {
   let title = body.trim().replace(/\s+/g, ' ');
   if (!title) return null;
   if (brand?.trim()) title = ensureBrandInTitle(title, brand);
+  for (const detail of requiredDetails) {
+    if (!title.toLowerCase().includes(detail.toLowerCase())) title = `${title} ${detail}`;
+  }
   for (const token of quantityTokens) {
     if (!variantTokenPresentInTitle(title, token)) title = `${title} ${token}`;
   }
@@ -330,13 +340,9 @@ export function buildNameCandidates(input: {
   // contents alone decide the name.
   const netSpans = eligible.filter(s => !isShippingWeightSpan(s.span));
   const { netTokens } = splitNetVsShipping(netSpans);
-  const knownSizes = knownVariantTokens(netSpans.map(s => s.span));
-  if (knownSizes.length === 0) {
-    return {
-      kind: 'missing',
-      reason: 'missing_size: no size/capacity/weight/count in eligible evidence — supply an operator manual title/size and re-run.',
-    };
-  }
+  // Variant quantity is not universally required: model-number parts and
+  // unmeasured products remain nameable. Any evidenced quantity still
+  // remains part of its source-backed candidate below.
   const conflict = findSizeConflict(netTokens);
   if (conflict.length > 0) {
     return {
@@ -356,12 +362,32 @@ export function buildNameCandidates(input: {
   };
   const evidenceIdsOf = (spans: NameEvidenceText[]): string[] =>
     [...new Set(spans.map(s => s.evidenceId).filter((id): id is string => !!id))];
-  // Complete identities only (issue #365): attribute-only spans (a bare
-  // quantity, a lone variant token, a bare color word) supply completion
-  // detail through the union — they never stand as candidate bodies, so an
-  // evidenced attribute can never mint an incomplete title (`Acme Red 5 lb`
-  // from distributor color `Red`).
+  // Attribute-only values can complete a real name but never stand alone.
+  // Preserve identity descriptors on every candidate; reject conflicting
+  // values instead of unioning distinct flavors, recipes, or life stages.
   const attributeSpans = netSpans.filter(s => isAttributeOnlySpan(s.span, input.brand, s.kind));
+  const detailSpans = attributeSpans.filter((s) => s.kind !== undefined);
+  const detailByKind = new Map<NonNullable<NameEvidenceText['kind']>, string[]>();
+  const conflictingDetails: string[] = [];
+  for (const span of detailSpans) {
+    const kind = span.kind;
+    if (!kind) continue;
+    const values = detailByKind.get(kind) ?? [];
+    if (kind !== 'species' && values.some((value) => value.trim().toLowerCase() !== span.span.trim().toLowerCase())) {
+      conflictingDetails.push(...values, span.span);
+    } else if (!values.some((value) => value.trim().toLowerCase() === span.span.trim().toLowerCase())) {
+      values.push(span.span);
+      detailByKind.set(kind, values);
+    }
+  }
+  if (conflictingDetails.length > 0) {
+    return { kind: 'conflict', reason: 'conflicting_identity_attributes: accepted evidence contains distinct values for a single-valued name-defining attribute.', conflictingTokens: [...new Set(conflictingDetails)] };
+  }
+  const requiredDetails = [...detailByKind.entries()].flatMap(([kind, values]) =>
+    values.map((value) => kind === 'pack_count' && /^\d+(?:\.\d+)?$/.test(value.trim()) ? `${value.trim()} pack` : value),
+  );
+  const detailComponents = detailSpans.map((s) => s.span);
+  const detailEvidenceIds = evidenceIdsOf(detailSpans);
   const bodySpans = netSpans.filter(s => !isAttributeOnlySpan(s.span, input.brand, s.kind));
   if (bodySpans.length === 0) {
     return {
@@ -389,15 +415,11 @@ export function buildNameCandidates(input: {
   const mergedEvidenceIds = [...new Set([...evidenceIdsOf(bodySpans), ...evidenceIdsOf(attributeSpans)])];
   for (const span of bodySpans) {
     const normalized = normalizeSpan(span.span);
-    const ownTitle = assembleCandidate(normalized, input.brand, quantityOf(span.span));
-    // A body span already carrying every evidenced quantity stands on its
-    // own evidence; one missing quantities evidenced elsewhere becomes
-    // complete through the union AND names the contributing spans in its
-    // provenance — selection can never silently drop a mandatory detail.
+    const ownTitle = assembleCandidate(normalized, input.brand, quantityOf(span.span), requiredDetails);
     const ownComplete = ownTitle !== null
       && requiredQuantities.every(q => variantTokenPresentInTitle(ownTitle, q));
     if (ownComplete) {
-      push(ownTitle, [span.span], span.evidenceId ? [span.evidenceId] : []);
+      push(ownTitle, [span.span, ...detailComponents], [...new Set([...(span.evidenceId ? [span.evidenceId] : []), ...detailEvidenceIds])]);
     } else {
       const ownKeys = quantityKeysOf(span.span);
       const borrowedKeys = requiredKeys.filter(k => !ownKeys.some(o => o === k));
@@ -406,9 +428,9 @@ export function buildNameCandidates(input: {
         return quantityKeysOf(s.span).some(k => borrowedKeys.some(b => b === k));
       });
       push(
-        assembleCandidate(normalized, input.brand, requiredQuantities),
-        [span.span, ...contributors.map(s => s.span)],
-        [...new Set([...(span.evidenceId ? [span.evidenceId] : []), ...evidenceIdsOf(contributors)])],
+        assembleCandidate(normalized, input.brand, requiredQuantities, requiredDetails),
+        [span.span, ...contributors.map(s => s.span), ...detailComponents],
+        [...new Set([...(span.evidenceId ? [span.evidenceId] : []), ...evidenceIdsOf(contributors), ...detailEvidenceIds])],
       );
     }
   }
@@ -419,7 +441,7 @@ export function buildNameCandidates(input: {
   const uniqueBodies = [...new Set(bodySpans.map((s) => normalizeSpan(s.span)))];
   const mergedBody = uniqueBodies.join(' ');
   push(
-    assembleCandidate(mergedBody, input.brand, requiredQuantities),
+    assembleCandidate(mergedBody, input.brand, requiredQuantities, requiredDetails),
     mergedComponents,
     mergedEvidenceIds,
   );
@@ -456,4 +478,51 @@ export function deterministicNameChoice(
   const first = candidates[0].title;
   if (candidates.every(c => equivalentTitle(c.title, first))) return candidates[0];
   return null;
+}
+/** Project only current, confirmed facts into source-backed name spans. */
+export function acceptedItemNameSpans(evidence: AcceptedItemEvidence): { spans: NameEvidenceText[]; brand: string | null; conflictingBrands: string[] } {
+  const observationById = new Map(evidence.observations.map((observation) => [observation.id, observation]));
+  const channelByRole: Record<string, NameEvidenceChannel> = {
+    manufacturer_official: 'official',
+    distributor_record: 'distributor',
+    retailer_corroboration: 'retailer',
+    operator_attested: 'manual',
+  };
+  const nameFields = new Set(['title', 'name', 'brand', 'model', 'species', 'productform', 'flavor', 'formula', 'recipe', 'lifestage', 'size', 'capacity', 'weight', 'count', 'packcount', 'color', 'material', 'strength']);
+  const kindByField: Record<string, NonNullable<NameEvidenceText['kind']>> = {
+    species: 'species',
+    productform: 'form',
+    flavor: 'flavor',
+    formula: 'formula',
+    recipe: 'recipe',
+    lifestage: 'lifestage',
+    material: 'material',
+    color: 'color',
+    packcount: 'pack_count',
+    strength: 'strength',
+  };
+  const brandFacts = evidence.facts.filter((fact) => {
+    if (fact.field.toLowerCase() !== 'brand') return false;
+    const observation = observationById.get(fact.observationId);
+    return !!observation && observation.identity.itemId === evidence.itemId && observation.identity.sku === evidence.sku && observation.identity.inputHash === evidence.inputHash && observation.identity.outcome === 'confirmed';
+  });
+  const normalizedBrands = [...new Set(brandFacts.map((fact) => fact.value.trim().toLowerCase()))];
+  const spans: NameEvidenceText[] = [{ channel: 'register', span: evidence.registerName, evidenceId: evidence.id }, ...evidence.facts.flatMap((fact) => {
+    if (!nameFields.has(fact.field.toLowerCase())) return [];
+    const observation = observationById.get(fact.observationId);
+    if (!observation || observation.identity.itemId !== evidence.itemId || observation.identity.sku !== evidence.sku || observation.identity.inputHash !== evidence.inputHash || observation.identity.outcome !== 'confirmed') return [];
+    const channel = channelByRole[observation.sourceRole];
+    if (!channel) return [];
+    const field = fact.field.toLowerCase();
+    const kind = kindByField[field];
+    return [{ channel, span: fact.rawValue, evidenceId: fact.id, ...(kind ? { kind } : {}) }];
+  })];
+  return { spans, brand: normalizedBrands.length === 1 ? brandFacts[0].value : null, conflictingBrands: normalizedBrands.length > 1 ? brandFacts.map((fact) => fact.value) : [] };
+}
+
+/** Build code-owned name candidates from one accepted immutable item snapshot. */
+export function buildNameCandidatesFromAcceptedEvidence(evidence: AcceptedItemEvidence): NameCandidateResult {
+  const { spans, brand, conflictingBrands } = acceptedItemNameSpans(evidence);
+  if (conflictingBrands.length > 0) return { kind: 'conflict', reason: 'conflicting_brands: accepted item facts contain distinct brand values.', conflictingTokens: conflictingBrands };
+  return buildNameCandidates({ spans, brand });
 }

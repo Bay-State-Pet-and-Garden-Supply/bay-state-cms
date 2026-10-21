@@ -154,6 +154,48 @@ describe('runtime snapshot with ACTIVE v2 config authority (Milestone 7)', () =>
     expect(entry!.promptTemplateVersion).toBe('attribute-ranking-prompt-v1');
     expect(entry!.ruleVersion).toBe(RULE_VERSIONS.attribute_ranking);
   });
+  it('does not authorize copy generation from ordinary stage/default routes', () => {
+    const snapshot = buildRuntimeSnapshot(buildV2Input());
+    expect(snapshot.modelExecutionPlan!.entries.some(
+      entry => entry.operation === 'distributor_copy_consolidation',
+    )).toBe(false);
+    expect(() => assertModelPlanCompatible(snapshot, 'distributor_copy_consolidation'))
+      .toThrow(/no entry for operation/);
+  });
+
+  it('freezes copy generation only from its explicit provider/model/sharing authority', () => {
+    const input = buildV2Input();
+    if (authority.kind !== 'v2') throw new Error('test fixture requires v2 authority');
+    const currentBundle = authority.bundle;
+    input.authority = {
+      kind: 'v2',
+      bundle: {
+        ...currentBundle,
+        modelPolicy: {
+          ...currentBundle.modelPolicy,
+          copyGeneration: {
+            provider: 'ollama',
+            model: 'qwen2.5:14b',
+            textDataSharing: 'local_only',
+          },
+        },
+      },
+    };
+    const snapshot = buildRuntimeSnapshot(input);
+    const entry = snapshot.modelExecutionPlan!.entries.find(
+      candidate => candidate.operation === 'distributor_copy_consolidation',
+    );
+    expect(entry).toMatchObject({
+      provider: 'ollama',
+      model: 'qwen2.5:14b',
+      locality: 'local',
+      textDataSharing: 'local_only',
+      fromOverride: false,
+      stage: 'name_consolidation',
+    });
+    expect(() => assertModelPlanCompatible(snapshot, 'distributor_copy_consolidation')).not.toThrow();
+  });
+
 
   it('plan is immutable and included in the snapshot hash', () => {
     const snapshot = buildRuntimeSnapshot(buildV2Input());
@@ -337,8 +379,8 @@ describe('PR12 C4 — registry-version fail-closed (issue #30, DECISION-B)', () 
   });
 
   it('current-registry-version snapshots pass and schema-v1 legacy snapshots are unaffected (never registry_version_mismatch)', () => {
-    // P3 (plan B.P3.3): registry bumped 2 → 3 for `value_gap_resolution`.
-    expect(MODEL_OPERATION_REGISTRY_VERSION).toBe(3);
+    // The current operation registry tracks the registered operations.
+    expect(MODEL_OPERATION_REGISTRY_VERSION).toBe(6);
     const v2 = buildRuntimeSnapshot(buildV2Input());
     expect(v2.modelExecutionPlan!.registryVersion).toBe(MODEL_OPERATION_REGISTRY_VERSION);
     expect(() => assertModelPlanCompatible(v2, 'product_type_ranking')).not.toThrow();

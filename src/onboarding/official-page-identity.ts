@@ -27,7 +27,7 @@ const NON_DISTINCTIVE = new Set(['dog', 'cat', 'pet', 'food', 'treat', 'treats',
 const FLAVORS = new Set(['chicken', 'turkey', 'venison', 'salmon', 'duck', 'beef', 'lamb', 'pork', 'rabbit', 'fish', 'tuna']);
 const KNOWN_ABBREVIATIONS = new Set(['sm', 'md', 'lg', 'xl', 'xs', 'xxl', 'oz', 'lb', 'lbs', 'ct', 'kg', 'vnsn', 'chkn', 'ckn', 'trky', 'slmn', 'brly', 'vgg', 'frzn']);
 const SIZE_WORDS = new Set(['sm', 'md', 'lg', 'xl', 'xs', 'xxl']);
-const UNIT_WORDS = new Set(['oz', 'lb', 'ct', 'kg', 'g']);
+const UNIT_WORDS = new Set(['oz', 'lb', 'ct', 'kg', 'g', 'ml', 'l']);
 
 function canonicalTokens(text: string): string[] {
   const prepared = expandAbbreviations(splitAttachedSizeTokens(text).toLowerCase())
@@ -46,7 +46,10 @@ function canonicalTokens(text: string): string[] {
 function packageAxes(tokens: string[]): string[] {
   const axes: string[] = [];
   for (let i = 0; i < tokens.length; i++) {
-    if (/^\d+(?:\.\d+)?$/.test(tokens[i]) && UNIT_WORDS.has(tokens[i + 1])) {
+    if (/^\d+(?:\.\d+)?$/.test(tokens[i]) && tokens[i + 1] === 'fl' && tokens[i + 2] === 'oz') {
+      axes.push(`${tokens[i]} fl oz`);
+      i += 2;
+    } else if (/^\d+(?:\.\d+)?$/.test(tokens[i]) && UNIT_WORDS.has(tokens[i + 1])) {
       axes.push(`${tokens[i]} ${tokens[i + 1]}`);
       i++;
     } else if (SIZE_WORDS.has(tokens[i]) || FLAVORS.has(tokens[i])) {
@@ -54,6 +57,78 @@ function packageAxes(tokens: string[]): string[] {
     }
   }
   return axes;
+}
+function axisKind(axis: string): string | null {
+  if (FLAVORS.has(axis)) return 'flavor';
+  if (SIZE_WORDS.has(axis)) return 'size-word';
+  if (/\bct$/u.test(axis)) return 'count';
+  if (/\bfl oz$/u.test(axis) || /\b(?:ml|l)$/u.test(axis)) return 'volume';
+  if (/\b(?:oz|lb|kg|g)$/u.test(axis)) return 'mass';
+  return null;
+}
+
+function normalizedAxisValue(axis: string, kind: string): number | string {
+  if (kind === 'flavor' || kind === 'size-word') return axis;
+  const match = /^(\d+(?:\.\d+)?)\s+(.+)$/u.exec(axis);
+  if (!match) return axis;
+  const amount = Number(match[1]);
+  const unit = match[2];
+  if (kind === 'mass') {
+    const grams = unit === 'oz' ? amount * 28.349523125
+      : unit === 'lb' ? amount * 453.59237
+        : unit === 'kg' ? amount * 1000
+          : amount;
+    return Math.round(grams * 1e6) / 1e6;
+  }
+  if (kind === 'volume') {
+    const milliliters = unit === 'fl oz' ? amount * 29.5735295625
+      : unit === 'l' ? amount * 1000
+        : amount;
+    return Math.round(milliliters * 1e6) / 1e6;
+  }
+  return amount;
+}
+
+/** Find explicit package/flavor axes that contradict axes named by the imported item. */
+export function findContradictoryProductAxes(
+  registerName: string,
+  observations: Array<{ field: string; value: string }>,
+): string[] {
+  const expectedByKind = new Map<string, Set<string>>();
+  for (const axis of packageAxes(canonicalTokens(registerName))) {
+    const kind = axisKind(axis);
+    if (!kind) continue;
+    const expected = expectedByKind.get(kind) ?? new Set<string>();
+    expected.add(axis);
+    expectedByKind.set(kind, expected);
+  }
+  const conflicts: string[] = [];
+  for (const observation of observations) {
+    for (const axis of packageAxes(canonicalTokens(observation.value))) {
+      const kind = axisKind(axis);
+      const expectedAxes = kind ? expectedByKind.get(kind) : undefined;
+      if (!kind || !expectedAxes?.size) continue;
+      const normalized = normalizedAxisValue(axis, kind);
+      if (![...expectedAxes].some((expected) => normalizedAxisValue(expected, kind) === normalized)) {
+        conflicts.push(`${observation.field}=${axis} conflicts with register ${[...expectedAxes].join(', ')}`);
+      }
+    }
+  }
+  return conflicts;
+}
+/** Dimension-aware normalized key for a single measured package quantity. */
+export function normalizedMeasuredQuantityKey(value: string): string | null {
+  const trimmed = value.trim();
+  if (!/^\d+(?:\.\d+)?\s*(?:fl\s?oz|ounces?|oz|pounds?|lbs?|kg|g|ml|l|count|ct)$/iu.test(trimmed)) return null;
+  const tokens = canonicalTokens(trimmed);
+  const quantities = packageAxes(tokens)
+    .map((axis) => ({ axis, kind: axisKind(axis) }))
+    .filter((entry): entry is { axis: string; kind: string } => entry.kind === 'mass' || entry.kind === 'volume' || entry.kind === 'count');
+  if (quantities.length !== 1) return null;
+  const { axis, kind } = quantities[0];
+  const axisTokens = canonicalTokens(axis);
+  if (tokens.length !== axisTokens.length || tokens.some((token, index) => token !== axisTokens[index])) return null;
+  return `${kind}:${normalizedAxisValue(axis, kind)}`;
 }
 
 function unknownAbbreviation(name: string): boolean {

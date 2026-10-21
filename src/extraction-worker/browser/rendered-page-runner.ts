@@ -48,7 +48,6 @@ export function configureCrawleeStorage(): void {
 
   // Ensure the directory exists
   try {
-    const fs = require('node:fs');
     fs.mkdirSync(path.join(storageDir, 'request_queues', 'default'), { recursive: true });
   } catch {
     // non-critical — Crawlee will create it if needed
@@ -61,6 +60,8 @@ export interface RenderedPageInput {
   url: string;
   /** Optional per-request guard installed before navigation (SSRF/policy). */
   networkGuard?: (url: string) => Promise<boolean>;
+  /** Optional per-run scratch root for isolated render containers. */
+  storageDir?: string;
   /** Per-URL navigation timeout override (ms). */
   navigationTimeoutMs?: number;
   /** Per-URL dwell time override (ms). */
@@ -171,8 +172,13 @@ export async function runRenderedPage<T>(
   const cfg = config ?? loadWorkerBrowserConfig();
   const launchCtx = await createLaunchContext(cfg);
   const proxyConfig = createWorkerProxyConfiguration(cfg);
-
-  const baseStorageDir = getCrawleeStorageDir();
+  let baseStorageDir = getCrawleeStorageDir();
+  if (input.storageDir) {
+    const requestedStorageDir = path.resolve(input.storageDir);
+    const tmpPrefix = `${path.resolve(os.tmpdir())}${path.sep}`;
+    if (!requestedStorageDir.startsWith(tmpPrefix)) throw new Error('isolated Crawlee storage must be beneath the bounded tmp directory');
+    baseStorageDir = requestedStorageDir;
+  }
   const runId = randomUUID();
   const uniqueStorageDir = path.join(baseStorageDir, 'runs', runId);
 

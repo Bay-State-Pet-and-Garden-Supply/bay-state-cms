@@ -4,6 +4,8 @@
 **Supersedes:** Legacy SERP / Serper Search Architecture  
 **Related:** ADR 0007 (Item-Centric Onboarding Pipeline), ADR 0017 (Brand Resolution & Source Authority), ADR 0030 (Agent Lab Decommission)
 
+**Partial design supersession:** [ADR 0042](0042-evidence-first-item-local-onboarding.md) permits a new approved, bounded search fallback for missing item evidence while retaining indexed/sitemap retrieval first, local-only policy, and source-authority checks. This does not restore retired SERP code/caches or claim a search provider is implemented or activated.
+
 ## Context
 
 Historically, the onboarding discovery stage depended on external search engines (such as Serper / Google Search API) to resolve candidate product URLs from item metadata (UPC, SKU, brand hint, raw name). This approach had several fundamental drawbacks:

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { hashCanonicalJson } from '../shared/stable-id';
 import { z } from 'zod';
 import { comparisonHashForProduct } from '../shopsite/catalog-comparison';
 import { extractSubproductSkus, extractSubproductSkuOccurrences, hashNativeReferences } from '../shopsite/product-codec';
@@ -13,6 +14,7 @@ import {
   type FamilyVariantRuleVersion,
   type NonFoodFamilyVariantFactors,
 } from '../classification/family-variant-rule';
+import { FamilyMemberOriginSchema } from '../shared/schemas/storefront-family';
 import type { Product } from '../shared/types';
 
 /**
@@ -47,6 +49,7 @@ export interface StorefrontFamilyMemberEvidence {
 
 export const NonFoodFamilyStagingMemberSchema = z.object({
   sku: z.string().min(1),
+  origin: FamilyMemberOriginSchema,
   purchasable: z.boolean(),
   /** Verified ounce-equivalent for sizeRaw (same parse path as food); null when unverified/incomparable. */
   ounces: z.number().positive().nullable().default(null),
@@ -73,6 +76,7 @@ export type NonFoodFamilyStagingMember = z.infer<typeof NonFoodFamilyStagingMemb
 export const StorefrontFamilyStagingInputSchema = z.object({
   members: z.array(z.object({
     sku: z.string().min(1),
+    origin: FamilyMemberOriginSchema,
     purchasable: z.boolean(),
     brand: z.string().nullable().default(null),
     recipe: z.string().nullable().default(null),
@@ -656,10 +660,15 @@ export function familyBaseHashFor(products: readonly Product[]): string {
 }
 
 export function familyReadWriteHashFor(products: readonly Product[]): string {
-  return shaHex(JSON.stringify({
-    reads: products.map((p) => comparisonHashForProduct(p)).sort(),
-    writes: products.map((p) => `${p.sku}:${hashNativeReferences(p)}`).sort(),
-  }));
+  return hashCanonicalJson({
+    members: [...products]
+      .sort((a, b) => a.sku.localeCompare(b.sku))
+      .map((product) => ({
+        sku: product.sku,
+        snapshot: product,
+        nativeReferenceHash: hashNativeReferences(product),
+      })),
+  });
 }
 export { isManagedFamilyProduct };
 export { readManagedMain };

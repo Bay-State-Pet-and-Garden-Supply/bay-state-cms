@@ -160,6 +160,19 @@ function verifiedStoreDirectory(workspacePath: string): VerifiedDirectory {
   }
   return { path: storePath, realPath: storeReal };
 }
+function verifiedListingStandardsDirectory(workspacePath: string): string {
+  const store = verifiedStoreDirectory(workspacePath);
+  const directory = path.resolve(classificationDir(workspacePath));
+  if (path.dirname(directory) !== store.path) {
+    throw new ConfigStoreError('Classification directory is outside the verified store.', 'invalid_listing_standards');
+  }
+  const stat = fs.lstatSync(directory, { throwIfNoEntry: false });
+  if (!stat || stat.isSymbolicLink() || !stat.isDirectory() ||
+      fs.realpathSync.native(directory) !== path.join(store.realPath, path.basename(directory))) {
+    throw new ConfigStoreError('Classification directory must be a real directory inside the verified store.', 'invalid_listing_standards');
+  }
+  return directory;
+}
 
 function stagingDirFor(storePath: string, hash: string): string {
   return path.join(storePath, `.classification-staging-${hash}`);
@@ -797,3 +810,58 @@ export async function updateClassificationPolicy(
   }
 }
 
+export function readListingStandardsFile(workspacePath: string): { content: string | null; hash: string | null; bundleHash: string } {
+  const directory = verifiedListingStandardsDirectory(workspacePath);
+  const manifest = readStrictManifestFromDirectory(directory);
+  if (manifest.lifecycle !== 'active' || getActiveHash(workspacePath) !== manifest.bundleHash) throw new ConfigStoreError('Listing standards require active classification configuration.', 'invalid_active_manifest');
+  const file = path.join(directory, 'listing-completeness.json');
+  const stat = fs.lstatSync(file, { throwIfNoEntry: false });
+  if (!stat) return { content: null, hash: null, bundleHash: manifest.bundleHash };
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new ConfigStoreError('Listing standards must be a regular file.', 'invalid_listing_standards');
+  const content = fs.readFileSync(file, 'utf-8');
+  return { content, hash: sha256Hex(content), bundleHash: manifest.bundleHash };
+}
+
+export async function writeListingStandardsFile(
+  workspacePath: string,
+  expectedBundleHash: string,
+  expectedDocumentHash: string | null,
+  content: string,
+  message: string,
+): Promise<{ commitHash: string | null }> {
+  const release = await acquireConfigLock(workspacePath);
+  const file = path.join(classificationDir(workspacePath), 'listing-completeness.json');
+  const relative = 'store/classification/listing-completeness.json';
+  let previous: string | null = null;
+  let wroteFile = false;
+  try {
+    const directory = verifiedListingStandardsDirectory(workspacePath);
+    const manifest = readStrictManifestFromDirectory(directory);
+    if (manifest.lifecycle !== 'active' || getActiveHash(workspacePath) !== manifest.bundleHash) throw new ConfigStoreError('Listing standards require active classification configuration.', 'invalid_active_manifest');
+    const stat = fs.lstatSync(file, { throwIfNoEntry: false });
+    if (stat) {
+      if (stat.isSymbolicLink() || !stat.isFile()) throw new ConfigStoreError('Listing standards must be a regular file.', 'invalid_listing_standards');
+      previous = fs.readFileSync(file, 'utf-8');
+    }
+    if ((previous === null ? null : sha256Hex(previous)) !== expectedDocumentHash) {
+      throw new ConfigStoreConflictError('Listing standards changed since preview.');
+    }
+    assertNoPreStagedPaths(workspacePath);
+    fs.writeFileSync(file, content, 'utf-8');
+    wroteFile = true;
+    const staged = stagePathsViaGit(workspacePath, [relative]);
+    if (staged.length !== 1 || staged[0] !== relative) throw new ConfigStoreError('Refusing to commit paths outside listing standards.', 'git_out_of_scope');
+    const committed = runGit(workspacePath, ['commit', '-m', message, '--', relative]);
+    if (committed.status !== 0) throw new ConfigStoreError(`Listing standards Git commit failed: ${committed.stdout}`, 'git_commit_failed');
+    return { commitHash: readGitHead(workspacePath) };
+  } catch (error) {
+    if (wroteFile) {
+      if (previous === null) fs.rmSync(file, { force: true });
+      else fs.writeFileSync(file, previous, 'utf-8');
+      runGit(workspacePath, ['reset', '--', relative]);
+    }
+    throw error;
+  } finally {
+    await release();
+  }
+}

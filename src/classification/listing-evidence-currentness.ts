@@ -1,3 +1,4 @@
+
 /**
  * Listing-Evidence Currentness (issue #366).
  *
@@ -12,36 +13,36 @@
  * (grandfather path handles absence before comparing).
  */
 import { findItemById, findCurationDataJsonById } from '../db/repositories/onboarding-item-repo';
-import { findWorkspace } from '../db/repositories/workspace-repo';
-import { getEvidenceByRun } from '../db/repositories/classification-run-repo';
-import { blockingPreparationFields } from '../db/repositories/preparation-gap-repo';
-import {
-  buildClaimUnits,
-  deterministicClaimCheck,
-  eligibleEvidenceFor,
-  hashEvidenceBundle,
-  hashFinalListing,
-  type EligibleEvidence,
-  type FinalListingInput,
-} from './listing-evidence';
+import { findWorkspace, findWorkspacePathById } from '../db/repositories/workspace-repo';
+import { getCurrentItemEvidenceView, acceptedEvidenceToClassificationEvidence } from '../onboarding/item-evidence';
+import { findGateRunById } from '../db/repositories/classification-run-repo';
+import { findListingStandard } from '../onboarding/listing-standards';
+import { selectRunListingClassificationTarget } from './classification-readiness';
+import { buildClaimUnits, deterministicClaimCheck, eligibleEvidenceFor, hashAcceptedEvidenceBundle, hashFinalListing, type EligibleEvidence, type FinalListingInput } from './listing-evidence';
 import { captureModelPolicySnapshot } from '../onboarding/model-policy-snapshot';
+import type { Product } from '../shared/schemas/product';
 
 export interface ListingEvidenceCurrentHashes {
   listingHash: string;
   evidenceHash: string;
   modelPolicyDigest: string;
-  /** Canonical selected-source authority bound into listingHash (issue #367).
-   * A `PUT /items/:id` change to `source_url` stales the record; empty only
-   * when the item row is unreadable (fail-closed mismatch).
-   */
+  /** Current accepted snapshot authority hash; empty when stale or unavailable. */
   sourceAuthority: string;
+  /** Required fields from the exact active standard selected for the current run. */
+  requiredFields: string[];
 }
+export type DraftAssetProvenance = NonNullable<Product['metadata']['imageProvenance']>[number];
 
-/** Frozen draft projection being released (title/description/variantFacts). */
+/** Exact final-listing projection being checked (live or frozen draft). */
 export interface DraftListingProjection {
   title: string | null;
   description: string | null;
   variantFacts: Record<string, string>;
+  fields?: Record<string, unknown>;
+  requiredFields?: string[];
+  classificationRunId?: string;
+  /** The validated final ShopSite product, including canonical media provenance. */
+  product?: Pick<Product, 'core' | 'customFields' | 'metadata'>;
 }
 
 /** Hashes for a frozen draft artifact (change-set gate compares the record against the draft). */
@@ -125,162 +126,161 @@ export function currentPolicyDigestFor(workspacePath?: string, workspaceId?: str
   return 'policy_unavailable';
 }
 
-/** Canonical selected-source authority for one item (issue #367 gap 5).
- * `distributor_record` items bind `distributor:<upc>` (source_url stays NULL
- * by Amendment A); official-page items bind the canonical lowercased
- * `official:<url>` (or `official:unselected` when no URL is selected yet).
- * A `PUT /items/:id` source change therefore changes this string, and the
- * verify revision + gate comparisons below go stale. Empty only when the
- * item row is unreadable (fail-closed mismatch). Pure read of the live row.
- */
-export function currentSourceAuthority(itemId: string): string {
+/** Accepted authority changes with live source state; raw source URLs are not authority. */
+export function currentSourceAuthority(itemId: string, workspaceId?: string): string {
   try {
-    const item = findItemById(itemId);
-    if (!item) return '';
-    if (item.sourceType === 'distributor_record') return `distributor:${item.upc}`;
-    const raw = typeof item.sourceUrl === 'string' ? item.sourceUrl.trim() : '';
-    if (!raw) return 'official:unselected';
-    return `official:${raw.toLowerCase()}`;
+    const workspace = workspaceId ? null : findWorkspace();
+    const resolvedWorkspaceId = workspaceId ?? workspace?.id;
+    if (!resolvedWorkspaceId) return '';
+    const current = getCurrentItemEvidenceView(resolvedWorkspaceId, itemId);
+    return current.status === 'accepted' && current.evidence ? current.evidence.authorityHash : '';
   } catch {
     return '';
   }
 }
+
+const VARIANT_FIELD_NAMES = new Map([
+  ['color', 'color'], ['size', 'size'], ['weight', 'weight'], ['dimensions', 'dimensions'],
+  ['count', 'count'], ['packcount', 'packCount'], ['casepack', 'casePack'],
+  ['flavor', 'flavor'], ['formula', 'formula'], ['material', 'material'],
+  ['productform', 'productForm'], ['species', 'species'], ['unitofmeasure', 'unitOfMeasure'],
+]);
+
+function acceptedVariantFacts(evidence: NonNullable<ReturnType<typeof getCurrentItemEvidenceView>['evidence']>): Record<string, string> | null {
+  const values = new Map<string, Set<string>>();
+  for (const fact of evidence.facts) {
+    const key = fact.field.trim().toLowerCase().replace(/[\s_-]+/gu, '');
+    if (!VARIANT_FIELD_NAMES.has(key)) continue;
+    const entries = values.get(key) ?? new Set<string>();
+    entries.add(fact.value.trim());
+    values.set(key, entries);
+  }
+  const result: Record<string, string> = {};
+  for (const [key, entries] of values) {
+    if (entries.size !== 1) return null;
+    result[VARIANT_FIELD_NAMES.get(key)!] = [...entries][0]!;
+  }
+  return result;
+}
+
+function resolveRequiredFields(
+  workspacePath: string,
+  workspaceId: string,
+  itemId: string,
+  runId: string,
+  projection?: DraftListingProjection,
+): string[] | null {
+  const item = findItemById(itemId);
+  const run = findGateRunById(runId);
+  if (!item || !run || run.workspaceId !== workspaceId || run.productSku !== item.upc ||
+      (run.onboardingItemId !== null && run.onboardingItemId !== itemId)) return null;
+  const target = selectRunListingClassificationTarget({ workspaceId, runId });
+  if (target.source === 'none' || !target.categoryId || !target.productTypeId) return null;
+  const standard = findListingStandard(workspacePath, target.categoryId, target.productTypeId);
+  if (!standard) return null;
+  const fields = [...new Set(standard.requirements.filter(requirement => requirement.required).map(requirement => requirement.field))].sort();
+  if (projection?.requiredFields !== undefined) {
+    const supplied = [...new Set(projection.requiredFields)].sort();
+    if (supplied.join('\\0') !== fields.join('\\0')) return null;
+  }
+  return fields;
+}
+
 export function currentListingEvidenceHashes(
   itemId: string,
   parsedCuration?: Record<string, unknown> | null,
   policyContext?: { workspacePath?: string; workspaceId?: string },
+  projection?: DraftListingProjection,
+  runIdOverride?: string,
 ): ListingEvidenceCurrentHashes {
-  const empty: ListingEvidenceCurrentHashes = { listingHash: '', evidenceHash: '', modelPolicyDigest: '', sourceAuthority: '' };
+  const empty: ListingEvidenceCurrentHashes = { listingHash: '', evidenceHash: '', modelPolicyDigest: '', sourceAuthority: '', requiredFields: [] };
   const item = findItemById(itemId);
   if (!item) return empty;
-  // (row loaded above; `item` here is the live row — authority binds it)
-  const sourceAuthority = currentSourceAuthority(itemId);
+  const workspace = policyContext?.workspaceId ? null : findWorkspace();
+  const workspaceId = policyContext?.workspaceId ?? workspace?.id;
+  const workspacePath = policyContext?.workspacePath ?? (workspaceId ? findWorkspacePathById(workspaceId) : null);
+  if (!workspaceId || !workspacePath) return empty;
   const curation = parsedCuration ?? asRecord(findCurationDataJsonById(itemId) ?? null) ?? {};
+  const runId = runIdOverride ?? projection?.classificationRunId ??
+    (typeof curation.classificationRunId === 'string' ? curation.classificationRunId : null);
+  if (!runId) return empty;
+  let requiredFields: string[] | null;
+  try { requiredFields = resolveRequiredFields(workspacePath, workspaceId, itemId, runId, projection); }
+  catch { return empty; }
+  if (!requiredFields) return empty;
+  let accepted;
+  try { accepted = getCurrentItemEvidenceView(workspaceId, itemId); }
+  catch { return empty; }
+  if (accepted.status !== 'accepted' || !accepted.evidence || accepted.evidence.sku !== item.upc) return empty;
+
   const extraction = asRecord(
-    typeof item.extractionData === 'string'
-      ? item.extractionData
-      : JSON.stringify(item.extractionData ?? {}),
+    typeof item.extractionData === 'string' ? item.extractionData : JSON.stringify(item.extractionData ?? {}),
   ) ?? {};
-  const curationTitleSlot = projectedCuratedString(curation.curatedTitle);
-  const extractionTitle = readString(extraction.title);
-  const title = curationTitleSlot.text ?? (curationTitleSlot.removed ? null : (extractionTitle ?? (item.name?.trim() ? item.name : null)));
-  const curationDescriptionSlot = projectedCuratedString(curation.curatedDescription);
-  const extractionDescription = readString(extraction.description);
-  const description = curationDescriptionSlot.text ?? (curationDescriptionSlot.removed ? null : extractionDescription);
-
-  const variantFacts: Record<string, string> = {};
-  const variantAttrs = extraction.variantAttributes;
-  if (variantAttrs && typeof variantAttrs === 'object') {
-    for (const [axis, value] of Object.entries(variantAttrs as Record<string, unknown>)) {
-      if (typeof value === 'string' && value.trim()) variantFacts[String(axis).trim()] = value.trim();
-    }
+  const curationTitle = projectedCuratedString(curation.curatedTitle);
+  const curationDescription = projectedCuratedString(curation.curatedDescription);
+  const title = projection
+    ? projection.title
+    : curationTitle.text ?? (curationTitle.removed ? null : (readString(extraction.title) ?? (item.name?.trim() ? item.name : null)));
+  const description = projection
+    ? projection.description
+    : curationDescription.text ?? (curationDescription.removed ? null : readString(extraction.description));
+  const variantFacts = projection ? projection.variantFacts : acceptedVariantFacts(accepted.evidence);
+  if (!variantFacts) return empty;
+  if (!projection) {
+    const curatedWeight = readString(curation.curatedWeight);
+    if (curatedWeight) variantFacts.weight = curatedWeight;
   }
-  const curatedWeight = readString(curation.curatedWeight);
-  const extractionWeight = readString(extraction.weight);
-  const weight = curatedWeight ?? extractionWeight;
-  if (weight) variantFacts.weight = weight;
-
-  let requiredFields: string[];
-  try {
-    requiredFields = blockingPreparationFields();
-  } catch {
-    requiredFields = ['title'];
-  }
-
-  // NOTE (issue #367 gap 5): the stored record hash stays text+bundle-only
-  // (stamp sites in onboarding-routes/product-curator are owned by the #366
-  // worker); source-authority invalidation rides the verify revision token
-  // plus explicit PUT invalidation instead of this hash.
   const listingHash = hashFinalListing({ title, description, variantFacts, requiredFields });
-  const runId = typeof curation.classificationRunId === 'string' ? curation.classificationRunId : null;
-  let evidenceHash = '';
-  if (runId) {
-    try {
-      const evidence = getEvidenceByRun(runId);
-      evidenceHash = hashEvidenceBundle(eligibleEvidenceFor(evidence, item.upc));
-    } catch {
-      evidenceHash = '';
-    }
-  }
-
-   // Live policy digest when the caller supplies workspace context (release
-   // paths); '' otherwise (advisory/review path — digest leg inert,
-   // listing/evidence staleness still enforced).
-   const modelPolicyDigest = currentPolicyDigestFor(policyContext?.workspacePath, policyContext?.workspaceId);
-
-   return { listingHash, evidenceHash, modelPolicyDigest, sourceAuthority };
+  let evidenceHash: string;
+  try {
+    const eligible = eligibleEvidenceFor(acceptedEvidenceToClassificationEvidence(accepted.evidence, runId), item.upc);
+    evidenceHash = hashAcceptedEvidenceBundle(accepted.evidence.evidenceHash, eligible);
+  } catch { return empty; }
+  return {
+    listingHash,
+    evidenceHash,
+    modelPolicyDigest: currentPolicyDigestFor(policyContext?.workspacePath, workspaceId),
+    sourceAuthority: accepted.evidence.authorityHash,
+    requiredFields,
+  };
 }
 
 /**
- * Shared draft-variant projection (issue #366 gap 4): the facts actually
- * included in the released artifact — every extraction `variantAttributes`
- * entry plus the draft's own weight (curated-weight writes land in the
- * draft's weight; the change-set gate has no live curation text to read).
- * Change-set approval, package export, and direct push MUST all use this
- * helper so the frozen artifact hashes identically at every gate.
+ * Draft variant facts come from the exact current accepted snapshot, never
+ * from mutable extraction JSON. The frozen draft's own weight is retained.
  */
-export function draftVariantFactsFor(itemId: string, draftWeight: string | null): Record<string, string> {
+export function draftVariantFactsFor(itemId: string, draftWeight: string | null, workspaceId?: string): Record<string, string> {
   const facts: Record<string, string> = {};
   try {
-    const item = findItemById(itemId);
-    const extraction = asRecord(
-      typeof item?.extractionData === 'string'
-        ? item.extractionData
-        : JSON.stringify(item?.extractionData ?? {}),
-    ) ?? {};
-    const attrs = extraction.variantAttributes;
-    if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
-      for (const [axis, value] of Object.entries(attrs as Record<string, unknown>)) {
-        if (typeof value === 'string' && value.trim()) facts[String(axis).trim()] = value.trim();
+    const workspace = workspaceId ? null : findWorkspace();
+    const resolvedWorkspaceId = workspaceId ?? workspace?.id;
+    if (resolvedWorkspaceId) {
+      const current = getCurrentItemEvidenceView(resolvedWorkspaceId, itemId);
+      if (current.status === 'accepted' && current.evidence) {
+        Object.assign(facts, acceptedVariantFacts(current.evidence) ?? {});
       }
     }
   } catch {
-    // Live state unreadable: weight-only projection still fails closed via
-    // hash mismatch at the gate.
+    // Evidence hash below is empty when the accepted view is unavailable.
   }
   const weight = typeof draftWeight === 'string' && draftWeight.trim() ? draftWeight.trim() : null;
   if (weight) facts.weight = weight;
   return facts;
 }
 
-/**
- * Hashes for a frozen change-set draft artifact (issue #366 item 3): the
- * change-set gate compares the record against the draft being released —
- * draft title/description over the LIVE eligible bundle and live required
- * fields — never against live curated text a stale draft has superseded.
- */
-export function draftListingEvidenceHashes(itemId: string, draft: DraftListingProjection, policyContext?: { workspacePath?: string; workspaceId?: string }): DraftListingHashes {
-  const item = findItemById(itemId);
-  const empty: DraftListingHashes = { listingHash: '', evidenceHash: '', modelPolicyDigest: '', requiredFields: [] };
-  if (!item) return empty;
-  const curation = asRecord(findCurationDataJsonById(itemId) ?? null) ?? {};
-  let requiredFields: string[];
-  try {
-    requiredFields = blockingPreparationFields();
-  } catch {
-    requiredFields = ['title'];
-  }
-  const listingHash = hashFinalListing({
-    title: draft.title,
-    description: draft.description,
-    variantFacts: draft.variantFacts,
-    requiredFields,
-  });
-  const runId = typeof curation.classificationRunId === 'string' ? curation.classificationRunId : null;
-  let evidenceHash = '';
-  if (runId) {
-    try {
-      evidenceHash = hashEvidenceBundle(eligibleEvidenceFor(getEvidenceByRun(runId), item.upc));
-    } catch {
-      evidenceHash = '';
-    }
-  }
-  // Live policy digest when the caller supplies workspace context;
-  // '' otherwise (digest leg inert — the empty string never equals a real
-  // stamped digest, so policy drift can only ever refuse, never bypass).
-  // Callers on release paths MUST pass context (enforced at the call sites).
-  const modelPolicyDigest = currentPolicyDigestFor(policyContext?.workspacePath, policyContext?.workspaceId);
-  return { listingHash, evidenceHash, modelPolicyDigest, requiredFields };
+/** Hash the exact supplied draft against current accepted evidence and standard fields. */
+export function draftListingEvidenceHashes(
+  itemId: string,
+  draft: DraftListingProjection,
+  policyContext?: { workspacePath?: string; workspaceId?: string },
+): DraftListingHashes {
+  const hashes = currentListingEvidenceHashes(itemId, undefined, policyContext, draft);
+  return {
+    listingHash: hashes.listingHash,
+    evidenceHash: hashes.evidenceHash,
+    modelPolicyDigest: hashes.modelPolicyDigest,
+    requiredFields: hashes.requiredFields,
+  };
 }
 
 /**

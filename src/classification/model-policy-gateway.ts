@@ -20,8 +20,9 @@
  * already-authorized provider.
  */
 import { sha256Hex } from '../shared/stable-id';
-import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
 import { isPrivateLanHost } from '../ai/provider-connections';
+import type { GenerativeCopyWorkload, ModelPolicyConfigV2 } from '../shared/schemas/classification';
+
 
 export type ProviderLocality = 'local' | 'trusted_lan' | 'cloud' | 'hybrid';
 
@@ -49,8 +50,9 @@ export type ProtectedOperation =
   // default provider/model like sitemap_selection, never run-bound.
   | 'listing_evidence_check'
   // Slice C #371: bounded closed-set family-membership proposals route
-  // through the frozen workspace policy like every other model call.
-  | 'family_membership_proposal';
+  | 'family_membership_proposal'
+  // #379: bounded action-ID selection for supplemental item evidence; no generated execution targets.
+  | 'item_acquisition_action_selection';
 
 /**
  * Classification stage key used for `stageOverrides` lookup per protected
@@ -73,6 +75,7 @@ const PROTECTED_OPERATION_STAGE: Readonly<Record<ProtectedOperation, string | nu
   profile_generation: null,
   listing_evidence_check: null,
   family_membership_proposal: null,
+  item_acquisition_action_selection: null,
 };
 
 /** Stable denial reason codes (typed; serializable). */
@@ -126,6 +129,8 @@ export interface ModelPolicyView {
   readonly stageOverrides: Readonly<Record<string, StageOverrideView>>;
   readonly textDataSharing: ClassificationDataSharingPolicy;
   readonly imageDataSharing: ClassificationDataSharingPolicy;
+  /** Separate explicit text-generation authority; never inherits judgment routes or sharing. */
+  readonly copyGeneration: Readonly<GenerativeCopyWorkload> | null;
   /** Optional binding to the runtime snapshot hash (tamper detection). */
   readonly snapshotHash?: string;
   readonly policyDigest: string;
@@ -196,7 +201,9 @@ export function buildModelPolicyView(
       fallbackModel: override.fallbackModel,
     };
   }
-
+  const copyGeneration = policy.copyGeneration
+    ? { provider: policy.copyGeneration.provider, model: policy.copyGeneration.model, textDataSharing: policy.copyGeneration.textDataSharing }
+    : null;
   const digestPayload = {
     defaultProvider: policy.defaultProvider,
     defaultModel: policy.defaultModel,
@@ -204,7 +211,7 @@ export function buildModelPolicyView(
     stageOverrides,
     textDataSharing: policy.textDataSharing,
     imageDataSharing: policy.imageDataSharing,
-    ...(options.snapshotHash ? { snapshotHash: options.snapshotHash } : {}),
+    copyGeneration,
   };
   const policyDigest = sha256Hex(JSON.stringify(digestPayload));
 
@@ -217,6 +224,7 @@ export function buildModelPolicyView(
     stageOverrides: deepFreeze(stageOverrides),
     textDataSharing: policy.textDataSharing,
     imageDataSharing: policy.imageDataSharing,
+    copyGeneration: copyGeneration ? Object.freeze(copyGeneration) : null,
     ...(options.snapshotHash ? { snapshotHash: options.snapshotHash } : {}),
     policyDigest,
   });
@@ -229,11 +237,16 @@ export function buildModelPolicyView(
  */
 export function assertModelPolicyIntact(view: ModelPolicyView): void {
   if (!view || !view.policyDigest) return;
-  const recomputed = buildModelPolicyView(
-    view as unknown as ModelPolicyConfigV2,
-    view.snapshotHash ? { snapshotHash: view.snapshotHash } : {},
-  );
-  if (recomputed.policyDigest !== view.policyDigest) {
+  const recomputed = sha256Hex(JSON.stringify({
+    defaultProvider: view.defaultProvider,
+    defaultModel: view.defaultModel,
+    providerLocalities: view.providerLocalities,
+    stageOverrides: view.stageOverrides,
+    textDataSharing: view.textDataSharing,
+    imageDataSharing: view.imageDataSharing,
+    copyGeneration: view.copyGeneration,
+  }));
+  if (recomputed !== view.policyDigest) {
     throw new ModelPolicyDeniedError('policy_tampered', 'evidence_extraction');
   }
 }
@@ -362,24 +375,26 @@ export function resolveModelRoute(
   requiresImage = false,
 ): ModelRoute {
   assertModelPolicyIntact(view);
-
+  const copyGeneration = operation === 'distributor_copy_consolidation' ? view.copyGeneration : null;
+  if (operation === 'distributor_copy_consolidation' && !copyGeneration) {
+    throw new ModelPolicyDeniedError('policy_disabled', operation, undefined, 'explicit copy-generation authority is not configured');
+  }
   const stageName = PROTECTED_OPERATION_STAGE[operation];
   const override = stageName ? view.stageOverrides[stageName] : undefined;
-  const provider = override?.provider ?? view.defaultProvider;
-  const model = override?.model ?? view.defaultModel;
-
-  const route = resolveRoute(
+  const provider = copyGeneration?.provider ?? override?.provider ?? view.defaultProvider;
+  const model = copyGeneration?.model ?? override?.model ?? view.defaultModel;
+  return resolveRoute(
     provider,
     model,
     view,
     operation,
     deps,
-    override?.fallbackProvider ?? null,
-    override?.fallbackModel ?? null,
-    Boolean(override?.provider ?? override?.model),
+    copyGeneration ? null : override?.fallbackProvider ?? null,
+    copyGeneration ? null : override?.fallbackModel ?? null,
+    copyGeneration ? false : Boolean(override?.provider ?? override?.model),
     requiresImage,
+    copyGeneration?.textDataSharing ?? view.textDataSharing,
   );
-  return route;
 }
 
 function resolveRoute(
@@ -392,6 +407,7 @@ function resolveRoute(
   fallbackModel: string | null,
   fromOverride: boolean,
   requiresImage = false,
+  textDataSharing: ClassificationDataSharingPolicy = view.textDataSharing,
 ): ModelRoute {
   if (!provider || !model) {
     throw new ModelPolicyDeniedError('route_unknown', operation, provider || undefined);
@@ -400,10 +416,10 @@ function resolveRoute(
   if (!locality) {
     throw new ModelPolicyDeniedError('locality_undeclared', operation, provider);
   }
-  if ((view.textDataSharing === 'local_only' || view.textDataSharing === 'this_device_only') && locality !== 'local') {
+  if ((textDataSharing === 'local_only' || textDataSharing === 'this_device_only') && locality !== 'local') {
     throw new ModelPolicyDeniedError('text_local_only_non_local_provider', operation, provider);
   }
-  if (view.textDataSharing === 'trusted_lan_allowed' && locality !== 'local' && locality !== 'trusted_lan') {
+  if (textDataSharing === 'trusted_lan_allowed' && locality !== 'local' && locality !== 'trusted_lan') {
     throw new ModelPolicyDeniedError('text_local_only_non_local_provider', operation, provider);
   }
 
@@ -436,7 +452,7 @@ function resolveRoute(
     }
   } else if (locality === 'trusted_lan') {
     const isLoopback = deps.isLoopback ?? DEFAULT_IS_LOOPBACK;
-    let isLan = false;
+    let isLan: boolean;
     try {
       const host = new URL(baseUrl).hostname;
       isLan = isLoopback(baseUrl) || isPrivateLanHost(host);
@@ -473,6 +489,7 @@ export function resolveFallbackRoute(
   requiresImage = false,
 ): ModelRoute | null {
   assertModelPolicyIntact(view);
+  if (operation === 'distributor_copy_consolidation') return null;
   const stageName = PROTECTED_OPERATION_STAGE[operation];
   const override = stageName ? view.stageOverrides[stageName] : undefined;
   const fallbackProvider = override?.fallbackProvider ?? null;

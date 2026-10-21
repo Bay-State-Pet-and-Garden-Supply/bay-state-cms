@@ -312,6 +312,69 @@ describe('broker body and content-type enforcement', () => {
   });
 });
 
+describe('broker in-flight safety', () => {
+  it('serializes concurrent transfers so each ceiling includes completed bytes', async () => {
+    const calls: BrokerTransportRequest[] = [];
+    const firstStarted = Promise.withResolvers<void>();
+    const releaseFirst = Promise.withResolvers<void>();
+    let active = 0;
+    let maximumActive = 0;
+    const transport: BrokerTransport = async (req) => {
+      calls.push(req);
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      if (calls.length === 1) {
+        firstStarted.resolve();
+        await releaseFirst.promise;
+      }
+      active -= 1;
+      return {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+        body: Buffer.alloc(req.maxBodyBytes),
+        connectedIp: req.validatedAddresses[0] ?? null,
+      };
+    };
+    const budget = {
+      maxResponseBytesPerResponse: 1024,
+      maxTotalResponseBytesTransferred: 1536,
+      maxTotalResponseBytesDecompressed: 1536,
+    };
+    const ledger = new BudgetLedger(resolveInvestigationBudget(budget));
+    const firstBroker = brokerFor([GOOD], { transport, budget, ledger });
+    const secondBroker = brokerFor([GOOD], { transport, budget, ledger });
+    const pending = Promise.all([firstBroker.fetch(GOOD), secondBroker.fetch(GOOD), firstBroker.fetch(GOOD)]);
+    await firstStarted.promise;
+    releaseFirst.resolve();
+    await pending;
+    expect(maximumActive).toBe(1);
+    expect(calls.map((request) => request.maxBodyBytes)).toEqual([1024, 512, 0]);
+    expect(ledger.snapshot().responseBytesTransferred).toBe(1536);
+  });
+
+  it('rejects compressed upstream responses even when identity was requested', async () => {
+    const { transport } = canned(() => ({
+      status: 200,
+      headers: { 'content-type': 'text/html', 'content-encoding': 'gzip' },
+      body: 'compressed',
+    }));
+    await expect(brokerFor([GOOD], { transport }).fetch(GOOD)).rejects.toThrowError(/content_encoding_forbidden/);
+  });
+
+  it('aborts an active upstream transport when its owner cancels', async () => {
+    const controller = new AbortController();
+    const entered = Promise.withResolvers<void>();
+    const transport: BrokerTransport = (req) => new Promise((_, reject) => {
+      entered.resolve();
+      req.signal?.addEventListener('abort', () => reject(new BrokerError('cancelled', 'broker request cancelled')), { once: true });
+    });
+    const pending = brokerFor([GOOD], { transport }).fetch(GOOD, { signal: controller.signal });
+    await entered.promise;
+    controller.abort();
+    await expect(pending).rejects.toThrowError(/cancelled/);
+  });
+});
+
 describe('broker TLS validation (live handshake)', () => {
   it('refuses a self-signed upstream certificate over a real TLS handshake', async () => {
     let opensslOk = true;

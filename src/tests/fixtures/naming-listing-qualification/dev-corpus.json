@@ -367,7 +367,7 @@
 "listingTitle": "Acme Chicken Dinner",
 "mode": "singleton",
 "nameExpected": {
-"kind": "missing"
+"kind": "resolved"
 },
 "nameSpans": [
 {
@@ -376,7 +376,7 @@
 "span": "Acme Chicken Dinner"
 }
 ],
-"note": "No size/capacity/weight/count anywhere in eligible evidence: naming holds instead of guessing. Title without quantity is still fully evidenced.",
+"note": "N2 applicable-variant rule (spec 6.1): size is not a universal naming requirement, so a complete brand+title with no evidenced quantity resolves instead of holding. The missing_size hold now applies only when no complete product identity exists.",
 "requiredFields": [
 "title"
 ],

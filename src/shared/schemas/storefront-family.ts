@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FAMILY_VARIANT_RULE_VERSIONS, type FamilyVariantRuleVersion } from '../../classification/family-variant-rule';
+import { FAMILY_VARIANT_RULE_VERSIONS } from '../../classification/family-variant-rule';
 
 /**
  * Storefront-family plan wire schema (issues #368–373).
@@ -23,9 +23,31 @@ export const StorefrontFamilyPlanStatusSchema = z.enum([
 ]);
 export type StorefrontFamilyPlanStatus = z.infer<typeof StorefrontFamilyPlanStatusSchema>;
 
+const FamilyOriginHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
+export const FamilyMemberOriginSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('onboarding'),
+    itemId: z.string().min(1),
+    runId: z.string().min(1),
+    runCurrentnessHash: FamilyOriginHashSchema,
+    evidenceId: z.string().min(1),
+    evidenceHash: FamilyOriginHashSchema,
+  }).strict(),
+  z.object({
+    kind: z.literal('catalog'),
+    approvedCommit: z.string().regex(/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/),
+    productHash: FamilyOriginHashSchema,
+    classificationRunId: z.string().min(1).nullable(),
+    classificationHash: FamilyOriginHashSchema,
+  }).strict(),
+]);
+export type FamilyMemberOrigin = z.infer<typeof FamilyMemberOriginSchema>;
+
 const FamilyPlanMemberSchema = z
   .object({
     sku: z.string().min(1),
+    /** Absent only in immutable history; new family execution requires a bound origin. */
+    origin: FamilyMemberOriginSchema.optional(),
     comparableOunces: z.number().positive().nullable().default(null),
     sizeRaw: z.string().nullable().default(null),
     retailUnit: z.string().nullable().default(null),
@@ -140,6 +162,10 @@ export const StorefrontFamilyPlanSchema = z.object({
   readHash: z.string().min(1),
   writeHash: z.string().min(1),
   linkedChangeSetId: z.string().nullable().default(null),
+  /** Set only after the complete approved Git commit exists, never on draft materialization. */
+  appliedCommit: z.string().regex(/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/).nullable().optional(),
+  /** Timestamp the plan reached applied for its complete approved commit. */
+  appliedAt: z.string().nullable().optional(),
   decisions: z.array(FamilyPlanDecisionSchema).default([]),
   adoptionOrigin: AdoptionOriginSchema.optional(),
   joinOrigin: JoinOriginSchema.optional(),

@@ -807,6 +807,7 @@ export function stageFamilyJoin(input: StageFamilyJoinInput): { row: StorefrontF
   };
   const plan: StorefrontFamilyPlan = {
     id: randomUUID(),
+    appliedAt: null,
     workspaceId: input.workspaceId,
     ruleVersion,
     planVersion: 'storefront-family-plan-v1',

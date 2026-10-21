@@ -1,417 +1,360 @@
-# TypeSafe onboarding expansion specification
+# Evidence-first, item-local onboarding specification
 
-**Date:** 2026-10-19  
-**Status:** Owner-approved direction; complete specification for implementation review. No runtime implementation or live qualification is claimed.  
-**Scope:** Official product-page candidate selection; storefront Product Families, Subproducts, and Short Names; evidence-backed product naming; listing-evidence support and contradiction checks.
+**Status:** Owner-confirmed target architecture; specification for implementation. The design interview is complete. Runtime cutover, live qualification, paid acquisition, and production activation are not claimed or authorized by this document.
 
-**Tracker specification:** [#362 — TypeSafe onboarding expansion](https://github.com/Bay-State-Pet-and-Garden-Supply/bay-state-cms/issues/362), published with `ready-for-agent`.
+**Decision:** [ADR 0042 — evidence-first item-local onboarding](../adr/0042-evidence-first-item-local-onboarding.md). **Delivery:** [Implementation plan](evidence-first-onboarding-implementation-plan.md). **GitHub specification and work graph:** [#362 — evidence-first, item-local onboarding](https://github.com/Bay-State-Pet-and-Garden-Supply/bay-state-cms/issues/362). The issue publishes this specification and links the complete plan and ADR; the prior issue body is archived as superseded history, with the retained family/naming/listing scope preserved.
 
-The owner approved specifying all four capabilities, preserving existing Main Products, using a real member SKU for a new Main Product, searching both the current import and approved catalog, and using product-type-specific Family Variant Rules. Engineering defaults below are explicit, conservative proposal defaults, not claims of measured model performance or authorization to modify the live store.
+The starting inputs are **only UPC, abbreviated Register Name, and Price**. The target is rich, evidence-supported listings with less operator work, not replacement of every model call with TypeSafe. Definitions live in [CONTEXT.md](../../CONTEXT.md); implementation and activation rules live here and in the linked plan.
 
-## 1. Outcome and limits
+## 1. Outcome, confirmed decisions, and limits
 
-The primary outcome is less operator work per correctly reviewed listing, with API cost, incorrect SKU/variant matches, and harmful family merges as guardrails. Replacing remaining chat calls is useful; adding inference to deterministic grouping must earn its cost through improved grouping or reduced review effort.
+Optimize operator effort per correctly reviewed rich listing, subject to exact-item/variant correctness, claim support, image rights, and bounded acquisition cost. Greater completeness is not permission to invent facts; fewer model milliseconds is not proof of better end-to-end throughput.
 
-Deliver all four capabilities through the existing Sourcing → Discovery → Extraction → Curation → Review → Promotion pipeline, using the existing worker, model transport, repositories, review workflow, Git change sets, codec, and ShopSite adapter.
+The owner confirmed:
+
+- Rich listings before review-readiness, against finite product-type-specific **Listing Completeness Standards**, rather than every manufacturer-published fact.
+- Structured UPC sources and static/profile extraction first; broader search and browser collection only as bounded fallbacks for specific missing evidence.
+- Extra bounded acquisition/model spend when it reduces operator work. Production dollar limits and measured savings are not invented by this spec.
+- Per-item acceptance of browser-collected facts after the required authority, sellable-item/variant, provenance, conflict, and rights checks; no reusable healthy-profile prerequisite for that fallback.
+- Retailer corroboration of attributable basic specifications after exact-item matching, not official-page authority or reusable retailer prose/images by default.
+- Explicit operator-approved omissions for designated non-critical requirements. No automatic waiver of identity/variant resolution, rights, required safety information, or classification-required configuration/values.
+- Independent SKU progress/readiness. Shared fetching, model batches, and Curation Cohorts are optimizations, not completion authorities for unrelated items.
+- A separate generative model may write customer-facing descriptions from accepted facts only. Code owns execution; TypeSafe supplies bounded semantic judgments; neither model creates factual authority.
+
+Deliver through the existing Sourcing → Discovery → Extraction → Curation → Review → Promotion pipeline. Preserve the existing worker, repository pattern, shared Zod schemas, frozen model policy, review, Git change sets, codec, and ShopSite adapter. The logical acquisition loop is not a stage-name/schema migration and must not move an item backwards through those stages.
 
 Non-goals:
 
-- No discovery agent, autonomous browsing loop, external web-search provider, generic AI orchestration framework, or new telemetry platform.
-- No runtime model extraction, model-selected source-page variants, inferred image rights, invented product facts, or automatic catalog approval.
-- No migration of historical Curation Cohorts into storefront families. No whole-catalog reclassification, reparenting, or retrospective rewrite of old judgments.
-- No changes to the classifier's catalog-field allowlist. Brand/PF16, Child - Short Name/PF7, native Subproducts, and cross-sell/PF32 remain outside classifier ownership.
-- No new display-only parent products, synthetic UPCs, SKU replacement, automatic changes to existing filenames, or enabling new products. New products remain disabled for the owner's ShopSite review.
-- No changes to existing Curation Cohort readiness, lease ownership, write-once outputs, classification review authority, or the existing qualification/comparator-retirement gates.
+- No generic agent platform, new monitoring platform, Agent Lab restoration, unrestricted browser, CAPTCHA/paywall bypass, credential-bearing browser profile, or model-generated executable adapter.
+- No invented product facts, model-inferred image rights, automatic classification approval, automatic catalog release, enabling new products, synthetic UPCs, duplicate SKU identities, or display-only family parents.
+- No classifier ownership of Brand/PF16, PF7 Short Name, native Subproducts, cross-sell/PF32, identity, price, stock, or listing copy. [ADR 0041](../adr/0041-single-product-classification-contract.md) remains binding: one canonical Category + Product Type per SKU, reviewed-only assignments/removals, configured Attribute Profiles and verified taxonomy pages.
+- No inheritance of product facts/classification from a sibling, source-page option group, approved catalog example, or Curation Cohort.
+- No whole-catalog rewrite, historical family adoption, retrospective conversion of model judgments, maintained legacy orchestration, or silent weakening of existing qualification/comparator-retirement gates.
 
-## 2. Current implementation evidence
+## 2. Current evidence and capability gaps
 
-These are starting facts, not claims that the specified behavior already exists.
+These are primary-code starting points, not claims that the new target is implemented or qualified.
 
-| Area | Existing implementation and consequence |
+| Area | Current evidence and required change |
 |---|---|
-| Official-page retrieval | [source-discovery.ts](../../src/onboarding/source-discovery.ts) uses approved-domain local index and sitemap retrieval. [sitemap-matcher.ts](../../src/onboarding/sitemap-matcher.ts) shortlists up to ten URLs and `selectWithLlm` calls `discovery_candidate_selection`, parses text, and conflates no-pick/service failure in its overlap fallback. This is an existing-chat replacement opportunity. |
-| Official-page authority | [official-page-identity.ts](../../src/onboarding/official-page-identity.ts), [official-page-confirmation.ts](../../src/onboarding/official-page-confirmation.ts), [page-verifier.ts](../../src/onboarding/page-verifier.ts), and [job-queue.ts](../../src/onboarding/job-queue.ts) separately enforce identity, variant, domain, confirmation, and auto-selection conditions. Category Page imports are not the authority for manufacturer product URLs. |
-| Internal grouping | [product-line-grouper.ts](../../src/onboarding/product-line-grouper.ts) removes flavor/life-stage/size/color/modifier terms. Its candidate cohorts coordinate Curation; they are not storefront family authority. |
-| Native family fields | [product-codec.ts](../../src/shopsite/product-codec.ts) preserves Subproducts as raw advanced XML blocks. [product.ts](../../src/shared/schemas/product.ts) has no first-class editable Subproducts relationship. The [field certification](../audits/extra-fields-certification-2026-10-15.md) identifies PF7 as `Child - Short Name`; [classification-ownership.ts](../../src/classification/classification-ownership.ts) protects it from classifier writes. |
-| Naming | [name-consolidation.ts](../../src/classification/stages/name-consolidation.ts), [title-consolidation.ts](../../src/onboarding/title-consolidation.ts), [cohort-name-coordinator.ts](../../src/onboarding/cohort-name-coordinator.ts), and [cohort-curation/titles.ts](../../src/onboarding/cohort-curation/titles.ts) contain singleton/cohort chat naming, deterministic guards, and durable coordinated outputs. Both active naming paths must be migrated. |
-| Listing evidence and review | [onboarding.ts](../../src/shared/schemas/onboarding.ts) stores title/description provenance and semantic validation, but no general per-claim evidence judgment. [review-completeness.ts](../../src/classification/review-completeness.ts), [review-completion-gate.ts](../../src/classification/review-completion-gate.ts), [onboarding-review-repo.ts](../../src/db/repositories/onboarding-review-repo.ts), and [draft-promoter.ts](../../src/onboarding/draft-promoter.ts) enforce readiness and approval. Preparation gaps currently cover correctable title/description gaps, not arbitrary optional fields. |
-| Publication | [change-set-repo.ts](../../src/db/repositories/change-set-repo.ts) stores draft/base JSON per SKU; [change-set-service.ts](../../src/server/services/change-set-service.ts) writes files/index rows in a loop and can commit successful writes despite another item's error. One Git commit does not currently establish all-or-nothing family approval. |
-| Export and drift | [change-set-validation.ts](../../src/validation/change-set-validation.ts), [sync-routes.ts](../../src/server/routes/sync-routes.ts), and [export-routes.ts](../../src/server/routes/export-routes.ts) provide existing validation and publication seams. Export reads approved change-set item JSON; workspace edits alone do not update that approved export payload. |
+| Intake | [imported-identity.ts](../../src/onboarding/imported-identity.ts) preserves raw register values and normalization provenance. Extra spreadsheet columns are optional, never design prerequisites. Known-brand prefix matching is not general brand discovery. |
+| Acquisition | [sourcing/engine.ts](../../src/onboarding/sourcing/engine.ts) uses UPC-first connector/strategy evidence; [source-discovery.ts](../../src/onboarding/source-discovery.ts) uses configured official-domain indexes/sitemaps, not an external search provider. New bounded broader acquisition is required. |
+| Admission | [onboarding.ts](../../src/shared/schemas/onboarding.ts) has official-page/distributor extraction routes; [manual-evidence-service.ts](../../src/onboarding/manual-evidence-service.ts) stores operator-attributed values and attestations. Browser fallback and retailer corroboration need truthful new evidence bindings, not relabeling as manual or official. |
+| Browser | [local-harness.ts](../../src/onboarding/browser-investigation/local-harness.ts) defers investigation rendering by default. [render-proxy.ts](../../src/onboarding/browser-investigation/render-proxy.ts) contains validating CONNECT interception, so older comments about universal CONNECT refusal are not proof of the current implementation. Real isolated HTTPS navigation is still an explicit qualification requirement. The separate [rendered-page-runner.ts](../../src/extraction-worker/browser/rendered-page-runner.ts) exists, but its presence is not proof of the fallback's complete security contract. |
+| Richness | [preparation-gap-repo.ts](../../src/db/repositories/preparation-gap-repo.ts) derives title and optionally description requiredness. Separate review checks cover basics, but this is not a product-type-specific rich-listing standard or a general omission mechanism. |
+| Existing decisions | [name-candidates.ts](../../src/classification/name-candidates.ts), [name-decision.ts](../../src/classification/name-decision.ts), and [listing-evidence-service.ts](../../src/classification/listing-evidence-service.ts) provide candidate/judgment/check seams. Their existence does not establish end-to-end listing quality. |
+| Completion | [promotion-gate.ts](../../src/classification/promotion-gate.ts) and [review-completion-gate.ts](../../src/classification/review-completion-gate.ts) consume parent-cohort authority; [job-queue.ts](../../src/onboarding/job-queue.ts) owns claims/dispatch. Move independent listing authority to the item, not merely remove parent checks. |
+| Copy | [distributor-copy-consolidator.ts](../../src/onboarding/distributor-copy-consolidator.ts) and [product-curator.ts](../../src/onboarding/product-curator.ts) contain generative copy paths. Replace raw/conflicting-description inputs with accepted facts and check the actual final output. A prompt saying “never invent” is not an evidence gate. |
+| Family/publication | [storefront-family-plan-service.ts](../../src/classification/storefront-family-plan-service.ts), [product-codec.ts](../../src/shopsite/product-codec.ts), and [change-set-service.ts](../../src/server/services/change-set-service.ts) are retained seams. Family deferral already preserves standalone progress; actual linked changes still require strict publication consistency. |
 
-### External contracts
+The [Jev implementation report](../audits/jev-implementation-verification-2026-10-03.md) and [naming/listing qualification report](../audits/naming-listing-qualification/qualification-report.md) do not establish real-batch rich-listing completeness, operator-time savings, or total acquisition cost. Preserve unknowns rather than converting mechanism checks into quality claims.
 
-- TypeSafe [API](https://docs.typesafe.ai/api.md), [state](https://docs.typesafe.ai/concepts/state.md), [Choice](https://docs.typesafe.ai/primitives/choice.md), and [confidence](https://docs.typesafe.ai/confidence.md): code supplies state/options, receives typed judgments/probabilities, and retains control. Question IDs are not model-visible instructions.
-- Closest patterns: [reranking](https://docs.typesafe.ai/cookbooks/rerank_typesafe.md), [entity alignment](https://docs.typesafe.ai/cookbooks/entity_alignment.md), [source-value selection](https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook.md), and [claim/citation verification](https://docs.typesafe.ai/cookbooks/citation_check.md). Their example scores/thresholds are not Bay State acceptance policies.
-- ShopSite [Subproduct FAQ](https://help.shopsite.com/help/current/en-US/sc/pro/working/faq.prod.subproducts.html): adding Subproducts normally hides the main product's own purchase controls; include the main product as its own Subproduct to keep it purchasable. Subproducts can also describe accessories, so an existing native relationship is not automatically proof of a Product Family.
-- ShopSite [database field documentation](https://help.shopsite.com/help/15.0/en-US/sc/pro/upload.fields.html) and repository ShopSite skills govern field/wire behavior. Complete native relationship authoring must be verified with a real, redacted store-family export, not inferred from fixture XML alone.
+## 3. Shared evidence, policy, and execution contracts
 
-## 3. Shared execution contract
+### 3.1 Input and source authority
 
-### 3.1 Decisions, authority, and failures
+Preserve original UPC, register text, price, row identity, and parser/normalization provenance. Normalize identifiers and units conservatively without losing leading zeros or inventing corrected identifiers. UPC is a lookup key, not automatic proof of a retail unit; Register Name is an identity clue, not a full specification. Price remains imported commercial authority and must not select a product/pack or be replaced by distributor/retailer pricing.
 
-Each capability produces a reviewable decision over supplied evidence/options. It does not execute catalog writes. Use Choice and, where independently useful, Noul; the application's existing System One schema supports those primitives. Score/image capabilities are unnecessary for this design.
+Keep **source role** separate from **collection method**:
 
-Persist operation-specific results with: decision ID; workspace/item/SKU or family-plan identity; immutable input hash; relevant evidence/candidate IDs; prompt/rule/model-policy versions; requested and returned model; raw typed answers and distributions; selected probability and concentration confidence where returned; model-call IDs; terminal outcome/reason; producing run/revision. A request with several answers has one producing call ID, not invented calls per answer.
+- Roles: approved manufacturer evidence, qualified distributor evidence, retailer corroboration, operator-attested observations. A website is not official merely because a search result/model says so.
+- Methods: structured connector data, static extraction, rendered/browser collection, operator submission, or existing image/OCR observations. A browser or OCR method creates no source authority or independent corroboration by itself.
+- Domain/strategy authority comes from existing approved configuration; new official-domain candidates require that authority before official admission. Search may find candidates without a preexisting brand hint, but cannot approve a domain.
+- Retailers never become Confirmed Official Pages. Their permitted basic facts need exact-item binding and role-specific eligibility. Safety/ingredient/nutrition/dose/medical claims require suitable authoritative evidence, not retailer consensus. Do not require two sources universally: one authoritative exact-item source may suffice, while syndicated copies are not independent proof.
 
-Keep semantic outcomes separate from execution outcomes:
+### 3.2 AcceptedItemEvidence
 
-- `selected` or a task-specific positive judgment: a bounded proposal, never approval.
-- `no_match`: the supplied candidates do not fit, not a service error or a claim that the manufacturer does not stock the product.
-- `insufficient_evidence`: evidence cannot distinguish the allowed outcomes.
-- `candidate_limit_exceeded`: the operation cannot cover its eligible candidate set within its declared bound; never silently first-N clip an adjudication set.
-- `policy_denied`, `unavailable`, `failed`: transport/configuration outcomes, never semantic abstention credits.
-- `stale`: a result no longer matches its input/configuration/base state; retain history but refuse application.
+`AcceptedItemEvidence` is a **proposed** shared Zod snapshot contract, not an assertion of an existing export. The same accepted-fact representation must serve structured, profile/static, browser, and attested contributions; source-specific adapters retain their own admission rules.
 
-Use the existing transport and audit repositories; add the necessary protected operation registrations and frozen execution-plan entries. Discovery's existing `sitemap_selection` operation can receive a versioned typed implementation. Naming/family/evidence operations must be explicit judgment workloads, not System One connections passed through chat/naming endpoints. Do not weaken the existing chat/vision/workload capability guards.
+Each immutable snapshot binds:
 
-Use the evaluated configured model pin, currently `jev-1.13.0`, through the existing model-policy mechanism. No silent switch to `jev-latest`, chat provider, reasoning model, or another model after failure. Any new pin requires its own qualification. Existing credential resolution remains server-side; no credentials in browser state, model state, logs, or Git.
+| Part | Required meaning |
+|---|---|
+| Ownership | Workspace, onboarding item, Product SKU, input revision/hash, producing operation/run and generation where applicable. |
+| Observations | Original/final URL or connector record identity, source role/authority revision, collection method, observation time, immutable artifact/response hash, currentness/expiry, selected variant and identity decision references. |
+| Facts | Field/claim identity, actual value and unit, exact source span/path/component and value hash, permitted deterministic normalization, observation references, admitted/unknown/conflicted disposition and reason. |
+| Acceptance | Server-derived acceptance revision, rule/version hashes, exact sellable-item/variant binding, eligible source set, conflict disposition, and applicable image-rights approvals bound to the actual asset. |
+| Dependents | Evidence hash, relevant canonical classification/checklist versions, producing model-call IDs when a judgment was used, and manual attestations with actor/time/revision. |
 
-Raw model confidence is distribution concentration, not store accuracy or approval authority. Fit task-specific proposal/abstention policies on development data, publish them before evaluating the sealed holdout, and include the policy hash in execution/reuse keys. Do not copy classification's engineering 0.50/0.70 floors into these tasks as fitted thresholds. An absent qualified policy leaves the capability unavailable; the existing manual workflow remains available.
+No client or model can invent source IDs, offsets, quotes, acceptance flags, actor identity, authority, or rights. Preserve raw observations separately from admitted facts. New evidence creates a new snapshot; never mutate old observations to make a hash agree. Completed decisions remain immutable; operational pointers may advance to a newly validated revision.
 
-### 3.2 Bounds and reuse
+Item Evidence Acceptance is permission to prepare/review a listing, not catalog approval, release, Profile Health, or proof of model accuracy. Hard identity/variant conflicts prevent combining the affected sources. Quarantine disputed fields; preserve valid independent facts where their own item binding is established. Unknown evidence is not negative evidence or agreement.
 
-Honor the current application bounds in [systemone-transport.ts](../../src/ai/systemone-transport.ts): at most 32 questions, 255 Choice options, 32,768 state bytes, and 65,536 serialized request bytes. The vendor's larger HTTP allowance does not authorize increasing application limits.
+Distributor materialization remains URL-null, generation/hash-bound, profile-free and zero-fetch/model/OCR/image at that materialization seam. Complementary acquisition creates separately bound contributions; it must not rewrite the distributor payload, invent `source_url`, or overwrite an official `source_url` with a retailer URL. Existing manual attestations retain their actual user provenance; browser-prefilled values require the new binding, not `operator_transcription` camouflage.
 
-| Capability | Declared logical-request bound | Candidate/question bound |
-|---|---|---|
-| Official-page selection | One request per item and mapped official domain requiring disambiguation | Existing retrieval shortlist: at most ten URL candidates; one Choice plus two abstention options |
-| Family membership | One request per item needing semantic disambiguation | At most sixteen eligible family anchors; one independent relationship Choice per anchor |
-| Naming | One request per SKU needing semantic selection | At most sixteen complete evidence-backed name candidates; one Choice plus two abstention options |
-| Listing evidence | One request per SKU needing semantic checks | At most 24 current claim units; one Choice per claim; deterministic checks need no question |
+### 3.3 Model roles, outcomes, and bounds
 
-These are engineering caps, not measured optimal batch sizes. Empty/unambiguous deterministic work makes zero model requests. Preserve the existing transport's single transient retry within its caller budget; no additional retry stack, schema-repair model call, recursive fan-out, or unbounded overflow chunking. Both attempts count in actual budgets and cost. Exceeding any cap produces an actionable unresolved result with counts; never certify only the inspected prefix of a listing/group.
+Use the existing [System One transport](../../src/ai/systemone-transport.ts) for Choice/Noul judgments only. Current application limits are 32 questions, 255 Choice options, 32,768 state bytes, and 65,536 serialized request bytes. Keep the evaluated configured model pin (currently `jev-1.13.0`) and frozen model-policy routing; no silent latest alias, chat fallback, or provider substitution. Different generative-copy and judgment operations have separate approved workload/data-sharing authority.
 
-Batch independent questions over the same state. A question cannot depend on another answer in the same request. Use named JSON state and explicit criteria; external page/provider text is untrusted content, never execution instructions. Send only the required source snippets and identities, not whole catalog exports, images, credentials, or unrelated product evidence. Source URLs containing secrets must be excluded/redacted before dispatch.
+Persist exact inputs/candidates, rules, requested/returned model, raw typed answers/distributions, actual call IDs, and terminal reason. Separate semantic outcomes (`selected`, `no_match`, `insufficient_evidence`) from `candidate_limit_exceeded`, `policy_denied`, `budget_exhausted`, `budget_not_enforceable`, `unsupported`, `unavailable`, `failed`, and `stale`. A failure is not semantic abstention credit or a successful deterministic/model decision.
 
-Reuse requires exact equality of relevant evidence, item identity, candidate set/content/order, source/domain authority, family/catalog base, rules, prompt, evaluated model, and frozen policy. Reuse of a model judgment does not reuse human approval. Revalidate ownership, live provider enablement, current hashes, and immutable-run compatibility before dispatch, before retry, and before committing results. Leave stale work unapplied.
+Code supplies complete candidate meanings and explicit abstention options. Batch only independent questions over the same state. Page/provider text is untrusted data, never instructions; use bounded relevant snippets and exclude credentials, secrets in URLs, unrelated products, and unnecessary commercial data. Question IDs are not model-visible instructions.
 
-Explicit route/data-sharing approval must cover each new operation and its actual cloud-bound text. Classification consent is not blanket consent for all listing evidence. Reuse existing model-call usage/latency records, review decisions, and operation receipts rather than adding a monitoring subsystem.
+Retain existing engineering bounds where applicable: up to ten candidates per official-domain selector, sixteen family anchors, sixteen complete name candidates, and 24 current claim units per listing-evidence request. These are not measured optimal settings. Overflow is explicit and cannot certify an inspected prefix. Deterministically settled work makes zero model calls. Preserve the transport's existing single transient retry within the caller budget; count both attempts and add no repair/retry stack.
 
-## 4. Official product-page candidate selection
+Reuse requires exact equality of relevant item evidence, source/variant authority, candidate content/order, rules, prompt, model, policy, and base/dependency hashes. Recheck live provider enablement, ownership, cancellation and currentness before dispatch, retry, and commit. Reuse never transfers human approval. Unreadable/missing currentness is `unavailable`, not a title-only fallback or two matching empty hashes.
 
-### 4.1 Interface and inputs
+### 3.4 Item-owned execution
 
-Replace the free-text selector inside the existing sitemap matcher with a typed `selectOfficialPageCandidate` interface. It receives a frozen register item, approved-domain snapshot, retrieval-run/generation identity, and candidate IDs mapped to original URLs and available cached metadata. It returns a selected candidate ID or an explicit terminal outcome, with the shared provenance envelope. It performs no retrieval or catalog write itself.
+One item-owned immutable execution revision controls each independent listing's frozen inputs, proposals, projection and completion. Shared calls may return independently attributable member outputs; store actual producing call IDs and item bindings. Item publication cannot depend on another member finishing or a cohort parent reaching terminal status.
 
-State includes the original Register Name, SKU/UPC, evidenced brand, known package/variant tokens, approved domains, and each shortlisted URL with available title/snippet/structured identity. Missing page evidence is explicit. Do not synthesize a new expected name or use a curated name as the identity reference.
+Replace the live cohort-owned completion/title/page publication contract coherently across worker, repositories, projection, Review, Promotion and UI. Do not just delete `parent_not_completed` while leaving parent-owned mutable dependencies. Preserve lease/CAS ownership, deduplicated work, guarded commits, frozen policy, review authority, and replay/currentness checks under item ownership. Cohort parent codes remain historical diagnostics, not new Product Family gates.
 
-The Choice asks which candidate is the best product-detail-page candidate for that register item, rather than a merely related product, listing, or blog page. Options reference complete candidate descriptions and include `no_match` and `insufficient_evidence`. An option ID maps to exactly one original URL; no URL generation, substring extraction, or off-shortlist selection is accepted.
+Drain or supersede incompatible in-flight plans and create fresh item-owned runs at cutover. Retain old outputs as immutable history; reuse a compatible historical result only under the same exact input/meaning rules. No rewriting old rows into new approvals, silently rebinding frozen calls, persistent dual orchestration, or compatibility aliases. Optional shared work may fail without invalidating unrelated accepted item outputs.
 
-### 4.2 Workflow and composition
+## 4. Acquisition and item-level admission
 
-1. Retain approved-domain index/sitemap retrieval and deterministic product-URL filtering. Freeze and deduplicate variant-aware URL identities using existing helpers.
-2. Preserve deterministic exact-proof paths. A unique verified exact identity under approved domain authority does not need a semantic selection call. A UPC appearing in a URL alone is not that proof.
-3. With one candidate, fetch/verify it normally; do not call TypeSafe merely to choose it. With multiple candidates requiring disambiguation, use the bounded typed selector.
-4. Feed the selected candidate into the existing page-verifier/confirmation/variant/profile flow. A high-probability choice does not relax any confirmation or auto-selection condition.
-5. Keep retrieval score, model probabilities, and deterministic verification outcome as distinct fields. Remove the selected candidate's artificial `+0.15` LLM-confidence boost from this new decision path.
-6. On `no_match`, `insufficient_evidence`, or service failure, retain safe retrieved candidates for operator inspection with the actual reason. Do not turn the token-overlap top result into a successful semantic selection. Independently established deterministic proof may still be used on its own authority, not mislabeled as a Jev success.
-7. Confirmation uses existing append-only official-page decisions and server-side re-verification. Recheck redirects/final host, frozen allowed domains, exact variant, and item/run identity before changing `source_url`.
-8. Domain/evidence/candidate changes invalidate the selector result. Category Page IDs, page-import hashes, and ShopSite browsing-page options are unrelated and must not enter this decision's authority checks.
+### 4.1 Narrow interface and acquisition ladder
 
-The selector cannot recover a URL absent from retrieval. Report correct-URL shortlist coverage separately from selection precision. Retrieval misses go to the existing official-site exception workflow; do not silently add external search or larger paid crawls.
+`acquireItemEvidenceGap` is a **proposed** interface at the existing acquisition/worker seam. Input: item/input revision, immutable known facts and unresolved requirements, source/strategy authority, tried candidates/sources, frozen model/data-sharing policy, and enforceable remaining item/batch budgets. Output: retained observations, admitted fact contributions or exact unresolved reasons, actual usage, and producing references. It cannot approve a listing/profile or write canonical catalog files.
 
-Distributor-record items retain their URL-null Discovery bypass. TypeSafe is never used to manufacture a URL for them.
+1. Query legitimate structured UPC sources under the current approved strategy; do not let the first successful provider suppress complementary approved sources.
+2. Use approved official indexes/sitemaps and static/profile extraction. A known brand/healthy profile is an optimization, not an intake prerequisite for the new fallback.
+3. When a specific requirement remains unfilled, allow bounded broader search for candidates and static reads before rendering. A result snippet is not accepted product evidence. Record retrieval coverage/truncation separately from selection precision.
+4. Use a browser only when necessary for rendered content, variant options, relevant sections or links. Prefer structured data/DOM/text, not screenshot-coordinate reasoning. TypeSafe image/Box support is not the production basis for this design.
+5. Admit facts through the item contract; recompute the applicable checklist and stop when requirements are satisfied or the budget/policy/support boundary is reached. A provisional canonical classification may choose what to seek; correcting the pair recomputes requirements and dependent work. Never choose a less-demanding type to declare success.
 
-### 4.3 Acceptance
+Supplemental work uses the existing worker while an item stays in its current stage; Preparation can request scoped acquisition without restarting Sourcing or moving backwards. Reuse current facts and ask the operator for a specific unresolved identity, authority, rights or evidence decision—not routine approval of every navigation.
 
-- **D1:** Exact approved-domain identity/variant cases remain correctly resolved without a model-dependent regression.
-- **D2:** Similar flavor, wrong size, collection page, retailer, off-domain redirect, and ambiguous variant candidates cannot become Confirmed Official Pages from model confidence.
-- **D3:** A valid manufacturer page lacking a UPC is not automatically rejected merely for that absence; existing name/variant/operator confirmation rules remain distinct from stricter automatic selection proof.
-- **D4:** An omitted correct URL is recorded as a retrieval miss, not a selector success or model error on an unseen candidate.
-- **D5:** No-match, insufficient evidence, disabled provider, timeout, malformed response, and candidate overflow remain distinguishable; none is converted into a positive overlap match.
-- **D6:** A forged/out-of-set candidate ID or response-question mismatch is rejected before selection persistence.
-- **D7:** A stale run/domain/candidate result cannot overwrite a newer source confirmation. An operator can replace a bad candidate and resume the normal flow.
-- **D8:** New official confirmation still requires a usable extractor profile before automated page Extraction; distributor-record bypass remains profile-free and zero-fetch.
+### 4.2 Browser action and network contract
 
-## 5. Storefront Product Families, Subproducts, and Short Names
+Code enumerates current permitted action IDs from retained observations: open a supplied link, inspect a supplied variant option, expand a supported information section, read supported structures, or stop. TypeSafe may choose among those actions or abstain. Code resolves the actual URL/element/arguments and revalidates page/target freshness, allowed scope and remaining budget before execution. No model-generated URL, selector, JavaScript, tool program or arbitrary command is executed.
 
-### 5.1 Family identity and rules
+Public read-only collection must have enforced method/path/host/DNS/IP/redirect/TLS/content-type and streaming byte limits outside the untrusted browser, plus process isolation and bounded scratch/CPU/memory/process use. Browser interception is defense-in-depth, not the sole egress boundary. Deny login/account/cart/purchase/form submission, uploads/downloads, private destinations and credential/profile mounts. Keep unsupported interaction/POST-only sites explicit rather than silently weakening the policy.
 
-A Product Family is one underlying product under an explicit, versioned Family Variant Rule. A Curation Cohort, shared category, name stem, common brand, same manufacturer page, or similar packaging is not sufficient proof.
+Reuse compatible broker/isolation primitives, not their production-readiness claims. Investigation's default `render_deferred` and diagnostic opt-in do not authorize this route. Demonstrate real HTTPS navigation through the validating boundary and direct-egress denial, including with browser interceptors disabled. The separate rendered worker needs the same complete policy before use here. Browser Investigation remains profile proposal tooling and cannot supply accepted item facts or activate profiles.
 
-Family rules are approved listing configuration stored with the catalog's versioned configuration, separate from classifier export mappings. Resolve a rule through configured canonical Product Type identities, not a model-invented type label. A provisional type may help prepare a proposal, but final acceptance requires current reviewed type/rule authority. No configured rule means no automatic family proposal; standalone listing remains possible.
+### 4.3 Budget and stopping contract
 
-Each rule defines: stable ID/version; applicable Product Type IDs; invariant axes; permitted variation axes; explicitly non-applicable axes; required evidence; quantity/unit normalization; Short Name axis order; and display ordering. A missing invariant is unknown, not agreement. Version/hash changes stale dependent plans.
+Production requires explicit per-item and batch bounds for search/fetch attempts, pages/actions, redirects/fan-out, transferred/decompressed/artifact bytes, elapsed time, concurrency, model calls/tokens and applicable monetary spend. Exact limits are reviewed activation configuration, not invented defaults or copied investigation maxima.
 
-- **Food:** same evidenced brand, product line/recipe, flavor, species, life stage, and form. Package size may vary. Pack/count may vary only when the applicable approved rule explicitly permits that retail-unit relationship. A single bag and a shipping case of bags are not silently interchangeable.
-- **Non-food:** allow configured size/color/count axes only when members are otherwise the same model/product. Preserve material, function, safety/dose, strength/hardness, fit, and other product-specific identity differences as invariants unless explicitly declared legitimate variants.
-- Exact unit conversions are deterministic and dimension-aware. Equal net weight does not imply equal pack structure; never confuse shipping weight with net contents. Ambiguous units or duplicate variant tuples require operator resolution.
+Reserve the permitted work before dispatch under concurrent item/batch ownership; include retries and in-flight commitments. A requested monetary ceiling requires a documented enforceable upper bound before dispatch, including provider pricing and request/output bounds. If it cannot be bounded, refuse with `budget_not_enforceable`; post-hoc accounting is not a cap. Cancellation/timeout stop owned work and preserve honest in-flight/unknown charge state. Record billed cost, rate-derived estimate, or unavailable distinctly; unknown is never zero.
 
-Existing native Subproducts may represent accessories or historical merchandising. Treat them as relationship evidence, not automatically as managed families. Adoption requires a complete preview and explicit review; unsupported/ambiguous native structures remain preserved and unmodified.
+Stop on completed requirements, unsupported policy/action, unresolved identity/variant or authority, source conflict requiring human resolution, cancellation, or exhausted budget. No automatic budget escalation, recursive repair, repeat investigation loop or silent partial green. Retain acquired facts/proposals and show the remaining requirement and reason. Missing non-critical content may enter the explicit exception workflow; safety/identity/rights/classification cannot be bypassed.
 
-### 5.2 Candidate generation and TypeSafe judgment
+### 4.4 Discovery and admission acceptance
 
-Search the current import and existing approved catalog. Catalog references use `(workspaceId, sku)` and immutable approved-product hashes/commits; preserve existing `Product.id`, native IDs, and SKU. Do not create a duplicate file for an existing SKU or infer catalog identity from a newly decoded UUID.
+- **D1:** Deterministic exact approved-source cases remain correctly resolved without unnecessary model/browser work.
+- **D2:** Wrong SKU, flavor, size, pack, collection page, retailer-as-official and off-domain redirects cannot become confirmed/accepted from confidence.
+- **D3:** A manufacturer page lacking a UPC is not rejected solely for that absence; conservative observed name/variant matching and explicit operator resolution remain available.
+- **D4:** Missing correct URLs, failed fetches and truncated candidate coverage are retrieval limitations, not selector successes on unseen candidates. No first-N uniqueness claim.
+- **D5:** No-match, insufficient evidence, denied/unavailable service, unsupported site, budget exhaustion and malformed/overflow results remain distinguishable and actionable.
+- **D6:** Forged/out-of-set action/candidate IDs, stale page references, injected instructions and arbitrary execution are rejected before effects.
+- **D7:** Changed item/source/authority/variant/run state cannot overwrite newer evidence or a source confirmation. Corrections resume from the current revision.
+- **D8:** Structured distributor materialization retains its zero-fetch/profile/model/OCR and null-URL invariants; supplemental browser facts do not mutate that envelope.
+- **D9:** A per-item manufacturer fact may pass without a healthy profile after all item gates; the same observation cannot activate Profile Health. Investigation-only observations cannot pass item admission.
+- **D10:** Retailer basic corroboration remains separately attributed; retailer safety claims, prose reuse and image reuse are refused absent the required authority/rights.
+- **D11:** Missing bounds or an unenforceable requested billing ceiling refuse before dispatch. Concurrent work/retries cannot exceed reserved limits; cancellation does not fabricate zero cost.
+- **D12:** A rich, independently ready SKU proceeds while another imported/cohort item is unresolved, without borrowing its facts or weakening a genuine family operation.
 
-Use deterministic brand/type/rule blocking, source identifiers, and a high-recall name/model shortlist to find plausible family anchors. Do not compare the entire catalog pairwise. The existing stem grouper can contribute candidates, but cannot decide storefront membership or be the only candidate-recall mechanism.
+## 5. Optional Product Families, Subproducts, and Short Names
 
-For at most sixteen eligible anchors, ask an independent Choice about the incoming SKU and each supplied family's common product identity:
+The original complete family scope remains committed; it is not a prerequisite for a standalone listing. Use existing listing-owned family/rule/codec/change-set seams, never classifier field assignments or Curation Cohort membership as family authority.
 
-- `same_sku`: the descriptions may be the same sellable item; route to existing identity/duplicate resolution, never merge records through a family judgment.
-- `same_family`: same underlying product and invariants; differences are exclusively permitted axes.
-- `different_product`: related or unrelated products that do not share this family identity.
-- `insufficient_evidence`: any required invariant/relationship cannot be established.
+### 5.1 Identity, candidates, and rules
 
-Provide each anchor's reviewed common identity, rule, member variant tuples, relevant evidence, and existing relationship metadata. A small semantic sample must not hide conflicting member invariants. Code checks the incoming member against every existing member's hard invariants/variant tuple and checks the full proposed group before acceptance.
+A family is one underlying product under an explicit versioned Family Variant Rule. Search both the current import and approved catalog, resolving existing records by `(workspaceId, sku)` and immutable approved hashes/commits. Do not create duplicates from newly decoded UUIDs. Brand/type/rule blocking and a high-recall name/model shortlist limit comparisons; name stems may suggest candidates but cannot determine membership or be the only recall mechanism.
 
-There is no transitive union of positive pairwise results: A~B and B~C cannot override an A/C conflict. Two different existing families matching the same incoming product produce a conflicting-family proposal requiring operator resolution, not an automatic family merge/reparent. Reviewed negative decisions remain attached to their exact evidence/rule revisions.
+Rules use configured canonical Product Classifications, not model-invented labels. Define invariants, permitted and non-applicable axes, required evidence, deterministic dimension-aware normalization, Short Name axis order and display order. Missing invariants are unknown. Food preserves brand, line/recipe, flavor, species, life stage and form while approved size/pack relationships may vary. Non-food permits only configured size/color/count axes for the same model/product; material/function/safety/dose/strength/fit remain invariants unless explicitly legitimate variation. Net contents, shipping weight, unit count and case pack are not interchangeable.
 
-### 5.3 Main Product and Short Names
+At most sixteen eligible anchors receive independent relationship Choices: `same_sku`, `same_family`, `different_product`, `insufficient_evidence`. Same-SKU ambiguity goes to identity resolution. Code checks every member's hard invariants and complete variant tuples; two positive edges cannot bridge conflicting endpoints or merge competing existing families. Final acceptance uses current reviewed classification/rule authority. Existing native Subproducts may be accessories or legacy merchandising, not managed families; unsupported adoption is refused with preservation.
 
-Preserve an existing Main Product, its identifiers, filename/URL, and unrelated listing data. Never replace a main because a smaller/newer size arrives.
+### 5.2 Main Product, names, and durable representation
 
-For a new family, nominate a real member SKU. The reversible engineering default is the smallest verified comparable package size; sort ties by a stable SKU key only after duplicate variant tuples have been resolved. If sizes are not comparable or the product's rule lacks a valid ordering, require a main selection. The operator may select another real member during family review. A newly created family requires at least two distinct purchasable SKUs.
+Preserve an existing main, identifiers, filename/URL, membership and unrelated listing values. A new family has at least two real purchasable member SKUs; nominate the smallest verified comparable package as a reversible default. Incomparable/color-only cases require explicit selection; the operator may select another real member. No display-only parent or synthetic UPC. Include a new main in its own member list exactly once to keep it purchasable; other cycles/missing references/conflicting managed membership fail.
 
-The new main remains in the Subproducts member list exactly once, so its own size remains purchasable. This permitted main-to-self relationship must not be rejected by a generic cycle rule; all other self-links, recursive multi-product cycles, missing references, and conflicting managed-family membership fail validation. Preserve pre-existing nonstandard main structures unless an explicit reviewed adoption/change handles them.
+Every SKU retains its full name, price, stock, images, facts, classification, filename and enablement independently. Deterministically derive unique nonempty PF7 Short Names from verified permitted axes (`5 lb`, or `Small / Red` in configured order). Include pack distinctions when needed. Preserve existing nonempty PF7 by default; replacements are explicit reviewed diffs. Do not remove the main's size from its full name or assign PF7 merely because products share a cohort.
 
-Keep each SKU's full Name, price, stock, images, classification, evidence, and enablement state independent. No shared-fact inheritance and no automatic removal of the main's size from its full Name.
+Retain a versioned durable `StorefrontFamilyPlan` with operation (`create`, `join`, `adopt`, explicit edit/removal), main and complete ordered members, item/catalog origins, rule/evidence/type/base/read-write hashes, native block hash, invariant/axis evidence, PF7 diffs, model calls and human decision revision/actor/time. Store changed-product write dependencies and unchanged-member read dependencies. Lifecycle: proposed/revised as supported, accepted, rejected, deferred, stale, applied; applied means the approved Git commit contains the change, not remote publication success.
 
-Generate new Short Names deterministically from verified permitted axes:
+The main owns the canonical managed member list in the shared Product schema; PF7 stays in its existing custom field, not a duplicated persisted label. Git product/configuration files are approved catalog authority; SQLite indexes are rebuildable projections and operational plans/audit. Unmanaged raw native blocks pass through without reinterpretation. Managed authoring belongs solely to `ShopSiteProductCodec`, with caller-supplied approved member snapshots/native IDs; the codec performs no DB/network lookup and emits no duplicate raw/managed block. Preserve unrelated unknown fields. Verify real store reference/clear/ordering semantics before adoption or dissolution; never invent a `<ShortName>` tag or treat omission as a verified clear.
 
-- Size-only food family: `5 lb`, `15 lb`, `30 lb`.
-- A configured size/color family: include both axes in the rule's order, e.g. `Small / Red`.
-- Pack information appears when required to distinguish permitted retail units, not by guessing from total weight.
+### 5.3 Review and complete publication
 
-Names must be nonempty and unique across the full family, including existing catalog members and the main. Preserve existing nonempty PF7 values by default; expose a replacement only as an explicit reviewed diff. Do not use extra model calls for formatting or assign a Short Name just because unrelated products share a Curation Cohort.
+Show every member/import-or-catalog origin, invariant evidence, permitted axes, preserved/new main, PF7 before/after, native diff, changed/unchanged dependencies and stale reasons. Accept/revise/reject/defer explicitly; no probability-based acceptance. Deferral/rejection preserves standalone progress and current relationships. Once an actual family change is selected, its complete dependencies must be ready; this is a Product Family consistency group, not a cohort parent gate.
 
-### 5.4 Durable plan and canonical representation
+Resolve true bases and competing drafts; create the complete plan/draft/dependency set in one repository transaction. Before approval, recheck source/type/rule/evidence/review authority, variant tuples, rights, filenames, membership uniqueness, drift, native references and bases for the entire group. Serialize publication under workspace ownership; prepare/validate exact operation-owned files before writing/committing. A member write/index failure prevents a partial approved family. Restore only operation-owned pre-commit changes, never reset unrelated user work.
 
-Introduce a listing-owned `StorefrontFamilyPlan` Zod contract and repository-backed durable revisions, not classifier `field_assignment` proposals. Required plan data:
+SQLite, filesystem staging, Git commit and receipt/index recovery are distinct durability layers, not one ACID transaction. After the single complete approved commit exists, recover receipts/index/status idempotently against that commit without a second invented commit or reverting approved history. Export uses the matching approved JSON/dependency manifest and immutable commit, not mutable workspace data. Revalidate later relevant changes before approval/export/push; required new/changed members cannot be split across independent uploads. An unchanged remote member needs verified remote existence/currentness or its required record included.
 
-- Plan/revision/workspace identity and operation (`create`, `join`, `adopt`, or explicit membership edit).
-- Main SKU, complete ordered member SKU set, resolved source-item links, rule identity/hash, invariant facts and each member's permitted-axis values with evidence references.
-- Approved catalog commit and per-SKU base/read hashes; existing relationship block hash; pending draft conflicts; changed-product write set and unchanged-member read dependencies.
-- Proposed PF7 values and preservation/replacement disposition; typed model judgments/call IDs; input hash; human decision actor/time/revision; linked change-set ID and eventual approval commit.
-- Lifecycle `proposed`, `accepted`, `rejected`, `deferred`, `stale`, `applied`. `applied` means the approved catalog commit contains the change, not that ShopSite publishing succeeded. Remote delivery uses existing sync status.
+Use the existing ShopSite adapter and stable `uniqueName=SKU`. MIME completion passes the returned `return_string` to `dbmake.cgi` exactly, then publishes/regenerates only after successful complete import/linking. `newRecords=no` ignores unmatched records and is not safe for creating new members; `(none)` matching risks duplicates and is forbidden here. Do not assume undocumented ordering/forward-reference or atomic multi-record remote import. A partial/timeout result stays unresolved with the complete approved group and reconciliation evidence; no subset is called synced. Verify actual labels/purchase controls with separately authorized compatible storefront canary access. Keep new products disabled and unrelated prices/inventory/status intact.
 
-Persist plans/members/decisions through repositories and the existing migration runner. Revisions and decisions are append-only; rejecting/defering a proposal does not erase history. Scope membership exclusivity to managed Product Families, not all accessory/native Subproducts relationships.
+### 5.4 Retained family acceptance
 
-Add an explicit managed family relationship to `Product.shopsite` through the shared product schema: `subproducts: null | { kind: 'family', ruleId, ruleVersion, memberSkus }`. The containing product is the Main Product; it owns the only canonical member list. PF7 remains `customFields.ProductField7`, not a duplicate persisted `shortName` field. Database family indexes are rebuildable projections of approved Git product files, not a second canonical catalog.
+- **F1:** Same recipe/flavor in three sizes yields one reviewable family; differing recipe/flavor/species/life stage/form does not join.
+- **F2:** Configured non-food axes work; material/function/dose/undeclared differences and missing invariants do not pass.
+- **F3:** A new size joins approved catalog members across batches without duplicates, changed main or lost labels/members.
+- **F4:** A smaller new size preserves an existing main; new comparable families have the documented reversible nomination.
+- **F5:** Main-to-self emits once and stays purchasable in the actual template; other cycles/missing/cross-workspace references fail.
+- **F6:** Same-SKU ambiguity and competing families require resolution; no transitive bridge merge.
+- **F7:** Per-SKU facts/names/prices/stock/images/filenames/status, unrelated accessories/PF32 and unknown fields survive unless explicitly changed by their owners.
+- **F8:** Blank/duplicate labels, ambiguous quantities, forbidden packs and duplicate tuples block unsafe acceptance.
+- **F9:** Classifier writes to PF7/native Subproducts are refused; listing-owned reviewed edits work.
+- **F10:** Unmanaged native blocks round-trip without adoption; managed output emits one block; unsupported adoption loses no fields.
+- **F11:** Evidence/type/rule/base/draft/drift changes stale affected plans; no subset bypasses approve/export/push guards.
+- **F12:** Pre-/between-write, pre-/post-Git-commit and pre-receipt faults prove no partial approved group and idempotent recovery without unrelated changes.
+- **F13:** Partial remote import is not synced; a real compatible canary proves references, main self-membership, labels, ordering and purchase behavior.
+- **F14:** Reject/defer preserves independent listing progress and existing relationships, without implicit dissolution.
 
-For unmanaged/legacy records, null/absence means preserve the raw native Subproducts block without reinterpretation. Explicit adoption populates the structured relationship. For managed records, the codec owns Subproducts emission and must not also re-emit the preserved raw block. Use approved member snapshots/IDs/names to resolve native references, supplied to the codec by callers; the codec performs no database/network lookup. Preserve every unrelated unknown field/block.
+## 6. Evidence-backed naming and grounded copy
 
-Before authoring is released, obtain a redacted real export of this store's family/main/self relationships. Confirm native reference representation, ordering, supported child metadata, clear semantics, and template purchase behavior. Implement decode/encode inside `ShopSiteProductCodec`, not a competing XML builder or guessed `<ShortName>` tag. A structure that cannot be safely edited with preservation blocks adoption rather than losing fields. Existing raw-block pass-through remains intentional preservation, not a second managed writer.
+### 6.1 Names
 
-An explicit member removal/dissolution is a separate reviewed relationship revision; it cannot silently clear PF7 or remove unrelated accessory relationships. A reviewed clear must have verified ShopSite wire semantics, not rely on omitting a populated block.
+Retain `selectProductName` at the existing name-consolidation seam, consuming this item's accepted immutable facts, permitted normalization/format rules, applicable checklist and optional presentation context. Build complete candidates in code from exact source components; no runtime model-generated title/component text or new fetch/OCR merely for naming. Exclude stale/conflicted evidence and retain material negation, recipe/model/form/life-stage/material/variant distinctions.
 
-### 5.5 Review, change sets, and all-or-nothing publication
+Render evidenced brand first and applicable size/count last under house style. Required details derive from the applicable standard and actual variant, not a universal size requirement that blocks model-number parts or unmeasured products. A missing required brand/variant remains a gap; do not invent `Unknown Product`, brand or quantity. Brand ownership stays outside the classifier.
 
-Family review shows every member and its origin, preserved Main Product or new nomination, invariant evidence, changing axes, PF7 before/after, complete Subproducts diff, affected existing products, and stale/conflict reasons. Actions: accept the current complete plan; revise membership/main/Short Names with revalidation; reject; or explicitly defer and continue without applying the proposed family change. No confidence-based bulk acceptance or silent catalog joins.
+Deduplicate equivalent candidates before inference. One valid or purely stylistic candidate is deterministic; semantic ambiguity uses one bounded Choice over at most sixteen full candidates plus `no_match`/`insufficient_evidence`. The answer maps to an existing candidate only. Sibling context may guide formatting, never establish another SKU's product facts or classification.
 
-A deferred/rejected/insufficient family proposal does not force a standalone valid product to wait for hypothetical family formation. Existing Curation Cohort readiness still applies independently. Once the operator chooses a family change, its required member dependencies must be ready; do not publish the new relationship with unresolved/new children missing.
+Persist exact components/spans, normalization version, item/input/name hashes, producer (`typesafe_selection`, `deterministic`, `manual`), actual call IDs, outcome and reason. Update singleton and former cohort consumers together under item-owned publication; do not retain a parent write-once title set as mandatory item authority. Historical outputs remain readable with honest producing sources. Changes invalidate affected decisions/review/draft filename proposals; approved filenames are not silently renamed.
 
-Prepare one consistency group in the existing change-set path:
+### 6.2 Grounded copy
 
-1. Resolve each SKU against the approved catalog and pending drafts. Existing SKU means update with its true base; absent SKU means create. Never overwrite a competing active draft or manufacture a second catalog identity.
-2. In one SQLite transaction, create/update the family plan's changed product drafts and its complete read/write dependency manifest. Include the main, all new products, and every changed PF7/native relationship. Unchanged approved members are read dependencies, not needless rewrites.
-3. Recheck all members' evidence/review authority, variant rules, classification/listing readiness, filenames, membership uniqueness, drift (`open` or `in_reconcile`), current base hashes, and other pending family/draft conflicts at approval. Any stale/invalid dependency blocks the whole family change.
-4. Extend existing approval with a strict consistency-group path. Serialize publication under workspace ownership; stage only the operation's exact changed files, never broad unrelated `products/` or `store/` changes. Prepare/validate the complete write set before publishing any approval result.
-5. A per-product write/index failure must prevent a partial family Git commit. Restore only operation-owned pre-commit writes under the ownership guard; never reset unrelated user changes. Keep the change set unapproved on pre-commit failure. Crash recovery must keep the group unavailable for export until it has reconciled to the last approved Git state or completed the exact prepared write set.
-6. The single complete Git commit is catalog authority. After it exists, recovery resumes idempotent index/status/receipt completion against that commit; it does not invent a second commit, declare a partial approval successful, or silently revert approved history. Filesystem, SQLite, and Git are not falsely treated as one ACID transaction.
-7. The approved export payload and dependency manifest must describe that same commit. Resolve unchanged member records from that immutable commit, not mutable workspace files. Child-name/native-reference changes are relationship dependencies too. Any related later change that invalidates an approved family's pending export requires revalidation/new review, not an unreviewed payload rewrite.
-8. Apply family completeness/currentness checks to both package export and direct push, not just the review UI. Required new/changed members cannot be split across independent uploads/change sets. A reference to an unchanged remote member requires verified remote existence/currentness; otherwise include its required record in the same publication group.
+A separate explicitly configured generative workload receives only accepted attributable facts and applicable writing requirements, not raw rejected/conflicting sources or sibling copy. Reuse the existing copy-preparation seams, but remove any active instruction that lets the writer choose “most recent/specific” facts to resolve a conflict. Source authority and conflict resolution happen upstream.
 
-ShopSite upload is not claimed to be an atomic multi-record transaction. Use the existing adapter, stable `uniqueName=SKU`, complete family payload, its exact returned MIME `return_string` for `dbmake.cgi`, and successful completion before `generate.cgi`. Include actual new members using appropriate new-record handling; `newRecords=no` silently ignores unmatched rows and is not safe for family creation. Never use `(none)` matching, which risks duplicates. Do not split a family across batches or assume undocumented Subproduct ordering/forward-reference behavior; prove it in the store-compatible canary.
+Produce useful, coherent descriptions/features that explain this product and its supported differences without invented benefits, ingredients, suitability, instructions or medical/safety claims. Generation is wording, not evidence extraction or approval. Omitted/unknown values are absent, not filled from model knowledge. Permitted source wording or deterministic formatting may be used only with truthful provenance, applicable reuse permission and the same final claim checks; a model failure is never relabeled as successful generation.
 
-On remote timeout/partial import, retain the complete approved group and existing sync/reconciliation evidence, do not mark a subset or the whole family synced, and do not create replacement SKUs/parents. Resume/reconcile through the existing supported adapter/operator workflow; publish only after the complete import/linking result is established. This cannot promise zero intermediate remote state; the UI must report that limitation truthfully. Keep unrelated prices/inventory/status and unknown fields unchanged, and never enable new products as part of the family operation.
+Construct claim units in code from final text boundaries. A generator may reference supplied fact IDs, but code must validate each reference; generated citations are not proof. Check the actual final projected description/name, including fallback/manual text, before Review and at downstream currentness gates. Copy policy/model/prompt changes participate in reuse and invalidation. No generative repair chain is added.
 
-### 5.6 Acceptance
+### 6.3 Naming/copy acceptance
 
-- **F1:** Same recipe/flavor in three sizes produces one reviewable family with three distinct SKU members and size Short Names. A different flavor, recipe, species, life stage, or form does not join it.
-- **F2:** Configured non-food size/color variants can join; differing material/function/dose or an undeclared axis cannot. Missing invariants never pass as equality.
-- **F3:** A new imported size can join approved catalog sizes from earlier batches without duplicate records, changed existing main, or lost existing members/labels.
-- **F4:** Adding a smaller size preserves the existing main. A new comparable-size family receives the documented nomination and can be revised before acceptance.
-- **F5:** Main-to-self is emitted exactly once and remains purchasable in the actual template; other cycles and missing/cross-workspace references fail.
-- **F6:** Same-SKU ambiguity and two matching existing families require identity/family resolution; no transitive bridge merges incompatible endpoints.
-- **F7:** Full names, per-SKU facts, prices, inventory, images, filenames, enablement, unrelated Subproducts/accessories, PF32, and other unknown fields survive unless explicitly changed by their owners.
-- **F8:** Duplicate/blank Short Names, ambiguous net quantity, forbidden pack differences, or duplicate variant tuples prevent accepting an unsafe family plan.
-- **F9:** Classifier write attempts to PF7 or native Subproducts remain refused; listing-owned reviewed edits work through their explicit contract.
-- **F10:** Unmanaged native families round-trip without adoption; managed families emit one Subproducts block; unsupported native structures cannot be destructively adopted.
-- **F11:** Member evidence/type/rule/base/draft/drift changes stale the whole affected plan. No family subset can bypass approve/export/push checks.
-- **F12:** Fault injection before any member write, between writes, before Git commit, after commit, and before receipt completion proves no partial approved family and safe idempotent recovery without unrelated file changes.
-- **F13:** A failed or partial remote import is not reported as a synced family. A real compatible canary proves reference matching, self membership, labels, ordering, and purchase behavior before activation.
-- **F14:** Rejecting/defering an unapplied proposal preserves standalone listing release and all existing relationships; it does not rewrite or dissolve a family implicitly.
+- **N1:** Accepted base identity and this SKU's actual variant facts produce a complete name without invented or inherited components.
+- **N2:** Abbreviated/attached quantities normalize conservatively; applicable distinctions remain, shipping weight is not net content, and a product without a required quantity is not universally blocked.
+- **N3:** Conflicting sizes never become a unioned title or a guessed winner; absent required identity details remain actionable.
+- **N4:** Negation, flavor/species/life stage/form/model/strength/material distinctions survive presentation coordination.
+- **N5:** Exact/equivalent candidates use zero selection calls; the typed result cannot create a new name/component.
+- **N6:** Independent items retain truthful producing call/source IDs and equivalent protections; failure/replay of another member cannot withhold or overwrite a current item output.
+- **N7:** Manual/evidence/policy edits stale affected name/copy and review state; judgment reuse transfers no approval.
+- **N8:** Failures/no-fit/uncertainty/overflow are distinct. Generated copy cannot invent unsupported benefits, ingest rejected source facts, resolve conflicts or fill an approved omission; unsupported final text remains blocked.
 
-## 6. Evidence-backed product naming
+## 7. Completeness, claim support, exceptions, and readiness
 
-### 6.1 Interface and deterministic candidate construction
+### 7.1 ListingCompletenessStandard
 
-Replace text synthesis with a `selectProductName` interface in the existing name-consolidation flow. Input is one SKU's frozen eligible title/fact evidence, approved normalization/format rules, and optional cohort presentation context. Output is a selected name candidate ID, exact component/source references, normalized full name, producer (`typesafe_selection`, `deterministic`, or `manual`), input hash, and call IDs. It does not mutate evidence or classify the product.
+`ListingCompletenessStandard` is a **proposed** versioned listing-configuration contract stored with approved catalog configuration. Resolve it through the canonical Category + Product Type; it is not a second classifier Attribute Profile. Each requirement has a stable ID, field/content meaning, applicability, evidence/source constraints, requiredness, non-waivable versus exception-eligible status, and deterministic or reviewable satisfaction criteria. Missing configuration/applicability is unresolved, never the least-demanding checklist.
 
-Candidate construction and rendering are deterministic:
+The standard must cover a full evidenced name/variant, useful description and meaningful supported features/specifications, suitable rights-approved imagery, imported commercial data and reviewed classification/placement. Actual food/accessory/parts/care requirements are type-appropriate reviewed content, not hardcoded universal ingredients, nutrition, weight or image-count rules. Review exact checklists before activation; this document does not fabricate them. Classification-required attributes/configuration remain independently governed by ADR 0041.
 
-1. Read the original Register Name/raw register text, confirmed official product evidence, accepted distributor materialization, existing OCR results, and current operator-attested evidence for this SKU. Do not run OCR/fetches to satisfy a naming request.
-2. Exclude unresolved source/identity/variant conflicts and stale evidence. Preserve known Brand/size/count/color authority. Conflicting sizes must not be blindly unioned into the title by a restoration helper.
-3. Build source-backed complete candidates from exact source spans/components plus whitelisted existing abbreviation/unit/whitespace normalization. Never drop material model/recipe/form/life-stage terms merely to make siblings look alike. Preserve qualifiers such as `not`, `free`, and package/unit distinctions.
-4. Format full names as evidenced brand + product identity + required variant detail, with size/count at the end under current house style. Brand casing comes from evidenced/approved identity, not invented capitalization. No change to PF16 Brand ownership.
-5. Collapse semantically identical formatting candidates before inference. One valid candidate or a purely stylistic choice is deterministic; call TypeSafe only when semantic interpretation selects among genuinely different valid source-backed candidates.
+Compute per-requirement `satisfied`, `missing`, `not_applicable`, `excepted`, `conflicted`, `unavailable`, or `stale`, with exact evidence/policy/exception references. Confirmed non-applicability differs from not found. Evidence sufficiency, claim support, classification readiness and listing completeness are distinct results. An empty string or a nonempty generic description does not establish satisfaction.
 
-The Choice asks which supplied complete candidate most accurately names this SKU without losing or inventing identity/variant facts. Include `no_match` and `insufficient_evidence`. Code copies/renders the chosen candidate; the model returns neither a new title nor new component text. More than sixteen required candidates is explicit overflow, not first-N clipping or an uncontrolled Cartesian product of source fragments.
+### 7.2 Claim checks
 
-Sibling context may establish formatting vocabulary or which permitted axis must distinguish labels. It is never evidence for this SKU's flavor, size, ingredient, species, brand, or Product Classification. Short Names remain the deterministic listing-owned output described in section 5, separate from the full-name selector.
+Use the existing listing-evidence seam and one shared pure gate/currentness evaluator for Preparation, Review completion, durable approval, draft creation, change-set approval, export and push. Evaluate the exact listing/draft being applied against its current eligible facts and policy, not a different live text projection.
 
-### 6.2 Active paths, persistence, and failure
+Build claim units in code from name components, structured values and final sentences/bullets/HTML blocks, retaining qualifiers and source hashes. Every material assertion in a multipart statement must be supported. Check deterministic citations, exact identifiers, units/pack structure, source/variant linkage and conflicts first; a model cannot overrule contradiction. Exact supported copies need no model question.
 
-Update singleton and cohort naming together: the shared consolidator, name-consolidation stage, active cohort coordinator/title persistence, shared source enums/provenance, draft projection, title validation, Review, and Promotion consumers. Preserve the existing lease-guarded all-or-nothing/write-once parent title-output contract. If per-SKU decisions are composed into a cohort output, record each member's actual producing call ID; no synthetic one-call provenance for several requests.
+Remaining independent claim Choices return `supported`, `contradicted`, or `insufficient_evidence` over the supplied eligible bundle. Persist input/listing/evidence/checklist/policy hashes, full in-scope claim coverage, exact evidence considered, actual answers/call IDs and aggregate status. “Evidence considered” is not a fabricated per-source proof. Missing responses, overflow beyond the declared 24 claims, unqualified policy or unavailable transport cannot yield a partial green.
 
-Extend `CurationData` with a `nameDecision` record containing the selected candidate/components, exact source references/spans, normalization rule version, input/title hash, producer, model-call IDs, and outcome. New source labels must truthfully distinguish a typed selection from deterministic/manual output; no new result may label deterministic output as LLM-authored. Historical source labels remain readable as history, not live fallback routes.
+An included unsupported claim cannot ship merely because its field is optional. Remove/correct it or supply eligible evidence. An absent optional fact is not a blocker; an applicable required fact needs evidence or an allowed explicit omission. Human verification records a real current observation and actual operator producer; clicking approve cannot create facts or bypass identity/source/rights/classification gates.
 
-Existing mandatory brand/variant and deterministic title-lint/consistency protections remain. Any source-backed deterministic fallback must independently satisfy these protections and the listing-evidence gate, retain its actual provenance, and be visible to Review. A failed model request is not a successful typed selection. Where no valid deterministic candidate exists, keep the title unresolved and offer current manual evidence/title correction; do not ship `Unknown Product` or an unsupported signal just to satisfy nonempty validation.
+### 7.3 ListingCompletenessException
 
-Use source-span offsets/hashes for provenance, not newly generated quotes. Existing validated manual evidence is retained as a first-class candidate/authority; its exact current revision is still checked. Changing a name or one of its supporting facts invalidates dependent evidence judgments, family labels/plan when affected, review/approval, and derived draft filename proposals. Do not silently rename existing approved filenames.
+`ListingCompletenessException` is a **proposed**, server-authored immutable decision, not the existing title/description correction receipt. Bind workspace/item/SKU, requirement/field, standard ID/version/hash, relevant canonical classification, input/fact/listing revision, actor/time/reason, expected revision and idempotent action token/receipt. Authorize only a designated non-critical requirement; reject identity/variant, rights, required safety and classification-required field/configuration omissions in code, even if a client or policy marks them waivable.
 
-At cutover, drain or supersede incompatible in-flight frozen chat naming plans and run fresh typed plans. Remove active text-generation selection/parsing/fallback chains for the migrated operations. Do not reroute an old frozen plan or rewrite historical outputs to pretend they were typed judgments. Other nonmigrated generative capabilities are not removed or expanded by this spec.
+Approve/revoke through authenticated existing review/correction patterns. Recheck currentness and authority in the transaction. Stale requests mutate nothing and preserve entered operator text; identical action-token retries replay the exact receipt, mismatched payloads refuse. An exception affects only its item/requirement/revision, does not assert a value or mark evidence verified, and remains visible in Review/approval. Relevant fact/classification/standard changes stale it. Removing an unsupported sentence is a text correction, not an omission approval or manual fact verification.
 
-### 6.3 Acceptance
+### 7.4 Readiness and acceptance
 
-- **N1:** Official base identity plus this SKU's verified package facts yields a valid complete candidate without invented wording or sibling facts.
-- **N2:** Abbreviated/attached register quantities normalize safely; all required size/capacity/count distinctions remain; shipping weight does not replace net contents.
-- **N3:** Conflicting 5 lb/15 lb evidence cannot create a title containing both as a guessed solution. Missing required brand/variant evidence remains actionable rather than bypassing existing holds.
-- **N4:** Flavor, species, life stage, form, negation, model suffixes, strength, and material distinctions survive even when cohort siblings differ.
-- **N5:** Exact/equivalent candidates use zero model calls. Typed selection cannot output a title not constructible from the supplied evidence-backed candidate.
-- **N6:** Singleton and cohort paths produce truthful provenance and equivalent per-SKU protections; crash/replay does not split or overwrite a committed cohort title set.
-- **N7:** Manual edits/evidence revisions stale old name decisions and approvals; unchanged evidence/rules can reuse a judgment without inheriting human approval.
-- **N8:** Service failure, no-fit, missing evidence, invalid candidate ID, and overflow have distinct visible outcomes. No chat retry chain or invented fallback title is introduced.
-
-## 7. Listing-evidence support and contradiction checks
-
-### 7.1 Claim scope and interface
-
-Add `checkListingEvidence` after current name/description preparation and before publishing the draft projection to Review. It receives the exact current proposed listing fields, SKU-local eligible evidence, source/variant authority, field-requiredness policy, and existing source conflicts. It returns a pure verdict structure plus audited semantic judgments where needed. The same currentness validator is reused by Review completion, durable approval, draft creation, change-set approval, and export/push.
-
-A claim is text or a structured fact actually asserted in the proposed listing: a selected name component, a product description sentence/bullet, or a material variant/measurement fact. Build these units in code from existing field boundaries and plain-text HTML/sentence blocks, retaining source offsets and qualifiers; do not introduce another generative claim extractor. A block can pass only when all its material assertions are supported. A multipart statement is not supported just because one clause matches.
-
-Check the final projected title/description, including extraction/name fallbacks and manual edits, not only non-null curated fields. Exclude non-claim navigation/formatting and absent optional fields. Do not inspect unprojected provider text, the whole catalog, or all possible future product attributes.
-
-### 7.2 Deterministic checks, semantic checks, and provenance
-
-Code first verifies citation/span existence, evidence eligibility/currentness, item/source linkage, resolved hard conflicts, exact identifiers, quantities/units, and variant consistency. A model cannot overrule a deterministic contradiction or rehabilitate the wrong SKU/source. Exact supported structured copies require zero semantic questions.
-
-For remaining current claim units, ask one narrow Choice per claim over the relevant evidence bundle:
-
-- `supported`: every material assertion is directly supported by the eligible evidence for this SKU, with no unresolved contradiction.
-- `contradicted`: eligible evidence directly conflicts with a material assertion.
-- `insufficient_evidence`: the evidence neither supports the complete assertion nor establishes a direct contradiction.
-
-Questions in one request are independent and cannot see one another's verdicts. The instructions include the claim and full meaning; IDs alone are not instructions. Preserve the exact evidence bundle IDs/hashes considered and raw judgment. Label that bundle as evidence considered, not a fabricated per-source proof or model-generated quotation. Specific supporting spans can be shown only when present/validated in the source; no invented evidence IDs or citations.
-
-Persist `CurationData.listingEvidenceValidation` with rule/model-policy version, final listing hash, evidence hash, per-claim field/span/hash/requiredness, deterministic/model producer, evidence considered, verdict/reason, actual call IDs, unresolved findings, and aggregate status (`passed`, `needs_review`, `blocked`, `unavailable`, `stale`). A `passed` record requires complete coverage of all in-scope included claims, not just the first 24. Overflow/oversized evidence is visible and unresolved; it cannot produce a partial green check.
-
-### 7.3 Gate and resolution policy
-
-- An included contradicted or unsupported material claim cannot ship as-is, even if its field is optional. The operator must remove it, correct it to evidenced text, or provide eligible attested evidence. Optionality is not permission to publish an unsupported assertion.
-- An absent optional fact does not become a new blocker or preparation gap. Preserve current configured requiredness; do not add a universal ingredient/nutrition/marketing checklist.
-- Missing required listing facts continue through existing preparation-gap/readiness semantics. Reuse title/description preparation gaps where applicable; findings on other fields remain listing-evidence findings, not unsupported new gap types.
-- Service failure, model uncertainty, and overflow are not `supported`. Keep the draft/evidence visible, offer retry through the existing bounded worker flow or explicit manual verification, and leave unresolved checks release-blocking for affected included claims.
-- Human resolution uses existing authenticated review/manual-evidence patterns: exact claim/field/SKU hash, evidence/input hash, actor, timestamp, expected revision, reason, and existing operation receipt. A manual verification is stored as `operator_verified`, not rebranded as a positive model verdict. It requires a real current observation/attestation; clicking approve alone cannot fabricate evidence.
-- Explicit manual verification cannot bypass wrong-identity/variant/domain constraints, unresolved hard source conflicts, image rights, classification approval, drift, or catalog ownership. Corrections must resolve the responsible upstream conflict or provide the permitted evidence, then revalidate.
-
-Display contradictions and missing support with the proposed text and actual evidence, not only a confidence score. Removing an unsupported optional sentence can unblock a listing without a new source/model call if no remaining claim depends on it and deterministic coverage/currentness is re-established.
-
-Distributor-record Extraction stays a deterministic, hash-bound, URL-null materialization with zero model/fetch/profile/OCR/image calls. These checks run in Curation against read-only materialized evidence; never repair/rewrite distributor extraction payloads. Tamper/hash mismatch remains the existing promotion refusal, not a model-resolvable disagreement.
-
-### 7.4 Acceptance
-
-- **E1:** A copied current fact with a valid same-SKU source/span passes deterministically; an absent optional description/keyword/weight field does not open a new universal gap.
-- **E2:** A title/description claiming 15 lb against verified 5 lb evidence is contradicted regardless of high model probability or provider majority.
-- **E3:** An included unsupported marketing assertion is not allowed merely because description is optional. Removing/correcting it rechecks the actual final projected listing.
-- **E4:** A source that says `not suitable for puppies` cannot support `suitable for puppies`; similar topic or one supported clause cannot certify the whole statement.
-- **E5:** Sibling/catalog-family evidence, another variant's facts, stale provider attempts, unverified URLs, fabricated quotes, and unlinked evidence IDs cannot support a claim.
-- **E6:** Required title/description gaps reuse existing correctable-gap behavior. Unsupported included text and missing optional text have distinct handling.
-- **E7:** Manual verification is authenticated, evidence/revision-bound, auditable, and idempotent; an old decision cannot clear a changed claim or a hard identity/rights/classification conflict.
-- **E8:** Model failure, uncalibrated policy, excessive claims/state, and an incomplete response never become an all-clear. All safe listing/proposal data remains visible for correction.
-- **E9:** Consequential text, source, quantity, manual-evidence, family-axis, or classification/rule changes stale precisely the affected judgments and review/approval. Unrelated unchanged claims do not require fresh inference just because a display preference changed.
-- **E10:** Both official-page and distributor-record products reach the same Curation check while distributor Extraction's zero-model/provenance invariants remain unchanged.
+- **E1:** Current same-SKU facts/spans can support deterministic copies; optional absence and confirmed non-applicability do not become universal gaps.
+- **E2:** A claimed 15 lb against verified 5 lb is contradicted regardless of probability or source majority; pack structure is checked separately.
+- **E3:** Unsupported included marketing text blocks; removal/correction rechecks the actual final projection without needless inference when deterministic coverage is sufficient.
+- **E4:** `not suitable for puppies` cannot support its negation; one supported clause cannot certify a multipart assertion.
+- **E5:** Wrong-variant, sibling/example, stale, unlinked or fabricated evidence cannot support a claim; OCR of a selected image is not independent proof that the image depicts the imported SKU.
+- **E6:** Richness uses the current applicable standard, not the old title-only fallback. No approved standard, unreadable currentness or incomplete checking means unresolved, not success.
+- **E7:** An authorized non-critical omission has visible actor/reason/revision; changing its dependency stales it. Automatic waivers and forged/stale/cross-workspace approvals refuse.
+- **E8:** Identity/variant, rights, required safety and ADR 0041 classification-required configuration/values cannot be waived by a listing exception or model/manual support verdict.
+- **E9:** Final text, evidence, classification, standard, source authority, rights or policy changes invalidate precisely affected checks and review/approval; unrelated presentation changes do not invent inference work.
+- **E10:** Official, distributor, browser and attested contributions converge on the same eligible-fact/readiness meanings without rewriting historical provenance or distributor materialization.
+- **E11:** An unrelated incomplete/failed cohort member cannot block a current item. Lost own-item lease, stale snapshot or incomplete own run still blocks publication.
+- **E12:** Missing required fields, unsupported included text, approved omissions, unavailable checks and unresolved classification are distinct operator states and remain consistent at all apply/export/push consumers.
 
 ## 8. Operator interaction and mutation contract
 
-Use the existing Batch Workspace/Review and Needs Attention flows in Operate mode; do not redesign the shell or add an agent console.
+Use existing Batch Workspace, Review and Needs Attention surfaces; no new shell or agent console. Show this item's accepted facts, source roles/methods, exact source evidence, applicable checklist, missing/conflicted/unavailable/stale reasons, acquisition attempts/budget state, explicit omissions and classification readiness. Shared computation must not display “waiting on family” for unrelated item readiness. Actual Product Family plans retain their own explicit state/actions, not renamed cohort barriers.
 
-- Official Site Resolution shows safe retrieved candidates, the proposed candidate, separate verification state, and the exact no-match/uncertainty/service reason. Confirmation remains an explicit existing action where deterministic automation has not already qualified it.
-- Family review is a comparison table inside the listing workflow: main designation, SKU, source (import/catalog), invariant/variant evidence, Short Name before/after, and changed/unchanged relationship members. Existing catalog changes are conspicuous. Never preselect approval or hide an old member because it is not in the import.
-- Full Name and Child - Short Name are distinct controls. The latter is enabled only for the explicit listing-owned family operation; it does not appear as a classifier facet.
-- Listing findings anchor to the exact affected field/text and source evidence. Show `contradicted`, `not established`, `unavailable`, and `stale` distinctly, with actions appropriate to each. No progress badge implies approval or confirmed identity.
-- Loading retains current data and disables only conflicting saves. Empty candidate/family states allow manual/standalone work. Stale saves preserve operator input, return the current revision/diff, and require explicit resubmission. Overflow shows counts and the affected scope; failures are not indefinite spinners.
-- Use current tokens/layout and accessible labels/table semantics, keyboard actions, focus return after correction, descriptive field errors, and `aria-describedby` links from readiness blockers. Status is never color-only. Narrow screens retain identity/main/decision columns with an accessible details view rather than hiding affected products.
+Candidate discovery distinguishes offered URLs from confirmed official pages. Source-authority decisions are reusable brand/domain configuration, not profile approval or item fact approval. Never use a progress badge/confidence score to imply authority. Operator requests name the precise remaining variant/domain/rights/field decision; retained safe facts and input remain visible after failure.
 
-Add family-plan detail/decision operations under the existing authenticated onboarding router. The mutation contract includes plan ID, expected revision/input hash, action (`accept`, `revise`, `reject`, `defer`), exact submitted edits, and an action token. Workspace, actor, base products, eligibility, and evidence are server-derived; a client cannot approve another workspace's plan or submit arbitrary Product JSON as a family edit. Return current per-field/group blockers and changed SKU diffs, not a bare boolean. Stale revision/authority returns conflict with no mutation; malformed input is validation failure; existing action-token retries replay the same receipt, while payload/token mismatch refuses.
+Expose grounded-copy/name edits and field-anchored remove/correct/attest/omit actions with their different meanings. Full Name and PF7 Short Name remain distinct controls; PF7 is enabled only for explicit listing-owned family operations. Family review shows all existing/new members and native/label diffs. No preselected approval or silent joins.
 
-Accept/revise persists the complete decision and draft write set in one repository transaction, with currentness rechecked inside it. Review completion must validate all requested affected items before mutation, preserving its all-or-nothing semantics. Existing unrelated bulk-release partial-success behavior is not silently redefined; family publication uses the stricter consistency-group gate.
+Mutations use server-derived workspace/actor/eligibility, expected input/policy revision, exact submitted fields and action token. Stale state returns conflict without mutation; malformed payload is validation failure. Recheck inside the repository transaction; do not run models inside it. Review-completion multi-selection retains its existing all-requested-items validation/atomic semantics; unrelated bulk-release behavior is not silently redefined. Real family operations use the stricter full-group path.
 
-For naming/evidence re-evaluation, reuse existing Curation rerun/correction and review-currentness flows rather than inventing independent worker queues. Family-plan decision records are listing-owned and cannot reuse the classifier's protected-target mutation interface.
+Loading retains data and disables only conflicting saves. Preserve edits on stale responses; show current revision/diff and require explicit resubmission. Overflow includes counts/scope. Keyboard/focus return, descriptive errors, semantic tables and non-color status are required. Narrow layouts retain identity and decision meaning with accessible details. Reuse existing curation rerun/correction/worker flows rather than independent queues or classifier-target mutations for listing-owned exceptions/family plans.
 
-## 9. Dependencies, invalidation, and storage ownership
+## 9. Dependencies, currentness, and storage ownership
 
-| Change | Invalidate/recheck |
+| Change | Recheck/invalidate |
 |---|---|
-| Register identity, allowed domains, candidate content/final URL/variant | Official selection/confirmation; affected Extraction and dependent listing work under existing rules |
-| Accepted source evidence, materialization generation, OCR bytes/results, manual attestation | Dependent name/components, family invariants/axes, claim verdicts, review/approval; never mutate old evidence to make a hash match |
-| Reviewed Category/Product Type or Family Variant Rule | Family eligibility/plan and affected name/claims; preserve existing classifier dependency invalidation and review authority |
-| Main/member set, variant tuple, PF7 value, relevant native relationship | Whole family plan/read-write manifest, Short Name uniqueness, changed listings, publication validation; not unrelated Curation Cohort membership |
-| Proposed full name/description/fallback source | Exact listing hash, affected claims, draft projection/review; no automatic approved URL rename |
-| Existing catalog base/member name/native IDs, pending draft, drift, or remote existence | Family plan and pending export dependency closure; refuse stale group publication |
-| Model/prompt/meaning/policy or requiredness change | Relevant judgments and readiness; no reuse under old meaning. A presentation-only change can reuse raw judgments if their evidence/meaning is unchanged. |
+| Imported identity, allowed source role/domain, source response/final URL or selected variant | Admission, relevant collected facts, source confirmation and dependent listing work. |
+| Accepted fact/span/connector generation/OCR/manual attestation/rights | Dependent name/copy/claims/checklist, family axes if affected, review/approval; retain immutable old observations. |
+| Canonical Category + Product Type or approved Attribute Profile/configuration | Existing ADR 0041 dependents plus applicable listing standard, acquisition gaps and exception eligibility; no sibling propagation. |
+| Listing standard/applicability/exception decision | Affected completeness/currentness and review/approval; old omitted facts do not become known. |
+| Final projected name/description/fallback/manual text | Exact claim/listing hash, dependent projection/review; never silently rename approved URLs. |
+| Model/prompt/rule/meaning/data-sharing policy | Relevant execution/reuse/currentness; only meaning-preserving presentation changes may reuse raw judgments. |
+| Family main/members/tuples/PF7/native references, catalog bases/drafts/drift/remote existence | Complete affected family plan/read-write/export dependency closure, not unrelated item/cohort readiness. |
 
-Proposed new contracts live in shared Zod schemas; repository implementations are the only direct SQL owners. Add the minimum family-plan/member/decision storage needed for durable cross-batch review and extend existing item Curation data for name/evidence decisions. Keep completed runs/decisions immutable; use new revisions and existing review invalidation rather than deleting history. Do not run model requests inside a database transaction.
+Shared Zod schemas define contracts. Repositories alone own SQL; the existing migration runner installs minimal operational evidence/evaluation/exception state. Approved checklist/source/policy/catalog configuration remains Git-backed; SQLite operational snapshots, decisions and indexes do not become competing approved truth. Do not mark historical rows accepted, checked, reviewed, or adopted through schema defaults/backfill. Keep history readable; new meaning requires a fresh explicit execution/decision.
 
-Canonical approved product/configuration state stays in Git. SQLite family indexes, operational plans, model-call rows, and receipts are local state/audit, not competing catalog truth. Database migrations initialize the new state honestly; they must not mark legacy items/families as checked, reviewed, or adopted. Historical items remain readable and acquire new judgments through explicit new runs/edits, not a fabricated backfill pass.
+## 10. Implementation seams and complete cutover
 
-## 10. Implementation seams and delivery sequence
+Names below are proposed interfaces where not already implemented, not claims of current exports:
 
-The following names are proposed interfaces, not claims of existing exports. Implement deep behavior behind these narrow interfaces and reuse existing modules; no generic framework is required.
+| Interface/contract | Existing seam and required consumers |
+|---|---|
+| `AcceptedItemEvidence` / item admission | Existing source collectors/materializers, official confirmation, manual evidence and shared schemas; new browser/retailer bindings feed the same eligible-fact semantics. |
+| `acquireItemEvidenceGap` | Existing worker/acquisition and isolated rendered infrastructure; gap work, source policy, action validation, item/batch reservations and honest usage outcomes. |
+| `selectProductName` / grounded-copy preparation | Existing candidate/name stages and copy consolidators; final projection, source spans, claim checks, item-owned outputs and all former cohort consumers. |
+| `ListingCompletenessStandard` / `ListingCompletenessException` / shared item-readiness evaluator | Versioned listing configuration, repository decisions and currentness; Preparation, Review, durable approval, promoter, change sets, export/push and UI use one interpretation. |
+| Product Family plan/review/publication | Existing rule/plan/codec/change-set/adapter seams with full scope in section 5; independent of ordinary item readiness. |
 
-| Interface | Implementation seam | Required integration |
-|---|---|---|
-| `selectOfficialPageCandidate` | Existing sitemap matcher plus System One transport | Discovery operation policy/audit, source-discovery and worker result handling, official confirmation UI; remove active free-text selection parsing |
-| `proposeStorefrontFamily` / `reviewStorefrontFamilyPlan` | New listing-owned family module and repository | Shared plan/rule schemas, catalog snapshot/index, Review actions, native product schema/codec, change-set consistency groups and export/push guards |
-| `selectProductName` | Existing title consolidator/name stage and active cohort coordinator | Source candidate/provenance contract, frozen operations, source enums, durable title outputs, projection and readiness consumers; remove migrated chat generation paths |
-| `checkListingEvidence` plus pure currentness/gate evaluator | New Curation listing-evidence module using existing evidence/readiness patterns | CurationData, final projected listing fields, Review completeness, durable approval, promoter, change-set/export validation and corrections |
+The [implementation plan](evidence-first-onboarding-implementation-plan.md) specifies owning files and acceptance/smoke work in this dependency order:
 
-Deliver complete slices in this dependency order; each slice includes schemas, persistence, all active callers, Review behavior, acceptance scenarios, docs, and its real smoke evidence:
+1. Accepted-evidence, standard/exception, repository/currentness and honest migration contracts.
+2. Bounded search/browser fallback and source-specific admission, including actual network/isolation enforcement and budget reservation.
+3. Rich listing preparation, canonical classification inputs, grounded copy, names, complete support checks and field-specific operator UI.
+4. Item-owned claiming/freeze/output/publication; all worker/readiness/projection/review/promotion/UI consumers cut over together. Remove unrelated cohort barriers and obsolete live orchestration, not safety ownership checks or history.
+5. End-to-end scenario proof, fixed-population baseline/candidate qualification, fully reviewed canary and canonical activation.
 
-1. Official-page typed selector and its independent qualification/cutover.
-2. Evidence-backed naming and listing-evidence checks together, so selected/fallback names are never shipped without their declared evidence/currentness behavior; preserve both singleton and cohort paths.
-3. Family rules/plans, cross-catalog review, first-class native authoring, deterministic Short Names, strict family publication, and compatible ShopSite canary as one end-to-end family delivery.
+Packages are dependencies, not permission to activate an incomplete product path. All original family authoring/PF7/review/export capabilities remain in scope; do not deliver only family inference or only a browser proposal. Stop incompatible new dispatch at cutover, drain/supersede old work and create fresh item authority. Rollback is disable-to-unresolved/manual or a reviewed code revert, never a maintained second orchestration. No prototype/default mock/fake fallback may be presented as the permanent implementation.
 
-All four capabilities remain in the committed scope; ordering is not permission to deliver a family classifier without Subproducts/PF7/review/export, or a naming selector without the required consumers. Do not retire the existing classification comparator or change classification qualification merely because these slices exist.
+## 11. Qualification and activation
 
-Activation uses offline replay → fully reviewed supported canary → canonical activation. Remove obsolete active migrated paths after acceptance; rollback is disable-to-unresolved/manual or a reviewed code revert, not a maintained alternate chat orchestration. Complete history stays readable. In-flight incompatible snapshots must be drained/superseded, never silently rebound to new operations.
+### 11.1 Fixed-population outcome comparison
 
-## 11. Evaluation and release evidence
+Use representative real UPC/Register Name/Price-only batches, including unknown brands, unavailable profiles/sources, abbreviated names, near-neighbor models/flavors, unit/case packs, no-fit, ambiguous variants, missing safety/rights evidence, and actual catalog joins. Freeze baseline/candidate inputs, evidence/candidate coverage, final labels, rules, budgets and model policies. Separate families/near-duplicate sources across development and sealed holdout; fitting cannot read holdout labels. Review labels independently; unchanged UI values or model agreement are not proof of correct external product identity.
 
-Use representative, family-separated development/holdout data; the same product family or near-duplicate source must not leak across partitions. Cover food, non-food, unknown/missing invariants, abbreviated register names, no-fit, insufficient evidence, same-flavor/different-form cases, pack versus unit, and existing-catalog joins. Freeze source evidence, candidate coverage, applicable rules, final gold, and policy versions before scoring.
+Report all imported rows, unresolved/failed/denied rows and retrieval misses, not answered overlap. For every percentage name its denominator/support. Measure:
 
-Measure the actual composed workflow, not just model answers:
+- Correct exact sellable-item/variant resolution, candidate retrieval coverage and wrong-source/authority rates.
+- Type-specific rich-listing completion, unsupported/contradicted included claims, false blocks, approved omissions and their actual reviewer outcomes.
+- Active operator actions/edit/resolution time per correctly reviewed listing, separately from wall-clock waiting and amortized domain/profile setup.
+- End-to-end P50/P95, search/fetch/browser work, model calls/tokens/retries and total billed/observed cost or explicitly labeled estimate/unavailable. Include failed attempts, setup and shared-work attribution; unknown is not zero.
+- Family group precision/recall and harmful merges versus harmless splits; main/member/PF7/native preservation, complete publication and recovery. New family inference is not advertised as an existing-call saving.
 
-| Capability | Quality measures | Efficiency measures |
-|---|---|---|
-| Official selection | Correct-URL retrieval coverage; correct candidate selection; wrong SKU/variant/authority recommendations; end-to-end confirmed page precision; correct abstentions | Actual request/token cost including retries; verification/network work; time and operator actions to confirmed source |
-| Families | Group precision/recall; harmful merges versus harmless splits; invariant/tuple violations; existing-main/member/label preservation; complete native publication | Pair/candidate counts; paid calls avoided by blocking; family review/correction time; blocked/standalone products and publication recovery |
-| Naming | Exact preservation of material facts/variants; unsupported additions/lost qualifiers; corrected titles; provenance/currentness; singleton/cohort parity | Calls skipped, cost per accepted title, operator edit time, end-to-end Curation latency |
-| Evidence | Missed contradictions/unsupported included claims; false blocks; optional-omission behavior; reviewer resolution/currentness; source/variant eligibility | Calls/claim units; retry/overflow cost; operator resolution time; time to correctly reviewed listing |
+Retain existing per-capability qualification/comparator gates. Publish development-fitted selection/abstention and release criteria before sealed evaluation; do not copy arbitrary classification floors or invent improvement thresholds/sample sizes. A small fixture, underpowered/unlabeled/stale data, stubbed result or unreviewed canary is blocked qualification, not earned automatic authority.
 
-Report P50/P95 end-to-end timings and actual billed/observed usage where available; unknown cost is unknown, not zero. Compare on the same frozen population, reporting unanswered/failed rows and retrieval misses rather than evaluating only the answered overlap. Name the denominator and support for every percentage. Family grouping is new inference and must not be advertised as an existing-model cost saving.
+### 11.2 Required runtime smoke evidence
 
-Existing Assistant/TypeSafe operational and qualification requirements remain binding. Each new capability needs its own development-fitted policy, independent held-out evidence, invariant regressions, and fully reviewed canary. No automatic authority is earned by a probability alone. Underpowered, unlabeled, stale, mock-only, or unreviewed evidence yields a blocked qualification result; do not invent sample-size/accuracy claims or weaken existing gates to declare release.
+Permanent regressions target plausible consumer-visible D/F/N/E boundary, error, precedence, currentness, concurrency and recovery bugs; no source-text/wiring/mock-echo tests. Follow existing Bun/Vitest conventions and keep deterministic suites isolated from live credentials/network.
 
-The permanent regression suite must cover the D/F/N/E consumer-visible acceptance cases, including fault/replay/concurrency and cross-workspace rejection. Do not add source-text/wiring/mock-echo tests. Use the existing appropriate Bun/Vitest runner conventions; no live credentials/network in the deterministic suite.
+Tests alone are insufficient. Implementation must also run:
 
-Implementation smoke evidence must exercise the actual changed seams:
+1. Actual acquisition/admission/worker flow in a disposable workspace using controlled source artifacts/pages, including real browser navigation/action policy and denied destinations/actions. Distinguish controlled fixture proof from real-source browser qualification.
+2. A ready SKU alongside an unresolved/failed cohort peer; observe its own review/draft progress, lease loss/stale refusal and replay without peer authority or fabricated provenance.
+3. Name/copy preparation and final claim checks; correct an unsupported claim, approve/revoke a permissible omission, change its inputs/classification and observe invalidation at Review, approval, draft and export.
+4. Actual Review/Needs Attention/exception/family surfaces, including stale-save recovery, keyboard/focus and narrow layout.
+5. Disposable catalog family create/join/review, one complete approved commit, exported XML/PF7 inspection, per-layer pre-/post-commit failure/recovery, and unknown-field preservation.
+6. Separately authorized compatible real-source and store canaries: source identity/content, browser boundary, review decisions, complete import/finalization/publish, visible labels/main purchase behavior and truthful partial-failure handling.
 
-- Run Discovery through retrieval, typed decision, verifier, and operator/confirmed outcome on supported source examples.
-- Run singleton and cohort naming plus listing checks, correct a contradiction, and observe review/approval invalidation and recovery.
-- In a disposable catalog workspace, prepare/review a family containing existing and new members, approve one complete commit, inspect the actual exported XML/PF7 values, and inject pre-/post-commit failures.
-- With separately authorized store-compatible canary access, complete import/finalization/publish and inspect the actual storefront: all expected sizes including the main are purchasable, labels distinguish variants, unrelated data is preserved, and partial failures are not marked synced.
-- Verify the actual Review/Needs Attention surfaces and accessible correction actions. Tests alone do not substitute for these runs.
+### 11.3 Explicit activation prerequisites
 
-## 12. Evidence from this specification session
+Before activation, provide approved versioned type-specific standards/exception eligibility; enforceable item/batch resource and monetary limits; a configured supported search provider and actual data-sharing authority; qualified isolated browser navigation/egress; model-policy and copy/claim quality qualification; rights-approved usable imagery; and fixed-population outcome/operator/cost evidence. Managed family delivery additionally needs inspected redacted real native-family export semantics and compatible storefront canary proof.
 
-Read-only repository investigation and current live TypeSafe/ShopSite documentation informed this specification. A synthetic no-network run of the existing family grouper showed flavor/life-stage stripping; a synthetic run of `matchOfficialPageIdentity` accepted an exact package and a uniquely selectable variant, rejected a conflicting package, and required operator help for missing package details.
+Design approval provides none of the missing provider credentials, pricing contracts, dollar values, product-type content, live-source qualification or store-write permission. Their absence is a named activation blocker, not a placeholder implementation or a reason to mark the path passed.
 
-Verification completed after writing:
+## 12. Documentation delivery evidence
 
-- All 26 distinct local file links resolve.
-- Acceptance coverage is explicitly enumerated as eight Discovery, fourteen family, eight naming, and ten listing-evidence scenarios. This is a specification inventory, not forty passed tests.
-- An additional no-network smoke of the existing codec round-tripped three top-level size SKUs with PF7 values `5 lb`, `15 lb`, and `30 lb`, preserved the main-to-self/three-member Subproducts block exactly, and kept all three products disabled/draft. Encoding produced zero warnings. No fixture files, paid model requests, or live store writes were needed.
+This revision records the confirmed target and preserves the prior four-capability family/naming/listing scope while replacing profile/cohort-first and no-search assumptions. Primary code and existing qualification reports support the current-state limitations above; TypeSafe [typed function-selection](https://docs.typesafe.ai/cookbooks/function_calling.md), [coding-agent limitations](https://docs.typesafe.ai/introduction/coding-agents.md), and [experimental image support](https://docs.typesafe.ai/images.md) support the separation of browser execution, judgments and prose.
 
-Those are baseline behavior checks, not validation of the proposed capabilities, editable native relationship authoring, remote atomicity, storefront rendering, or TypeSafe accuracy/cost. No new model call, live store write, runtime implementation, or qualification pass is claimed by this specification.
+The native family contract is constrained by ShopSite's [Subproduct FAQ](https://help.shopsite.com/help/current/en-US/sc/pro/working/faq.prod.subproducts.html) and [v15 database field documentation](https://help.shopsite.com/help/15.0/en-US/sc/pro/upload.fields.html), the repository field catalog/codec and inspected store evidence. No inferred wire tag, remote atomicity or authenticated workflow is claimed from a fixture alone.
+
+The previous specification session's recorded parser/grouping/identity/codec smokes and offline qualification artifacts remain historical mechanism evidence, not proof of this redesign. This documentation change runs no paid model/search, product-site crawl, production mutation, store upload or activation. Document-link/Markdown validation is reported separately from runtime or product-quality qualification.

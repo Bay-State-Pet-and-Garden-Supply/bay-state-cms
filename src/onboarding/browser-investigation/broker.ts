@@ -32,9 +32,10 @@ import * as net from 'node:net';
 import * as tls from 'node:tls';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { sha256 } from '../../shared/hash';
-import { classifyIp } from '../../shared/ssrf';
+import { performance } from 'node:perf_hooks';
 import type { InvestigationBudget } from '../../shared/schemas/browser-investigation';
 import { BudgetLedger } from './budgets';
+import { classifyIp } from '../../shared/ssrf';
 
 export const BROKER_USER_AGENT =
   'BayStateCMS-Investigation/1 (+local-bounded-read; investigation-only)';
@@ -54,9 +55,11 @@ export type BrokerErrorCode =
   | 'tls_validation_failed'
   | 'response_too_large'
   | 'content_type_forbidden'
+  | 'content_encoding_forbidden'
   | 'request_budget_exhausted'
   | 'fetch_failed'
-  | 'timeout';
+  | 'timeout'
+  | 'cancelled';
 
 export class BrokerError extends Error {
   readonly code: BrokerErrorCode;
@@ -97,6 +100,8 @@ export interface BrokerFetchOptions {
   timeoutMs?: number;
   /** Refuse to follow redirects (default follows, revalidating every hop). */
   followRedirects?: boolean;
+  /** Abort the in-flight request and response stream when the owner cancels. */
+  signal?: AbortSignal;
 }
 
 export interface BrokerDeps {
@@ -117,6 +122,7 @@ export interface BrokerTransportRequest {
    * injected/test transports that ignore the ceiling stay budgeted.
    */
   maxBodyBytes: number;
+  signal?: AbortSignal;
 }
 
 export interface BrokerTransportResponse {
@@ -170,6 +176,7 @@ export function scopeFromSampleUrls(
   return { investigationId, workspaceId, approvedHosts: [...hosts].sort() };
 }
 
+const requestQueuesByLedger = new WeakMap<BudgetLedger, Promise<void>>();
 export class InvestigationBroker {
   private readonly ledger: BudgetLedger;
   private readonly lookup: (host: string) => Promise<string[]>;
@@ -210,47 +217,86 @@ export class InvestigationBroker {
     const redirectChain: string[] = [];
     let current = rawUrl;
     for (let hop = 0; hop <= this.maxRedirectHops; hop += 1) {
-      // Every hop — validation, denied requests, redirects, retries —
-      // consumes one attempt BEFORE any work, so chains cannot fan out past
-      // the budget and denied requests cannot be retried for free.
+      if (opts?.signal?.aborted) throw new BrokerError('cancelled', 'broker request cancelled');
       try {
         this.ledger.chargeRequestAttempt();
       } catch {
         throw new BrokerError('request_budget_exhausted', 'broker request attempts exhausted');
       }
-      const validated = await this.validateDestination(current);
-      const res = await this.attemptOnce(validated.normalizedUrl, validated.addresses, timeoutMs);
-      if (isRedirect(res.status)) {
-        current = this.followRedirect(validated.normalizedUrl, res, followRedirects, hop, redirectChain);
+      const { validated, response, redirected } = await this.runExclusive(async () => {
+        if (opts?.signal?.aborted) throw new BrokerError('cancelled', 'broker request cancelled');
+        let durableAttempt = this.ledger.beginRequestAttempt(timeoutMs);
+        let dispatched = false;
+        const startedAt = performance.now();
+        try {
+          durableAttempt?.markDispatched();
+          dispatched = durableAttempt !== null;
+          const validated = await this.validateDestination(current);
+          if (opts?.signal?.aborted) throw new BrokerError('cancelled', 'broker request cancelled');
+          const response = await this.attemptOnce(validated.normalizedUrl, validated.addresses, timeoutMs, opts?.signal);
+          const redirected = isRedirect(response.status);
+          if (redirected) this.ledger.chargeRedirect();
+          durableAttempt?.settle({
+            redirects: redirected ? 1 : 0,
+            bytes: response.body.length,
+            durationMs: Math.ceil(performance.now() - startedAt),
+          });
+          durableAttempt = null;
+          return { validated, response, redirected };
+        } catch (error) {
+          if (durableAttempt) {
+            try {
+              if (dispatched) durableAttempt.settleUnknown();
+              else durableAttempt.release();
+            } catch { /* the durable row remains fail-closed if settlement itself failed */ }
+          }
+          throw error;
+        }
+      });
+      if (redirected) {
+        current = this.followRedirect(validated.normalizedUrl, response, followRedirects, hop, redirectChain);
         continue;
       }
-      return assembleSuccess(rawUrl, validated.normalizedUrl, res, redirectChain);
+      return assembleSuccess(rawUrl, validated.normalizedUrl, response, redirectChain);
     }
-    throw new BrokerError('too_many_redirects', `redirect hops exceed ${this.maxRedirectHops}`);
+    throw new BrokerError('too_many_redirects', 'redirect limit exceeded');
+  }
+  private async runExclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = requestQueuesByLedger.get(this.ledger) ?? Promise.resolve();
+    const next = Promise.withResolvers<void>();
+    requestQueuesByLedger.set(this.ledger, next.promise);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      next.resolve();
+    }
   }
 
-  /** One validated attempt: bound transport call + streaming byte charge. */
+  /** One validated attempt: bounded transport call plus exact body-byte charge. */
   private async attemptOnce(
     normalizedUrl: string,
     validatedAddresses: string[],
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<BrokerTransportResponse> {
+    if (signal?.aborted) throw new BrokerError('cancelled', 'broker request cancelled');
     let res: BrokerTransportResponse;
     try {
-      // Streaming ceiling = tightest remaining cap, so the transport aborts
-      // oversized downloads mid-stream instead of buffering them. The
-      // post-hoc ledger charge below keeps injected transports budgeted too.
       res = await this.transport({
         url: normalizedUrl,
         timeoutMs,
         validatedAddresses,
         maxBodyBytes: this.remainingBodyCeiling(),
+        signal,
       });
     } catch (err) {
-      // Stable operator-safe codes only: raw transport failures never leak
-      // sockets, headers, or bodies.
       if (err instanceof BrokerError) throw err;
       throw new BrokerError('fetch_failed', 'broker transport failed');
+    }
+    const encoding = firstHeader(res.headers['content-encoding'])?.trim().toLowerCase();
+    if (encoding && encoding !== 'identity') {
+      throw new BrokerError('content_encoding_forbidden', 'compressed response encoding is not accepted');
     }
     this.chargeBody(res);
     return res;
@@ -548,6 +594,12 @@ export async function nodeBrokerTransport(req: BrokerTransportRequest): Promise<
         res.on('error', reject);
       },
     );
+    const abort = (): void => {
+      request.destroy(new BrokerError('cancelled', 'broker request cancelled'));
+    };
+    if (req.signal?.aborted) abort();
+    else req.signal?.addEventListener('abort', abort, { once: true });
+    request.once('close', () => req.signal?.removeEventListener('abort', abort));
     request.on('timeout', () => {
       request.destroy(new BrokerError('timeout', 'broker request timed out'));
     });

@@ -9,9 +9,9 @@ import { buildFamilyCards, readinessText } from '../../client/components/onboard
 function waitingItem(partial: Partial<OnboardingWorkState>): OnboardingWorkState {
   return {
     itemId: 'item-1',
-    category: 'waiting_on_family',
+    category: 'processing',
     activity: 'curation',
-    label: 'Family not ready yet',
+    label: 'Curating product',
     detail: null,
     attentionReason: null,
     attentionAction: null,

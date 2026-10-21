@@ -907,8 +907,16 @@ export function verifyListingEvidence(
       if (liveRecord.overflow) {
         return failInside(claim.receipt.id, 'record_overflow', 'The listing exceeds the semantic claim bound; narrow it and re-run — overflow cannot be verified.', 409);
       }
-      if (currentCurationRevision(liveCuration, currentSourceAuthority(input.itemId)) !== (input.expectedRevision ?? '').trim()) {
+      if (currentCurationRevision(liveCuration, currentSourceAuthority(input.itemId, input.workspaceId)) !== (input.expectedRevision ?? '').trim()) {
         return failInside(claim.receipt.id, 'revision_stale', 'The item changed since you loaded it (listing text or selected source changed); your input is preserved — reload the current claim state and resubmit.', 409);
+      }
+      // Hard gates route to their owning flow BEFORE currentness: identity,
+      // variant, domain, drift, media-rights, and run-ownership refusals are
+      // actionable routing, not generic staleness. They read live item state
+      // directly and never depend on the listing/evidence hashes below.
+      const liveHardRefusal = hardGateRefusal(input.itemId, owned.upc, input.workspaceId, claimIds);
+      if (liveHardRefusal) {
+        return failInside(claim.receipt.id, 'hard_gate_refusal', liveHardRefusal.reason, 409);
       }
       const liveCurrent = currentListingEvidenceHashes(input.itemId, liveCuration, {
         workspacePath: undefined,
@@ -919,6 +927,7 @@ export function verifyListingEvidence(
         currentListingHash: liveCurrent.listingHash,
         currentEvidenceHash: liveCurrent.evidenceHash,
         currentModelPolicyDigest: liveCurrent.modelPolicyDigest,
+        currentRequiredFields: liveCurrent.requiredFields,
         currentSourceAuthority: liveCurrent.sourceAuthority,
       });
       if (!liveGate.ok && (liveGate.code === 'listing_evidence_stale' || liveGate.code === 'listing_evidence_malformed')) {
@@ -947,10 +956,6 @@ export function verifyListingEvidence(
         if (pre && live.claimHash !== pre.claimHash) {
           return failInside(claim.receipt.id, 'evidence_stale', `Claim ${id} changed during verification; your input is preserved — reload and resubmit.`, 409);
         }
-      }
-      const liveHardRefusal = hardGateRefusal(input.itemId, owned.upc, input.workspaceId, claimIds);
-      if (liveHardRefusal) {
-        return failInside(claim.receipt.id, 'hard_gate_refusal', liveHardRefusal.reason, 409);
       }
       // Anti-fabrication linkage (after hard gates so ownership refusals
       // keep their owning-flow routing): EVERY resolved claim needs its OWN
@@ -995,7 +1000,7 @@ export function verifyListingEvidence(
       if (!liveParsed.success) {
         throw Object.assign(new Error('The listing-evidence record changed during verification'), { code: 'record_malformed' });
       }
-      if (currentCurationRevision(liveCuration as Record<string, unknown>, currentSourceAuthority(input.itemId)) !== (input.expectedRevision ?? '').trim()) {
+      if (currentCurationRevision(liveCuration as Record<string, unknown>, currentSourceAuthority(input.itemId, input.workspaceId)) !== (input.expectedRevision ?? '').trim()) {
         throw Object.assign(new Error('revision changed during verification'), { code: 'revision_stale' });
       }
 
@@ -1042,7 +1047,7 @@ export function verifyListingEvidence(
         status,
         findings,
         evaluatedAt: now,
-        sourceAuthority: currentSourceAuthority(input.itemId),
+        sourceAuthority: currentSourceAuthority(input.itemId, input.workspaceId),
       };
       const nextParsed = ListingEvidenceValidationSchema.safeParse(next);
       if (!nextParsed.success) {

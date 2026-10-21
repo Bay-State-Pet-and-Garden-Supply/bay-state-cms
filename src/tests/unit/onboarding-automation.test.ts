@@ -291,7 +291,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(after.stageStatus).toBe('pending');
   });
 
-  test('semantic-blocked members stay at curation/completed (not review-ready)', () => {
+  test('legacy parent semantic output does not gate independent item progression', () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100007', 'Blocked Member', 'curation');
     stampCuration(item.id, {
@@ -302,11 +302,10 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
 
     const res = advanceCurationItemToReview(item.id);
 
-    expect(res.advanced).toBe(false);
-    expect(res.reason).toBe('semantic_validation_blocked');
+    expect(res.advanced).toBe(true);
     const after = findItemById(item.id)!;
-    expect(after.stage).toBe('curation');
-    expect(after.stageStatus).toBe('completed');
+    expect(after.stage).toBe('review');
+    expect(after.stageStatus).toBe('pending');
   });
 
   test('curation auto-advance guards: pending status, missing curation data', () => {
@@ -325,7 +324,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(noDataRes.reason).toBe('no_curation_data');
   });
 
-  test('cohort child with an in-flight parent run is never advanced', () => {
+  test('cohort child advances independently while a parent run is in flight', () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100010', 'Cohort Member', 'curation');
     const runId = 'child-run-running';
@@ -352,10 +351,10 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
 
     const res = advanceCurationItemToReview(item.id);
 
-    expect(res.advanced).toBe(false);
-    expect(res.reason).toBe('cohort_parent_in_flight');
+    expect(res.advanced).toBe(true);
     const after = findItemById(item.id)!;
-    expect(after.stage).toBe('curation');
+    expect(after.stage).toBe('review');
+    expect(after.stageStatus).toBe('pending');
   });
 
   test('cohort child with a terminal parent run advances to review', () => {
@@ -434,7 +433,7 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
     expect(idempotent.reason).toBe('not_eligible:curation/pending');
   });
 
-  test('extraction auto-advance skips members of an in-flight cohort run', () => {
+  test('extraction advances independently while a parent run is in flight', () => {
     const batch = makeBatch();
     const item = makeItem(batch.id, '100034', 'Cohort Member', 'extraction');
     completeStage(item.id);
@@ -458,10 +457,10 @@ describe('Onboarding automation-owned progression (epic #46 phase 2)', () => {
 
     const res = advanceExtractionItemToCuration(item.id);
 
-    expect(res.advanced).toBe(false);
-    expect(res.reason).toBe('cohort_parent_in_flight');
+    expect(res.advanced).toBe(true);
     const after = findItemById(item.id)!;
-    expect(after.stage).toBe('extraction');
+    expect(after.stage).toBe('curation');
+    expect(after.stageStatus).toBe('pending');
   });
 
   test('sweepAutoAdvance advances extraction→curation alongside the other legs', async () => {

@@ -269,6 +269,14 @@ export function hashEvidenceBundle(eligible: EligibleEvidence[]): string {
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   return shaHex(JSON.stringify(rows));
 }
+/** Bind the evaluator's eligible claim evidence to the exact accepted snapshot revision. */
+export function hashAcceptedEvidenceBundle(acceptedSnapshotHash: string, eligible: EligibleEvidence[]): string {
+  return shaHex(JSON.stringify({
+    acceptedSnapshotHash,
+    eligibleEvidenceHash: hashEvidenceBundle(eligible),
+  }));
+}
+
 
 /**
  * Fail-closed oversized-unit records (issue #366 gap 3): at least one claim

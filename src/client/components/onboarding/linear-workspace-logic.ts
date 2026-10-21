@@ -102,12 +102,11 @@ export const LINEAR_STAGE_PARAM = 'stage' as const;
 export const LINEAR_VIEW_PARAM = 'wview' as const;
 export { STEP_ZERO_VIEW_ID };
 
-/** The ten legacy `?tab=` cases in Table C (plus absent). */
+/** The nine legacy `?tab=` cases in Table C (plus absent). */
 export const LEGACY_TAB_CASES = [
   'absent',
   'needs_attention',
   'processing',
-  'waiting_on_family',
   'review',
   'approved',
   'ready_to_export',
@@ -121,7 +120,6 @@ export type LegacyTabCase = (typeof LEGACY_TAB_CASES)[number];
 export type OperationViewId =
   | 'attention'
   | 'processing'
-  | 'family'
   | 'review'
   | 'approved'
   | 'export';
@@ -149,8 +147,6 @@ export function resolveLegacyTabDestination(rawTab: string | null): LegacyTabDes
       return { kind: 'operation', view: 'attention' };
     case 'processing':
       return { kind: 'operation', view: 'processing' };
-    case 'waiting_on_family':
-      return { kind: 'operation', view: 'family' };
     case 'review':
       return { kind: 'operation', view: 'review' };
     case 'approved':

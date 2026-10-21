@@ -55,7 +55,7 @@ function page(items = [row()], preparation = Object.fromEntries(items.map(item =
 function counts(total = 104, categories: Partial<StageReadCountsResponse['counts']> = {}): StageReadCountsResponse {
   const zero = { pending: 0, in_progress: 0, completed: 0, failed: 0, needs_input: 0, skipped: 0 };
   return { schemaVersion: 2, stageVocabularyVersion: 2, batchId: 'b1', filterFingerprint: 'a'.repeat(32), projectionHealth: healthy,
-    matchingTotal: total, counts: { processing: total === 104 ? 100 : total, waiting_on_family: total === 104 ? 3 : 0, needs_attention: total === 104 ? 1 : 0, ready_for_review: 0, approved: 0, ready_to_export: 0, completed: 0, skipped: 0, ...categories },
+    matchingTotal: total, counts: { processing: total === 104 ? 100 : total, needs_attention: total === 104 ? 1 : 0, ready_for_review: 0, approved: 0, ready_to_export: 0, completed: 0, skipped: 0, ...categories },
     stageStatusMatrix: { route_sources: zero, find_product_page: zero, collect_details: zero, prepare_listing: { ...zero, pending: total }, review_listings: zero, create_drafts: zero } };
 }
 function detail(item = row(), runId = 'run-current', batchId = 'b1'): ItemDetailResponse {
@@ -241,7 +241,9 @@ describe('product-first preparation', () => {
     });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     await click('Curated p2');
-    await click('Waiting on family');
+    // The retired Family Waiting destination is no longer mounted. Verify
+    // unsaved-correction protection through an active filter control instead.
+    await click('Needs attention');
     expect(confirm).toHaveBeenCalledTimes(2);
     expect(container.querySelector('[data-testid="preparation-details-p1"]')).not.toBeNull();
     expect((container.querySelector('#gap-p1-description') as HTMLTextAreaElement).value).toBe('Pending description');
@@ -305,15 +307,15 @@ describe('product-first preparation', () => {
   });
 
   it('restores q/category/selectedId in the exact workspace and batch scope', async () => {
-    writeStageViewPreferences({ workspaceId: 'ws1', batchId: 'b1', stage: 'prepare_listing' }, { q: 'Acme', filters: { category: 'waiting_on_family' }, selectedId: 'p2' });
-    vi.mocked(getStageReadItems).mockResolvedValue(page([row('p1', { category: 'waiting_on_family', family }), row('p2', { category: 'waiting_on_family', family })]));
-    vi.mocked(getStageReadCounts).mockImplementation(async (_batch, query) => query?.category === 'waiting_on_family'
-      ? counts(3, { processing: 0, waiting_on_family: 3 }) : counts());
+    writeStageViewPreferences({ workspaceId: 'ws1', batchId: 'b1', stage: 'prepare_listing' }, { q: 'Acme', filters: { category: 'processing' }, selectedId: 'p2' });
+    vi.mocked(getStageReadItems).mockResolvedValue(page([row('p1', { category: 'processing', family }), row('p2', { category: 'processing', family })]));
+    vi.mocked(getStageReadCounts).mockImplementation(async (_batch, query) => query?.category === 'processing'
+      ? counts(3, { processing: 3 }) : counts());
     await render();
     expect(container.querySelector<HTMLInputElement>('#preparation-search')!.value).toBe('Acme');
-    expect(button('Waiting on family').getAttribute('aria-pressed')).toBe('true');
+    expect(button('Preparing').getAttribute('aria-pressed')).toBe('true');
     expect(container.querySelector('[data-testid="preparation-details-p2"]')).not.toBeNull();
-    expect(getStageReadItems).toHaveBeenCalledWith('b1', { stage: 'prepare_listing', q: 'Acme', category: 'waiting_on_family', limit: 50 });
+    expect(getStageReadItems).toHaveBeenCalledWith('b1', { stage: 'prepare_listing', q: 'Acme', category: 'processing', limit: 50 });
     await render({ workspaceId: 'ws2' });
     expect(container.querySelector<HTMLInputElement>('#preparation-search')!.value).toBe('');
     expect(button('All products').getAttribute('aria-pressed')).toBe('true');
@@ -406,9 +408,9 @@ describe('product-first preparation', () => {
 
   it('shows actual family readiness, opens the blocking sibling, and refreshes without losing initiating context', async () => {
     const attention = vi.fn(); const operation = vi.fn();
-    const selected = row('p1', { category: 'waiting_on_family', family });
+    const selected = row('p1', { category: 'processing', family });
     vi.mocked(getStageReadItems).mockResolvedValue(page([selected]));
-    vi.mocked(getStageReadCounts).mockResolvedValue(counts(1, { processing: 0, waiting_on_family: 1 }));
+    vi.mocked(getStageReadCounts).mockResolvedValue(counts(1, { processing: 1 }));
     await render({ onOpenAttentionItem: attention, onOpenOperation: operation });
     expect(container.textContent).toContain('2 / 4 products ready');
     expect(container.textContent).toContain('2 ready · 1 still processing · 1 blocked');
@@ -432,7 +434,7 @@ describe('product-first preparation', () => {
 
   it('does not offer inert attention navigation or call an old full-batch fallback', async () => {
     const operation = vi.fn();
-    vi.mocked(getStageReadItems).mockResolvedValue(page([row('p1', { category: 'waiting_on_family', family })]));
+    vi.mocked(getStageReadItems).mockResolvedValue(page([row('p1', { category: 'processing', family })]));
     await render({ onOpenOperation: operation });
     expect(Array.from(container.querySelectorAll('button')).some(b => b.textContent === 'View blocker')).toBe(false);
     expect(container.textContent).not.toContain('entire-batch');

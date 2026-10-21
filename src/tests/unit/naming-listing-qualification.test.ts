@@ -408,10 +408,10 @@ describe('naming + listing-evidence joint qualification (offline, #375)', () => 
     expect(failures).toEqual([]);
     // Fixed-population accounting cited in the qualification report §2.
     expect(dev.rows).toHaveLength(14);
-    expect(resolved).toBe(10);
+    expect(resolved).toBe(11);
     expect(needsSelectionAbstained).toBe(1);
     expect(conflictHeld).toBe(1);
-    expect(missingHeld).toBe(2);
+    expect(missingHeld).toBe(1);
     expect(zeroCallResolves).toBeGreaterThan(0);
   });
 

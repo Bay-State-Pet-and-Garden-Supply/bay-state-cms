@@ -244,7 +244,7 @@ describe('onboarding work-state query plan — bounded bulk reads', () => {
     expect(result.projectionHealth!.status).toBe('degraded');
     expect(result.projectionHealth!.issues.length).toBeGreaterThan(0);
     // Degraded but not zeroed
-    expect(result.counts.processing + result.counts.needs_attention + result.counts.waiting_on_family + result.counts.ready_for_review + result.counts.approved + result.counts.ready_to_export + result.counts.completed + result.counts.skipped).toBe(10);
+    expect(result.counts.processing + result.counts.needs_attention + result.counts.ready_for_review + result.counts.approved + result.counts.ready_to_export + result.counts.completed + result.counts.skipped).toBe(10);
   });
 
   it('category-critical DB failure does not silently become healthy empty — returns degraded 503, not false zero', () => {

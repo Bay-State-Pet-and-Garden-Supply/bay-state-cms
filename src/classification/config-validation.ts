@@ -1539,6 +1539,34 @@ export function validateClassificationConfigBundle(
       });
     }
   }
+  const copyGeneration = config.modelPolicy.copyGeneration;
+  if (copyGeneration) {
+    const provider = copyGeneration.provider;
+    const locality = config.modelPolicy.providerLocalities[provider];
+    const routePath = '$.modelPolicy.copyGeneration';
+    if (!locality) {
+      findings.push({
+        severity: 'error',
+        code: 'copy_generation_locality_undeclared',
+        path: `$.modelPolicy.providerLocalities.${provider}`,
+        message: `Grounded-copy provider "${provider}" requires an explicit locality declaration.`,
+      });
+    } else if ((copyGeneration.textDataSharing === 'local_only' || copyGeneration.textDataSharing === 'this_device_only') && locality !== 'local') {
+      findings.push({
+        severity: 'error',
+        code: 'copy_generation_locality_conflict',
+        path: `${routePath}.textDataSharing`,
+        message: `Grounded-copy sharing "${copyGeneration.textDataSharing}" permits only a local provider; "${provider}" is declared "${locality}".`,
+      });
+    } else if (copyGeneration.textDataSharing === 'trusted_lan_allowed' && locality !== 'local' && locality !== 'trusted_lan') {
+      findings.push({
+        severity: 'error',
+        code: 'copy_generation_locality_conflict',
+        path: `${routePath}.textDataSharing`,
+        message: `Grounded-copy sharing trusted_lan_allowed permits local or trusted_lan providers; "${provider}" is declared "${locality}".`,
+      });
+    }
+  }
   if (config.modelPolicy.imageDataSharing !== config.dataSharing.imagePolicy
     || config.modelPolicy.textDataSharing !== config.dataSharing.textPolicy) {
     findings.push({

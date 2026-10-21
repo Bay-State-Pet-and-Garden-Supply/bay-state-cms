@@ -260,7 +260,7 @@ describe('Classification Pipeline Integration', () => {
     expect(persisted.some(e => e.source === 'official_product_page')).toBe(false);
   });
 
-  it('name consolidation stage returns metadata without field_assignment proposals', async () => {
+  it('name consolidation abstains on raw-only evidence without a current accepted item snapshot', async () => {
     const config = loadClassificationConfig(workspacePath);
     const { id: snapId, hash: snapHash } = createConfigSnapshot(workspaceId, config);
     const run = createRun(workspaceId, 'TEST-SKU-NAME', snapId, snapHash);
@@ -296,20 +296,17 @@ describe('Classification Pipeline Integration', () => {
         capturedAt: new Date().toISOString(),
       },
     ];
-    // Run nameConsolidationStage directly (without evidenceExtractionStage which
-    // would abstain and create a reviewable_abstention proposal on this test DB)
+    // Raw run evidence is not an authority for item-local naming. Without a
+    // current accepted item snapshot the stage must abstain rather than mint a title.
     const result = await runPipeline(
       [nameConsolidationStage],
       { workspacePath, workspaceId, runId: run.id, configSnapshotRef: { id: snapId, hash: snapHash, sourceCommit: null, createdAt: new Date().toISOString() } },
       { sku: 'TEST-SKU-NAME', evidence, acceptedProposals: [], allProposals: [] },
     );
-
-    // name_consolidation should produce metadata without field_assignment proposals
-    const nameMeta = result.stageOutputs.name_consolidation?.metadata as Record<string, unknown> | undefined;
-    expect(nameMeta).toBeDefined();
-    expect(nameMeta!.curatedTitle).toBeDefined();
-    expect(nameMeta!.titleSource).toBeDefined();
-    expect(typeof nameMeta!.curatedTitle).toBe('string');
+    expect(result.stageOutputs.name_consolidation).toMatchObject({ abstained: true, evidence: [], proposals: [] });
+    const nameStage = getStageResults(run.id).find(stage => stage.stage_name === 'name_consolidation');
+    expect(nameStage?.status).toBe('abstained');
+    expect(nameStage?.error_message).toMatch(/accepted item evidence/i);
 
     // Name consolidation produces no field_assignment proposals
     const fieldProposals = result.proposals.filter(p => p.proposalType === 'field_assignment');
@@ -1003,6 +1000,7 @@ describe('Classification Pipeline Integration', () => {
     const run = createRun(workspaceId, item.upc, null, null, item.id);
     completeRun(run.id, 'completed');
     seedReviewProposal(run.id, item.upc, 'pending');
+    writeCurationData(item.id, { classificationRunId: run.id });
 
     const gate = validateReviewCompletionGate({ workspaceId, onboardingItemId: item.id, productSku: item.upc, activeRunId: run.id });
     expect(gate.ok).toBe(false);
@@ -1017,7 +1015,7 @@ describe('Classification Pipeline Integration', () => {
     decide(seedReviewProposal(run.id, item.upc), 'deferred');
     // Universal Category Page requirement: review never completes without an
     // assignment resolving into the active verified import.
-    writeCurationData(item.id, { suggestedPages: ['Dog Food'] });
+    writeCurationData(item.id, { classificationRunId: run.id, suggestedPages: ['Dog Food'] });
 
     const gate = validateReviewCompletionGate({
       workspaceId,

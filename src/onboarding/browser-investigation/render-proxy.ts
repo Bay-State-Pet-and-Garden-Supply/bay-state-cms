@@ -60,10 +60,9 @@ import { promisify } from 'node:util';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { InvestigationBroker, scopeFromSampleUrls, type BrokerDeps } from './broker';
-import { BudgetLedger } from './budgets';
+import { InvestigationBroker, scopeFromSampleUrls, type BrokerDeps, type BrokerResponse } from './broker';
 import type { InvestigationBudget } from '../../shared/schemas/browser-investigation';
-
+import type { BudgetLedger } from './budgets';
 interface RenderProxyOptions {
   investigationId: string;
   workspaceId: string;
@@ -71,33 +70,31 @@ interface RenderProxyOptions {
   budget: InvestigationBudget;
   ledger: BudgetLedger;
   brokerDeps?: BrokerDeps;
-  /**
-   * Interface to bind. Default 127.0.0.1 (hermetic, test-friendly). The
-   * harness binds the wildcard interface so the render container can
-   * reach the proxy via the host-gateway alias — validation stays the
-   * boundary (every request is broker-scoped and budgeted), not the bind.
-   */
+  /** Cancels every broker request owned by this proxy and drains before close resolves. */
+  signal?: AbortSignal;
+  /** Interface to bind; default is loopback. Container callers use a host-gateway address. */
   bindHost?: string;
-  /**
-   * Host name advertised in the proxy URL. Default is the bind host. The
-   * harness advertises `host.docker.internal` (argv carries the matching
-   * `--add-host` alias); direct test callers keep the loopback default.
-   */
+  /** Hostname advertised in the URL returned to a container. */
   advertiseHost?: string;
 }
 
+export interface RenderProxyDocumentProvenance {
+  requestUrl: string;
+  finalUrl: string;
+  redirectChain: string[];
+  status: number;
+  contentType: string;
+  bodyHash: string;
+  connectedIp: string | null;
+}
+
 export interface RunningRenderProxy {
-  /** Proxy URL for the render spec env (advertised host + ephemeral port). */
   url: string;
-  /**
-   * True when the per-run intercepting credential was generated and
-   * CONNECT to approved hosts is intercepted (HTTPS works through the
-   * boundary). False when generation failed: plain-HTTP relay still
-   * works, CONNECT is refused outright (fail closed).
-   */
   mitmAvailable: boolean;
+  documentProvenance(): RenderProxyDocumentProvenance[];
   close(): Promise<void>;
 }
+
 
 const PROXY_SERVER_TIMEOUT_MS = 30_000;
 
@@ -158,9 +155,38 @@ export function startRenderProxy(opts: RenderProxyOptions): Promise<RunningRende
   return generateMitmCredential().then(
     (mitm) =>
       new Promise<RunningRenderProxy>((resolve, reject) => {
+        const active = new Set<Promise<unknown>>();
+        const requestControllers = new Set<AbortController>();
+        const clientSockets = new Set<Duplex>();
+        const documents: RenderProxyDocumentProvenance[] = [];
+        const fetchBroker = (url: string): Promise<BrokerResponse> => {
+          const controller = new AbortController();
+          requestControllers.add(controller);
+          const abort = (): void => controller.abort();
+          if (opts.signal?.aborted) abort();
+          else opts.signal?.addEventListener('abort', abort, { once: true });
+          const request = broker.fetch(url, { signal: controller.signal });
+          active.add(request);
+          void request.finally(() => {
+            requestControllers.delete(controller);
+            opts.signal?.removeEventListener('abort', abort);
+            active.delete(request);
+          }).catch(() => {});
+          return request;
+        };
+        const recordDocument = (response: BrokerResponse): void => {
+          documents.push({
+            requestUrl: response.requestUrl,
+            finalUrl: response.finalUrl,
+            redirectChain: [...response.redirectChain],
+            status: response.status,
+            contentType: response.contentType,
+            bodyHash: response.bodyHash,
+            connectedIp: response.connectedIp,
+          });
+        };
         const server = http.createServer((req, res) => {
-          void handleProxyRequest(req, res, broker).catch(() => {
-            // handleProxyRequest always ends the response; this is a backstop.
+          void handleProxyRequest(req, res, fetchBroker, recordDocument).catch(() => {
             try {
               if (!res.writableEnded) {
                 res.writeHead(502, { 'content-type': 'text/plain' });
@@ -171,16 +197,16 @@ export function startRenderProxy(opts: RenderProxyOptions): Promise<RunningRende
             }
           });
         });
-        // CONNECT interception (HTTPS through the validating boundary):
-        // approved host + 443 → intercepted tunnel; anything else refused
-        // without a tunnel. Without a per-run credential every CONNECT is
-        // refused as opaque (fail closed).
+        server.on('connection', (socket) => {
+          clientSockets.add(socket);
+          socket.once('close', () => clientSockets.delete(socket));
+        });
         server.on('connect', (req, socket: Duplex, head: Buffer) => {
-          void handleConnect(req, socket, head, broker, mitm).catch(() => {
+          void handleConnect(req, socket, head, broker, mitm, fetchBroker, recordDocument).catch(() => {
             try {
               socket.destroy();
             } catch {
-              // Best-effort: never throw out of the tunnel handler.
+              // Best-effort: the tunnel may already be gone.
             }
           });
         });
@@ -197,28 +223,46 @@ export function startRenderProxy(opts: RenderProxyOptions): Promise<RunningRende
             });
             return;
           }
+          let closing: Promise<void> | null = null;
+          const close = (): Promise<void> => {
+            if (closing) return closing;
+            const serverClosed = closeServer(server);
+            for (const controller of requestControllers) controller.abort();
+            for (const socket of clientSockets) socket.destroy();
+            opts.signal?.removeEventListener('abort', abortProxy);
+            closing = Promise.all([
+              serverClosed,
+              Promise.allSettled([...active]).then(() => {}),
+            ]).then(() => {});
+            return closing;
+          };
+          const abortProxy = (): void => { void close(); };
+          opts.signal?.addEventListener('abort', abortProxy, { once: true });
           resolve({
             url: `http://${advertiseHost}:${address.port}`,
             mitmAvailable: mitm !== null,
-            close: () => closeServer(server),
+            documentProvenance: () => documents.map((item) => ({ ...item, redirectChain: [...item.redirectChain] })),
+            close,
           });
+          if (opts.signal?.aborted) abortProxy();
         });
       }),
   );
 }
 
 function closeServer(server: http.Server): Promise<void> {
-  return new Promise((resolve) => {
-    server.close(() => resolve());
+  if (!server.listening) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
   });
 }
 
 async function handleProxyRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  broker: InvestigationBroker,
+  fetchBroker: (url: string) => Promise<BrokerResponse>,
+  recordDocument: (response: BrokerResponse) => void,
 ): Promise<void> {
-  // Opaque tunnels hide method/path/body from the broker — refused outright.
   if ((req.method ?? '').toUpperCase() === 'CONNECT') {
     deny(res, 405, 'opaque_tunnel_refused');
     return;
@@ -227,18 +271,15 @@ async function handleProxyRequest(
     deny(res, 405, 'method_forbidden');
     return;
   }
-  // Forward-proxy form carries the absolute URI; origin-form without a Host
-  // cannot be validated to an approved host.
   const target = (req.url ?? '').trim();
   if (!/^https?:\/\//i.test(target)) {
     deny(res, 400, 'invalid_url');
     return;
   }
-  // Drain any request body (GETs should carry none; never parse it).
   req.resume();
   try {
-    // The single upstream: broker-mediated GET (policy + budgets enforced).
-    const fetched = await broker.fetch(target);
+    const fetched = await fetchBroker(target);
+    if (req.headers['sec-fetch-dest'] === 'document') recordDocument(fetched);
     res.writeHead(fetched.status, {
       'content-type': fetched.contentType,
       'content-length': fetched.body.length,
@@ -318,6 +359,8 @@ async function handleConnect(
   head: Buffer,
   broker: InvestigationBroker,
   mitm: MitmCredential | null,
+  fetchBroker: (url: string) => Promise<BrokerResponse>,
+  recordDocument: (response: BrokerResponse) => void,
 ): Promise<void> {
   const target = (req.url ?? '').trim();
   const parsed = parseTunnelTarget(target);
@@ -351,21 +394,21 @@ async function handleConnect(
   secure.setTimeout(PROXY_SERVER_TIMEOUT_MS);
   secure.on('timeout', () => secure.destroy());
   secure.on('error', () => secure.destroy());
-  await serveTunnelRequest(secure, parsed.host, broker);
+  await serveTunnelRequest(secure, parsed.host, fetchBroker, recordDocument);
 }
 
-/** Inner request head (origin-form) parsed off the terminated tunnel. */
 interface InnerRequest {
   method: string;
   target: string;
   contentLength: number;
+  destination: string;
 }
-
 function parseInnerHead(head: string): InnerRequest | null {
   const lines = head.split('\r\n');
   const [method, target, version] = (lines[0] ?? '').split(' ');
   if (!method || !target || !version?.startsWith('HTTP/')) return null;
   let contentLength = 0;
+  let destination = '';
   for (const line of lines.slice(1)) {
     if (!line) continue;
     const sep = line.indexOf(':');
@@ -377,9 +420,13 @@ function parseInnerHead(head: string): InnerRequest | null {
       if (!Number.isSafeInteger(n) || n < 0 || n > MAX_TUNNEL_BODY_BYTES) return null;
       contentLength = n;
     }
+    if (name === 'sec-fetch-dest') {
+      if (destination && destination !== value.toLowerCase()) return null;
+      destination = value.toLowerCase();
+    }
     if (name === 'transfer-encoding') return null;
   }
-  return { method: method.toUpperCase(), target, contentLength };
+  return { method: method.toUpperCase(), target, contentLength, destination };
 }
 
 /** Cap on a tunneled request body (GETs carry none; never parsed, only drained). */
@@ -426,7 +473,8 @@ function respondInner(secure: tls.TLSSocket, status: number, contentType: string
 async function serveTunnelRequest(
   secure: tls.TLSSocket,
   tunnelHost: string,
-  broker: InvestigationBroker,
+  fetchBroker: (url: string) => Promise<BrokerResponse>,
+  recordDocument: (response: BrokerResponse) => void,
 ): Promise<void> {
   let buf = Buffer.alloc(0);
   let done = false;
@@ -475,7 +523,8 @@ async function serveTunnelRequest(
     const url = `https://${tunnelHost}${inner.target}`;
     // Single-line broker call — the containment suite asserts every fetch
     // call site in this file is the broker-mediated one.
-    broker.fetch(url).then((fetched) => {
+    fetchBroker(url).then((fetched) => {
+      if (inner.destination === 'document') recordDocument(fetched);
       respondInner(secure, fetched.status, fetched.contentType, fetched.body);
     }).catch((err: unknown) => {
       respondInner(secure, 502, 'text/plain', Buffer.from(proxyCodeOf(err), 'utf8'));

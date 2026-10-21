@@ -230,18 +230,18 @@ export function upsertChangeSetItem(item: {
   const db = getDb();
   const now = new Date().toISOString();
   const id = randomUUID();
-  // classification_run_id binding semantics (three-state):
-  // - string: catalog upsert sets the supplied run.
-  // - explicit null: noncatalog upsert clears any stale binding so a manual
-  //   edit after a catalog draft cannot keep the old run's provenance.
-  // - undefined (omitted): legacy/existing callsites leave the binding
-  //   untouched on conflict (never silently nulled); fresh rows default NULL.
+  // A manual edit may clear catalog-classification routing, but cannot erase
+  // an onboarding draft's release authority. A refreshed producer supplies a
+  // new explicit run; omitted bindings preserve the existing source.
   const hasRunBinding = item.classificationRunId !== undefined && item.classificationRunId !== null;
   const clearsBinding = item.classificationRunId === null;
   const runConflictSet = hasRunBinding
     ? 'EXCLUDED.classification_run_id'
     : clearsBinding
-      ? 'NULL'
+      ? `CASE WHEN EXISTS (
+           SELECT 1 FROM classification_runs r
+           WHERE r.id = change_set_items.classification_run_id AND r.source_kind = 'onboarding'
+         ) THEN change_set_items.classification_run_id ELSE NULL END`
       : 'change_set_items.classification_run_id';
   const cols = hasRunBinding
     ? 'id, change_set_id, sku, operation, draft_json, base_json, draft_hash, validation_status, classification_run_id, created_at, updated_at'
@@ -253,12 +253,8 @@ export function upsertChangeSetItem(item: {
   const insertParams: Array<string | number | bigint | boolean | Uint8Array | null> = hasRunBinding
     ? [id, item.changeSetId, item.sku, item.operation, item.draftJson, item.baseJson, item.draftHash, runParam, now, now]
     : [id, item.changeSetId, item.sku, item.operation, item.draftJson, item.baseJson, item.draftHash, now, now];
-  // Forward-compatible insert: older databases may lack the column (fresh
-  // migration above normally adds it). Retry without the column rather than
-  // failing the draft.
-  try {
-    db.run(
-      `INSERT INTO change_set_items (${cols})
+  db.run(
+    `INSERT INTO change_set_items (${cols})
      VALUES (${placeholders})
      ON CONFLICT(change_set_id, sku) DO UPDATE SET
        operation = COALESCE(EXCLUDED.operation, change_set_items.operation),
@@ -268,24 +264,8 @@ export function upsertChangeSetItem(item: {
        validation_status = 'unknown',
        classification_run_id = ${runConflictSet},
        updated_at = EXCLUDED.updated_at`,
-      insertParams,
-    );
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!hasRunBinding || !/no such column: classification_run_id|no column named classification_run_id/i.test(msg)) throw e;
-    db.run(
-      `INSERT INTO change_set_items (id, change_set_id, sku, operation, draft_json, base_json, draft_hash, validation_status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'unknown', ?, ?)
-     ON CONFLICT(change_set_id, sku) DO UPDATE SET
-       operation = COALESCE(EXCLUDED.operation, change_set_items.operation),
-       draft_json = EXCLUDED.draft_json,
-       base_json = COALESCE(EXCLUDED.base_json, change_set_items.base_json),
-       draft_hash = EXCLUDED.draft_hash,
-       validation_status = 'unknown',
-       updated_at = EXCLUDED.updated_at`,
-      [id, item.changeSetId, item.sku, item.operation, item.draftJson, item.baseJson, item.draftHash, now, now],
-    );
-  }
+    insertParams,
+  );
   const row = db.query(
     'SELECT * FROM change_set_items WHERE change_set_id = ? AND sku = ?',
   ).get(...[item.changeSetId, item.sku]) as Record<string, unknown> | undefined;
@@ -334,6 +314,7 @@ export function listChangeSetStatusBySkus(workspaceId: string, skus: string[]): 
   return result;
 }
 
+// fallow-ignore-next-line unused-export
 function deleteChangeSetItem(changeSetId: string, sku: string): void {
   const db = getDb();
   db.run('DELETE FROM change_set_items WHERE change_set_id = ? AND sku = ?', [changeSetId, sku]);

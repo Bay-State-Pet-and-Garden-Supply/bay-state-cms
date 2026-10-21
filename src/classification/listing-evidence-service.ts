@@ -28,6 +28,7 @@ import {
   buildClaimUnits,
   deterministicClaimCheck,
   eligibleEvidenceFor,
+  hashAcceptedEvidenceBundle,
   hashEvidenceBundle,
   hashFinalListing,
   oversizedUnavailableRecords,
@@ -59,14 +60,10 @@ export interface ListingEvidenceRuntime {
   modelPolicy: ModelPolicyView | null;
   assertHeld?: () => void;
   evaluatedAt?: string;
-  /**
-   * Selected-source authority frozen at evaluation time
-   * (`official:<url>` | `distributor:<upc>`, null when unresolvable).
-   * Every release gate compares the stamped authority against the live one —
-   * a source change that leaves text/evidence hashes intact still stales the
-   * record instead of surviving under grandfathering.
-   */
+  /** Current authority hash from the accepted item-evidence snapshot. */
   sourceAuthority?: string | null;
+  /** Exact immutable accepted evidence snapshot hash bound to this evaluation. */
+  acceptedSnapshotHash?: string | null;
 }
 
 /** Result of one evaluation (persisted verbatim as the record). */
@@ -150,7 +147,9 @@ export async function evaluateListingEvidence(
   const { claims, overflow, oversized } = buildClaimUnits(listing);
   const eligible = eligibleEvidenceFor(allEvidence, sku);
   const listingHash = hashFinalListing(listing);
-  const evidenceHash = hashEvidenceBundle(eligible);
+  const evidenceHash = runtime.acceptedSnapshotHash
+    ? hashAcceptedEvidenceBundle(runtime.acceptedSnapshotHash, eligible)
+    : hashEvidenceBundle(eligible);
   const policyDigest = currentPolicyDigest(runtime.modelPolicy);
   const sourceAuthority = runtime.sourceAuthority ?? null;
 

@@ -263,12 +263,10 @@ export function toNameDecision(input: {
     if (required.length > 0 && !required.every(q => variantTokenPresentInTitle(result.title as string, q))) return null;
     // Species-identity contradiction (issue #365 follow-up): structured OCR
     // species is authoritative identity, not naming material. When the
-    // eligible bundle carries species evidence and the resolved title
-    // contains a DIFFERENT species word (e.g. OCR says Dog, title says
-    // Cat), the title contradicts its evidence — fail closed instead of
-    // persisting a title that names against the package. A title with no
-    // species word at all passes (the register stands as authority; OCR
-    // confirms silently) — only contradiction refuses.
+    // eligible bundle carries species evidence, every species word in the
+    // resolved title must be evidenced. A single unsupported species word
+    // refuses the title rather than letting a different supported word
+    // launder a contradictory candidate.
     const evidencedSpecies = new Set(
       spans.filter(s => s.kind === 'species').map(s => s.span.trim().toLowerCase()).filter(Boolean),
     );
@@ -277,7 +275,7 @@ export function toNameDecision(input: {
       const titleSpecies = new Set(
         SPECIES_IDENTITY_WORDS.filter(w => titleLower.includes(` ${w.toLowerCase()} `)),
       );
-      if (titleSpecies.size > 0 && ![...titleSpecies].some(w => evidencedSpecies.has(w.toLowerCase()))) {
+      if ([...titleSpecies].some(w => !evidencedSpecies.has(w.toLowerCase()))) {
         return null;
       }
     }

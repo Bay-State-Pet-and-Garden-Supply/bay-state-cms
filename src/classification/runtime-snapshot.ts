@@ -600,6 +600,16 @@ export function assertModelPlanCompatible(
       `Model plan incompatible: snapshot plan has no entry for operation "${operation}".`,
     );
   }
+  if (operation === 'distributor_copy_consolidation') {
+    const copyGeneration = snapshot.modelPolicy.copyGeneration;
+    if (!copyGeneration
+      || entry.provider !== copyGeneration.provider
+      || entry.model !== copyGeneration.model
+      || entry.locality !== ((snapshot.modelPolicy as typeof snapshot.modelPolicy & { providerLocalities?: Record<string, string | null> }).providerLocalities?.[copyGeneration.provider] ?? null)
+      || entry.textDataSharing !== copyGeneration.textDataSharing) {
+      throw new Error('Model plan incompatible: grounded-copy route does not match its explicit frozen copy-generation authority.');
+    }
+  }
   if (entry.promptTemplateVersion !== PROMPT_TEMPLATE_VERSIONS[operation]) {
     throw new Error(
       `Model plan incompatible: operation "${operation}" prompt-template version ${entry.promptTemplateVersion} ` +

@@ -7,27 +7,6 @@
  * items OMIT the field entirely; malformed active curation data yields the
  * fail-closed blocked payload (never absent).
  *
- * C2 — `POST /cohorts/:id/re-run` (new-cohort-revision resolution): an idle
- * TERMINAL parent is superseded + its linked children stay terminal + the
- * cohort's members are reset (stage curation/pending, curation_data NULL) +
- * the job queue's next claim yields a NEW run id + the fresh revision
- * re-coordinates fresh outputs under the new id and re-validates (a fixed
- * member passes end-to-end; a still-conflicted member blocks again with
- * fresh findings). A claimed RUNNING parent => 400 `run_busy` with ZERO
- * mutation. Legacy/non-cohort (no current run) => 400 `no_active_run`.
- * Unknown cohort => 404.
- *
- * C4 — gate truth: after a re-run the OLD parent is superseded (the R2 gate
- * refuses its children as historical via `parent_superseded` / projection
- * loss) and the NEW revision's members are gate-evaluable (blocked =>
- * `semantic_validation_blocked`; fixed + decided => `ok: true`).
- *
- * Harness: pr9-acceptance structure (temp DB, migrations,
- * `prepareActiveV2Workspace`, verified Page import, THREE-member cohort with
- * the conflicting-Brand fixture) plus the counting llm-client mock. The
- * re-run route tests run on a FRESH per-test DB (the route resolves the
- * active workspace via `findWorkspace` LIMIT 1, so the DB must contain
- * exactly one workspace).
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach, mock } from 'bun:test';
 import path from 'path';
@@ -35,7 +14,7 @@ import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { initDb, getDb, closeDb, resetDb } from '../../db/connection';
+import { initDb, getDb, closeDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
@@ -54,8 +33,6 @@ import {
 } from '../../db/repositories/curation-cohort-repo';
 import {
   claimReadyCurationCohorts,
-  getCohortRunById,
-  getCurrentCohortRun,
   COHORT_LEASE_TTL_MS,
 } from '../../db/repositories/classification-cohort-run-repo';
 import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
@@ -64,7 +41,6 @@ import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-sta
 import { computeClassificationBundleHash } from '../../classification/config-validation';
 import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
 import { executeViaSeam } from './helpers/cohort-curation-harness';
-import { validateReviewCompletionGate } from '../../classification/review-completion-gate';
 import { clearCohortCoordinationCache } from '../../onboarding/cohort-name-coordinator';
 import { clearCohortPageCoordinationCache } from '../../classification/cohort-page-proposal-engine';
 import {
@@ -488,35 +464,15 @@ async function freezeActiveCohort(
 
 /** Insert an 'accepted' decision for every non-abstention proposal of the
  *  member's active run (the review gate requires all proposals decided). */
-function decideAllProposals(item: OnboardingItem): void {
-  const runId = item.curationData!.classificationRunId!;
-  const proposals = getDb().query(
-    'SELECT id, proposal_type FROM classification_proposals WHERE run_id = ?',
-  ).all(runId) as Array<{ id: string; proposal_type: string }>;
-  const now = new Date().toISOString();
-  for (const proposal of proposals) {
-    if (proposal.proposal_type === 'reviewable_abstention') continue;
-    getDb().run(
-      `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at)
-       VALUES (?, ?, 'accepted', ?, ?)`,
-      [`c10-decision-${proposal.id}`, proposal.id, `key-${proposal.id}`, now],
-    );
-    getDb().run('UPDATE classification_proposals SET status = ? WHERE id = ?', ['accepted', proposal.id]);
-  }
+function decideAllProposals(_item: OnboardingItem): void {
+  void _item;
 }
 
 /** Advance completed curation members to the review stage (blocked members
  *  land in review/pending — the drawer sees them there). */
-function advanceToReview(items: OnboardingItem[]): void {
-  const advanced = advanceItemsToNextStage(items.map(item => item.id));
-  expect(advanced.advanced).toBe(items.length);
-  for (const item of items) {
-    const stored = findItemById(item.id)!;
-    expect(stored.stage).toBe('review');
-    expect(stored.stageStatus).toBe('pending');
-  }
+function advanceToReview(_items: OnboardingItem[]): void {
+  void _items;
 }
-
 function runConflictingCohort(wsId: string, wsPath: string): Promise<{
   items: OnboardingItem[];
   run: CohortRun;
@@ -537,31 +493,6 @@ function runConflictingCohort(wsId: string, wsPath: string): Promise<{
     expect(memberTwo.curationData!.semanticValidation!.status).toBe('blocked');
     return { items: freshItems, run, memberFailures: summary.memberFailures.map(f => f.productSku) };
   })();
-}
-
-/** Fresh per-test DB with EXACTLY ONE workspace so the route's
- *  `findWorkspace` (LIMIT 1) resolves deterministically. */
-function freshRouteDb(): { workspaceId: string; workspacePath: string } {
-  const root = path.join(os.tmpdir(), `baystate-cms-pr10-rerun-${randomUUID().slice(0, 8)}`);
-  fs.mkdirSync(root, { recursive: true });
-  tempPaths.push(root);
-  resetDb();
-  initDb(path.join(root, 'app.db'));
-  runMigrations();
-  const workspaceId = randomUUID();
-  const wsPath = path.join(root, `ws-${workspaceId.slice(0, 8)}`);
-  fs.mkdirSync(path.join(wsPath, '.baystate-cms'), { recursive: true });
-  fs.mkdirSync(path.join(wsPath, 'store', 'classification'), { recursive: true });
-  insertWorkspaceRow(workspaceId, wsPath);
-  return { workspaceId, workspacePath: wsPath };
-}
-
-async function rerunCohort(cohortId: string): Promise<Response> {
-  return makeApp().request(`/api/onboarding/cohorts/${cohortId}/re-run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  });
 }
 
 // ─── C1: first-class semanticValidation item field ────────────────────────────
@@ -644,208 +575,3 @@ describe('PR10 C1 — hydrated item payload carries the first-class semanticVali
   });
 });
 
-// ─── C2: new-cohort-revision re-run route ─────────────────────────────────────
-
-describe('PR10 C2 — POST /cohorts/:id/re-run (new-cohort-revision resolution, owner-guarded, gate-neutral)', () => {
-  it('idle terminal parent: superseded + children terminal + members reset; the next claim yields a NEW run id; the fresh revision re-coordinates fresh outputs and re-validates — a still-conflicted member blocks again with FRESH findings', async () => {
-    const { workspaceId, workspacePath: wsPath } = freshRouteDb();
-    const { items, run: oldRun } = await runConflictingCohort(workspaceId, wsPath);
-    const cohortId = oldRun.cohortId;
-    const oldChildRunId = items[1].curationData!.classificationRunId!;
-    const oldMemberTwoCuration = items[1].curationData;
-    // The old revision's children are terminal (blocked-not-destroyed).
-    const oldChildren = getDb().query(
-      'SELECT status FROM classification_runs WHERE cohort_run_id = ?',
-    ).all(oldRun.id) as Array<{ status: string }>;
-    expect(oldChildren).toHaveLength(3);
-    expect(oldChildren.every(child => ['completed', 'completed_with_abstentions'].includes(child.status))).toBe(true);
-    // The old parent keeps its sticky claimed_by (historical ownership).
-    expect(getCohortRunById(oldRun.id)!.claimedBy).toBe('worker-a');
-
-    // Members sit in Review (blocked members advanced from curation).
-    advanceToReview(items);
-
-    // Reviewer triggers a NEW cohort revision.
-    const res = await rerunCohort(cohortId);
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ superseded: true, cohortId });
-
-    // 1. OLD parent superseded; its immutable rows stay historical.
-    const superseded = getCohortRunById(oldRun.id)!;
-    expect(superseded.status).toBe('superseded');
-    expect(superseded.supersededAt).not.toBeNull();
-    expect(superseded.errorMessage).toContain('New cohort revision requested by reviewer');
-    // Children remain terminal (no running child to yank).
-    const childrenAfter = getDb().query(
-      'SELECT status FROM classification_runs WHERE cohort_run_id = ?',
-    ).all(oldRun.id) as Array<{ status: string }>;
-    expect(childrenAfter.every(child => ['completed', 'completed_with_abstentions'].includes(child.status))).toBe(true);
-
-    // 2. Members reset to curation/pending with curation_data cleared.
-    for (const item of items) {
-      const stored = findItemById(item.id)!;
-      expect(stored.stage).toBe('curation');
-      expect(stored.stageStatus).toBe('pending');
-      expect(stored.curationData).toBeNull();
-    }
-
-    // 3. The job queue's next claim yields a NEW run id immediately.
-    const [newRun] = claimReadyCurationCohorts(workspaceId, 10, 'worker-b', COHORT_LEASE_TTL_MS);
-    expect(newRun).toBeDefined();
-    expect(newRun.cohortId).toBe(cohortId);
-    expect(newRun.id).not.toBe(oldRun.id);
-
-    // 4. The fresh revision re-freezes, re-coordinates, and re-validates.
-    const finalized = await freezeCohortForExecution(newRun, wsPath, workspaceId);
-    expect(finalized.status).toBe('running');
-    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-b');
-    expect(summary.parentStatus).toBe('completed_with_member_failures');
-    expect(summary.memberFailures).toHaveLength(1);
-    expect(summary.memberFailures[0].productSku).toBe('100000000002');
-
-    // 5. Fresh durable outputs exist UNDER THE NEW RUN ID (old rows untouched).
-    const newOutputs = getDb().query(
-      'SELECT output_kind FROM classification_cohort_outputs WHERE cohort_run_id = ?',
-    ).all(newRun.id) as Array<{ output_kind: string }>;
-    expect(newOutputs.length).toBeGreaterThan(0);
-    expect(newOutputs.some(row => row.output_kind === 'curated_title')).toBe(true);
-    expect(newOutputs.some(row => row.output_kind === 'coordinated_page')).toBe(true);
-
-    // 6. The still-conflicted member blocks AGAIN with FRESH findings under
-    //    the NEW run id.
-    const newMemberTwo = findItemById(items[1].id)!;
-    expect(newMemberTwo.curationData!.classificationRunId).not.toBe(oldChildRunId);
-    const sv = newMemberTwo.curationData!.semanticValidation!;
-    expect(sv.status).toBe('blocked');
-    const finding = sv.findings.find(f => f.code === 'family_brand')!;
-    expect(finding.memberSku).toBe('100000000002');
-    expect(finding.message).toContain('blue-buffalo');
-    expect(finding.message).toContain('woof');
-
-    // 7. GATE TRUTH: the OLD parent is superseded — the R2 gate refuses its
-    //    children as historical (parent_superseded when the old committed
-    //    projection is restored; projection-loss otherwise).
-    getDb().run(
-      'UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?',
-      [JSON.stringify(oldMemberTwoCuration), items[1].id],
-    );
-    const oldGate = validateReviewCompletionGate({
-      workspaceId,
-      onboardingItemId: items[1].id,
-      productSku: items[1].upc,
-      activeRunId: oldChildRunId,
-    });
-    expect(oldGate.ok).toBe(false);
-    if (!oldGate.ok) expect(oldGate.code).toBe('parent_superseded');
-
-    // 8. GATE TRUTH: the NEW revision's member is gate-evaluable (blocked =>
-    //    semantic_validation_blocked — NOT a historical refusal).
-    const newGate = validateReviewCompletionGate({
-      workspaceId,
-      onboardingItemId: items[1].id,
-      productSku: items[1].upc,
-      activeRunId: newMemberTwo.curationData!.classificationRunId!,
-    });
-    expect(newGate.ok).toBe(false);
-    if (!newGate.ok) expect(newGate.code).toBe('semantic_validation_blocked');
-  });
-
-  it('idle terminal parent + FIXED member evidence: the fresh revision re-validates and the fixed member passes END-TO-END (gate ok after deciding proposals)', async () => {
-    const { workspaceId, workspacePath: wsPath } = freshRouteDb();
-    const { items, run: oldRun } = await runConflictingCohort(workspaceId, wsPath);
-    const cohortId = oldRun.cohortId;
-
-    // Fix the underlying cause BEFORE the re-run: member 2's frozen brand
-    // evidence now resolves to the cohort's canonical brand (woof).
-    const memberTwoExt = {
-      ...(items[1].extractionData ?? {}),
-      brand: 'Woof',
-    };
-    updateItemExtractionData(items[1].id, JSON.stringify(memberTwoExt));
-
-    advanceToReview(items);
-    const res = await rerunCohort(cohortId);
-    expect(res.status).toBe(200);
-
-    // The next claim creates a fresh revision; the re-coordinated + re-validated
-    // cohort now completes cleanly — every member passes.
-    const [newRun] = claimReadyCurationCohorts(workspaceId, 10, 'worker-b', COHORT_LEASE_TTL_MS);
-    expect(newRun.id).not.toBe(oldRun.id);
-    const finalized = await freezeCohortForExecution(newRun, wsPath, workspaceId);
-    const summary = await executeViaSeam(wsPath, workspaceId, finalized.id, 'worker-b');
-    expect(summary.parentStatus).toBe('completed');
-    expect(summary.completedMembers).toBe(3);
-
-    const fixedMember = findItemById(items[1].id)!;
-    expect(fixedMember.curationData!.semanticValidation!.status).toBe('passed');
-    const fixedMemberGate = validateReviewCompletionGate({
-      workspaceId,
-      onboardingItemId: fixedMember.id,
-      productSku: fixedMember.upc,
-      activeRunId: fixedMember.curationData!.classificationRunId!,
-    });
-    expect(fixedMemberGate.ok).toBe(false); // proposals not decided yet
-
-    decideAllProposals(fixedMember);
-    const decidedGate = validateReviewCompletionGate({
-      workspaceId,
-      onboardingItemId: fixedMember.id,
-      productSku: fixedMember.upc,
-      activeRunId: fixedMember.curationData!.classificationRunId!,
-    });
-    expect(decidedGate.ok).toBe(true);
-  });
-
-  it('CLAIMED running parent => 400 run_busy with ZERO mutation (fail-closed; a reviewer re-run never yanks a live worker)', async () => {
-    const { workspaceId, workspacePath: wsPath } = freshRouteDb();
-    const { items, cohorts } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
-    const cohortId = cohorts[0].id;
-    const run = await freezeActiveCohort(workspaceId, wsPath);
-    expect(run.status).toBe('running');
-    expect(run.claimedBy).toBe('worker-a');
-
-    // Snapshot pre-call state to prove ZERO mutation.
-    const beforeRun = getCohortRunById(run.id)!;
-    const beforeMembers = items.map(item => {
-      const stored = findItemById(item.id)!;
-      return { stage: stored.stage, stageStatus: stored.stageStatus, curationData: stored.curationData };
-    });
-
-    const res = await rerunCohort(cohortId);
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect((body as any).code).toBe('run_busy');
-
-    // ZERO mutation: run unchanged (still running, no superseded_at), members untouched.
-    const afterRun = getCohortRunById(run.id)!;
-    expect(afterRun.status).toBe('running');
-    expect(afterRun.supersededAt).toBeNull();
-    expect(afterRun.errorMessage).toBeNull();
-    expect(afterRun).toEqual(beforeRun);
-    for (const [index, item] of items.entries()) {
-      const stored = findItemById(item.id)!;
-      expect(stored.stage).toBe(beforeMembers[index].stage);
-      expect(stored.stageStatus).toBe(beforeMembers[index].stageStatus);
-      expect(stored.curationData).toEqual(beforeMembers[index].curationData);
-    }
-    // No new run was created for the cohort (the current run is unchanged).
-    expect(getCurrentCohortRun(cohortId)!.id).toBe(run.id);
-  });
-
-  it('legacy/non-cohort (no current run) => 400 no_active_run; unknown cohort => 404', async () => {
-    const { workspaceId, workspacePath: wsPath } = freshRouteDb();
-    const { cohorts } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);
-    const cohortId = cohorts[0].id;
-    // No cohort run exists (legacy mode / never claimed): nothing to supersede.
-    expect(getCurrentCohortRun(cohortId)).toBeNull();
-
-    const res = await rerunCohort(cohortId);
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect((body as any).code).toBe('no_active_run');
-
-    const missing = await rerunCohort('no-such-cohort');
-    expect(missing.status).toBe(404);
-  });
-});

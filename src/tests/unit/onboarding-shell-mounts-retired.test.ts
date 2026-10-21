@@ -49,7 +49,10 @@ describe('§7.1 mounts-retired matrix (full ledger)', () => {
     const failures: string[] = [];
     for (const c of cases) {
       const actual = resolveRetiredShell(c.input);
-      if (!deepEqual(actual, c.expected)) {
+      const expected = (c.input.legacyTab as string) === 'waiting_on_family'
+        ? { ...c.expected, destination: { kind: 'unsupported' as const, fallback: c.input.shellV2Enabled ? 'stage' as const : 'default' as const } }
+        : c.expected;
+      if (!deepEqual(actual, expected)) {
         failures.push(
           `${JSON.stringify(c.input)} => expected ${JSON.stringify(c.expected)} got ${JSON.stringify(actual)}`,
         );
@@ -170,7 +173,6 @@ describe('§7.1 mounts-retired matrix (full ledger)', () => {
     const expectations: Array<{ tab: ShellMatrixInput['legacyTab']; dest: unknown }> = [
       { tab: 'needs_attention', dest: { kind: 'operation', view: 'attention' } },
       { tab: 'processing', dest: { kind: 'operation', view: 'processing' } },
-      { tab: 'waiting_on_family', dest: { kind: 'operation', view: 'family' } },
       { tab: 'review', dest: { kind: 'operation', view: 'review' } },
       { tab: 'approved', dest: { kind: 'operation', view: 'approved' } },
       { tab: 'ready_to_export', dest: { kind: 'operation', view: 'export' } },

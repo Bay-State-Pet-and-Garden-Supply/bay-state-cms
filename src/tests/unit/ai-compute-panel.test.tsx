@@ -3,6 +3,9 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 import { AiComputePanel } from '../../client/components/AiComputePanel';
+vi.mock('../../db/connection', () => ({
+  getDatabase: vi.fn(),
+}));
 import { getAiConfig } from '../../client/onboarding-api';
 import type { AiRoutingConfig, WorkloadRoute } from '../../ai/provider-connections';
 

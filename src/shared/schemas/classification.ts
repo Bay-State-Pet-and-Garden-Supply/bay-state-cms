@@ -218,6 +218,13 @@ export const GuidanceConfigSchema = z.object({
 
 export type GuidanceConfig = z.infer<typeof GuidanceConfigSchema>;
 
+export const GenerativeCopyWorkloadSchema = z.object({
+  provider: z.string().min(1).max(128),
+  model: z.string().min(1).max(200),
+  textDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']),
+}).strict();
+export type GenerativeCopyWorkload = z.infer<typeof GenerativeCopyWorkloadSchema>;
+
 /**
  * Model policy configuration for model-policies.json.
  * Defines default provider/model and stage-specific overrides.
@@ -239,6 +246,8 @@ export const ModelPolicyConfigSchema = z.object({
     .default(() => ({})),
   imageDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']).default('local_only'),
   textDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']).default('local_only'),
+  /** Separate approved text-generation authority; absence never falls back to a judgment route. */
+  copyGeneration: GenerativeCopyWorkloadSchema.nullable().optional(),
 });
 
 export type ModelPolicyConfig = z.infer<typeof ModelPolicyConfigSchema>;
@@ -643,6 +652,8 @@ export const ModelPolicyConfigV2Schema = z.object({
   }).strict()),
   imageDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']),
   textDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']),
+  /** Separate approved text-generation authority; absence never falls back to a judgment route. */
+  copyGeneration: GenerativeCopyWorkloadSchema.nullable().optional(),
   mlFeatures: MlFeaturesPolicySchema,
 }).strict();
 export type ModelPolicyConfigV2 = z.infer<typeof ModelPolicyConfigV2Schema>;

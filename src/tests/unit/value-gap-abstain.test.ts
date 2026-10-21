@@ -363,8 +363,8 @@ describe('valueGapAbstainStage — constraint enforcement (property/fuzz)', () =
 });
 
 describe('value_gap_resolution — model operation registry registration', () => {
-  it('is registered with versions, parameters, and its stage mapping (registry v3)', () => {
-    expect(MODEL_OPERATION_REGISTRY_VERSION).toBe(3);
+  it('is registered with versions, parameters, and its stage mapping', () => {
+    expect(MODEL_OPERATION_REGISTRY_VERSION).toBe(6);
     expect(PROMPT_TEMPLATE_VERSIONS.value_gap_resolution).toBe('value-gap-resolution-prompt-v1');
     expect(RULE_VERSIONS.value_gap_resolution).toBe('value-gap-resolution-rules-v1');
     expect(OPERATION_PARAMETERS.value_gap_resolution).toEqual({ temperature: 0.0, maxTokens: null });

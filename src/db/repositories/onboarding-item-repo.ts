@@ -1,7 +1,7 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { hashCanonicalJson } from '../../shared/stable-id';
-import { RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } from '../../onboarding/imported-identity';
+import { hashCanonicalJson, canonicalJsonStringify } from '../../shared/stable-id';
+import { validateIdentityTuple, RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } from '../../onboarding/imported-identity';
 import type { OnboardingItem, ItemStatus, PipelineStage, LegacyPipelineStage, StageStatus, SourcingDecision, SourcingDecisionV2 } from '../../shared/schemas/onboarding';
 
 /**
@@ -29,7 +29,12 @@ import { SourcingDecisionV2Schema } from '../../shared/schemas/onboarding';
  * `OnboardingItem` schema predates it, so repo returns carry it as an
  * intersection type without widening the shared schema.
  */
-export type OnboardingItemWithEntryPolicy = OnboardingItem & { sourcingEntryPolicyVersion: number };
+export type OnboardingItemWithEntryPolicy = OnboardingItem & {
+  sourcingEntryPolicyVersion: number;
+  claimedBy: string | null;
+  claimedAt: string | null;
+  inputRevision: string;
+};
 
 export interface OnboardingItemRow {
   id: string;
@@ -67,6 +72,8 @@ export interface OnboardingItemRow {
   row_number: number;
   created_at: string;
   updated_at: string;
+  claimed_by?: string | null;
+  claimed_at?: string | null;
 }
 
 export interface InsertItemData {
@@ -241,6 +248,36 @@ export interface ChunkAcceptanceHydration {
   byId: Map<string, string[]>;
 }
 
+function itemExecutionInputRevision(row: OnboardingItemRow): string {
+  return hashCanonicalJson({
+    id: row.id,
+    batchId: row.batch_id,
+    upc: row.upc,
+    name: row.name,
+    price: row.price,
+    quantity: row.quantity,
+    brandHint: row.brand_hint,
+    departmentHint: row.department_hint,
+    sourceUrl: row.source_url,
+    expectedName: row.expected_name ?? null,
+    coordinatedTitle: row.coordinated_title ?? null,
+    sourceType: row.source_type ?? null,
+    sourcingEntryPolicyVersion: row.sourcing_entry_policy_version ?? null,
+    acceptedEvidenceAttemptIdsJson: row.accepted_evidence_attempt_ids_json ?? null,
+    acceptedEvidenceAttemptId: row.accepted_evidence_attempt_id ?? null,
+    sourcingDecisionJson: row.sourcing_decision_json ?? null,
+    extractionDataJson: row.extraction_data_json ?? null,
+    rawIdentityJson: row.raw_identity_json ?? null,
+    normalizedIdentityJson: row.normalized_identity_json ?? null,
+    identityNormalizerVersion: row.identity_normalizer_version ?? null,
+    identityProvenanceHash: row.identity_provenance_hash ?? null,
+    isHeld: row.is_held ?? null,
+    heldReason: row.held_reason ?? null,
+    isDuplicate: row.is_duplicate ?? null,
+    existingSku: row.existing_sku ?? null,
+  });
+}
+
 function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydration | null): OnboardingItemWithEntryPolicy {
   // Acceptances hydrate from the relational authority once the distributor
   // V2 migration marker exists (ADR 0014: normalized rows are 100%
@@ -315,7 +352,6 @@ function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydrati
       const ver = row.identity_normalizer_version ?? null;
       const hash = row.identity_provenance_hash ?? null;
       try {
-        const { validateIdentityTuple } = require('../../onboarding/imported-identity');
         const effectiveLossy = ver === 0 ? true : undefined;
         const res = validateIdentityTuple({ rawJson: raw, normalizedJson: norm, version: ver, provenanceHash: hash, lossy: effectiveLossy });
         if (!res.ok) {
@@ -325,8 +361,6 @@ function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydrati
         return { rawIdentityJson: null, normalizedIdentityJson: null, identityNormalizerVersion: null, identityProvenanceHash: null, identityLossy: false };
       }
       // Envelopes already validated via shared validator; still ensure canonical parse for return
-      const { canonicalJsonStringify } = require('../../shared/stable-id');
-      const { RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } = require('../../onboarding/imported-identity');
       const rawOut = (() => { if (!raw) return null; try { const p = JSON.parse(raw); const r = RawIdentityEnvelopeV1Schema.safeParse(p); return r.success && canonicalJsonStringify(p) === raw ? raw : null; } catch { return null; } })();
       const normOut = (() => { if (!norm) return null; try { const p = JSON.parse(norm); const r = NormalizedIdentityEnvelopeV1Schema.safeParse(p); return r.success && canonicalJsonStringify(p) === norm ? norm : null; } catch { return null; } })();
       if ((raw !== null && rawOut === null) || (norm !== null && normOut === null)) {
@@ -337,6 +371,9 @@ function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydrati
     rowNumber: row.row_number,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    claimedBy: row.claimed_by ?? null,
+    claimedAt: row.claimed_at ?? null,
+    inputRevision: itemExecutionInputRevision(row),
   };
 }
 
@@ -491,6 +528,42 @@ export function insertItems(
         rowNumber: item.rowNumber,
         createdAt: now,
         updatedAt: now,
+        claimedBy: null,
+        claimedAt: null,
+        inputRevision: itemExecutionInputRevision({
+          id,
+          batch_id: batchId,
+          upc: item.upc,
+          name: item.name,
+          price: item.price ?? null,
+          quantity: item.quantity ?? null,
+          brand_hint: item.brandHint ?? null,
+          department_hint: item.departmentHint ?? null,
+          source_url: item.sourceUrl ?? null,
+          expected_name: null,
+          coordinated_title: null,
+          status: 'imported',
+          stage: targetStage,
+          stage_status: targetStageStatus,
+          error_message: null,
+          retry_count: 0,
+          is_duplicate: isDuplicateNum,
+          existing_sku: item.existingSku ?? null,
+          source_type: 'official_page',
+          sourcing_entry_policy_version: sourcingEntryPolicyVersion,
+          accepted_evidence_attempt_ids_json: null,
+          accepted_evidence_attempt_id: null,
+          sourcing_decision_json: null,
+          extraction_data_json: null,
+          curation_data_json: null,
+          raw_identity_json: item.rawIdentityJson ?? null,
+          normalized_identity_json: item.normalizedIdentityJson ?? null,
+          identity_normalizer_version: item.identityNormalizerVersion ?? null,
+          identity_provenance_hash: item.identityProvenanceHash ?? null,
+          row_number: item.rowNumber,
+          created_at: now,
+          updated_at: now,
+        }),
       });
     }
   });
@@ -566,6 +639,18 @@ export function findExtractionDataByWorkspaceAndUpc(workspaceId: string, upc: st
   ).get(workspaceId, upc) as { extraction_data_json: string | null; brand_hint: string | null } | undefined;
   if (!row) return null;
   return { extractionDataJson: row.extraction_data_json, brandHint: row.brand_hint };
+}
+/** Find the newest workspace-owned item id for a SKU; foreign workspace rows remain invisible. */
+export function findLatestItemIdByWorkspaceAndUpc(workspaceId: string, upc: string): string | null {
+  const row = getDb().query(
+    `SELECT i.id AS id
+     FROM onboarding_items i
+     JOIN onboarding_batches b ON b.id = i.batch_id
+     WHERE b.workspace_id = ? AND i.upc = ?
+     ORDER BY i.created_at DESC, i.row_number ASC
+     LIMIT 1`,
+  ).get(workspaceId, upc) as { id: string } | undefined;
+  return row?.id ?? null;
 }
 
 export function listItemsByBatchChunked(
@@ -1526,6 +1611,173 @@ export function persistItemShadowPackagingOcrResult(
   updateItemExtractionData(itemId, JSON.stringify(updatedExt));
   return true;
 }
+
+export interface ClaimedItemCurationLease {
+  workerId: string;
+  claimedAt: string;
+  inputRevision: string;
+}
+
+function updateClaimedCurationItem(
+  itemId: string,
+  claim: ClaimedItemCurationLease,
+  transition: 'completed' | 'failed' | 'pending',
+  curationDataJson?: string,
+  errorMessage?: string | null,
+  beforeCommit?: () => void,
+): boolean {
+  if (!claim.workerId || !claim.claimedAt || !claim.inputRevision) return false;
+  const db = getDb();
+  const now = new Date().toISOString();
+  const [prepareListingA, prepareListingB] = stagePredicateParams('prepare_listing');
+  return db.transaction(() => {
+    const row = db.query('SELECT * FROM onboarding_items WHERE id = ?').get(itemId) as OnboardingItemRow | undefined;
+    if (
+      !row ||
+      row.stage_status !== 'in_progress' ||
+      row.claimed_by !== claim.workerId ||
+      row.claimed_at !== claim.claimedAt ||
+      (transition !== 'pending' && itemExecutionInputRevision(row) !== claim.inputRevision)
+    ) {
+      return false;
+    }
+    try {
+      if (toCanonicalStored(row.stage) !== 'prepare_listing') return false;
+    } catch {
+      return false;
+    }
+
+    const activeBatchClause =
+      transition === 'pending'
+        ? ''
+        : ` AND batch_id IN (
+             SELECT id FROM onboarding_batches
+             WHERE status = 'active' AND (execution_state = 'running' OR execution_state IS NULL)
+           )`;
+    const curationSet = curationDataJson === undefined ? '' : 'curation_data_json = ?, ';
+    const parameters = [
+      ...(curationDataJson === undefined ? [] : [curationDataJson]),
+      transition,
+      transition === 'failed' ? errorMessage ?? null : null,
+      now,
+      itemId,
+      prepareListingA,
+      prepareListingB,
+      claim.workerId,
+      claim.claimedAt,
+    ];
+    const result = db.run(
+      `UPDATE onboarding_items
+       SET ${curationSet}stage_status = ?, error_message = ?, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'in_progress'
+         AND claimed_by = ? AND claimed_at = ?${activeBatchClause}`,
+      parameters,
+    );
+    if (result.changes !== 1) return false;
+    beforeCommit?.();
+    return true;
+  })();
+}
+
+/** Commit a run's output and finish the item in the same claim-guarded transaction. */
+export function commitClaimedItemCuration(
+  itemId: string,
+  claim: ClaimedItemCurationLease,
+  curationDataJson: string,
+  beforeCommit?: () => void,
+): boolean {
+  return updateClaimedCurationItem(itemId, claim, 'completed', curationDataJson, undefined, beforeCommit);
+}
+
+/** Record an item-local curation failure only while this exact lease is current. */
+export function failClaimedItemCuration(
+  itemId: string,
+  claim: ClaimedItemCurationLease,
+  errorMessage: string,
+): boolean {
+  return updateClaimedCurationItem(itemId, claim, 'failed', undefined, errorMessage);
+}
+
+/** Return a still-owned curation claim to pending after stale-input or stop detection. */
+export function releaseClaimedItemCuration(itemId: string, claim: ClaimedItemCurationLease): boolean {
+  return updateClaimedCurationItem(itemId, claim, 'pending');
+}
+export interface ClaimedItemExtractionLease {
+  workerId: string;
+  claimedAt: string;
+  inputRevision: string;
+}
+
+function updateClaimedExtractionItem(
+  itemId: string,
+  claim: ClaimedItemExtractionLease,
+  transition: 'completed' | 'failed' | 'needs_input' | 'pending',
+  extractionDataJson?: string,
+  errorMessage?: string | null,
+  beforeCommit?: () => void,
+): boolean {
+  if (!claim.workerId || !claim.claimedAt || !claim.inputRevision) return false;
+  const db = getDb();
+  const now = new Date().toISOString();
+  const [extractionA, extractionB] = stagePredicateParams('collect_details');
+  return db.transaction(() => {
+    const row = db.query('SELECT * FROM onboarding_items WHERE id = ?').get(itemId) as OnboardingItemRow | undefined;
+    if (!row || row.stage_status !== 'in_progress' || row.claimed_by !== claim.workerId ||
+        row.claimed_at !== claim.claimedAt || (transition !== 'pending' && itemExecutionInputRevision(row) !== claim.inputRevision)) return false;
+    try {
+      if (toCanonicalStored(row.stage) !== 'collect_details') return false;
+    } catch {
+      return false;
+    }
+    const activeBatchClause = transition === 'pending' ? '' : ` AND batch_id IN (
+      SELECT id FROM onboarding_batches WHERE status = 'active' AND (execution_state = 'running' OR execution_state IS NULL)
+    )`;
+    const extractionSet = extractionDataJson === undefined ? '' : 'extraction_data_json = ?, ';
+    const parameters = [
+      ...(extractionDataJson === undefined ? [] : [extractionDataJson]),
+      transition,
+      transition === 'failed' || transition === 'needs_input' ? errorMessage ?? null : null,
+      now,
+      itemId,
+      extractionA,
+      extractionB,
+      claim.workerId,
+      claim.claimedAt,
+    ];
+    const result = db.run(
+      `UPDATE onboarding_items
+       SET ${extractionSet}stage_status = ?, error_message = ?, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'in_progress'
+         AND claimed_by = ? AND claimed_at = ?${activeBatchClause}`,
+      parameters,
+    );
+    if (result.changes !== 1) return false;
+    beforeCommit?.();
+    return true;
+  })();
+}
+
+/** Commit accepted-evidence extraction only while the exact item lease/input remains current. */
+export function commitClaimedItemExtraction(
+  itemId: string,
+  claim: ClaimedItemExtractionLease,
+  extractionDataJson: string,
+  beforeCommit?: () => void,
+): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'completed', extractionDataJson, undefined, beforeCommit);
+}
+
+export function failClaimedItemExtraction(itemId: string, claim: ClaimedItemExtractionLease, errorMessage: string): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'failed', undefined, errorMessage);
+}
+export function requireClaimedItemExtractionInput(itemId: string, claim: ClaimedItemExtractionLease, reason: string): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'needs_input', undefined, reason);
+}
+
+export function releaseClaimedItemExtraction(itemId: string, claim: ClaimedItemExtractionLease): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'pending');
+}
+
 
 /** Write the item's curation_data_json (used by the legacy worker and by the
  *  cohort member-projection atomic commit — PR3 hardening Commit B / R3). */

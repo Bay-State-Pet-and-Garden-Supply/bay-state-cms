@@ -17,6 +17,8 @@ import { listValidationResults } from '../../db/repositories/validation-repo';
 import { type ExtractionData, ExtractionDataSchema } from '../../shared/schemas/onboarding';
 import type { Product } from '../../shared/types';
 import { seedCanonicalPromotionAuthority } from './helpers/seed-canonical-promotion-authority';
+import { prepareListingEvidenceWorkspace } from './helpers/listing-evidence-authority';
+import { seedPromotionEvidenceAuthority } from './helpers/seed-promotion-evidence-authority';
 
 describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'naming-promotion-test.db');
@@ -62,6 +64,9 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
        VALUES (?, ?, 'accepted', ?, ?)`,
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
+    // Accepted listing evidence + execution receipt (receipt hashes proposals,
+    // so this runs after every run proposal exists).
+    seedPromotionEvidenceAuthority(wsId, db, sku, runId, true);
   }
 
   function seedItem(batchId: string, sku: string, opts: { title: string; seoFileName: string | null }) {
@@ -118,6 +123,9 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [wsId, 'Naming WS', tempWorkspaceDir, path.join(tempWorkspaceDir, '.git'), now, now, 'complete'],
     );
+    // Versioned listing standards (dog-food pair) — promotion requires
+    // listing completeness over accepted evidence.
+    prepareListingEvidenceWorkspace(tempWorkspaceDir, wsId);
     // One verified page shared by every item in this file.
     activatePageImportFromRecords({
       workspaceId: wsId,
@@ -149,13 +157,12 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     for (const sku of skus) {
       const item = seedItem(batch.id, sku, { title: 'Test Brand Identical Product 5 LB', seoFileName: null });
       seedAcceptedCategoryProposal(db, sku, page.id, 'Shoes');
-      seedApproved(item.id, batch.id);
       ids.push(item.id);
     }
+    for (const id of ids) seedApproved(id, batch.id);
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, ids);
     expect(res.failures).toEqual([]);
     expect(res.count).toBe(3);
-
     const drafts = listChangeSetItems(res.changeSetId!).map(i => JSON.parse(i.draftJson) as Product);
     const persisted = drafts.map(d => d.customFields['FileName']);
     expect(persisted.every(Boolean)).toBe(true);
@@ -169,7 +176,12 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     expect([...exported].sort()).toEqual([...persisted].sort());
   });
 
-  it('prefers the per-source-URL slug for official items; distributor items take the name path', async () => {
+  it('derives FileNames from the attested title; distributor items take the uniquified name path (seo attestation is a known gap)', async () => {
+    // Evidence-first note: manual transcription carries identity/copy only —
+    // the staged extraction seoFileName does not survive admission (the
+    // manual schema has no seo field), so the official item falls back to
+    // the title slug. Preserving a source-page SEO slug through manual
+    // evidence needs a product decision (attested seoFileName field).
     const db = getDb();
     const page = listVerifiedPageOptions(wsId).find(p => p.name === 'Shoes');
     if (!page) throw new Error('verified page missing');
@@ -177,16 +189,17 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const official = seedItem(batch.id, '900000000011', { title: 'Test Brand Shared Title 5 LB', seoFileName: 'shared-title-abc123' });
     const distributor = seedItem(batch.id, '900000000012', { title: 'Test Brand Shared Title 5 LB', seoFileName: null });
     for (const sku of ['900000000011', '900000000012']) seedAcceptedCategoryProposal(db, sku, page.id, 'Shoes');
+    // Approval LAST: authority writes invalidate durable approval.
     seedApproved(official.id, batch.id);
     seedApproved(distributor.id, batch.id);
 
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, [official.id, distributor.id]);
     expect(res.failures).toEqual([]);
     const bySku = new Map(listChangeSetItems(res.changeSetId!).map(i => [i.sku, JSON.parse(i.draftJson) as Product]));
-    expect(bySku.get('900000000011')!.customFields['FileName']).toBe('shared-title-abc123.html');
-    const distName = bySku.get('900000000012')!.customFields['FileName'] as string;
-    expect(distName).toMatch(/^test-brand-shared-title-5-lb(-\d+)?\.html$/);
-    expect(distName).not.toBe('shared-title-abc123.html');
+    // Ascending-UPC uniquification: the official item takes the base title
+    // slug; the distributor item takes the suffixed name path.
+    expect(bySku.get('900000000011')!.customFields['FileName']).toBe('test-brand-shared-title-5-lb.html');
+    expect(bySku.get('900000000012')!.customFields['FileName']).toBe('test-brand-shared-title-5-lb-2.html');
   });
 
   it('pre-sync validation blocks a change set with duplicate FileNames', () => {
@@ -276,6 +289,7 @@ describe('Naming filenames at Promotion and pre-sync (issue #107)', () => {
     const official = seedItem(batch.id, '900000000021', { title: 'Test Brand Collision Widget 5 LB', seoFileName: 'test-brand-collision-widget-5-lb' });
     const sibling = seedItem(batch.id, '900000000022', { title: 'Test Brand Collision Widget 5 LB', seoFileName: null });
     for (const sku of ['900000000021', '900000000022']) seedAcceptedCategoryProposal(db, sku, page.id, 'Shoes');
+    // Approval LAST: authority writes invalidate durable approval.
     seedApproved(official.id, batch.id);
     seedApproved(sibling.id, batch.id);
 

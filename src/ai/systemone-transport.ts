@@ -53,6 +53,10 @@ import {
   AiTransportError,
   fetchWithDeadlines,
 } from './network-transport';
+import {
+  getItemAcquisitionModelPrice,
+  ItemAcquisitionBudgetDeniedError,
+} from '../onboarding/item-acquisition-budget';
 
 // ─── Public identity ─────────────────────────────────────────────────────────
 
@@ -835,6 +839,12 @@ export async function executeSystemOne(
     options.assertHeld?.();
     assertConnectionEnabledForDispatch(conn, modelId);
     options.assertConnectionEnabled?.();
+    // TypeSafe's documented System One request has no enforceable output-token
+    // cap. Item acquisition therefore refuses this remote effect before fetch,
+    // even if the policy lists a price estimate.
+    if (getItemAcquisitionModelPrice(conn.id, modelId)) {
+      throw new ItemAcquisitionBudgetDeniedError('budget_not_enforceable', 'typesafe_output_token_limit');
+    }
 
     let response: Response;
     try {

@@ -2,7 +2,7 @@
 /**
  * Epic #46 Phase 6 — Review workspace pure-logic unit tests.
  */
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 import {
   applyQueueFilters,
   countReviewableSelection,
@@ -623,10 +623,6 @@ describe('effectiveGateValues price parity // e10s03 review fix', () => {
 });
 
 describe('countGateBlockedItems // e10s03 bulk gating', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('counts gate-blocked and blocking-warning items; skips unloaded views', () => {
     const blockedWs = makeItem({ itemId: 'b1', name: 'B1' });
     delete (blockedWs as Record<string, unknown>).brandHint; // advisory missing_brand blocker
@@ -650,8 +646,9 @@ describe('countGateBlockedItems // e10s03 bulk gating', () => {
 });
 
 describe('completeReviewStage rejection payload // e10s03 seam', () => {
+  const realFetch = globalThis.fetch;
   afterEach(() => {
-    vi.restoreAllMocks();
+    globalThis.fetch = realFetch;
   });
 
   it('attaches the response body as payload so structured failures[].blockers is readable', async () => {
@@ -660,15 +657,11 @@ describe('completeReviewStage rejection payload // e10s03 seam', () => {
       code: 'review_incomplete',
       failures: [{ itemId: 'a1', blockers: ['missing_price', 'missing_pages'] }],
     };
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        new Response(JSON.stringify(body), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      ),
-    );
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify(body), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })) as unknown as typeof fetch;
     const err: any = await completeReviewStage(['a1']).then(
       () => null,
       (e) => e,

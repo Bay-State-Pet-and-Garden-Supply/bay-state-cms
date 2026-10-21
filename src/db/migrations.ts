@@ -3,6 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { sha256Hex } from '../shared/stable-id';
+import { installAcceptedItemEvidenceSchema } from './repositories/accepted-item-evidence-repo';
+import { installListingCompletenessExceptionSchema } from './repositories/listing-completeness-exception-repo';
+import { installManualEvidenceIdentityBindingSchema } from './repositories/onboarding-manual-evidence-repo';
+import { installItemAcquisitionBudgetSchema } from './repositories/item-acquisition-budget-repo';
 
 const SCHEMA_PATH = path.resolve(import.meta.dirname, 'schema.sql');
 const ONBOARDING_MIGRATION_PATH = path.resolve(import.meta.dirname, 'onboarding-migration.sql');
@@ -6573,6 +6577,11 @@ export function runMigrations(): void {
   } catch (e) {
     console.error('[Migrations] Family membership proposal migration failed:', e);
   }
+
+  installManualEvidenceIdentityBindingSchema(db);
+  installAcceptedItemEvidenceSchema(db);
+  installListingCompletenessExceptionSchema(db);
+  installItemAcquisitionBudgetSchema(db);
 
 
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as

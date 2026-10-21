@@ -29,6 +29,14 @@ describe('getAttentionActions — retry-first resolution (audit HIGH 4)', () => 
       'resolve_semantic_conflict',
     ]);
   });
+  it('routes listing completeness blockers to the item checklist', () => {
+    expect(getAttentionActions('listing_completeness_unresolved')).toEqual([
+      'resolve_listing_completeness',
+    ]);
+    expect(getAttentionActionConsequence('resolve_listing_completeness')).toContain(
+      'listing checklist',
+    );
+  });
 
   it('is deterministic for every known reason and never empty', () => {
     const reasons = [
@@ -40,6 +48,7 @@ describe('getAttentionActions — retry-first resolution (audit HIGH 4)', () => 
       'source_conflict',
       'processing_failed',
       'semantic_validation_blocked',
+      'listing_completeness_unresolved',
     ] as const;
     for (const reason of reasons) {
       expect(getAttentionActions(reason).length).toBeGreaterThan(0);
@@ -73,6 +82,7 @@ describe('getAttentionActionConsequence — plain-language outcomes', () => {
       'resolve_source_conflict',
       'retry_processing',
       'resolve_semantic_conflict',
+      'resolve_listing_completeness',
     ] as const;
     for (const action of actions) {
       const text = getAttentionActionConsequence(action);
@@ -80,9 +90,9 @@ describe('getAttentionActionConsequence — plain-language outcomes', () => {
     }
   });
 
-  it('explains that resolving the findings re-runs the family Curation', () => {
+  it('explains that resolving the findings reruns the family Curation', () => {
     expect(getAttentionActionConsequence('resolve_semantic_conflict')).toMatch(
-      /re-runs Curation/,
+      /reruns Curation/,
     );
     expect(getAttentionActionConsequence('resolve_semantic_conflict')).toContain(
       'returns to Review',

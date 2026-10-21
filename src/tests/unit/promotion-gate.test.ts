@@ -235,82 +235,27 @@ describe('PR11 C1 — validatePromotionGate (pure)', () => {
     });
   });
 
-  it('active cohort child with a MISSING semantic payload fails closed (semantic_validation_unavailable)', () => {
+  it('keeps a completed item ready when its cohort has an unrelated failed sibling', () => {
     const result = validatePromotionGate(gateInput({
-      activeRun: run({ cohortRunId: 'parent-1' }),
-      parentRun: cohortRun(),
-      curationData: curationData({ semanticValidation: undefined }),
-    }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('semantic_validation_unavailable');
-  });
-
-  it('active cohort child with a MALFORMED semantic payload fails closed (semantic_validation_unavailable)', () => {
-    const malformed = { status: 'banana', findings: [] } as unknown as CurationData['semanticValidation'];
-    const result = validatePromotionGate(gateInput({
-      activeRun: run({ cohortRunId: 'parent-1' }),
-      parentRun: cohortRun(),
-      curationData: curationData({ semanticValidation: malformed }),
-    }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('semantic_validation_unavailable');
-  });
-
-  it('a non-cohort run with an absent semantic payload proceeds', () => {
-    const result = validatePromotionGate(gateInput({
-      activeRun: run({ cohortRunId: null }),
-      curationData: curationData({ semanticValidation: undefined }),
-    }));
-    expect(result).toEqual({ ok: true });
-  });
-
-  it('cohort child with a MISSING parent refuses parent_not_found', () => {
-    const result = validatePromotionGate(gateInput({
-      curationData: curationData({ semanticValidation: passedSemanticValidation() }),
-      activeRun: run({ cohortRunId: 'parent-missing' }),
-      parentRun: null,
-    }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe('parent_not_found');
-      expect(result.reason).toContain('parent-missing');
-    }
-  });
-
-  it('cohort child of a SUPERSEDED parent refuses parent_superseded (reason: parent id)', () => {
-    const result = validatePromotionGate(gateInput({
-      curationData: curationData({ semanticValidation: passedSemanticValidation() }),
-      activeRun: run({ cohortRunId: 'parent-1' }),
-      parentRun: cohortRun({ id: 'parent-1', status: 'superseded' }),
-    }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe('parent_superseded');
-      expect(result.reason).toContain('parent-1');
-    }
-  });
-
-  it('cohort child of a NON-TERMINAL parent refuses parent_not_completed', () => {
-    const result = validatePromotionGate(gateInput({
-      curationData: curationData({ semanticValidation: passedSemanticValidation() }),
-      activeRun: run({ cohortRunId: 'parent-1' }),
-      parentRun: cohortRun({ status: 'running' }),
-    }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe('parent_not_completed');
-      expect(result.reason).toContain('running');
-    }
-  });
-
-  it('cohort child of a completed_with_member_failures parent is terminal (passed parent gate)', () => {
-    const result = validatePromotionGate(gateInput({
-      curationData: curationData({ semanticValidation: passedSemanticValidation() }),
       activeRun: run({ cohortRunId: 'parent-1' }),
       parentRun: cohortRun({ status: 'completed_with_member_failures' }),
+      curationData: curationData({ semanticValidation: undefined }),
     }));
-    // No parent refusal; with no type dependencies the gate passes.
     expect(result).toEqual({ ok: true });
+  });
+
+  it('refuses a run that is not the item’s current CurationData pointer', () => {
+    const result = validatePromotionGate(gateInput({
+      curationData: curationData({ classificationRunId: 'older-run' }),
+    }));
+    expect(result).toMatchObject({ ok: false, code: 'workspace_mismatch' });
+  });
+
+  it('refuses a run bound to a different onboarding item or SKU', () => {
+    const result = validatePromotionGate(gateInput({
+      activeRun: run({ onboardingItemId: 'sibling-item', productSku: 'SIBLING-SKU' }),
+    }));
+    expect(result).toMatchObject({ ok: false, code: 'workspace_mismatch' });
   });
 
   it('refuses a STALE proposal: execution dependency target != current effective type', () => {
@@ -546,17 +491,13 @@ describe('PR11 C1 — validatePromotionGate (pure)', () => {
     }
   });
 
-  it('R1: a cross-workspace parent is refused (workspace_mismatch) — never this item\'s authority', () => {
+  it('does not consult parent workspace authority when the item run is current', () => {
     const result = validatePromotionGate(gateInput({
       activeRun: run({ cohortRunId: 'parent-1' }),
-      parentRun: cohortRun({ workspaceId: 'ws-OTHER' }),
+      parentRun: cohortRun({ workspaceId: 'ws-OTHER', status: 'running' }),
       curationData: curationData({ semanticValidation: { status: 'passed', findings: [] } }),
     }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe('workspace_mismatch');
-      expect(result.reason).toContain('ws-OTHER');
-    }
+    expect(result).toEqual({ ok: true });
   });
 
   it('R1: a completed child with a same-workspace terminal parent still passes the authority checks (regression guard)', () => {

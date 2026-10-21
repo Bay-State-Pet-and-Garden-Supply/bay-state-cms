@@ -139,6 +139,7 @@ function importEvidence(sku: string, weight: string, ounces: number): JoinMember
   };
   return {
     sku,
+    origin: 'import',
     base: null,
     draftBase: draft,
     purchasable: true,
@@ -155,7 +156,6 @@ function importEvidence(sku: string, weight: string, ounces: number): JoinMember
     packCount: null,
     reviewedTypeHash: 'reviewed-type-v1',
     evidenceHash: `evidence-${sku}`,
-    origin: 'import',
     productTypeId: null,
     model: null,
     material: null,
@@ -252,7 +252,7 @@ const NON_FOOD_IDENTITY = {
 } as const;
 
 function nonFoodMemberInput(sku: string, size: string | null, color: string, typeId = 'collars-leashes'): {
-  sku: string; purchasable: boolean; ounces: null; retailUnit: null; brand: string; model: string; material: string;
+  sku: string; origin: { kind: 'catalog'; approvedCommit: string; productHash: string; classificationRunId: string | null; classificationHash: string }; purchasable: boolean; ounces: null; retailUnit: null; brand: string; model: string; material: string;
   function: string; safetyDose: string; strength: string; fit: string;
   sizeRaw: string | null; colorRaw: string; countRaw: null; countQuantity: null;
   packCountDeclared: boolean; packCount: null; reviewedTypeHash: string;
@@ -260,6 +260,7 @@ function nonFoodMemberInput(sku: string, size: string | null, color: string, typ
 } {
   return {
     sku,
+    origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
     purchasable: true,
     ounces: null,
     retailUnit: null,
@@ -698,13 +699,13 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
       input: {
         members: [
           {
-            sku: 'FAM-5', purchasable: true, brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken',
+            sku: 'FAM-5', origin: { kind: 'catalog', approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) }, purchasable: true, brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken',
             species: 'Dog', lifeStage: 'Adult', form: 'Dry Kibble', sizeRaw: '5 lb', ounces: 80,
             retailUnit: null, packCountDeclared: false, packCount: null,
             reviewedTypeHash: 'reviewed-type-v1', evidenceHash: 'evidence-FAM-5',
           },
           {
-            sku: 'FAM-30', purchasable: true, brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken',
+            sku: 'FAM-30', origin: { kind: 'catalog', approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) }, purchasable: true, brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken',
             species: 'Dog', lifeStage: 'Adult', form: 'Dry Kibble', sizeRaw: '30 lb', ounces: 480,
             retailUnit: null, packCountDeclared: false, packCount: null,
             reviewedTypeHash: 'reviewed-type-v1', evidenceHash: 'evidence-FAM-30',

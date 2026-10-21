@@ -55,8 +55,8 @@ import {
 import { evaluateListingEvidence, aggregateStatus } from '../../classification/listing-evidence-service';
 import { evaluateListingEvidenceGate } from '../../classification/listing-evidence-gate';
 import type { ClassificationEvidence } from '../../shared/schemas/classification';
-import { createRun } from '../../db/repositories/classification-run-repo';
 import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
+import { prepareListingEvidenceWorkspace, rotateListingEvidenceAuthority, seedListingEvidenceItem } from './helpers/listing-evidence-authority';
 import { approveAndAdvanceItems, markReviewed } from '../../db/repositories/onboarding-review-repo';
 import { Hono } from 'hono';
 import onboardingRoutes from '../../server/routes/onboarding-routes';
@@ -96,25 +96,38 @@ function evidence(overrides: Partial<ClassificationEvidence> & { id: string }): 
      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
      bootstrapStatus: 'complete', baselineCommit: null,
    });
+   prepareListingEvidenceWorkspace(workspacePath, workspaceId);
    batchId = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 }).id;
  });
 
- function seedItem(upc = 'SKU-366', name = 'Acana Adult Dog 5 lb'): string {
-   return insertItems(batchId, [{ upc, name, brandHint: 'Acana', rowNumber: 1 }], 'review', 1)[0].id;
- }
+function seedItem(upc = 'SKU-366', name = 'Acana Adult Dog 5 lb'): string {
+  return insertItems(batchId, [{ upc, name, brandHint: 'Acana', rowNumber: 1 }], 'review', 1)[0].id;
+}
 
- function seedEvidenceRow(runId: string, sku: string, rows: Array<Partial<ClassificationEvidence> & { id: string }>): void {
-   const db = getDb();
-   const now = new Date().toISOString();
-   for (const row of rows) {
-     const snippet = typeof row.snippet === 'string' ? row.snippet : typeof row.value === 'string' ? row.value : '';
-     db.query(`INSERT INTO classification_evidence (id, run_id, product_sku, stage_name, source, reliability, source_field, snippet, value_json, metadata_json, created_at)
-       VALUES (?, ?, ?, 'evidence_extraction', 'official_product_page', ?, ?, ?, ?, NULL, ?)`)
-       .run(row.id, runId, sku, row.reliability ?? 'high', row.sourceField ?? 'description', snippet, JSON.stringify(row.value ?? snippet), now);
-   }
- }
+function seedRun(itemId: string, sku: string, options: { weight?: string; extractionData?: Record<string, unknown> } = {}): { id: string } {
+  const authority = seedListingEvidenceItem({ workspaceId, workspacePath, itemId, sku, ...options });
+  return { id: authority.runId };
+}
+
+
 function writeCuration(itemId: string, curation: Record<string, unknown>): void {
-  getDb().query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(JSON.stringify(curation), itemId);
+  const existing = (findItemById(itemId)?.curationData ?? {}) as Record<string, unknown>;
+  const current: Record<string, unknown> = {
+    suggestedPages: ['QA/test-only dog-food category'],
+    ...(existing && typeof existing === 'object' && 'itemExecutionCurrentness' in existing
+      ? { itemExecutionCurrentness: (existing as Record<string, unknown>).itemExecutionCurrentness }
+      : {}),
+    ...curation,
+  };
+  const raw = current.listingEvidenceValidation;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const record = { ...(raw as Record<string, unknown>) };
+    const hashes = currentListingEvidenceHashes(itemId, current);
+    if (!Array.isArray(record.requiredFields) && hashes.requiredFields.length > 0) record.requiredFields = hashes.requiredFields;
+    if (typeof record.sourceAuthority !== 'string' && hashes.sourceAuthority) record.sourceAuthority = hashes.sourceAuthority;
+    current.listingEvidenceValidation = record;
+  }
+  getDb().query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(JSON.stringify(current), itemId);
 }
 
 // ─── Deterministic legs ──────────────────────────────────────────────────────
@@ -219,10 +232,7 @@ describe('issue #366 criterion 10 — service legs', () => {
 describe('issue #366 criterion 10 — gate refusal and recovery', () => {
   it('refuses review completion on a blocked record; removing unsafe optional text recovers', () => {
     const id = seedItem();
-    const run = createRun(workspaceId, 'SKU-366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-366');
     const title = 'Acana Adult Dog';
     const listingHash = hashFinalListing({ title, description: 'Grain free puppy nutrition with vitamins', variantFacts: {}, requiredFields: ['title'] });
     writeCuration(id, {
@@ -279,10 +289,7 @@ describe('issue #366 criterion 10 — gate refusal and recovery', () => {
   });
   it('change-set validation refuses a linked blocked item and recovers after correction', () => {
     const id = seedItem('SKU-CS366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-CS366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-CS366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-CS366');
     const title = 'Acana Adult Dog';
     const cur = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: 'Bad claim text here', classificationRunId: run.id });
     writeCuration(id, {
@@ -327,7 +334,7 @@ describe('issue #366 criterion 10 — gate refusal and recovery', () => {
       metadata: { createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', archivedAt: null },
     };
     const cs = createChangeSet({ workspaceId, title: 'cs', description: null, baseCommit: 'abc' });
-    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-CS366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h' });
+    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-CS366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h', classificationRunId: run.id });
     const blocked = validateChangeSet(cs.id);
     expect(blocked.canApprove).toBe(false);
     expect(blocked.items[0].results.some((r) => r.code === 'LISTING_EVIDENCE_UNRESOLVED')).toBe(true);
@@ -359,10 +366,7 @@ describe('issue #366 criterion 10 — gate refusal and recovery', () => {
   it('durable approval refuses on a blocked record and grandfathers legacy rows', () => {
     const blockedId = seedItem('SKU-APPR-BLOCKED', 'Acana Adult Dog');
     const legacyId = seedItem('SKU-APPR-LEGACY', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-APPR-BLOCKED', null, null, blockedId);
-    seedEvidenceRow(run.id, 'SKU-APPR-BLOCKED', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(blockedId, 'SKU-APPR-BLOCKED');
     const title = 'Acana Adult Dog';
     const cur = currentListingEvidenceHashes(blockedId, { curatedTitle: title, curatedDescription: 'Bad claim text here', classificationRunId: run.id });
     writeCuration(blockedId, {
@@ -396,10 +400,7 @@ describe('issue #366 criterion 10 — gate refusal and recovery', () => {
 
   it('stale record (listing changed after evaluation) refuses until re-evaluation', () => {
     const id = seedItem('SKU-STALE366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-STALE366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-STALE366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-STALE366');
     writeCuration(id, {
       curatedTitle: 'Acana Adult Dog edited after check',
       curatedDescription: null,
@@ -444,10 +445,7 @@ describe('issue #366 fix wave — containment, frozen artifact, policy, recovery
 
   it('draft weight mismatch refuses the change set (frozen artifact, not live text)', () => {
     const id = seedItem('SKU-WT366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-WT366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-WT366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-WT366');
     const title = 'Acana Adult Dog';
     const cur = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: null, classificationRunId: run.id });
     writeCuration(id, {
@@ -491,7 +489,7 @@ describe('issue #366 fix wave — containment, frozen artifact, policy, recovery
       metadata: { createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', archivedAt: null },
     };
     const cs = createChangeSet({ workspaceId, title: 'cs-wt', description: null, baseCommit: 'abc' });
-    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-WT366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h' });
+    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-WT366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h', classificationRunId: run.id });
     const blocked = validateChangeSet(cs.id);
     expect(blocked.items[0].results.some((r) => r.code === 'LISTING_EVIDENCE_UNRESOLVED')).toBe(true);
   });
@@ -500,10 +498,7 @@ describe('issue #366 fix wave — containment, frozen artifact, policy, recovery
     policySnapshotTestHook.configuredDigest = 'live-digest-test';
     try {
       const id = seedItem('SKU-POL366', 'Acana Adult Dog');
-      const run = createRun(workspaceId, 'SKU-POL366', null, null, id);
-      seedEvidenceRow(run.id, 'SKU-POL366', [
-        { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-      ]);
+      const run = seedRun(id, 'SKU-POL366');
       const title = 'Acana Adult Dog';
       const cur = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: null, classificationRunId: run.id });
       writeCuration(id, {
@@ -548,7 +543,7 @@ describe('issue #366 fix wave — containment, frozen artifact, policy, recovery
         metadata: { createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', archivedAt: null },
       };
       const cs = createChangeSet({ workspaceId, title: 'cs-pol', description: null, baseCommit: 'abc' });
-      upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-POL366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h' });
+      upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-POL366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h', classificationRunId: run.id });
       const before = validateChangeSet(cs.id);
       expect(before.items[0].results.some((r) => r.code === 'LISTING_EVIDENCE_UNRESOLVED')).toBe(true);
       // Recovery: live digest over the same listing clears the gate.
@@ -590,14 +585,9 @@ describe('issue #366 wave 2A — seven gaps', () => {
 
   it('gap 2: sentinel removal projects to null with no extraction fallback end-to-end', () => {
     const id = seedItem('SKU-RM366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-RM366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-RM366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
-    getDb().query('UPDATE onboarding_items SET extraction_data_json = ? WHERE id = ?').run(
-      JSON.stringify({ title: 'Acana Adult Dog', description: 'Fallback copy that must not resurrect', variantAttributes: {} }),
-      id,
-    );
+    const run = seedRun(id, 'SKU-RM366', {
+      extractionData: { title: 'Acana Adult Dog', description: 'Fallback copy that must not resurrect', variantAttributes: {} },
+    });
     writeCuration(id, {
       curatedTitle: 'Acana Adult Dog',
       curatedDescription: LISTING_EVIDENCE_REMOVED,
@@ -608,7 +598,6 @@ describe('issue #366 wave 2A — seven gaps', () => {
     const noFallback = hashFinalListing({ title: 'Acana Adult Dog', description: null, variantFacts: {}, requiredFields: ['title'] });
     expect(hashes.listingHash).toBe(noFallback);
     // Stamp the live unavailable-policy digest explicitly: review-time
-    // gates always resolve workspace context (strict leg), so a '' stamp
     // from the context-free hash helper would read as stale.
     writeCuration(id, {
       curatedTitle: 'Acana Adult Dog',
@@ -641,19 +630,15 @@ describe('issue #366 wave 2A — seven gaps', () => {
     expect(gate.ok).toBe(false);
   });
 
-  it('gap 4: frozen variant projection matches evaluation (color/size survive the gate)', () => {
+  it('gap 4: frozen variant projection uses accepted facts, not mutable extraction', () => {
     const id = seedItem('SKU-VAR366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-VAR366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-VAR366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
-    getDb().query('UPDATE onboarding_items SET extraction_data_json = ? WHERE id = ?').run(
-      JSON.stringify({ title: 'Acana Adult Dog', description: null, variantAttributes: { color: 'Red', size: '5 lb' } }),
-      id,
-    );
+    const run = seedRun(id, 'SKU-VAR366', {
+      weight: '5 lb',
+      extractionData: { title: 'Acana Adult Dog', description: null, variantAttributes: { color: 'Red', size: '5 lb' } },
+    });
     writeCuration(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: null, curatedWeight: '5 lb', classificationRunId: run.id });
     const facts = draftVariantFactsFor(id, '5 lb');
-    expect(facts).toMatchObject({ color: 'Red', size: '5 lb', weight: '5 lb' });
+    expect(facts).toEqual({ weight: '5 lb' });
     const title = 'Acana Adult Dog';
     // Live evaluation over the same facts (curated weight included) stamps
     // the identical listing hash the frozen draft projection recomputes.
@@ -678,10 +663,7 @@ describe('issue #366 wave 2A — seven gaps', () => {
 
   it('gap 5: unavailable policy stales a previously-passed record', () => {
     const id = seedItem('SKU-UNAV366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-UNAV366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-UNAV366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-UNAV366');
     const cur = currentListingEvidenceHashes(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: null, classificationRunId: run.id });
     writeCuration(id, {
       curatedTitle: 'Acana Adult Dog',
@@ -725,10 +707,7 @@ describe('issue #366 wave 2A — seven gaps', () => {
 
   it('gap 1+7: standalone change-set approval refuses a blocked record (no bypass)', () => {
     const id = seedItem('SKU-SA366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-SA366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-SA366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-SA366');
     const cur = currentListingEvidenceHashes(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: 'Bad claim text', classificationRunId: run.id });
     writeCuration(id, {
       curatedTitle: 'Acana Adult Dog',
@@ -756,7 +735,7 @@ describe('issue #366 wave 2A — seven gaps', () => {
       metadata: { createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', archivedAt: null },
     };
     const cs = createChangeSet({ workspaceId, title: 'cs-standalone', description: null, baseCommit: 'abc' });
-    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-SA366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h' });
+    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-SA366', operation: 'create', draftJson: JSON.stringify(product), baseJson: null, draftHash: 'h', classificationRunId: run.id });
     const result = validateChangeSet(cs.id);
     expect(result.items[0].results.some((r) => r.code === 'LISTING_EVIDENCE_UNRESOLVED')).toBe(true);
     writeCuration(id, {
@@ -772,7 +751,7 @@ describe('issue #366 wave 2A — seven gaps', () => {
       listingEvidenceValidation: makePassedRecord(narrowed.listingHash, narrowed.evidenceHash, 'policy_unavailable', ['title']),
     });
     const fixedProduct = { ...product, core: { ...(product.core as Record<string, unknown>), name: 'Acana Adult Dog', description: null } };
-    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-SA366', operation: 'create', draftJson: JSON.stringify(fixedProduct), baseJson: null, draftHash: 'h2' });
+    upsertChangeSetItem({ changeSetId: cs.id, sku: 'SKU-SA366', operation: 'create', draftJson: JSON.stringify(fixedProduct), baseJson: null, draftHash: 'h2', classificationRunId: run.id });
     const recovered = validateChangeSet(cs.id);
     expect(recovered.items[0].results.filter((r) => r.code === 'LISTING_EVIDENCE_UNRESOLVED')).toEqual([]);
   });
@@ -788,10 +767,7 @@ describe('issue #366 wave 2A gap 7 — real correction/refusal smoke (PUT + reru
   it('PUT removal of unsafe description refuses-then-recovers through the real rerun endpoint', async () => {
     const app = makeApp();
     const id = seedItem('SKU-SMOKE366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-SMOKE366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-SMOKE366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-SMOKE366');
     const title = 'Acana Adult Dog';
     const bad = 'Grain free puppy nutrition with vitamins';
     const cur = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: bad, classificationRunId: run.id });
@@ -832,12 +808,9 @@ describe('issue #366 wave 2A gap 7 — real correction/refusal smoke (PUT + reru
     expect(validateListingEvidenceForReview(id)).toBeNull();
   });
 
-  it('tampered evidence (superseded run rows) refuses at the review gate', () => {
+  it('rotated accepted evidence authority refuses at the review gate', () => {
     const id = seedItem('SKU-TAMP366', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-TAMP366', null, null, id);
-    seedEvidenceRow(run.id, 'SKU-TAMP366', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-TAMP366');
     const title = 'Acana Adult Dog';
     const cur = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: null, classificationRunId: run.id });
     writeCuration(id, {
@@ -860,7 +833,7 @@ describe('issue #366 wave 2A gap 7 — real correction/refusal smoke (PUT + reru
       },
     });
     expect(validateListingEvidenceForReview(id)).toBeNull();
-    getDb().query(`UPDATE classification_evidence SET reliability = 'conflicting', snippet = 'Tampered', value_json = '"Tampered"' WHERE id = ?`).run('e1');
+    rotateListingEvidenceAuthority(workspaceId, id);
     expect(validateListingEvidenceForReview(id)).not.toBeNull();
   });
 });

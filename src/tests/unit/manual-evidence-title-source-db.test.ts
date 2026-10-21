@@ -34,7 +34,7 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     expect(legacy.brandUnverified).toBe(true);
   });
 
-  test('name-consolidation emits titleSource manual for operator-manual evidence', async () => {
+  test('raw manual-name evidence cannot authorize the accepted-evidence stage', async () => {
     const evidence = (source: string, sourceField: string, value: string): ClassificationEvidence => ({
       id: `e-${source}-${sourceField}`,
       runId: 'run-1',
@@ -70,16 +70,12 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
         runId: 'run-1',
       },
     );
-    expect(result.status).toBe('succeeded');
-    if (result.status !== 'succeeded') return;
-    const metadata = (result.output as { metadata?: Record<string, unknown> }).metadata ?? {};
-    expect(metadata.titleSource).toBe('manual');
-    // Issue #111: the manual title carries its own size token, so the
-    // variant guarantee leaves it byte-identical.
-    expect(metadata.curatedTitle).toBe('Butcher\u2019s Pup Chicken Recipe 5 lb');
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected raw-only evidence to abstain');
+    expect(result.reason).toMatch(/accepted item evidence/i);
   });
 
-  test('non-manual evidence keeps the legacy fallback order byte-identical', async () => {
+  test('non-manual raw evidence cannot authorize the accepted-evidence stage', async () => {
     const evidence = (source: string, sourceField: string, value: string): ClassificationEvidence => ({
       id: `e2-${source}-${sourceField}`,
       runId: 'run-2',
@@ -98,11 +94,9 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
     const result = await nameConsolidationStage.execute(
       {
         sku: 'upc-manual-2',
-        // Issue #108: brand evidence required — 'BUTCHER' matches the title
-        // token exactly, so the guarantee leaves the legacy fallback output
-        // byte-identical (this test pins fallback ORDER, not branding).
+        // This fixture deliberately supplies tempting raw name and brand
+        // evidence; neither is accepted item-local authority.
         evidence: [
-          // Issue #111: size token lives in the spreadsheet name itself.
           evidence('spreadsheet', 'name', 'BUTCHER PUP TREATS 5LB'),
           evidence('spreadsheet', 'brand', 'BUTCHER'),
         ],
@@ -116,10 +110,8 @@ describe('full set: manual title eligibility (no LLM, deterministic)', () => {
         runId: 'run-2',
       },
     );
-    expect(result.status).toBe('succeeded');
-    if (result.status !== 'succeeded') return;
-    const metadata = (result.output as { metadata?: Record<string, unknown> }).metadata ?? {};
-    expect(metadata.titleSource).toBe('web');
-    expect(metadata.curatedTitle).toBe('BUTCHER PUP TREATS 5LB');
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') throw new Error('Expected raw-only evidence to abstain');
+    expect(result.reason).toMatch(/accepted item evidence/i);
   });
 });

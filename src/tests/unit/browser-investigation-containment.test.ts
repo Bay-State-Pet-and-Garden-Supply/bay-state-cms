@@ -54,6 +54,7 @@ describe('no egress outside the broker (static)', () => {
     // of its own). The validating forward proxy (`render-proxy.ts`) and
     // the in-container worker (`render-worker.ts`) are the AUTHORIZED
     // additional surfaces — asserted separately below, never in this list.
+    'src/onboarding/item-evidence-browser.ts',
     'src/onboarding/browser-investigation/model-context.ts',
     'src/onboarding/browser-investigation/render-runner.ts',
   ];

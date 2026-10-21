@@ -117,8 +117,12 @@ A concise customer-facing label for a Subproduct, separate from its full product
 _Avoid_: Product name, SKU, family name
 
 **Curation Cohort**:
-An internal group of Onboarding Items considered together for coordinated Curation. Its membership does not establish a storefront Product Family.
+An internal group of Onboarding Items considered together to share curation context or computation. Membership establishes neither a storefront **Product Family** nor a requirement for otherwise independent items to advance together.
 _Avoid_: Product Family, published variant relationship
+
+**Item Readiness**:
+The determination that one **Onboarding Item** satisfies the evidence, listing-completeness, review, and other requirements for its next stage. Readiness is independent of unrelated items and shared computation; genuinely linked multi-product changes retain their consistency requirements.
+_Avoid_: Cohort completion, batch readiness, family membership
 
 **Unmapped Product Type**:
 A plausible Product Type that is not yet configured for the store.
@@ -715,18 +719,42 @@ _Avoid_: Official-domain requirement, single-source route, extractor profile
 Gathering evidence from available sources in an approved **Brand Sourcing Strategy** while other planned sources are unavailable. Unavailable sources remain visible but do not block collection from usable sources; listing sufficiency is assessed during **Prepare listing**.
 _Avoid_: Whole-product profile block, silent source omission
 
+**Browser-Assisted Evidence Collection**:
+Bounded product-specific research for missing listing evidence after structured and static source collection, distinct from domain-level **Browser Investigation**. Observations remain attributable to their sources and are not accepted merely because a browser or model produced them.
+_Avoid_: Browser Investigation, browser-first pipeline, automatically trusted extraction
+
+**Item Evidence Acceptance**:
+The decision that source-attributed product facts may support listing preparation after source authority, exact sellable-item and variant matching, provenance, conflict, and applicable rights requirements are satisfied. Browser-assisted facts may qualify per item without a healthy **Domain Extractor Profile**; acceptance is not human **Review**, release approval, or **Profile Health**.
+_Avoid_: Model confidence as verification, profile activation, listing approval
+
+**Listing Completeness Standard**:
+The product-type-specific checklist of content needed for a curated rich listing to be ready for **Review**, subject only to explicit **Listing Completeness Exceptions**, rather than an obligation to reproduce all manufacturer content. Completeness is distinct from whether the supplied facts are sufficiently supported.
+_Avoid_: Universal field checklist, all available manufacturer content, factual verification
+
+**Listing Completeness Exception**:
+An operator-approved, item-specific omission of a designated non-critical requirement from a **Listing Completeness Standard**, with the omitted field and reason recorded. It does not waive exact sellable-item and variant resolution, image rights, or required safety information, or assert that missing facts are known.
+_Avoid_: Automatic waiver, completed field, fabricated substitute
+
+**Grounded Listing Copy**:
+Customer-facing product wording composed only from facts that have passed **Item Evidence Acceptance**, with claims traceable to supporting evidence. A generative model may compose the wording but cannot create product facts, resolve evidence conflicts, or turn a **Listing Completeness Exception** into an asserted value.
+_Avoid_: Model-generated facts, unsupported benefits, inferred missing specifications
+
+**Retailer Corroboration**:
+Source-attributed use of third-party retailer observations to cross-check basic product facts after the exact sellable item has been matched. It does not authorize reuse of retailer prose or imagery or turn a retailer page into an **Official Product Page**.
+_Avoid_: Licensed retailer content, manufacturer evidence, image reuse approval
+
 **Listing Evidence Gap**:
-Missing product information that prevents a usable listing after collected evidence is consolidated during **Prepare listing**, requiring operator help in that stage. A gap is distinct from an identity or variant conflict, which must be resolved before conflicting evidence can be used together.
+Missing product information that prevents a listing from meeting its **Listing Completeness Standard** after collected evidence is consolidated during **Prepare listing**, requiring operator help in that stage. A gap is distinct from an identity or variant conflict, which must be resolved before conflicting evidence can be used together.
 _Avoid_: Incomplete individual source, missing official domain, source identity conflict
 
 **Discovery** (v2 canonical `find_product_page` / Find product page — owner-approved 2026-09-08):
-The pipeline stage that finds the official product page URL on a brand's approved official domains through the local URL index and sitemap lookup (ADR 0032; never external web search).
+The pipeline stage that finds candidate official product pages for an imported register item, keeping offered URLs distinct from **Confirmed Official Pages**.
 
 **Extraction** (v2 canonical `collect_details` / Collect details — owner-approved 2026-09-08):
-The pipeline stage that scrapes raw product details (titles, descriptions, images, prices) from Confirmed Official Pages and revalidates page identity against the same name/variant evidence before persisting. **Source-dispatched (Amendment A + Amendment B):** official-page items keep the URL/profile/page-scrape path; `distributor_record` items bypass scraping entirely and are materialized **merchandising-depth** (identity fields plus description, features, category, dimensions, case pack, unit of measure, ingredients, and display-only image candidates) with a null URL, zero fetch/profile/OCR/model/image calls, and a dedicated `distributorRecordProvenance` (generation, evidence hash, sorted accepted attempt/provider ids, projection version, per-field merchandising provenance). Price, inventory, and commerce images stay absent.
+The pipeline stage that collects source-attributed product details for one sellable item and variant before listing preparation. Observations remain distinct from accepted facts, and collection alone establishes neither image rights nor **Profile Health**.
 
 **Domain Extractor Profile**:
-A reviewed extraction contract for one product-page structure on a domain that identifies the structures trusted during Extraction.
+A reviewed, reusable extraction contract for one product-page structure on a domain, identifying the structures used by profile-based **Extraction**.
 _Avoid_: Crawlee profile, generic scraper, selector cache
 
 **Profile Scope**:
@@ -738,7 +766,7 @@ A stable product-page structure observation used to confirm that a Domain Extrac
 _Avoid_: Visual design, exact DOM snapshot, URL pattern
 
 **Profile Match**:
-The single healthy Domain Extractor Profile selected for a source URL before automated Extraction begins.
+The single healthy **Domain Extractor Profile** selected for a source URL before profile-based **Extraction** begins.
 _Avoid_: First profile, silent fallback, ambiguous match
 
 **Source-Page Variant**:
@@ -754,7 +782,7 @@ Deterministic pre-extraction capability that parses Shopify/JSON-LD/Woo/BigComme
 _Avoid_: LLM variant guess, client-trusted URL/payload, default-on browser interaction
 
 **Profile Health**:
-The reviewed readiness of a Domain Extractor Profile, including product identity, description, image, and relevant variant evidence, to support automated Extraction for a domain.
+The reviewed readiness of a **Domain Extractor Profile**, including product identity, description, image, and relevant variant evidence, to support profile-based **Extraction** within its scope.
 _Avoid_: Profile exists, latest generation status, domain uptime
 
 **Profile Revalidation Requirement**:
@@ -762,15 +790,15 @@ The review state created when a Domain Extractor Profile may no longer match its
 _Avoid_: Immediate profile deletion, transient page failure, silent profile decay
 
 **Fail-Closed Extraction**:
-The rule that automated Extraction stops for a product page when its domain lacks a healthy Domain Extractor Profile.
+The rule that a profile-based **Extraction** attempt cannot contribute accepted facts when it lacks a healthy, applicable **Domain Extractor Profile**.
 _Avoid_: Generic fallback extraction, best-effort scraping
 
 **Profile-Blocked Item**:
-An Onboarding Item stopped in Extraction because no healthy Domain Extractor Profile produced a Profile Match.
+An **Onboarding Item** whose profile-based **Extraction** attempt is blocked because no usable **Profile Match** is available.
 _Avoid_: Failed product, auto-retry candidate, skipped item
 
 **Manual Evidence**:
-Operator-transcribed product facts for a Profile-Blocked Item, submitted per SKU with an attestation (no family inheritance, per-SKU verification, image rights) and held in Review like any official-page row before promotion. Always available as a fallback for family-page-only brands; building a healthy Domain Extractor Profile remains the happy path.
+Operator-transcribed product facts submitted per SKU with an attestation covering per-SKU verification, no family inheritance, and applicable image rights, subject to **Review** before promotion. It is distinct from browser-collected observations and does not create **Profile Health**.
 _Avoid_: Automated extraction, distributor record, generic fallback scraping
 
 **Profile Retry Preview**:
@@ -869,16 +897,16 @@ _Avoid_: Table view, item list, batch detail view
 ## Relationships
 
 - The **Pipeline Board** renders four automated stage columns (**Discovery**, **Extraction**, **Curation**) and two manual columns (**Review**, **Promotion**).
-- **Extraction** requires a healthy **Domain Extractor Profile** for the source URL's domain — for **official_page** sources. **Distributor-record sources are profile-free**: `distributor_record_to_extraction` items materialize merchandising-depth structured data (null URL, Amendment B) and never require a profile or URL.
+- The profile-based official-page **Extraction** route requires a healthy **Domain Extractor Profile** for the source URL's domain. **Distributor-record sources are profile-free**: `distributor_record_to_extraction` items materialize merchandising-depth structured data (null URL, Amendment B) and never require a profile or URL.
 - A domain may have multiple **Domain Extractor Profiles** when its product pages use different structures.
 - Each **Domain Extractor Profile** has one **Profile Scope**.
 - A **Profile Scope** includes both an operator-visible URL pattern and a **Page Structure Signal**.
-- A source URL must resolve to exactly one **Profile Match** before automated **Extraction** can produce trusted product evidence.
+- Profile-based **Extraction** requires a source URL to resolve to exactly one **Profile Match** before that route can produce trusted product evidence.
 - A **Profile Match** requires both the source URL and the source page's **Page Structure Signal** to fit the **Profile Scope**.
 - The most specific healthy **Profile Scope** determines the **Profile Match**.
 - Ambiguous matching **Profile Scopes** prevent a **Profile Match** until a reviewer resolves the ambiguity.
 - A default **Domain Extractor Profile** may produce a **Profile Match** only when it is explicitly scoped as the domain default and healthy.
-- When a source URL fits a **Profile Scope** URL pattern but its **Page Structure Signal** no longer fits, **Fail-Closed Extraction** stops that item.
+- When a source URL fits a **Profile Scope** URL pattern but its **Page Structure Signal** no longer fits, **Fail-Closed Extraction** stops that profile-based attempt.
 - A **Page Structure Signal** mismatch creates a **Profile Revalidation Requirement** for the relevant **Domain Extractor Profile**.
 - A single **Page Structure Signal** mismatch does not remove **Profile Health** without repeated mismatches or reviewer confirmation.
 - **Profile Tooling Extraction** may run when automated **Extraction** would fail closed.
@@ -891,6 +919,9 @@ _Avoid_: Table view, item list, batch detail view
 - **Browser Investigation** inputs and results belong to one workspace; applying an **Extraction Policy Proposal** to a shared **Domain Extractor Profile** draft is a separate operator decision.
 - An **Extraction Policy Proposal** may be saved as an inactive draft despite failed or incomplete validation; its failures remain visible and prevent activation.
 - An investigation-derived extraction policy requires passing **Blind Profile Holdout** validation in addition to existing **Profile Health** requirements. A confirmation-count waiver does not waive the holdout requirement.
+- **Item Evidence Acceptance** for **Browser-Assisted Evidence Collection** is per item and does not establish **Profile Health** or bypass **Review**.
+- A **Listing Completeness Exception** may resolve a designated non-critical **Listing Evidence Gap** for one item; it does not supply missing evidence.
+- Shared work and **Curation Cohort** membership do not determine **Item Readiness** for otherwise independent items.
 - A **Profile Builder Workspace** is organized around one domain, not one product item.
 - An **Onboarding Item** may provide a seed **Profile Validation Sample** for a **Profile Builder Workspace**.
 - A **Profile Builder Workspace** may use unreviewed sitemap product URLs as exploratory Profile Validation Samples.
@@ -911,9 +942,9 @@ _Avoid_: Table view, item list, batch detail view
 - Image extraction coverage requires reviewed image previews before **Profile Health** can allow automated **Extraction**.
 - **Fail-Closed Extraction** may stop an item in **Extraction** without producing trusted product evidence.
 - **Fail-Closed Extraction** may create a **Profile-Blocked Item**.
-- A **Profile-Blocked Item** remains in **Extraction** until a reviewer chooses to retry it.
-- A **Profile-Blocked Item** may instead advance via **Manual Evidence**; withdrawing the submission returns it to blocked, and retry refuses active-manual items until withdrawn.
-- **Manual Evidence** never converts distributor rows, completed rows, or legacy rows, and never exempts Review, image-rights approval, or family readiness.
+- A **Profile-Blocked Item** may resume profile-based collection through a reviewed retry or obtain facts through a separate eligible route; neither alternative evidence nor item acceptance creates **Profile Health**.
+- A **Profile-Blocked Item** may advance using **Manual Evidence** or **Browser-Assisted Evidence Collection** only when **Item Evidence Acceptance** and its own **Item Readiness** requirements are satisfied.
+- **Manual Evidence** does not reinterpret distributor or historical records and never exempts **Review**, image-rights approval, or readiness of a genuinely linked **Product Family** operation.
 - When a relevant **Domain Extractor Profile** becomes healthy, affected **Profile-Blocked Items** appear in a **Profile Retry Preview** rather than automatically rerunning.
 - A **Profile Retry Preview** supports selected retries; it does not advance a whole **Onboarding Batch**.
 - An **Onboarding Batch** has derived progress (counts per stage) computed from its items, not a controlling status of its own.

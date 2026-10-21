@@ -190,7 +190,7 @@ function App() {
       }
     } else if (newView === 'onboarding') {
       const onboardingTab = url.searchParams.get('tab');
-      const validOnboardingTabs = ['needs_attention', 'processing', 'waiting_on_family', 'review', 'approved'];
+      const validOnboardingTabs = ['needs_attention', 'processing', 'review', 'approved'];
       if (!validOnboardingTabs.includes(onboardingTab ?? '')) {
         url.searchParams.delete('tab');
       }

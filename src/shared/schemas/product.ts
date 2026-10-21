@@ -67,10 +67,24 @@ export const ShopSiteMetaSchema = z.object({
   preserved: PreservedFieldsSchema,
 });
 
+
+export const ProductImageProvenanceSchema = z.object({
+  localPath: z.string().min(1),
+  sourceUrl: z.url().refine(value => {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password;
+  }, 'Image provenance requires a credential-free HTTP(S) source'),
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+  assetId: z.string().min(1).optional(),
+  rightsApprovalId: z.string().min(1),
+  rightsAuthorityHash: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+export type ProductImageProvenance = z.infer<typeof ProductImageProvenanceSchema>;
 export const ProductMetadataSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   archivedAt: z.string().nullable().default(null),
+  imageProvenance: z.array(ProductImageProvenanceSchema).max(64).optional(),
 });
 
 export const ProductSchema = z.object({

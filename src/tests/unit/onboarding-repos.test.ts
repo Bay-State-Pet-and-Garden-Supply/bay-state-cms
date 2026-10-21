@@ -24,9 +24,13 @@ import {
   completeReviewStage,
   completePromotionStage,
   setDiscoverySourceUrl,
-  sendItemsToPreviousStage,
   claimItemsForProcessing,
   requeueStaleInProgressItems,
+  commitClaimedItemCuration,
+  failClaimedItemCuration,
+  releaseClaimedItemCuration,
+  type ClaimedItemCurationLease,
+  sendItemsToPreviousStage,
 } from '../../db/repositories/onboarding-item-repo';
 import {
   insertSources,
@@ -802,6 +806,46 @@ describe('listValidationSamplesByDomain (Phase 3, task 16)', () => {
     const second = claimItemsForProcessing('discovery', 5, claimWsId, 'worker-2');
     expect(second).toHaveLength(0);
   });
+  it('claimed curation CAS isolates commits from stale input, lease loss, and replay', () => {
+    const claimWsId = 'ws-item-curation-cas';
+    const db = getDb();
+    const now = new Date().toISOString();
+    db.run('INSERT OR IGNORE INTO workspace (id,name,workspace_path,git_path,created_at,updated_at,bootstrap_status) VALUES (?,?,?,?,?,?,?)', [claimWsId, 'Item Curation CAS', '/tmp/item-curation-cas', '/tmp/item-curation-cas/.git', now, now, 'complete']);
+    const batch = createBatch({ workspaceId: claimWsId, name: 'Item Curation CAS', fileName: 'items.xlsx', totalItems: 3 });
+    db.run(`UPDATE onboarding_batches SET execution_state = 'running' WHERE id = ?`, [batch.id]);
+    const items = insertItems(batch.id, [
+      { upc: 'ITEM-CAS-READY', name: 'Ready Item', rowNumber: 1 },
+      { upc: 'ITEM-CAS-STALE', name: 'Stale Item', rowNumber: 2 },
+      { upc: 'ITEM-CAS-LEASE', name: 'Lease Item', rowNumber: 3 },
+    ]);
+    db.run(`UPDATE onboarding_items SET stage = 'curation' WHERE batch_id = ?`, [batch.id]);
+    claimItemsForProcessing('curation', 3, claimWsId, 'worker-item-cas');
+    const leaseFor = (itemId: string): ClaimedItemCurationLease => {
+      const item = findItemById(itemId)!;
+      return { workerId: 'worker-item-cas', claimedAt: item.claimedAt!, inputRevision: item.inputRevision };
+    };
+
+    let beforeCommitCalls = 0;
+    const readyLease = leaseFor(items[0].id);
+    expect(commitClaimedItemCuration(items[0].id, readyLease, '{"curatedTitle":"Ready"}', () => { beforeCommitCalls++; })).toBe(true);
+    expect(beforeCommitCalls).toBe(1);
+    expect(findItemById(items[0].id)?.stageStatus).toBe('completed');
+    expect(commitClaimedItemCuration(items[0].id, readyLease, '{"curatedTitle":"Replay"}')).toBe(false);
+    expect(findItemById(items[0].id)?.curationData?.curatedTitle).toBe('Ready');
+
+    const staleLease = leaseFor(items[1].id);
+    db.run(`UPDATE onboarding_items SET name = 'Changed after claim' WHERE id = ?`, [items[1].id]);
+    expect(commitClaimedItemCuration(items[1].id, staleLease, '{"curatedTitle":"Stale"}')).toBe(false);
+    expect(releaseClaimedItemCuration(items[1].id, staleLease)).toBe(true);
+    expect(findItemById(items[1].id)?.stageStatus).toBe('pending');
+
+    const lostLease = leaseFor(items[2].id);
+    db.run(`UPDATE onboarding_items SET claimed_by = 'worker-reclaimed', claimed_at = ? WHERE id = ?`, [new Date(Date.now() + 1000).toISOString(), items[2].id]);
+    expect(failClaimedItemCuration(items[2].id, lostLease, 'stale worker')).toBe(false);
+    expect(releaseClaimedItemCuration(items[2].id, lostLease)).toBe(false);
+    expect(findItemById(items[2].id)?.stageStatus).toBe('in_progress');
+  });
+
 
   it('requeueStaleInProgressItems recovers only stale claims', () => {
     const claimWsId = 'ws-claim-3';

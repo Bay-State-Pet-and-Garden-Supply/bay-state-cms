@@ -1,10 +1,28 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { Database } from 'bun:sqlite';
 import { getDb } from '../connection';
 import {
   ManualEvidenceAttestationSchema,
   ManualEvidenceSourceKindEnum,
 } from '../../shared/schemas/onboarding';
 import { canonicalJsonStringify } from '../../shared/stable-id';
+import { findItemById } from './onboarding-item-repo';
+import { findBatchById } from './onboarding-batch-repo';
+import { itemInputIdentityHash } from '../../onboarding/item-input-identity';
+/** Add the immutable server-derived imported-identity binding; legacy rows remain unbound. */
+export function installManualEvidenceIdentityBindingSchema(db: Database): void {
+  const columns = db.query('PRAGMA table_info(onboarding_manual_evidence_attestations)').all() as Array<{ name: string }>;
+  if (!columns.length) throw new Error('manual evidence attestation table must exist before installing identity bindings');
+  if (!columns.some((column) => column.name === 'identity_input_hash')) {
+    db.exec('ALTER TABLE onboarding_manual_evidence_attestations ADD COLUMN identity_input_hash TEXT;');
+  }
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS manual_evidence_identity_input_hash_immutable
+    BEFORE UPDATE OF identity_input_hash ON onboarding_manual_evidence_attestations
+    WHEN NEW.identity_input_hash IS NOT OLD.identity_input_hash
+    BEGIN SELECT RAISE(ABORT, 'manual evidence identity binding is immutable'); END;
+  `);
+}
 
 /**
  * Manual-evidence attestation store (parent #101, ticket #102 foundation).
@@ -73,6 +91,8 @@ export interface ManualEvidenceAttestationRow {
   family_reference_url: string | null;
   field_checklist_json: string;
   value_hashes_json: string;
+  /** Server-derived input binding captured when operator authority is created; null for legacy rows. */
+  identity_input_hash: string | null;
   /** JSON array of ManualEvidenceImageRight; null when no images were submitted. */
   image_rights_json: string | null;
   /** Operator-pasted family text snapshot; null when not supplied. */
@@ -126,6 +146,13 @@ export function createManualEvidenceAttestation(
   const operatorId = (input.operatorId ?? '').trim();
   if (!itemId) throw new Error('manual evidence attestation requires an item id');
   if (!operatorId) throw new Error('manual evidence attestation requires an operator id');
+  const item = findItemById(itemId);
+  const batch = item ? findBatchById(item.batchId) : null;
+  if (!item || !batch || (input.batchId && input.batchId !== item.batchId)) {
+    throw new Error('manual evidence attestation requires its current persisted item and batch');
+  }
+  const identityInputHash = itemInputIdentityHash(batch.workspaceId, item);
+  const attestationBatchId = input.batchId ?? item.batchId;
 
   const fields = Object.keys(input.fieldValues ?? {});
   if (fields.length === 0) {
@@ -215,7 +242,7 @@ export function createManualEvidenceAttestation(
   const parsed = ManualEvidenceAttestationSchema.safeParse({
     attestationId,
     itemId,
-    batchId: input.batchId ?? null,
+    batchId: attestationBatchId,
     operatorId,
     attestedAt: now,
     familyReferenceUrl,
@@ -237,17 +264,18 @@ export function createManualEvidenceAttestation(
   const imageRightsJson = imageRights.length > 0 ? canonicalJsonStringify(imageRights) : null;
   db.query(
     `INSERT INTO onboarding_manual_evidence_attestations
-      (attestation_id, item_id, batch_id, operator_id, attested_at,
+      (attestation_id, item_id, batch_id, operator_id, attested_at, identity_input_hash,
        family_reference_url, field_checklist_json, value_hashes_json,
        image_rights_json, family_reference_text,
        superseded_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
   ).run(
     attestationId,
     itemId,
-    input.batchId ?? null,
+    attestationBatchId,
     operatorId,
     now,
+    identityInputHash,
     familyReferenceUrl,
     checklistJson,
     hashesJson,
@@ -259,7 +287,7 @@ export function createManualEvidenceAttestation(
   return {
     attestation_id: attestationId,
     item_id: itemId,
-    batch_id: input.batchId ?? null,
+    batch_id: attestationBatchId,
     operator_id: operatorId,
     attested_at: now,
     family_reference_url: familyReferenceUrl,
@@ -267,6 +295,7 @@ export function createManualEvidenceAttestation(
     value_hashes_json: hashesJson,
     image_rights_json: imageRightsJson,
     family_reference_text: familyReferenceText,
+    identity_input_hash: identityInputHash,
     superseded_at: null,
     created_at: now,
   };

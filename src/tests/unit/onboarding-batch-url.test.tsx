@@ -54,7 +54,7 @@ vi.mock('@/client/onboarding-stage-api', () => ({
     projectionHealth: { status: 'healthy', version: '1.0.0', computedAt: new Date().toISOString(), issues: [] },
     matchingTotal: 10,
     counts: {
-      processing: 10, needs_attention: 0, waiting_on_family: 0, ready_for_review: 0,
+      processing: 10, needs_attention: 0, ready_for_review: 0,
       approved: 0, ready_to_export: 0, completed: 0, skipped: 0,
     },
     stageStatusMatrix: { ...zeroMatrix(), route_sources: { pending: 10, in_progress: 0, completed: 0, failed: 0, needs_input: 0, skipped: 0 } },
@@ -186,7 +186,6 @@ describe('Onboarding Batch URL Persistence', () => {
       counts: {
         needs_attention: 1,
         processing: 2,
-        waiting_on_family: 0,
         ready_for_review: 3,
         approved: 4,
         ready_to_export: 0,
@@ -202,7 +201,6 @@ describe('Onboarding Batch URL Persistence', () => {
       counts: {
         needs_attention: 1,
         processing: 2,
-        waiting_on_family: 0,
         ready_for_review: 3,
         approved: 4,
         ready_to_export: 0,
@@ -221,7 +219,6 @@ describe('Onboarding Batch URL Persistence', () => {
       counts: {
         needs_attention: 1,
         processing: 2,
-        waiting_on_family: 0,
         ready_for_review: 3,
         approved: 4,
         ready_to_export: 0,

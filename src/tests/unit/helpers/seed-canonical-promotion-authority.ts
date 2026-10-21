@@ -88,7 +88,7 @@ export function seedCanonicalPromotionAuthority({
     pageImportHash: pages.pageImportHash,
   });
   const persisted = persistRuntimeSnapshot(snapshot);
-  db.run('UPDATE classification_runs SET config_snapshot_hash = ? WHERE id = ?', [persisted.hash, runId]);
+  db.run('UPDATE classification_runs SET config_snapshot_id = ?, config_snapshot_hash = ? WHERE id = ?', [persisted.id, persisted.hash, runId]);
   for (const binding of seed.classificationOutputBindings!) {
     db.run(
       `INSERT OR REPLACE INTO classification_output_bindings

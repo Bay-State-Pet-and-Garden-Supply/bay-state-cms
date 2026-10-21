@@ -38,7 +38,7 @@ import {
   parseStorefrontFamilyPlan,
 } from '../../db/repositories/storefront-family-plan-repo';
 import { listConflictingDraftChangeSets } from '../../db/repositories/change-set-repo';
-import { findCurationDataJsonById, findItemById } from '../../db/repositories/onboarding-item-repo';
+import { findItemById } from '../../db/repositories/onboarding-item-repo';
 import { listOutstandingDriftForSku } from '../../db/repositories/drift-repo';
 import { StorefrontFamilyStagingInputSchema, NonFoodFamilyStagingInputSchema } from '../../validation/storefront-family-validation';
 import { getAcceptedProposals } from '../../db/repositories/classification-run-repo';
@@ -46,6 +46,9 @@ import { getEffectivePrimaryProductTypeId } from '../../classification/assignmen
 import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
 import { currentListingEvidenceHashes } from '../../classification/listing-evidence-currentness';
 import { buildJoinCatalogAnchors } from '../storefront-family-join-anchors';
+import { findFamilyOnboardingOrigin, listFamilyOnboardingOrigins } from '../../db/repositories/storefront-family-origin-repo';
+import { resolveApprovedCatalogFamilyOrigin, validateFamilyMemberOrigin } from '../../classification/storefront-family-origin';
+import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
 import { FOOD_FAMILY_VARIANT_RULE_VERSION, resolveFamilyVariantRule, canonicalJoinVariantTuple, type FamilyVariantRuleVersion } from '../../classification/family-variant-rule';
 import { comparisonHashForProduct } from '../../shopsite/catalog-comparison';
 import { captureModelPolicySnapshot } from '../../onboarding/model-policy-snapshot';
@@ -95,7 +98,7 @@ function safeParsePlan(planJson: string): { ok: true; plan: StorefrontFamilyPlan
 const route = new Hono();
 
 const StageBodySchema = z.object({
-  members: z.array(z.object({ sku: z.string().min(1) })).min(2),
+  members: z.array(z.object({ sku: z.string().min(1), sourceItemId: z.string().min(1).optional(), sourceKind: z.enum(['onboarding', 'catalog']).optional() })).min(2),
   mainSku: z.string().min(1).optional(),
   actor: z.string().min(1),
 });
@@ -110,7 +113,7 @@ const NonFoodStageBodySchema = z.object({
     z.literal('non-food-color-count-family-variant-rule-v1'),
     z.literal('non-food-size-color-count-family-variant-rule-v1'),
   ]),
-  members: z.array(z.object({ sku: z.string().min(1) })).min(2),
+  members: z.array(z.object({ sku: z.string().min(1), sourceItemId: z.string().min(1).optional(), sourceKind: z.enum(['onboarding', 'catalog']).optional() })).min(2),
   mainSku: z.string().min(1).optional(),
   actor: z.string().min(1),
 });
@@ -348,9 +351,12 @@ route.post('/storefront-families/stage', async (c) => {
   }
   const records = new Map<string, MemberRecord>();
   for (const member of parsedBody.data.members) {
-    const record = readMemberRecord(workspace.workspacePath, member.sku, workspace.id);
+    const record = readMemberRecord(workspace.workspacePath, member.sku, workspace.id, member.sourceItemId, member.sourceKind);
     if (!record) {
-      return c.json({ error: `No current eligible SKU-local evidence for SKU "${member.sku}".` }, 400);
+      const ambiguous = listFamilyOnboardingOrigins(workspace.id, member.sku).length > 1;
+      return c.json({ error: ambiguous
+        ? `Multiple onboarding items use SKU "${member.sku}". Choose the exact sourceItemId from the onboarding item review before staging this family.`
+        : `No current eligible SKU-local evidence for SKU "${member.sku}".` }, 400);
     }
     // Food families require size evidence: fall back to the approved-catalog
     // weight when curation carries no explicit size (legacy food evidence).
@@ -363,6 +369,7 @@ route.post('/storefront-families/stage', async (c) => {
   const stagedInput = StorefrontFamilyStagingInputSchema.safeParse({
     members: [...records.entries()].map(([sku, record]) => ({
       sku,
+      origin: record.origin,
       purchasable: record.purchasable,
       brand: record.brand,
       recipe: record.recipe,
@@ -418,9 +425,12 @@ route.post('/storefront-families/stage-non-food', async (c) => {
   }
   const records = new Map<string, MemberRecord>();
   for (const member of parsedBody.data.members) {
-    const record = readMemberRecord(workspace.workspacePath, member.sku, workspace.id);
+    const record = readMemberRecord(workspace.workspacePath, member.sku, workspace.id, member.sourceItemId, member.sourceKind);
     if (!record) {
-      return c.json({ error: `No current eligible SKU-local evidence for SKU "${member.sku}".` }, 400);
+      const ambiguous = listFamilyOnboardingOrigins(workspace.id, member.sku).length > 1;
+      return c.json({ error: ambiguous
+        ? `Multiple onboarding items use SKU "${member.sku}". Choose the exact sourceItemId from the onboarding item review before staging this family.`
+        : `No current eligible SKU-local evidence for SKU "${member.sku}".` }, 400);
     }
     records.set(member.sku, record);
   }
@@ -428,6 +438,7 @@ route.post('/storefront-families/stage-non-food', async (c) => {
     ruleVersion: parsedBody.data.ruleVersion,
     members: [...records.entries()].map(([sku, record]) => ({
       sku,
+      origin: record.origin,
       purchasable: record.purchasable,
       brand: record.brand,
       model: record.model,
@@ -1541,7 +1552,12 @@ function baseDerivedEvidence(workspacePath: string, sku: string): MemberRecord |
   if (!reviewedTypeHash) return null;
   const cf = base.customFields ?? {};
   const weight = (base.core.weight ?? '').trim() || null;
+  const origin = getCurrentWorkspace()?.id
+    ? resolveApprovedCatalogFamilyOrigin({ workspaceId: getCurrentWorkspace()!.id, workspacePath, sku })?.origin
+    : undefined;
+  if (!origin) return null;
   return {
+    origin,
     base,
     draftBase: base,
     purchasable: true,
@@ -1617,12 +1633,12 @@ function readJoinStageEvidence(
       sizeRaw,
       ounces: record.ounces ?? parseOuncesLocal(sizeRaw),
       retailUnit: record.retailUnit,
-      packCountDeclared: record.packCountDeclared,
       packCount: record.packCount,
+      packCountDeclared: record.packCountDeclared,
       reviewedTypeHash: record.reviewedTypeHash,
       evidenceHash: record.evidenceHash,
-      origin: isJoined ? 'import' : 'catalog',
       productTypeId: record.reviewedProductTypeId,
+      origin: isJoined ? 'import' : 'catalog',
       model: record.model,
       material: record.material,
       function: record.function,
@@ -1905,6 +1921,7 @@ route.post('/storefront-families/:id/freshness', (c) => {
 interface MemberRecord {
   base: Product | null;
   draftBase: Product;
+  origin: FamilyMemberOrigin;
   purchasable: boolean;
   /** Whether the curation record carried an explicit boolean purchasable flag (unknown authority never defaults to true at apply/approval). */
   purchasableKnown: boolean;
@@ -2021,7 +2038,7 @@ function reviewedTypeAuthorityForSku(sku: string, runId: string | null): { typeI
  * eligible bundle). Flat curation hash fields are legacy fallbacks only —
  * they never mint authority when the real authorities are unavailable.
  */
-function readMemberRecord(workspacePath: string, sku: string, workspaceId?: string): MemberRecord | null {
+function readMemberRecord(workspacePath: string, sku: string, workspaceId?: string, sourceItemId?: string, sourceKind?: 'onboarding' | 'catalog'): MemberRecord | null {
   let resolvedWorkspaceId: string | null = workspaceId ?? null;
   if (!resolvedWorkspaceId) {
     try {
@@ -2030,37 +2047,71 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
       resolvedWorkspaceId = null;
     }
   }
-  let base: Product | null;
-  try {
-    base = readProductFile(workspacePath, sku);
-  } catch {
-    base = null;
+  const candidates = resolvedWorkspaceId && sourceKind !== 'catalog' ? listFamilyOnboardingOrigins(resolvedWorkspaceId, sku) : [];
+  if ((sourceKind === 'catalog' || (candidates.length === 0 && !sourceItemId)) && resolvedWorkspaceId) {
+    const catalog = resolveApprovedCatalogFamilyOrigin({ workspaceId: resolvedWorkspaceId, workspacePath, sku });
+    if (!catalog) return null;
+    const validation = validateFamilyMemberOrigin({ workspaceId: resolvedWorkspaceId, workspacePath, sku, origin: catalog.origin });
+    if (!validation.ok) return null;
+    const textOf = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value.trim() : null;
+    const attrs = catalog.product.shopsite.preserved.rawAttributes;
+    const custom = catalog.product.customFields;
+    const weight = textOf(catalog.product.core.weight);
+    return {
+      base: catalog.product,
+      draftBase: catalog.product,
+      origin: catalog.origin,
+      purchasable: validation.purchasable,
+      purchasableKnown: true,
+      brand: textOf(custom.ProductField16),
+      recipe: textOf(custom.ProductField24),
+      flavor: textOf(custom.ProductField23),
+      species: textOf(custom.ProductField17),
+      lifeStage: textOf(custom.ProductField18),
+      form: textOf(custom.ProductField22),
+      sizeRaw: weight,
+      ounces: weight ? parseOuncesLocal(weight) : null,
+      retailUnit: textOf(attrs.retailUnit),
+      packCountDeclared: attrs.packCountDeclared === 'true',
+      packCount: typeof attrs.packCount === 'string' && /^\d+$/.test(attrs.packCount) ? Number(attrs.packCount) : null,
+      reviewedTypeHash: attrs.reviewedTypeHash,
+      reviewedProductTypeId: textOf(attrs.nonFoodProductTypeId),
+      evidenceHash: catalog.origin.productHash,
+      model: textOf(attrs.nonFoodModel),
+      material: textOf(attrs.nonFoodMaterial),
+      function: textOf(attrs.nonFoodFunction),
+      safetyDose: textOf(attrs.nonFoodSafetyDose),
+      strength: textOf(attrs.nonFoodStrength),
+      fit: textOf(attrs.nonFoodFit),
+      colorRaw: textOf(attrs.nonFoodColorRaw),
+      countRaw: textOf(attrs.nonFoodCountRaw),
+      countQuantity: typeof attrs.nonFoodCountQuantity === 'string' && /^\d+$/.test(attrs.nonFoodCountQuantity) ? Number(attrs.nonFoodCountQuantity) : null,
+    };
   }
-  // Workspace-scoped route-seam lookup (Slice C workaround: no
-  // workspace-scoped by-UPC helpers exist on onboarding-item-repo, so the
-  // route resolves the newest batch-scoped equality row through existing
-  // `findCurationDataJsonById` — never a whole-catalog model scan).
-  let curationJson: string | null = null;
-  try {
-    const db = getDb();
-    const row = db.query(
-      `SELECT i.id AS id FROM onboarding_items i
-       JOIN onboarding_batches b ON b.id = i.batch_id
-       WHERE b.workspace_id = ? AND i.upc = ?
-       ORDER BY i.created_at DESC, i.row_number ASC LIMIT 1`,
-    ).get(resolvedWorkspaceId, sku) as { id: string } | undefined;
-    curationJson = row ? findCurationDataJsonById(row.id) : null;
-  } catch {
-    return null;
-  }
+  const source = sourceItemId && resolvedWorkspaceId
+    ? findFamilyOnboardingOrigin(resolvedWorkspaceId, sourceItemId)
+    : candidates.length === 1 ? candidates[0] : null;
+  if (!source || source.sku !== sku || (!sourceItemId && candidates.length !== 1)) return null;
+  const curationJson = source.curationJson;
+  if (!curationJson || !source.runId || !source.runCurrentnessHash || !source.evidenceId || !source.evidenceHash) return null;
+  const origin: FamilyMemberOrigin = {
+    kind: 'onboarding',
+    itemId: source.itemId,
+    runId: source.runId,
+    runCurrentnessHash: source.runCurrentnessHash,
+    evidenceId: source.evidenceId,
+    evidenceHash: source.evidenceHash,
+  };
+  const originValidation = validateFamilyMemberOrigin({ workspaceId: resolvedWorkspaceId!, workspacePath, sku, origin });
+  if (!originValidation.ok) return null;
   if (!curationJson) return null;
-  let parsed: unknown;
+  let parsedCuration: unknown;
   try {
-    parsed = JSON.parse(curationJson);
+    parsedCuration = JSON.parse(curationJson);
   } catch {
     return null;
   }
-  const curation = CurationEvidenceSchema.safeParse(parsed);
+  const curation = CurationEvidenceSchema.safeParse(parsedCuration);
   if (!curation.success) return null;
   const fields = curation.data;
   const nonEmpty = (value: string | null | undefined): string | null =>
@@ -2082,26 +2133,12 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
   let resolvedItemQuantity: number | null = null;
   if (resolvedWorkspaceId) {
     try {
-      const db = getDb();
-      const itemRow = db.query(
-        `SELECT i.id AS id FROM onboarding_items i
-         JOIN onboarding_batches b ON b.id = i.batch_id
-         WHERE b.workspace_id = ? AND i.upc = ?
-         ORDER BY i.created_at DESC, i.row_number ASC LIMIT 1`,
-      ).get(resolvedWorkspaceId, sku) as { id: string } | undefined;
-      const itemId = itemRow?.id ?? null;
-      if (itemId) {
-        const hashes = currentListingEvidenceHashes(itemId, parsed as Record<string, unknown>, { workspacePath, workspaceId: resolvedWorkspaceId });
+      const item = findItemById(source.itemId);
+      if (item) {
+        const hashes = currentListingEvidenceHashes(source.itemId, parsedCuration as Record<string, unknown>, { workspacePath, workspaceId: resolvedWorkspaceId });
         if (hashes.evidenceHash) liveEvidenceHash = hashes.evidenceHash;
-        try {
-          const item = findItemById(itemId);
-          if (item) {
-            resolvedItemPrice = typeof item.price === 'string' && item.price.trim().length > 0 ? item.price.trim() : null;
-            resolvedItemQuantity = typeof item.quantity === 'number' && Number.isInteger(item.quantity) && item.quantity >= 0 ? item.quantity : null;
-          }
-        } catch {
-          // Item-row listing facts stay null (curation fallback applies).
-        }
+        resolvedItemPrice = typeof item.price === 'string' && item.price.trim().length > 0 ? item.price.trim() : null;
+        resolvedItemQuantity = typeof item.quantity === 'number' && Number.isInteger(item.quantity) && item.quantity >= 0 ? item.quantity : null;
       }
     } catch {
       liveEvidenceHash = null;
@@ -2135,13 +2172,15 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
   // authoritative listing projection threads production facts: item-row
   // price/quantity, extraction titles/descriptions, and reviewed media —
   // never the bare-SKU placeholder or flat-curation media alone.
+  const base = readProductFile(workspacePath, sku);
   const draftBase: Product = base ?? seedBlankDraftWithStagedEvidence(blankDraftFor(sku), fields, {
-    itemPrice: resolvedItemPrice, itemQuantity: resolvedItemQuantity, parsedCuration: parsed,
+    itemPrice: resolvedItemPrice, itemQuantity: resolvedItemQuantity, parsedCuration,
   });
   const liveBrand = nonEmpty(base?.customFields['ProductField16'] ?? null);
   const stagedBrand = nonEmpty(fields.brand ?? null);
   return {
     base,
+    origin,
     draftBase,
     purchasable: fields.purchasable === true,
     // Unknown curation authority never defaults to purchasable (#368): an

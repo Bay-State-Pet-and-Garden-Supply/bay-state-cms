@@ -57,14 +57,78 @@ describe('buildNameCandidates', () => {
     expect(outcome.reason.startsWith('missing_brand')).toBe(true);
   });
 
-  it('holds missing size as actionable (never invents)', () => {
+  it('allows a source-backed model-number name without universal quantity requirements', () => {
     const outcome = buildNameCandidates({
-      spans: [span('register', 'Acme Chicken Dinner')],
+      spans: [span('register', 'Acme Model XR-4')],
       brand: 'Acme',
     });
-    if (outcome.kind !== 'missing') throw new Error(`expected missing, got ${outcome.kind}`);
-    expect(outcome.reason.startsWith('missing_size')).toBe(true);
+    expect(outcome.kind).toBe('candidates');
+    if (outcome.kind !== 'candidates') throw new Error('Expected a source-backed candidate');
+    expect(outcome.candidates.some(candidate => candidate.title.includes('XR-4'))).toBe(true);
   });
+  it('does not offer an attribute-only flavor as a complete product name', () => {
+    const outcome = buildNameCandidates({
+      spans: [
+        { channel: 'official', span: 'Chicken', kind: 'flavor', evidenceId: 'flavor-only' },
+        span('official', '12 oz'),
+      ],
+      brand: 'Acme',
+    });
+    expect(outcome.kind).toBe('missing');
+  });
+
+  it('carries supported flavor components onto genuine product-name candidates', () => {
+    const outcome = buildNameCandidates({
+      spans: [
+        span('official', 'Acme Feeder'),
+        { channel: 'official', span: 'Chicken', kind: 'flavor', evidenceId: 'flavor-fact' },
+        span('official', '12 oz'),
+      ],
+      brand: 'Acme',
+    });
+    if (outcome.kind !== 'candidates') throw new Error(`expected candidates, got ${outcome.kind}`);
+    expect(outcome.candidates.some(candidate => candidate.title.includes('Feeder') && candidate.title.includes('Chicken'))).toBe(true);
+  });
+  it('retains multiple applicable species without treating them as scalar conflicts', () => {
+    const outcome = buildNameCandidates({
+      spans: [
+        span('official', 'Acme Multi-Species Food'),
+        { channel: 'official', span: 'dog', kind: 'species', evidenceId: 'species-dog' },
+        { channel: 'official', span: 'cat', kind: 'species', evidenceId: 'species-cat' },
+      ],
+      brand: 'Acme',
+    });
+    if (outcome.kind !== 'candidates') throw new Error(`expected candidates, got ${outcome.kind}`);
+    expect(outcome.candidates.every(candidate => candidate.title.toLowerCase().includes('dog') && candidate.title.toLowerCase().includes('cat'))).toBe(true);
+  });
+
+  it('retains a numeric packCount as a typed pack component on every candidate', () => {
+    const outcome = buildNameCandidates({
+      spans: [
+        span('register', 'Acme Dog Treats'),
+        { channel: 'official', span: '6', kind: 'pack_count', evidenceId: 'pack-count' },
+      ],
+      brand: 'Acme',
+    });
+    if (outcome.kind !== 'candidates') throw new Error(`expected candidates, got ${outcome.kind}`);
+    expect(outcome.candidates.every(candidate => candidate.title.includes('6 pack'))).toBe(true);
+    expect(outcome.candidates.every(candidate => candidate.components.includes('6') && candidate.evidenceIds.includes('pack-count'))).toBe(true);
+  });
+
+  it('retains accepted strength as a mandatory, provenance-backed name component', () => {
+    const outcome = buildNameCandidates({
+      spans: [
+        span('register', 'Acme Supplement'),
+        { channel: 'official', span: '500 mg', kind: 'strength', evidenceId: 'strength-fact' },
+      ],
+      brand: 'Acme',
+    });
+    if (outcome.kind !== 'candidates') throw new Error(`expected candidates, got ${outcome.kind}`);
+    expect(outcome.candidates.every(candidate => candidate.title.includes('500 mg'))).toBe(true);
+    expect(outcome.candidates.every(candidate => candidate.components.includes('500 mg') && candidate.evidenceIds.includes('strength-fact'))).toBe(true);
+  });
+
+
 
   it('never unions conflicting package sizes — conflict stays actionable', () => {
     const outcome = buildNameCandidates({
@@ -144,7 +208,7 @@ describe('deterministicNameChoice', () => {
 
 describe('nameDecision provenance', () => {
   it('pins the normalization version', () => {
-    expect(NAME_NORMALIZATION_VERSION).toBe('name-normalization-v1');
+    expect(NAME_NORMALIZATION_VERSION).toBe('name-normalization-v2-applicable-variant');
     expect(MAX_NAME_CANDIDATES).toBe(16);
   });
 });

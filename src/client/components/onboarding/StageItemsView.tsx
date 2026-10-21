@@ -178,7 +178,7 @@ function initialPreferences(workspaceId: string | undefined, batchId: string, st
   const reviewState = stored?.filters.reviewState;
   const category = stored?.filters.category;
   const facet: Facet = {};
-  if (category === 'needs_attention' || category === 'processing' || category === 'waiting_on_family') facet.category = category;
+  if (category === 'needs_attention' || category === 'processing') facet.category = category;
   if (stage === 'review_listings') facet.reviewState = REVIEW_LIST_FACETS.includes(reviewState as ReviewListFacet) ? reviewState as ReviewListFacet : DEFAULT_REVIEW_LIST_FACET;
   return {
     q: stored?.q ?? '', facet, selectedId: stored?.selectedId ?? null,

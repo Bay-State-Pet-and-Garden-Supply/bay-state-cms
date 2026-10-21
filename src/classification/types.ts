@@ -4,6 +4,7 @@ import type {
   ClassificationConfigSnapshotRef,
 } from '../shared/types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
+import type { AcceptedItemEvidence } from '../shared/schemas/item-evidence';
 
 // ─── Stage Identity ────────────────────────────────────────────────────────────
 
@@ -98,6 +99,8 @@ export interface StageContext {
   snapshot?: RuntimeClassificationSnapshot;
   /** Current run ID for recording results */
   runId: string;
+  /** Accepted immutable evidence for an item-local onboarding run. */
+  acceptedEvidence?: AcceptedItemEvidence;
   /**
    * Optional ownership assertion injected by the cohort executor (PR3
    * hardening C). When present, `runPipeline` invokes it IMMEDIATELY BEFORE

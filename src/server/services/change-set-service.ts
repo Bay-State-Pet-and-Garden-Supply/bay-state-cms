@@ -32,6 +32,7 @@ import { GitClient } from '../../git/git-client';
 import { validateChangeSet, precheckLinkedConsistencyGroup } from '../../validation/change-set-validation';
 import { hashNativeReferences, extractSubproductSkus } from '../../shopsite/product-codec';
 import { LinkedManifestSchema, type LinkedManifest } from '../../shared/schemas/change-set';
+import { finalizeStorefrontFamilyPlanApproval } from '../../classification/storefront-family-plan-service';
 import type { ChangeSetRow, ChangeSetItemRow } from '../../db/repositories/change-set-repo';
 import type { Product } from '../../shared/types';
 import { ProductSchema } from '../../shared/schemas/product';
@@ -1165,6 +1166,10 @@ function completePostCommit(
     if (action === 'approved') markLinkedManifestCommitted(changeSet.id, commitHash);
     else markLinkedManifestRecovered(changeSet.id, commitHash);
     manifestMarked = true;
+    // Family plans reach "applied" only here: the approved commit and its
+    // complete commit/index receipt exist before this call. Draft staging
+    // stays "accepted" with a linked change set; never applied on write.
+    finalizeStorefrontFamilyPlanApproval(changeSet.id, changeSet.workspaceId, commitHash);
   } catch (err) {
     manifestMarkError = err instanceof Error ? err.message : String(err);
   }

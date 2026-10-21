@@ -16,16 +16,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  ClassificationManifestV2Schema,
-  ModelPolicyConfigV2Schema,
-  DataSharingConfigV2Schema,
+  GenerativeCopyWorkloadSchema,
   type ModelPolicyConfigV2,
   type DataSharingConfigV2,
   type ProviderLocality,
+  type GenerativeCopyWorkload,
 } from '../shared/schemas/classification';
 import { canonicalJsonStringify, sha256Hex } from '../shared/stable-id';
 import {
-  classificationDir,
   hasClassificationConfig,
   loadRuntimeConfigAuthority,
   createRuntimeActivationContext,
@@ -125,6 +123,7 @@ export interface ClassificationPolicySettingsResponse {
   textDataSharing: string;
   imageDataSharing: string;
   stages: EffectiveStageRoute[];
+  copyGeneration: GenerativeCopyWorkload | null;
   availableConnections: ConnectionOption[];
 }
 
@@ -144,6 +143,7 @@ export interface PreviewPolicyInput {
   defaultModel?: string;
   textDataSharing?: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
   imageDataSharing?: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
+  copyGeneration?: GenerativeCopyWorkload | null;
 }
 
 export interface PreviewPolicyResult {
@@ -161,6 +161,7 @@ export interface PreviewPolicyResult {
       text: { from: string; to: string };
       image: { from: string; to: string };
     };
+    copyGeneration: { from: GenerativeCopyWorkload | null; to: GenerativeCopyWorkload | null };
   };
 }
 
@@ -172,6 +173,7 @@ export interface ApplyPolicyInput {
   defaultModel?: string;
   textDataSharing?: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
   imageDataSharing?: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
+  copyGeneration?: GenerativeCopyWorkload | null;
 }
 
 export interface ApplyPolicyResult {
@@ -336,7 +338,11 @@ function toEffectiveStageRoute(
 }
 
 function emptyPreviewDiff(): PreviewPolicyResult['diff'] {
-  return { stages: {}, dataSharing: { text: { from: '', to: '' }, image: { from: '', to: '' } } };
+  return {
+    stages: {},
+    dataSharing: { text: { from: '', to: '' }, image: { from: '', to: '' } },
+    copyGeneration: { from: null, to: null },
+  };
 }
 
 function invalidPreview(baseBundleHash: string, validationErrors: string[]): PreviewPolicyResult {
@@ -368,6 +374,7 @@ export function getClassificationPolicySettings(
       imageDataSharing: 'local_only',
       stages: [],
       availableConnections: [],
+      copyGeneration: null,
     };
   }
 
@@ -385,6 +392,7 @@ export function getClassificationPolicySettings(
       imageDataSharing: authority.config.dataSharing.imagePolicy,
       stages: [],
       availableConnections: [],
+      copyGeneration: null,
     };
   }
 
@@ -400,6 +408,7 @@ export function getClassificationPolicySettings(
     textDataSharing: bundle.dataSharing.textPolicy,
     imageDataSharing: bundle.dataSharing.imagePolicy,
     stages: CLASSIFICATION_POLICY_STAGES.map(stage => toEffectiveStageRoute(stage, bundle.modelPolicy, connections)),
+    copyGeneration: bundle.modelPolicy.copyGeneration ?? null,
     availableConnections: connections.map(toConnectionOption),
   };
 }
@@ -441,6 +450,47 @@ function resolveProviderAndLocality(
 ): { provider: string; model: string; locality: ProviderLocality; transport: string } {
   if (proposal.connectionId) return resolveConnectionProposal(proposal, connections);
   return resolveLegacyProposal(proposal);
+}
+function validateCopyGeneration(
+  workload: GenerativeCopyWorkload | null,
+  connections: ProviderConnection[],
+  validationErrors: string[],
+  dataSharingEffects: string[],
+): ProviderLocality | null {
+  if (!workload) return null;
+  const connection = connections.find((candidate) => candidate.id === workload.provider);
+  if (!connection) {
+    validationErrors.push(`Grounded-copy connection "${workload.provider}" was not found; no default or judgment provider is substituted.`);
+    return null;
+  }
+  if (!connection.enabled) {
+    validationErrors.push(`Grounded-copy connection "${workload.provider}" is disabled.`);
+    return null;
+  }
+  if (connection.transport === 'systemone') {
+    validationErrors.push('TypeSafe System One is a typed-judgment route and cannot serve as the grounded-copy text writer.');
+  }
+  if (!workload.model.trim()) {
+    validationErrors.push('Grounded-copy generation requires an explicit model.');
+  } else {
+    const models = connectionModels(connection);
+    if (models.length > 0 && !models.some((candidate) => candidate.id === workload.model)) {
+      validationErrors.push(`Model "${workload.model}" is not listed for grounded-copy connection "${workload.provider}".`);
+    }
+  }
+  const locality = trustZoneToLocality(connection.trustZone);
+  if ((workload.textDataSharing === 'local_only' || workload.textDataSharing === 'this_device_only') && locality !== 'local') {
+    validationErrors.push(`Grounded-copy text sharing "${workload.textDataSharing}" forbids non-local connection "${workload.provider}".`);
+  } else if (workload.textDataSharing === 'trusted_lan_allowed' && locality !== 'local' && locality !== 'trusted_lan') {
+    validationErrors.push(`Grounded-copy text sharing trusted_lan_allowed forbids connection "${workload.provider}" (${locality}).`);
+  } else if (locality === 'cloud') {
+    dataSharingEffects.push(`Grounded-copy generation sends accepted product facts to cloud provider "${workload.provider}" under its separate cloud_allowed authority.`);
+  } else if (locality === 'trusted_lan') {
+    dataSharingEffects.push(`Grounded-copy generation sends accepted product facts to trusted LAN provider "${workload.provider}" under its separate sharing authority.`);
+  } else {
+    dataSharingEffects.push(`Grounded-copy generation is routed to local provider "${workload.provider}" under its separate sharing authority.`);
+  }
+  return locality;
 }
 
 function checkStageTransportSupport(stage: StageDefinition, transport: string): string | null {
@@ -540,6 +590,7 @@ function buildPreviewToken(
   proposedTextSharing: string,
   proposedImageSharing: string,
   currentBundle: { modelPolicy: { defaultProvider: string; defaultModel: string } },
+  copyGeneration: GenerativeCopyWorkload | null,
 ): string | null {
   if (!valid) return null;
   return sha256Hex(canonicalJsonStringify({
@@ -549,6 +600,7 @@ function buildPreviewToken(
     imageDataSharing: proposedImageSharing,
     defaultProvider: input.defaultProvider || currentBundle.modelPolicy.defaultProvider,
     defaultModel: input.defaultModel || currentBundle.modelPolicy.defaultModel,
+    copyGeneration,
   }));
 }
 
@@ -595,11 +647,28 @@ export function previewClassificationPolicy(
   const proposedTextSharing = input.textDataSharing || currentBundle.dataSharing.textPolicy;
   const proposedImageSharing = input.imageDataSharing || currentBundle.dataSharing.imagePolicy;
   validateCloudSharing(acc.hasCloudProvider, proposedTextSharing, acc);
+  let proposedCopyGeneration = currentBundle.modelPolicy.copyGeneration ?? null;
+  if (input.copyGeneration === null) {
+    proposedCopyGeneration = null;
+  } else if (input.copyGeneration !== undefined) {
+    const parsed = GenerativeCopyWorkloadSchema.safeParse(input.copyGeneration);
+    if (!parsed.success) {
+      acc.validationErrors.push('Grounded-copy policy must include an explicit provider, model, and text-sharing authority.');
+      proposedCopyGeneration = null;
+    } else {
+      proposedCopyGeneration = parsed.data;
+    }
+  }
+  const copyLocality = validateCopyGeneration(proposedCopyGeneration, connections, acc.validationErrors, acc.dataSharingEffects);
+  if (proposedCopyGeneration && copyLocality) {
+    acc.providerLocalities[proposedCopyGeneration.provider] = copyLocality;
+  }
 
   const valid = acc.validationErrors.length === 0;
+  const previousCopyGeneration = currentBundle.modelPolicy.copyGeneration ?? null;
   return {
     valid,
-    previewToken: buildPreviewToken(valid, input, acc, proposedTextSharing, proposedImageSharing, currentBundle),
+    previewToken: buildPreviewToken(valid, input, acc, proposedTextSharing, proposedImageSharing, currentBundle, proposedCopyGeneration),
     baseBundleHash: input.expectedBaseBundleHash,
     dataSharingEffects: acc.dataSharingEffects,
     validationErrors: acc.validationErrors,
@@ -609,6 +678,7 @@ export function previewClassificationPolicy(
         text: { from: currentBundle.dataSharing.textPolicy, to: proposedTextSharing },
         image: { from: currentBundle.dataSharing.imagePolicy, to: proposedImageSharing },
       },
+      copyGeneration: { from: previousCopyGeneration, to: proposedCopyGeneration },
     },
   };
 }
@@ -625,8 +695,8 @@ function revalidatePreviewForApply(
     defaultModel: input.defaultModel,
     textDataSharing: input.textDataSharing,
     imageDataSharing: input.imageDataSharing,
+    copyGeneration: input.copyGeneration,
   }, workspaceId);
-
   if (!preview.valid) {
     throw new ClassificationPolicyServiceError(
       `Cannot apply invalid policy preview: ${preview.validationErrors.join('; ')}`,
@@ -706,6 +776,9 @@ function buildUpdatedPolicies(
       providerLocalities,
       stageOverrides: proposedOverrides,
       textDataSharing: input.textDataSharing || currentBundle.modelPolicy.textDataSharing,
+      copyGeneration: input.copyGeneration === undefined
+        ? currentBundle.modelPolicy.copyGeneration ?? null
+        : input.copyGeneration,
       imageDataSharing: input.imageDataSharing || currentBundle.modelPolicy.imageDataSharing,
     },
     newDataSharing: {
@@ -742,6 +815,13 @@ export async function applyClassificationPolicy(
     connections,
     input.stageOverrides,
   );
+  const proposedCopyGeneration = input.copyGeneration === undefined
+    ? currentBundle.modelPolicy.copyGeneration ?? null
+    : input.copyGeneration;
+  const copyLocality = validateCopyGeneration(proposedCopyGeneration, connections, [], []);
+  if (proposedCopyGeneration && copyLocality) {
+    providerLocalities[proposedCopyGeneration.provider] = copyLocality;
+  }
   const { newModelPolicy, newDataSharing } = buildUpdatedPolicies(
     currentBundle,
     input,

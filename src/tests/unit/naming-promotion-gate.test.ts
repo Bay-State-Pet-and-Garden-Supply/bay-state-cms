@@ -22,10 +22,12 @@ import {
 import { markReviewed, markApproved } from '../../db/repositories/onboarding-review-repo';
 import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
 import { listVerifiedPageOptions } from '../../db/repositories/page-repo';
-import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
+import { createChangeSet, upsertChangeSetItem, listChangeSetItems } from '../../db/repositories/change-set-repo';
 import { type ExtractionData, ExtractionDataSchema } from '../../shared/schemas/onboarding';
 import { seedCanonicalPromotionAuthority } from './helpers/seed-canonical-promotion-authority';
 import { syncConfigToCache } from '../../db/repositories/classification-config-repo';
+import { prepareListingEvidenceWorkspace } from './helpers/listing-evidence-authority';
+import { seedPromotionEvidenceAuthority, seedOfficialEvidenceAuthority } from './helpers/seed-promotion-evidence-authority';
 
 describe('Promotion naming gate (issue #106)', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'naming-gate-test.db');
@@ -72,7 +74,7 @@ describe('Promotion naming gate (issue #106)', () => {
     return item;
   }
 
-  function seedGateReady(batchId: string, sku: string) {
+  function seedGateReady(batchId: string, sku: string, official = false) {
     const db = getDb();
     const page = listVerifiedPageOptions(wsId).find(p => p.name === 'Shoes');
     if (!page) throw new Error('verified page missing');
@@ -93,6 +95,16 @@ describe('Promotion naming gate (issue #106)', () => {
     // the shared frozen-vs-current resolution compares identical authorities.
     const persisted = seedCanonicalPromotionAuthority({ db, workspaceId: wsId, workspacePath: tempWorkspaceDir, sku, runId });
     syncConfigToCache(wsId, persisted.bundle as unknown as Parameters<typeof syncConfigToCache>[1]);
+    // Accepted listing evidence + execution receipt (receipt hashes
+    // proposals, so this runs after every run proposal exists). Official
+    // path preserves the staged rich extraction (variants/color/seo);
+    // manual path transcribes identity/copy only.
+    if (official) {
+      const sourceUrl = `https://example.test/${sku}`;
+      seedOfficialEvidenceAuthority(wsId, db, sku, runId, sourceUrl);
+    } else {
+      seedPromotionEvidenceAuthority(wsId, db, sku, runId, true);
+    }
   }
 
   beforeAll(() => {
@@ -107,6 +119,9 @@ describe('Promotion naming gate (issue #106)', () => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [wsId, 'Gate WS', tempWorkspaceDir, path.join(tempWorkspaceDir, '.git'), now, now, 'complete'],
     );
+    // Versioned listing standards (dog-food pair) — the promotion gate
+    // requires listing completeness over accepted evidence.
+    prepareListingEvidenceWorkspace(tempWorkspaceDir, wsId);
     activatePageImportFromRecords({
       workspaceId: wsId,
       sourceHash: createHash('sha256').update('naming-gate-shoes').digest('hex'),
@@ -164,7 +179,7 @@ describe('Promotion naming gate (issue #106)', () => {
       title: 'Test Brand Pond Clarifier 5 gal',
       variantAttributes: { capacity: '5 gal' },
     });
-    seedGateReady(batch.id, 'GATE-004');
+    seedGateReady(batch.id, 'GATE-004', true);
     seedApproved(item.id, batch.id);
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(res.failures).toEqual([]);
@@ -177,7 +192,7 @@ describe('Promotion naming gate (issue #106)', () => {
       title: 'Test Brand Pond Clarifier 2 Pack',
       variantAttributes: { capacity: '5 gal', count: '2 Pack' },
     });
-    seedGateReady(batch.id, 'GATE-005');
+    seedGateReady(batch.id, 'GATE-005', true);
     seedApproved(item.id, batch.id);
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(res.count).toBe(0);
@@ -187,62 +202,43 @@ describe('Promotion naming gate (issue #106)', () => {
   it('multicolor family with unknown own color holds', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'g6', fileName: 'g6.csv', totalItems: 1 });
     const item = seedItem(batch.id, 'GATE-006', {
-      title: 'Test Brand Collar 5 LB',
+      title: 'Test Brand Leather Collar 5 LB',
       variantAttributes: { color: 'Red' },
       color: 'Blue',
     });
-    seedGateReady(batch.id, 'GATE-006');
+    seedGateReady(batch.id, 'GATE-006', true);
     seedApproved(item.id, batch.id);
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(res.count).toBe(0);
     expect(res.failures[0].error).toContain('missing_color');
   });
 
-  it('duplicate frozen-sibling titles hold without regrouping', async () => {
-    const db = getDb();
-    const now = new Date().toISOString();
+  it('duplicate titles promote without sibling borrowing: uniquified FileNames, never regrouped', async () => {
+    // Cohort authority was removed from promotion: no sibling/family titles
+    // are borrowed across items (siblingTitles is always empty at the
+    // promotion gate). Same-titled items therefore promote side by side and
+    // uniquify — the duplicate_sibling hold lives in Review, not promotion.
     const batch = createBatch({ workspaceId: wsId, name: 'g7', fileName: 'g7.csv', totalItems: 2 });
     const a = seedItem(batch.id, 'GATE-007A', { title: 'Test Brand Twin Product 5 LB' });
     const b = seedItem(batch.id, 'GATE-007B', { title: 'Test Brand Twin Product 5 LB' });
     for (const sku of ['GATE-007A', 'GATE-007B']) seedGateReady(batch.id, sku);
+    // Approval LAST: authority writes invalidate durable approval.
     seedApproved(a.id, batch.id);
     seedApproved(b.id, batch.id);
-    // Frozen cohort membership over both items; runs point at the cohort run.
-    const cohortId = 'cohort-gate-7';
-    db.run(`INSERT INTO curation_cohorts (id, workspace_id, batch_id, group_key, group_label, grouping_version, membership_hash, status, created_at, updated_at)
-      VALUES (?, ?, ?, 'k', 'l', 'product-family-v1', 'h', 'ready', ?, ?)`, [cohortId, wsId, batch.id, now, now]);
-    for (const m of [a, b]) {
-      db.run(`INSERT INTO curation_cohort_members (cohort_id, onboarding_item_id, product_sku, normalized_brand, normalized_name_stem, membership_reason_json, extraction_hash, ordinal, created_at)
-        VALUES (?, ?, ?, ?, ?, NULL, NULL, 0, ?)`,
-        [cohortId, m.id, findItemById(m.id)!.upc, 'test brand', 'twin', now]);
-      const cur = JSON.parse((db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(m.id) as { curation_data_json: string }).curation_data_json);
-      cur.semanticValidation = { status: 'passed', findings: [] };
-      db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [JSON.stringify(cur), m.id]);
-    }
-    const runId = 'cohort-run-gate-7';
-    db.run(`INSERT INTO classification_cohort_runs (id, workspace_id, cohort_id, candidate_membership_hash, evidence_snapshot_hash, status, created_at)
-      VALUES (?, ?, ?, 'h', 'e', 'completed', ?)`, [runId, wsId, cohortId, now]);
-    db.run(`UPDATE classification_runs SET cohort_run_id = ? WHERE id LIKE 'run-gate-GATE-007%'`, [runId]);
-    // Reviewed Product Type for both members (earlier gate): accepted
-    // primary_product_type decisions on their runs.
-    for (const sku of ['GATE-007A', 'GATE-007B']) {
-      const pid = `prop-type-${sku}`;
-      db.run(`INSERT OR IGNORE INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-        VALUES (?, ?, ?, 'primary_product_type', 'dry-dog-food', ?, 0.9, 'accepted', ?)`,
-        [pid, `run-gate-${sku}`, sku, JSON.stringify({ productTypeId: 'dry-dog-food' }), now]);
-      db.run(`INSERT OR IGNORE INTO classification_proposal_decisions (id, proposal_id, decision, decision_key, created_at)
-        VALUES (?, ?, 'accepted', ?, ?)`, [`decision-${pid}`, pid, `key-${pid}`, now]);
-    }
     const res = await promoteItems(wsId, tempWorkspaceDir, batch.id, [a.id, b.id]);
-    expect(res.count).toBe(0);
-    expect(res.failures).toHaveLength(2);
-    expect(res.failures[0].error).toContain('duplicate_sibling');
+    expect(res.failures).toEqual([]);
+    expect(res.count).toBe(2);
+    const names = listChangeSetItems(res.changeSetId!)
+      .map(i => (JSON.parse(i.draftJson) as { core: { seo: { fileName: string } } }).core.seo.fileName)
+      .sort();
+    expect(new Set(names).size).toBe(2);
+    expect(names[0]).toMatch(/test-brand-twin-product-5-lb.*\.html/);
   });
 
   it('foreign filename ownership holds; self-update passes', async () => {
     const batch = createBatch({ workspaceId: wsId, name: 'g8', fileName: 'g8.csv', totalItems: 1 });
-    const item = seedItem(batch.id, 'GATE-008', { seoFileName: 'taken-name' });
-    seedGateReady(batch.id, 'GATE-008');
+    const item = seedItem(batch.id, 'GATE-008', { title: 'Test Brand Taken Widget 5 LB', seoFileName: 'taken-name' });
+    seedGateReady(batch.id, 'GATE-008', true);
     seedApproved(item.id, batch.id);
     // Another SKU's pending draft reserves the seo-derived base.
     const cs = createChangeSet({ workspaceId: wsId, title: 'other', description: null, baseCommit: 'c0' });
@@ -285,11 +281,11 @@ describe('Promotion naming gate (issue #106)', () => {
 
   it('phase-c recheck refuses on a fresh foreign owner (computePromotionGate seam)', () => {
     const batch = createBatch({ workspaceId: wsId, name: 'g10', fileName: 'g10.csv', totalItems: 1 });
-    const item = seedItem(batch.id, 'GATE-010', { seoFileName: 'recheck-base' });
+    const item = seedItem(batch.id, 'GATE-010', { title: 'Test Brand Recheck Widget 5 LB', seoFileName: 'recheck-base' });
     // Pipeline item (run pointer): the naming gate applies. Legacy items
     // without a run pointer refuse with missing classification authority
     // (#360 fail-closed; see the legacy-authority test below).
-    seedGateReady(batch.id, 'GATE-010');
+    seedGateReady(batch.id, 'GATE-010', true);
     const fresh = findItemById(item.id)!;
     const before = computePromotionGate(fresh, wsId, buildFilenameOwnershipSnapshot(wsId));
     expect(before.ok).toBe(true);
@@ -345,7 +341,7 @@ describe('Promotion naming gate (issue #106)', () => {
     const item = seedItem(batch.id, 'GATE-013', {
       title: 'Test Brand Navy Widget 5 LB', color: 'Navy Blue',
     });
-    seedGateReady(batch.id, 'GATE-013');
+    seedGateReady(batch.id, 'GATE-013', true);
     const gate = computePromotionGate(findItemById(item.id)!, wsId, buildFilenameOwnershipSnapshot(wsId));
     expect(gate.ok).toBe(true);
   });
@@ -357,7 +353,7 @@ describe('Promotion naming gate (issue #106)', () => {
       variantAttributes: { color: 'Red' },
       color: 'Blue',
     });
-    seedGateReady(batch.id, 'GATE-014');
+    seedGateReady(batch.id, 'GATE-014', true);
     const gate = computePromotionGate(findItemById(item.id)!, wsId, buildFilenameOwnershipSnapshot(wsId));
     expect(gate.ok).toBe(false);
     expect(gate.reason).toContain('missing_color');

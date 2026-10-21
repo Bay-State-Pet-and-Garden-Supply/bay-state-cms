@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateIdentityTuple } from '../../onboarding/imported-identity';
 import { convertToLbs } from '../weight-converter';
 import { MANUAL_EVIDENCE_FIELD_NAMES } from '../../onboarding/manual-evidence-eligibility';
 import {
@@ -10,6 +11,11 @@ import {
   ClassificationDraftProjectionPreviewSchema,
 } from './classification';
 import { VariantSelectionReceiptSchema } from './variant-resolution';
+import {
+  GroundedCopyProvenanceSchema,
+  ItemChecklistEvaluationSchema,
+  ItemExecutionCurrentnessSchema,
+} from './item-evidence';
 
 // ─── Column Mapping ────────────────────────────────────────────────────────────
 
@@ -45,8 +51,7 @@ export const SpreadsheetRowSchema = z.object({
   identityProvenanceHash: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional(),
   identityLossy: z.boolean().optional(),
 }).superRefine((data, ctx) => {
-  // Shared tuple validator (M5 round 3) — fail-closed via dynamic require to avoid cycle
-  const { validateIdentityTuple } = require('../../onboarding/imported-identity');
+  // Shared tuple validator (M5 round 3), fail-closed.
   const res = validateIdentityTuple({
     rawJson: (data as any).rawIdentityJson ?? null,
     normalizedJson: (data as any).normalizedIdentityJson ?? null,
@@ -61,15 +66,18 @@ export const SpreadsheetRowSchema = z.object({
   const checkCanonical = (json: string | null, path: string, isRaw: boolean) => {
     if (json === null) return;
     try {
-      const parsed = JSON.parse(json);
+      const parsed: unknown = JSON.parse(json);
       const { canonicalJsonStringify } = require('../stable-id');
       if (canonicalJsonStringify(parsed) !== json) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'not canonical JSON', path: [path] });
         return;
       }
-      const { RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } = require('../../onboarding/imported-identity');
-      const schema = isRaw ? RawIdentityEnvelopeV1Schema : NormalizedIdentityEnvelopeV1Schema;
-      const r = schema.safeParse(parsed);
+      const envelopes = require('../../onboarding/imported-identity') as {
+        RawIdentityEnvelopeV1Schema: { safeParse: (v: unknown) => { success: boolean } };
+        NormalizedIdentityEnvelopeV1Schema: { safeParse: (v: unknown) => { success: boolean } };
+      };
+      const envelopeSchema = isRaw ? envelopes.RawIdentityEnvelopeV1Schema : envelopes.NormalizedIdentityEnvelopeV1Schema;
+      const r = envelopeSchema.safeParse(parsed);
       if (!r.success) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'envelope schema invalid', path: [path] });
     } catch {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'invalid JSON', path: [path] });
@@ -1277,6 +1285,12 @@ export const CurationDataSchema = z.object({
   classificationDecisions: z.array(ClassificationProposalDecisionSchema).default(() => []),
   classificationHistory: z.array(ClassificationHistoryEventSchema).default(() => []),
   classificationDraftProjection: ClassificationDraftProjectionPreviewSchema.nullable().optional(),
+  /** New item-owned runs bind frozen evidence and immutable output authority. */
+  itemExecutionCurrentness: ItemExecutionCurrentnessSchema.nullable().optional(),
+  /** Wording provenance is separate from accepted product facts and approval. */
+  groundedCopyProvenance: GroundedCopyProvenanceSchema.nullable().optional(),
+  /** Diagnostic snapshot only; release gates recompute live readiness. */
+  listingCompleteness: ItemChecklistEvaluationSchema.nullable().optional(),
   /**
    * Issue #351 (SKU-local evidence): the member's effective Curation Product
    * Type in prepared-cohort mode — the member's OWN reviewed (accepted)

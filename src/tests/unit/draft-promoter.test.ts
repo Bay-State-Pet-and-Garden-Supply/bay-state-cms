@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { prepareListingEvidenceWorkspace, refreshListingEvidenceRunCurrentness } from './helpers/listing-evidence-authority';
 import { createHash, randomUUID } from 'node:crypto';
 import { unlinkSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'path';
@@ -9,7 +10,10 @@ import {
   insertItems,
   updateItemStageStatus,
   completeSourcingWithDecision,
+  findItemById,
 } from '../../db/repositories/onboarding-item-repo';
+import { submitManualEvidence } from '../../onboarding/manual-evidence-service';
+import { refreshItemEvidence } from '../../onboarding/item-evidence';
 import { promoteItems } from '../../onboarding/draft-promoter';
 import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { markReviewed, markApproved } from '../../db/repositories/onboarding-review-repo';
@@ -22,9 +26,10 @@ import { startSourcingGeneration, insertEvidenceAttempt } from '../../db/reposit
 import { recordAcceptances } from '../../db/repositories/onboarding-acceptance-repo';
 import { buildDistributorRecordProjection } from '../../onboarding/sourcing/distributor-record-projection';
 import { SOURCING_ENTRY_POLICY_VERSION } from '../../onboarding/sourcing/entry-policy';
-import { createDistributor, createConnection } from '../../db/repositories/distributor-repo';
+import { createDistributor, createConnection, updateConnection } from '../../db/repositories/distributor-repo';
 import { materializeDistributorRecordExtraction } from '../../onboarding/sourcing/distributor-record-materializer';
 import { seedCanonicalPromotionAuthority } from './helpers/seed-canonical-promotion-authority';
+import { seedPromotionEvidenceAuthority } from './helpers/seed-promotion-evidence-authority';
 
 describe('Draft Promoter Service', () => {
   const testDbPath = path.resolve(import.meta.dirname, 'promoter-test.db');
@@ -56,6 +61,7 @@ describe('Draft Promoter Service', () => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [wsId, 'Promoter WS', tempWorkspaceDir, path.join(tempWorkspaceDir, '.git'), now, now, 'complete']
     );
+    prepareListingEvidenceWorkspace(tempWorkspaceDir, wsId);
   });
 
   afterAll(() => {
@@ -115,42 +121,133 @@ describe('Draft Promoter Service', () => {
     });
   }
 
-  function seedAcceptedCategoryProposal(db: any, sku: string, pageName: string, runOverride?: string, requiredAttributeId?: string) {
+  function seedAcceptedCategoryProposal(db: any, sku: string, pageName: string, runOverride?: string, requiredAttributeId?: string, extraProposals?: { pageId: string; pageName: string }[], skipPageActivation?: boolean) {
     const runId = runOverride ?? `run-${sku}`;
     const now = new Date().toISOString();
     const item = db.query(
-      'SELECT id, curation_data_json FROM onboarding_items WHERE upc = ? ORDER BY created_at DESC LIMIT 1',
-    ).get(sku) as { id: string; curation_data_json: string | null };
+      'SELECT id, curation_data_json, extraction_data_json FROM onboarding_items WHERE upc = ? ORDER BY created_at DESC LIMIT 1',
+    ).get(sku) as { id: string; curation_data_json: string | null; extraction_data_json: string | null };
+    const fullItem = findItemById(item.id);
+    if (!fullItem) throw new Error(`seed fixture item missing for SKU ${sku}`);
+    const extractionData = item.extraction_data_json ? JSON.parse(item.extraction_data_json) as Record<string, unknown> : {};
+    const curatedForAttest = item.curation_data_json ? JSON.parse(item.curation_data_json) as Record<string, unknown> : {};
+    const curatedTitleForAttest = typeof curatedForAttest.curatedTitle === 'string' && curatedForAttest.curatedTitle.trim()
+      ? curatedForAttest.curatedTitle.trim()
+      : null;
+    // The fixture simulates an operator transcribing the listing under test:
+    // attest the curated listing title when the test stages one (the
+    // completeness gate matches evidence facts against the listing title).
+    const attestedTitle = curatedTitleForAttest ?? (typeof extractionData.title === 'string' ? extractionData.title : fullItem.name);
+    const attestedBrand = typeof extractionData.brand === 'string' ? extractionData.brand : fullItem.brandHint ?? 'Test Brand';
+    const attestedDescription = typeof extractionData.description === 'string' ? extractionData.description : undefined;
+    const attestedWeight = typeof extractionData.weight === 'string' ? extractionData.weight : undefined;
     db.run(
       `INSERT OR IGNORE INTO classification_runs
        (id, workspace_id, onboarding_item_id, product_sku, status, started_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [runId, wsId, item.id, sku, 'completed', now]
     );
+    // Manual evidence is admitted from extraction/failed (collect_details).
+    // Distributor-record items carry their own sourcing authority and never
+    // take manual evidence — skip attestation for them; the distributor
+    // provenance gate below is their release authority.
+    // The service's manual extraction becomes the canonical item payload:
+    // the manual row must equal current extraction_data_json byte-for-byte,
+    // so the test's pre-written extraction is NOT restored (that would stale
+    // the snapshot). Attested values are read from it first; draft images
+    // ride via reviewedMedia in curation (no http requirement there, unlike
+    // manual image rights).
+    const sourceType = (fullItem as { sourceType?: string }).sourceType ?? null;
+    const testPrimaryImage = typeof extractionData.primaryImage === 'string' && extractionData.primaryImage.trim()
+      ? extractionData.primaryImage.trim()
+      : null;
+    const testAdditionalImages = Array.isArray(extractionData.additionalImages)
+      ? extractionData.additionalImages.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+      : [];
+    if (sourceType !== 'distributor_record') {
+      db.run(`UPDATE onboarding_items SET stage = 'collect_details', stage_status = 'failed', error_message = 'No extractor profile for this domain' WHERE id = ?`, [item.id]);
+      const submitted = submitManualEvidence(
+        {
+          itemId: item.id,
+          workspaceId: wsId,
+          operatorId: 'promoter-test-operator',
+          title: attestedTitle,
+          brand: attestedBrand ?? 'Test Brand',
+          ...(attestedDescription ? { description: attestedDescription } : {}),
+          ...(attestedWeight ? { weight: attestedWeight } : {}),
+          attestation: { noFamilyInheritance: true, perSkuVerified: true, rightsAttested: true },
+          familyPageOnlyConfirmed: true,
+          ...(testPrimaryImage && /^https?:\/\//i.test(testPrimaryImage)
+            ? { imageApprovals: [{ imageUrl: testPrimaryImage, rightsAttested: true }] }
+            : {}),
+        },
+        { findProfileByDomain: () => null },
+      );
+      if (!submitted.ok) {
+        throw new Error(`seed fixture evidence submission failed for SKU ${sku}: ${submitted.code}`);
+      }
+      const refreshed = refreshItemEvidence(wsId, item.id);
+      if (refreshed.status !== 'accepted' || !refreshed.evidence) {
+        throw new Error(`seed fixture evidence admission failed for SKU ${sku}: ${refreshed.status}`);
+      }
+    }
     const curationData = item.curation_data_json ? JSON.parse(item.curation_data_json) : {};
     curationData.classificationRunId = runId;
-    db.run(
-      'UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?',
-      [JSON.stringify(curationData), item.id],
-    );
-
+    if (testPrimaryImage || testAdditionalImages.length > 0) {
+      curationData.reviewedMedia = {
+        primaryImage: testPrimaryImage,
+        orderedAdditional: testAdditionalImages,
+        suppressed: [],
+      };
+    }
+    db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [JSON.stringify(curationData), item.id]);
+    // Restore the test's staged promotion state (seed helper runs after
+    // the test's own extraction write above).
+    db.run(`UPDATE onboarding_items SET stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?`, [item.id]);
+    // Re-accept under the FINAL item state: the stage restore above changes
+    // the input hash, so the collect_details snapshot would read stale.
+    // Distributor records re-admit from their sourcing generation (never
+    // manual). Their materialized payload is kept byte-identical by the
+    // M5b-2 gate, so the re-accept succeeds.
+    {
+      const reaccepted = refreshItemEvidence(wsId, item.id);
+      if (reaccepted.status !== 'accepted' || !reaccepted.evidence) {
+        throw new Error(`seed fixture evidence re-acceptance failed for SKU ${sku}: ${reaccepted.status} (${reaccepted.findings.map(f => f.code + ':' + f.reason).join(' | ')})`);
+      }
+    }
     // The proposal must reference a VERIFIED page from the ACTIVE import — an
-    // unverified page can no longer satisfy the mandatory Pages gate.
-    const pageId = activateVerifiedPage(pageName, sku);
+    // unverified page can no longer satisfy the mandatory Pages gate. Tests
+    // that pre-activate their own import pass skipPageActivation (activation
+    // would supersede their import).
+    const pageId = skipPageActivation
+      ? listVerifiedPageOptions(wsId).find(p => p.name === pageName)?.id
+      : activateVerifiedPage(pageName, sku);
+    if (!pageId) throw new Error(`seed fixture verified page missing: ${pageName}`);
 
-    const proposalId = `prop-${sku}-${pageName.replace(/\s+/g, '-').toLowerCase()}`;
-    db.run(
-      `INSERT OR IGNORE INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [proposalId, runId, sku, 'category_page', pageId, JSON.stringify({ pageId, pageName }), 1.0, 'accepted', now]
-    );
-    db.run(
-      `INSERT OR IGNORE INTO classification_proposal_decisions
-       (id, proposal_id, decision, decision_key, created_at)
-       VALUES (?, ?, 'accepted', ?, ?)`,
-      [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]
-    );
+    for (const page of [{ pageId, pageName }, ...(extraProposals ?? [])]) {
+      const proposalId = `prop-${sku}-${page.pageName.replace(/\s+/g, '-').toLowerCase()}`;
+      db.run(
+        `INSERT OR IGNORE INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [proposalId, runId, sku, 'category_page', page.pageId, JSON.stringify({ pageId: page.pageId, pageName: page.pageName }), 1.0, 'accepted', now]
+      );
+      db.run(
+        `INSERT OR IGNORE INTO classification_proposal_decisions
+         (id, proposal_id, decision, decision_key, created_at)
+         VALUES (?, ?, 'accepted', ?, ?)`,
+        [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]
+      );
+    }
     seedCanonicalAuthority(db, sku, runId, true, requiredAttributeId);
+    refreshListingEvidenceRunCurrentness(wsId, item.id, runId);
+  }
+  /**
+   * Thin workspace-bound alias over the shared promotion evidence helper
+   * (per-item manual admission + execution-currentness receipt). Kept so the
+   * call sites below read unchanged.
+   */
+  function seedEvidenceAuthority(db: any, sku: string, runId: string, attest: boolean): void {
+    seedPromotionEvidenceAuthority(wsId, db, sku, runId, attest);
   }
 
   function seedPromotionReadyItem(batchName: string, sku: string) {
@@ -182,7 +279,7 @@ describe('Draft Promoter Service', () => {
       packagingTitle: null,
       packagingOcrData: null,
       customFields: {},
-      sourceUrl: `https://example.test/${sku}`,
+      sourceUrl: `products/${sku}/images/primary.jpg`,
       confidence: 0.9,
       fieldProvenance: { title: 'fixture' },
     });
@@ -291,7 +388,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     // Check Change Sets
     const csList = listChangeSets(wsId);
     expect(csList.length).toBe(1);
-    expect(csList[0].id).toBe(promoteRes.changeSetId);
+    expect(csList[0].id).toBe(promoteRes.changeSetId ?? '');
     expect(csList[0].title).toContain('Onboarding: Onboard Promo A');
 
     // Check Change Set Items
@@ -462,7 +559,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(draftProduct.core.price).toBe('19999.95'); // cleaned price
   });
 
-  it('should fall back to extraction data price if item price is empty', async () => {
+  it('refuses promotion when the spreadsheet price is empty: price stays spreadsheet-only and never falls back to extraction data', async () => {
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo D',
@@ -519,12 +616,11 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
         seedApproved(item.id, batch.id);
 const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
-    expect(promoteRes.count).toBe(1);
-    expect(promoteRes.failures.length).toBe(0);
-
-    const csItems = listChangeSetItems(promoteRes.changeSetId!);
-    const draftProduct = JSON.parse(csItems[0].draftJson);
-    expect(draftProduct.core.price).toBe('12.50'); // fallback to cleaned extracted price
+    // The manual extraction carries identity/copy only — no price — so an
+    // empty spreadsheet price is a missing mandatory, not an extraction fallback.
+    expect(promoteRes.count).toBe(0);
+    expect(promoteRes.failures.length).toBe(1);
+    expect(promoteRes.failures[0].error).toContain('Missing mandatory fields: Price');
   });
 
   it('should mark items as failed on missing mandatory fields and return failures list', async () => {
@@ -911,27 +1007,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     const pageB = listVerifiedPageOptions(wsId).find(p => p.name === 'Multi Toys B');
     expect(pageA).toBeDefined();
     expect(pageB).toBeDefined();
-    db.run(
-      `INSERT OR IGNORE INTO classification_runs
-       (id, workspace_id, onboarding_item_id, product_sku, status, started_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [runId, wsId, item.id, sku, 'completed', now]
-    );
-    for (const page of [{ id: pageA!.id, name: 'Multi Toys A' }, { id: pageB!.id, name: 'Multi Toys B' }]) {
-      const proposalId = `prop-${sku}-${page.name.replace(/\s+/g, '-').toLowerCase()}`;
-      db.run(
-        `INSERT OR IGNORE INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [proposalId, runId, sku, 'category_page', page.id, JSON.stringify({ pageId: page.id, pageName: page.name }), 1.0, 'accepted', now]
-      );
-      db.run(
-        `INSERT OR IGNORE INTO classification_proposal_decisions
-         (id, proposal_id, decision, decision_key, created_at)
-         VALUES (?, ?, 'accepted', ?, ?)`,
-        [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now]
-      );
-    }
-    seedCanonicalAuthority(db, sku, runId);
+    seedAcceptedCategoryProposal(db, sku, 'Multi Toys A', runId, undefined, [{ pageId: pageB!.id, pageName: 'Multi Toys B' }], true);
     seedApproved(item.id, batch.id);
     const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     expect(promoteRes.failures).toHaveLength(0);
@@ -957,7 +1033,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
         brand: 'StaleCo',
         description: 'Stale mapping fallback test.',
         bulletPoints: [],
-        primaryImage: `products/${sku}/images/primary.jpg`,
+      primaryImage: `products/${sku}/images/primary.jpg`,
         additionalImages: [],
         price: '$9.99',
         weight: null,
@@ -1021,7 +1097,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
         brand: 'DateCo',
         description: 'Empty mapping fallback test.',
         bulletPoints: [],
-        primaryImage: `products/${sku}/images/primary.jpg`,
+      primaryImage: `products/${sku}/images/primary.jpg`,
         additionalImages: [],
         price: '$9.99',
         weight: null,
@@ -1253,6 +1329,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       item.id,
     ]);
     seedCanonicalAuthority(db, item.upc, activeRunId, false);
+    seedEvidenceAuthority(db, item.upc, activeRunId, false);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1372,6 +1449,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       [now],
     );
     seedCanonicalAuthority(db, item.upc, runId, false);
+    seedEvidenceAuthority(db, item.upc, runId, true);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1479,6 +1557,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
         ],
       );
       seedCanonicalAuthority(db, item.upc, runId, false);
+      seedEvidenceAuthority(db, item.upc, runId, true);
 
             seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1573,7 +1652,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       brand: null,
       description: 'Tasty cat treats.',
       bulletPoints: [],
-      primaryImage: 'products/GREENIES-001/images/primary.jpg',
+      primaryImage: 'https://example.test/GREENIES-001/primary.jpg',
       additionalImages: [],
       price: '$12.99',
       weight: null,
@@ -1890,6 +1969,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
     seedCanonicalAuthority(db, item.upc, runId);
+    seedEvidenceAuthority(db, item.upc, runId, true);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -1961,6 +2041,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
     seedCanonicalAuthority(db, item.upc, runId);
+    seedEvidenceAuthority(db, item.upc, runId, true);
 
         seedApproved(item.id, batch.id);
 const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
@@ -2156,9 +2237,11 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
     seedCanonicalAuthority(db, item.upc, runId);
-
-        seedApproved(item.id, batch.id);
-const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
+    seedEvidenceAuthority(db, item.upc, runId, true);
+    // Approval LAST: read-only authority writes land first so the durable
+    // approval row stays non-invalidated through draft creation.
+    seedApproved(item.id, batch.id);
+    const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
     // A verified Page ID is a real assignment: the verified catalog is the
     // display-name authority, so the proposal resolves to the catalog name
     // even though the proposal value carried no pageName.
@@ -2193,7 +2276,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
       brand: 'Test Brand',
       description: 'PR11 gate promotion test.',
       bulletPoints: [],
-      primaryImage: 'products/PR11-BLOCKED-001/images/primary.jpg',
+      primaryImage: 'products/PR11-HEALTHY-001/images/primary.jpg',
       additionalImages: [],
       price: '$9.99',
       weight: null,
@@ -2263,6 +2346,7 @@ const result = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
         [`decision-${proposalId}`, proposalId, `decision-${proposalId}`, now],
       );
       seedCanonicalAuthority(db, item.upc, runId);
+      seedEvidenceAuthority(db, item.upc, runId, true);
     }
 
         seedApproved(healthy.id, batch.id);
@@ -2446,7 +2530,7 @@ describe('Milestone E — distributor promotion provenance gate (computePromotio
     const batch = createBatch({ workspaceId: wsId, name: 'ME Distributor Gate', fileName: 'me-dist.xlsx', totalItems: 1 });
     const [item] = insertItems(
       batch.id,
-      [{ upc: sku, name: 'Dist Brand Dist Product 5 LB', price: '$14.99', brandHint: 'Dist Brand', rowNumber: 1 }],
+      [{ upc: sku, name: 'Dist Brand Hearty Chicken Dinner 5 LB', price: '$14.99', brandHint: 'Dist Brand', rowNumber: 1 }],
       'sourcing',
       SOURCING_ENTRY_POLICY_VERSION,
     );
@@ -2456,9 +2540,10 @@ describe('Milestone E — distributor promotion provenance gate (computePromotio
     const dist = createDistributor({ id: distId, name: 'Phillips', status: 'active' });
     void dist;
     const conn = createConnection({ workspaceId: wsId, distributorId: distId, connectorType: 'api' });
+    updateConnection(conn.id, wsId, { enabled: true, authorityPolicy: { skuAuthority: true } as never });
     const identityJson = {
       upc: sku,
-      name: 'Dist Product 5lb',
+      name: 'Dist Brand Hearty Chicken Dinner 5 LB',
       brand: 'Dist Brand',
       weight: '5 lb',
       ...(options.merchandising?.description ? { description: options.merchandising.description } : {}),
@@ -2531,7 +2616,7 @@ describe('Milestone E — distributor promotion provenance gate (computePromotio
     // deep-compare gate requires the item payload to equal the reconstructed
     // canonical payload, so an overwrite here would count as a tamper.
     const curationData = {
-      curatedTitle: 'Dist Brand Dist Product 5 LB',
+      curatedTitle: 'Dist Brand Hearty Chicken Dinner 5 LB',
       titleSource: 'web',
       suggestedPages: ['Toys'],
       suggestedProductType: null,
@@ -2829,11 +2914,6 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       [runId, wsId, item.id, sku, now],
     );
     seedCanonicalAuthority(db, sku, runId);
-    const curationRow = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(item.id) as { curation_data_json: string };
-    db.run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [
-      JSON.stringify({ ...JSON.parse(curationRow.curation_data_json), classificationRunId: runId }),
-      item.id,
-    ]);
     const retainedProposalId = `prop-${sku}-retained`;
     db.run(
       `INSERT INTO classification_proposals
@@ -2859,7 +2939,9 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
        VALUES (?, ?, 'accepted', 'null', NULL, 1, ?, ?)`,
       [`decision-${removedProposalId}`, removedProposalId, `decision-token-${removedProposalId}`, now],
     );
-
+    // Evidence authority LAST: the execution receipt hashes proposals, so
+    // all run proposals must exist before it is computed.
+    seedEvidenceAuthority(db, sku, runId, true);
     const productFileDir = path.join(tempWorkspaceDir, 'products');
     mkdirSync(productFileDir, { recursive: true });
     const legacyPages = '<ProductOnPages><Name>Removed Legacy Page</Name><Name>Retained Legacy Page</Name></ProductOnPages>';

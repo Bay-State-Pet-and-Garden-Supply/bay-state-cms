@@ -48,6 +48,7 @@ export const ATTENTION_GROUP_ORDER: ReadonlyArray<AttentionGroupMeta> = [
   { reason: 'source_conflict', label: 'Distributor match conflict', chipLabel: 'Conflict' },
   { reason: 'processing_failed', label: 'Processing failure', chipLabel: 'Processing failed' },
   { reason: 'semantic_validation_blocked', label: 'Curation semantic conflict', chipLabel: 'Curation conflict' },
+  { reason: 'listing_completeness_unresolved', label: 'Listing checklist needs attention', chipLabel: 'Checklist blocked' },
   { reason: 'unknown', label: 'Other', chipLabel: 'Other' },
 ];
 
@@ -74,6 +75,7 @@ export const ATTENTION_ACTION_LABELS: Record<AttentionAction, string> = {
   retry_processing: 'Retry',
   resolve_semantic_conflict: 'Review curation findings',
   enter_manual_evidence: 'Enter manual evidence',
+  resolve_listing_completeness: 'Open listing checklist',
 };
 
 export function getAttentionActionLabel(action: AttentionAction | null | undefined): string {
@@ -113,6 +115,8 @@ export function getAttentionActions(
       return ['retry_processing'];
     case 'semantic_validation_blocked':
       return ['resolve_semantic_conflict'];
+    case 'listing_completeness_unresolved':
+      return ['resolve_listing_completeness'];
     default:
       return [];
   }
@@ -138,7 +142,9 @@ export function getAttentionActionConsequence(action: AttentionAction | null | u
     case 'retry_processing':
       return 'Retry the processing step for this product.';
     case 'resolve_semantic_conflict':
-      return 'After the findings are resolved, this family re-runs Curation automatically and the product returns to Review.';
+      return 'After its findings are resolved, this product reruns Curation and returns to Review when ready.';
+    case 'resolve_listing_completeness':
+      return 'Open the item’s listing checklist to review each missing requirement and add accepted evidence or a valid exception.';
     case 'enter_manual_evidence':
       return 'Entering manual evidence completes extraction with a signed attestation; the family page stays reference-only and the item still passes Review.';
     default:
@@ -179,6 +185,8 @@ export function getAttentionConsequence(
       return 'Retry processing for this product.';
     case 'semantic_validation_blocked':
       return 'Resolve the findings and re-run Curation for this family; the product returns to Review automatically.';
+    case 'listing_completeness_unresolved':
+      return 'Open this item’s listing checklist to resolve exact missing or stale requirements before review, approval, or export.';
     case 'manual_evidence_available':
       return 'Enter product facts manually with a signed attestation; the family page is reference only and the item still passes Review.';
     default:

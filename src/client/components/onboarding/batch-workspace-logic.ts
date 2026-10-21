@@ -17,7 +17,6 @@ import type {
 export type WorkspaceTabId =
   | 'needs_attention'
   | 'processing'
-  | 'waiting_on_family'
   | 'review'
   | 'approved'
   | 'ready_to_export';
@@ -56,14 +55,6 @@ export const WORKSPACE_TABS: readonly WorkspaceTabDef[] = [
     countCategories: ['processing'],
     description: 'Products being handled automatically — no action needed.',
     emptyMessage: 'No products are processing right now.',
-  },
-  {
-    id: 'waiting_on_family',
-    label: 'Waiting on Family',
-    category: 'waiting_on_family',
-    countCategories: ['waiting_on_family'],
-    description: 'Products whose family members are not ready for Curation yet.',
-    emptyMessage: 'No families are waiting — every family is ready to curate.',
   },
   {
     id: 'review',
@@ -114,7 +105,6 @@ export function totalItemCount(counts: WorkStateCounts): number {
   return (
     counts.processing +
     counts.needs_attention +
-    counts.waiting_on_family +
     counts.ready_for_review +
     counts.approved +
     counts.ready_to_export +
@@ -170,7 +160,6 @@ export function hasActiveFilters(filters: WorkStateFilters): boolean {
 export const WORK_STATE_CATEGORY_LABELS: Record<WorkStateCategory, string> = {
   processing: 'Processing',
   needs_attention: 'Needs Attention',
-  waiting_on_family: 'Waiting on Family',
   ready_for_review: 'Ready for Review',
   approved: 'Approved',
   ready_to_export: 'Ready to Export',
@@ -217,8 +206,6 @@ export function workspaceTabForCategory(category: WorkStateCategory): WorkspaceT
       return 'needs_attention';
     case 'processing':
       return 'processing';
-    case 'waiting_on_family':
-      return 'waiting_on_family';
     case 'ready_for_review':
       return 'review';
     case 'approved':

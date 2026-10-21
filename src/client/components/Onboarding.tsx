@@ -85,14 +85,6 @@ function AlertMini() {
   );
 }
 
-function ClockMini() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
 
 function EyeMini() {
   return (
@@ -573,9 +565,6 @@ export function Onboarding() {
           >
             <AlertMini /> {formatCount(counts.needs_attention)}
           </span>
-          <span title="Waiting on Family — blocked on sibling readiness" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <ClockMini /> {formatCount(counts.waiting_on_family)}
-          </span>
           <span title="Ready for Review — awaiting inspection" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <EyeMini /> {formatCount(counts.ready_for_review)}
           </span>
@@ -592,7 +581,6 @@ export function Onboarding() {
         <div style={{ height: 6, width: '100%', background: colors.cardBorder, borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
           <div style={{ ...barStyle, width: `${pct(counts.needs_attention)}%`, background: colors.signetBurgundy }} />
           <div style={{ ...barStyle, width: `${pct(counts.processing)}%`, background: colors.mulchBrown }} />
-          <div style={{ ...barStyle, width: `${pct(counts.waiting_on_family)}%`, background: colors.mutedGold }} />
           <div style={{ ...barStyle, width: `${pct(counts.ready_for_review)}%`, background: colors.uniformGreen }} />
           <div style={{ ...barStyle, width: `${pct(approvedTotal)}%`, background: colors.seedlingGreen }} />
           {counts.skipped > 0 && <div style={{ ...barStyle, width: `${pct(counts.skipped)}%`, background: colors.cardBorder }} />}

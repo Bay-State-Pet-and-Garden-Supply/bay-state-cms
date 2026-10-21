@@ -43,7 +43,6 @@ import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import { insertItems, findItemById } from '../../db/repositories/onboarding-item-repo';
 import { validateListingEvidenceForReview } from '../../classification/review-completion-gate';
 import { verifyListingEvidence, currentVerifyRevisionForItem } from '../../classification/listing-evidence-verify';
-import { createRun, completeRun } from '../../db/repositories/classification-run-repo';
 import { currentListingEvidenceHashes, draftListingEvidenceHashes } from '../../classification/listing-evidence-currentness';
 import type { ListingEvidenceValidation } from '../../shared/schemas/onboarding';
 import { approveAndAdvanceItems, markReviewed, getReviewState } from '../../db/repositories/onboarding-review-repo';
@@ -57,6 +56,7 @@ import { createManualEvidenceAttestation } from '../../db/repositories/onboardin
 import { canonicalJsonStringify } from '../../shared/stable-id';
 import { draftVariantFactsFor } from '../../classification/listing-evidence-currentness';
 
+import { prepareListingEvidenceWorkspace, rotateListingEvidenceAuthority, seedListingEvidenceItem } from './helpers/listing-evidence-authority';
 // ─── Fixture helpers ─────────────────────────────────────────────────────────
 
 let workspaceId: string;
@@ -76,32 +76,42 @@ beforeEach(() => {
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     bootstrapStatus: 'complete', baselineCommit: null,
   });
+  prepareListingEvidenceWorkspace(workspacePath, workspaceId);
   batchId = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 }).id;
+  evidenceIdsByItem.clear();
 });
 
 function seedItem(upc = 'SKU-VERIFY', name = 'Acana Adult Dog'): string {
   return insertItems(batchId, [{ upc, name, brandHint: 'Acana', rowNumber: 1 }], 'review', 1)[0].id;
 }
 
-function seedEvidenceRow(runId: string, sku: string, rows: Array<{ id: string; sourceField?: string; snippet?: string; value?: string; reliability?: string }>): void {
-  const db = getDb();
-  const now = new Date().toISOString();
-  for (const row of rows) {
-    // Per-SKU unique ids: the same 'e1' label in different tests must not
-    // collide in one shared table (beforeEach re-inits the DB per test, but
-    // the two-item test in criterion 6 shares one DB across two runs).
-    const uniqueId = `${sku}-${row.id}`;
-    const snippet = typeof row.snippet === 'string' ? row.snippet : typeof row.value === 'string' ? row.value : '';
-    db.query(`INSERT INTO classification_evidence (id, run_id, product_sku, stage_name, source, reliability, source_field, snippet, value_json, metadata_json, created_at)
-      VALUES (?, ?, ?, 'evidence_extraction', 'official_product_page', ?, ?, ?, ?, NULL, ?)`)
-      .run(uniqueId, runId, sku, row.reliability ?? 'high', row.sourceField ?? 'description', snippet, JSON.stringify(row.value ?? snippet), now);
-    row.id = uniqueId;
-  }
+const evidenceIdsByItem = new Map<string, string>();
+function seedRun(itemId: string, sku: string, options: { weight?: string; description?: string } = {}): { id: string } {
+  const authority = seedListingEvidenceItem({ workspaceId, workspacePath, itemId, sku, ...options });
+  evidenceIdsByItem.set(itemId, authority.titleEvidenceId);
+  return { id: authority.runId };
 }
 
 function writeCuration(itemId: string, curation: Record<string, unknown>): void {
-  getDb().query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(JSON.stringify(curation), itemId);
+  const existing = (findItemById(itemId)?.curationData ?? {}) as Record<string, unknown>;
+  const current: Record<string, unknown> = {
+    suggestedPages: ['QA/test-only dog-food category'],
+    ...(existing && typeof existing === 'object' && 'itemExecutionCurrentness' in existing
+      ? { itemExecutionCurrentness: (existing as Record<string, unknown>).itemExecutionCurrentness }
+      : {}),
+    ...curation,
+  };
+  const raw = current.listingEvidenceValidation;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const record = { ...(raw as Record<string, unknown>) };
+    const hashes = currentListingEvidenceHashes(itemId, current);
+    if (!Array.isArray(record.requiredFields) && hashes.requiredFields.length > 0) record.requiredFields = hashes.requiredFields;
+    if (typeof record.sourceAuthority !== 'string' && hashes.sourceAuthority) record.sourceAuthority = hashes.sourceAuthority;
+    current.listingEvidenceValidation = record;
+  }
+  getDb().query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(JSON.stringify(current), itemId);
 }
+
 
 function readCuration(itemId: string): Record<string, unknown> {
   const found = findItemById(itemId);
@@ -111,23 +121,16 @@ function readCuration(itemId: string): Record<string, unknown> {
 }
 
 function curationRevision(itemId: string): string {
-  // Authority-bound revision token (issue #367 gap 5): the same composite
-  // the GET route stamps — the bare curation hash alone is stale by design.
   return currentVerifyRevisionForItem(itemId);
 }
 
 /** Seed an item whose title is supported but description claim is unresolved. */
-function seedUnresolvedItem(upc = 'SKU-VERIFY'): { itemId: string; runId: string; claimId: string } {
-  const itemId = seedItem(upc);
-  const run = createRun(workspaceId, upc, null, null, itemId);
-  completeRun(run.id, 'completed');
-  const evidenceRows = [
-    { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-  ];
-  seedEvidenceRow(run.id, upc, evidenceRows);
-  const evidenceId = evidenceRows[0].id;
+function seedUnresolvedItem(upc = 'SKU-VERIFY', attestDescription = true): { itemId: string; runId: string; claimId: string } {
   const title = 'Acana Adult Dog';
   const description = 'Grain free puppy nutrition with vitamins and minerals for active dogs daily';
+  const itemId = seedItem(upc);
+  const run = seedRun(itemId, upc, attestDescription ? { description } : {});
+  const evidenceId = evidenceIdsByItem.get(itemId)!;
   const cur = currentListingEvidenceHashes(itemId, { curatedTitle: title, curatedDescription: description, classificationRunId: run.id });
   const claimText = description;
   writeCuration(itemId, {
@@ -368,18 +371,14 @@ describe('issue #367 criterion 3 — idempotency + stale refusal', () => {
     expect((after.listingEvidenceValidation as ListingEvidenceValidation).claims.find((c) => c.id === claimId)).toBeTruthy();
   });
 
-  it('stale evidence hash refuses when the evidence bundle rotates', () => {
+  it('stale evidence hash refuses when the accepted snapshot rotates', () => {
     const { itemId, claimId } = seedUnresolvedItem('SKU-EVSTALE');
-    const item = findItemById(itemId)!;
     const curation = readCuration(itemId);
     const record = curation.listingEvidenceValidation as ListingEvidenceValidation;
-    // Rotate the bundle: add a second eligible row (hash changes).
-    const runId = curation.classificationRunId as string;
-    seedEvidenceRow(runId, item.upc, [{ id: 'e2', sourceField: 'description', snippet: 'extra evidence text', value: 'extra evidence text' }]);
-    void claimId;
+    rotateListingEvidenceAuthority(workspaceId, itemId);
     const stale = verifyListingEvidence(
       {
-        workspaceId, itemId, claimIds: ['claim_02'],
+        workspaceId, itemId, claimIds: [claimId],
         observation: OBSERVATION, provenance: PROVENANCE,
         expectedEvidenceHash: record.evidenceHash,
         expectedRevision: curationRevision(itemId),
@@ -432,9 +431,7 @@ describe('issue #367 fixups — replay-after-edit preserves receipt + brand owne
 
   it('a claim asserting the brand identity refuses via the Brand flow', () => {
     const itemId = seedItem('SKU-BrandOWN', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-BrandOWN', null, null, itemId);
-    completeRun(run.id, 'completed');
-    seedEvidenceRow(run.id, 'SKU-BrandOWN', [{ id: 'e1', sourceField: 'description', snippet: 'Acana', value: 'Acana' }]);
+    const run = seedRun(itemId, 'SKU-BrandOWN');
     const brandText = 'Acana';
     const cur = currentListingEvidenceHashes(itemId, { curatedTitle: 'Acana Adult Dog', curatedDescription: brandText, classificationRunId: run.id });
     writeCuration(itemId, {
@@ -482,9 +479,7 @@ describe('issue #367 fixups — replay-after-edit preserves receipt + brand owne
   });
   it('a longer claim carrying the brand hint refuses (no laundering)', () => {
     const itemId = seedItem('SKU-BRANDLAUNDER', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-BRANDLAUNDER', null, null, itemId);
-    completeRun(run.id, 'completed');
-    seedEvidenceRow(run.id, 'SKU-BRANDLAUNDER', [{ id: 'e1', sourceField: 'description', snippet: 'Acana Adult Dog food', value: 'Acana Adult Dog food' }]);
+    const run = seedRun(itemId, 'SKU-BRANDLAUNDER');
     const brandText = 'Acana Adult Dog food';
     const cur = currentListingEvidenceHashes(itemId, { curatedTitle: 'Acana Adult Dog', curatedDescription: brandText, classificationRunId: run.id });
     writeCuration(itemId, {
@@ -553,7 +548,10 @@ describe('issue #367 criterion 4 — no fabricated attestations', () => {
     );
     expect(supported.ok).toBe(false);
     if (supported.ok) return;
-    expect(supported.code).toBe('claim_not_unresolved');
+    // claim_01 asserts the title/brand identity: the Brand ownership gate
+    // routes it to the Brand flow before claim-liveness is consulted.
+    expect(supported.code).toBe('hard_gate_refusal');
+    expect(supported.reason).toContain('brand_ownership');
   });
 
   it('missing provenance refuses; verification never invents evidenceConsidered', () => {
@@ -600,11 +598,7 @@ describe('issue #367 criterion 4 — no fabricated attestations', () => {
   });
   it('an observation about a different weight cannot verify a weight claim', () => {
     const itemId = seedItem('SKU-WEIGHT', 'Acana Adult Dog 5 lb');
-    const run = createRun(workspaceId, 'SKU-WEIGHT', null, null, itemId);
-    completeRun(run.id, 'completed');
-    seedEvidenceRow(run.id, 'SKU-WEIGHT', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog 5 lb', value: 'Acana Adult Dog 5 lb' },
-    ]);
+    const run = seedRun(itemId, 'SKU-WEIGHT', { weight: '5 lb' });
     const claimText = 'weight: 5 lb';
     const cur = currentListingEvidenceHashes(itemId, { curatedTitle: 'Acana Adult Dog 5 lb', curatedDescription: null, classificationRunId: run.id });
     writeCuration(itemId, {
@@ -663,12 +657,7 @@ describe('issue #367 criterion 4 — no fabricated attestations', () => {
     expect(rightWeight.ok).toBe(true);
   });
   it('an attestation over an old title cannot authorize a new description value', () => {
-    const seeded = seedUnresolvedItem('SKU-STALEVAL');
-    createManualEvidenceAttestation({
-      itemId: seeded.itemId, operatorId: 'op-1',
-      fieldValues: { title: 'Acana Adult Dog' },
-      fieldSources: { title: { sourceKind: 'operator_transcription' } },
-    });
+    const seeded = seedUnresolvedItem('SKU-STALEVAL', false);
     const curation = readCuration(seeded.itemId);
     const record = curation.listingEvidenceValidation as ListingEvidenceValidation;
     const result = verifyListingEvidence(
@@ -854,14 +843,8 @@ describe('issue #367 criterion 5 — hard gates route to their owning flow', () 
   it('unowned classification run refuses verification', () => {
     const seeded = seedUnresolvedItem('SKU-RUNOWN');
     const otherId = seedItem('SKU-RUNOWN-OTHER', 'Other Product');
-    const foreignRun = createRun(workspaceId, 'SKU-RUNOWN-OTHER', null, null, otherId);
-    completeRun(foreignRun.id, 'completed');
+    const foreignRun = seedRun(otherId, 'SKU-RUNOWN-OTHER');
     writeCuration(seeded.itemId, { ...readCuration(seeded.itemId), classificationRunId: foreignRun.id });
-    // Re-stamp the record's hashes after the swap so currentness passes
-    // and the run-ownership leg is reached.
-    const stamped = readCuration(seeded.itemId);
-    const cur = currentListingEvidenceHashes(seeded.itemId, stamped);
-    writeCuration(seeded.itemId, { ...stamped, listingEvidenceValidation: { ...(stamped.listingEvidenceValidation as Record<string, unknown>), listingHash: cur.listingHash, evidenceHash: cur.evidenceHash } });
     const curation = readCuration(seeded.itemId);
     const record = curation.listingEvidenceValidation as ListingEvidenceValidation;
     const result = verifyListingEvidence(
@@ -1053,11 +1036,7 @@ describe('issue #367 criteria 7+8 — full release path + smoke', () => {
 
   it('the #366 correction flow still works untouched beside verification', () => {
     const id = seedItem('SKU-BOTH', 'Acana Adult Dog');
-    const run = createRun(workspaceId, 'SKU-BOTH', null, null, id);
-    completeRun(run.id, 'completed');
-    seedEvidenceRow(run.id, 'SKU-BOTH', [
-      { id: 'e1', sourceField: 'title', snippet: 'Acana Adult Dog', value: 'Acana Adult Dog' },
-    ]);
+    const run = seedRun(id, 'SKU-BOTH');
     const title = 'Acana Adult Dog';
     const cur = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: 'Bad claim text here', classificationRunId: run.id });
     writeCuration(id, {

@@ -171,7 +171,7 @@ describe('name Choice boundary', () => {
     expect(decision).not.toBeNull();
     expect(decision?.selectedTitle).toBe(result.title ?? undefined);
     expect(decision?.producer).toBe('deterministic');
-    expect(decision?.normalizationVersion).toBe('name-normalization-v1');
+    expect(decision?.normalizationVersion).toBe('name-normalization-v2-applicable-variant');
     expect(decision?.inputHash).toMatch(/^[a-f0-9]{64}$/);
     expect(decision?.titleHash).toMatch(/^[a-f0-9]{64}$/);
   });

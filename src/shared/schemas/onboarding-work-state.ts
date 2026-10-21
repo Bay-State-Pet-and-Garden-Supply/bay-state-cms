@@ -25,8 +25,6 @@ import { PipelineStageEnum, LegacyPipelineStageEnum, StageStatusEnum, SourceType
  *
  * - processing: automation is handling the item (no human action).
  * - needs_attention: automation stopped and requires operator judgment.
- * - waiting_on_family: the item's own evidence is ready but its cohort cannot
- *   start Curation until siblings are ready/blocked (ADR 0013 barrier).
  * - ready_for_review: Curation output complete, awaiting final human review.
  * - approved: human bulk approval granted; export/release not yet performed.
  * - ready_to_export: approved AND export drafts were created (the actual
@@ -37,7 +35,6 @@ import { PipelineStageEnum, LegacyPipelineStageEnum, StageStatusEnum, SourceType
 export const WorkStateCategoryEnum = z.enum([
   'processing',
   'needs_attention',
-  'waiting_on_family',
   'ready_for_review',
   'approved',
   'ready_to_export',
@@ -124,6 +121,7 @@ export const AttentionReasonEnum = z.enum([
    * existing consumers fall back to their unknown-reason handling.
    */
   'manual_evidence_available',
+  'listing_completeness_unresolved',
 ]);
 
 export type AttentionReason = z.infer<typeof AttentionReasonEnum>;
@@ -145,6 +143,7 @@ export const AttentionActionEnum = z.enum([
    * their unknown-action handling.
    */
   'enter_manual_evidence',
+  'resolve_listing_completeness',
 ]);
 
 export type AttentionAction = z.infer<typeof AttentionActionEnum>;
@@ -266,7 +265,6 @@ export type OnboardingWorkState = z.infer<typeof OnboardingWorkStateSchema>;
 export const WorkStateCountsSchema = z.object({
   processing: z.number().int().default(0),
   needs_attention: z.number().int().default(0),
-  waiting_on_family: z.number().int().default(0),
   ready_for_review: z.number().int().default(0),
   approved: z.number().int().default(0),
   ready_to_export: z.number().int().default(0),
@@ -528,12 +526,11 @@ export function validateAnyWorkStateCursor(
 const WORK_STATE_CATEGORY_ORDER: Record<string, number> = {
   needs_attention: 0,
   processing: 1,
-  waiting_on_family: 2,
-  ready_for_review: 3,
-  approved: 4,
-  ready_to_export: 5,
-  completed: 6,
-  skipped: 7,
+  ready_for_review: 2,
+  approved: 3,
+  ready_to_export: 4,
+  completed: 5,
+  skipped: 6,
 };
 
 export function buildWorkStateSortKey(
@@ -549,7 +546,6 @@ export function buildWorkStateSortKey(
 export const EMPTY_WORK_STATE_COUNTS: WorkStateCounts = {
   processing: 0,
   needs_attention: 0,
-  waiting_on_family: 0,
   ready_for_review: 0,
   approved: 0,
   ready_to_export: 0,

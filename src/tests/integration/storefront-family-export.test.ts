@@ -77,6 +77,7 @@ function memberInputs(products: Product[]) {
   const ounces: Record<string, number> = { 'FAM-5': 80, 'FAM-15': 240, 'FAM-30': 480 };
   return products.map((p) => ({
     sku: p.sku,
+    origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
     purchasable: true,
     brand: 'Acme',
     recipe: 'Chicken Dinner',
@@ -364,7 +365,12 @@ function setupNonFoodFamily() {
   return { workspacePath, workspaceId, products: decoded.products };
 }
 
-function nonFoodMemberInputs() {
+function nonFoodMemberInputs(): Array<{
+  sku: string; origin: { kind: 'catalog'; approvedCommit: string; productHash: string; classificationRunId: string | null; classificationHash: string }; purchasable: boolean;
+  brand: string; model: string; material: string; function: string; safetyDose: string; strength: string; fit: string;
+  sizeRaw: string; colorRaw: string; ounces: null; countRaw: null; countQuantity: null; retailUnit: null;
+  packCountDeclared: boolean; packCount: null; reviewedTypeHash: string; reviewedProductTypeId: string; evidenceHash: string;
+}> {
   const defs: Array<{ sku: string; size: string; color: string }> = [
     { sku: 'NF-S-RED', size: 'Small', color: 'Red' },
     { sku: 'NF-S-BLUE', size: 'Small', color: 'Blue' },
@@ -372,8 +378,8 @@ function nonFoodMemberInputs() {
   ];
   return defs.map((d) => ({
     sku: d.sku,
+    origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
     purchasable: true,
-    ounces: null,
     retailUnit: null,
     brand: 'Acme',
     model: 'Trail Harness',
@@ -384,6 +390,7 @@ function nonFoodMemberInputs() {
     fit: 'Adjustable',
     sizeRaw: d.size,
     colorRaw: d.color,
+    ounces: null,
     countRaw: null,
     countQuantity: null,
     packCountDeclared: false,
@@ -505,6 +512,7 @@ describe('non-food family smoke: review → revise/accept → approval → expor
     ];
     const members = defs.map((d) => ({
       sku: d.sku,
+      origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
       purchasable: true,
       ounces: null,
       retailUnit: null,

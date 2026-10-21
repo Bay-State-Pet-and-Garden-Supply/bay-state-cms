@@ -1,4 +1,4 @@
-import { listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById, getEvidenceByRun } from '../db/repositories/classification-run-repo';
+import { listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById, getEvidenceByRun, getRun, getProposalsByRun, getStageResults } from '../db/repositories/classification-run-repo';
 import {
   getManualEvidenceAttestation,
   isManualEvidenceAttestationActive,
@@ -7,17 +7,18 @@ import {
 } from '../db/repositories/onboarding-manual-evidence-repo';
 import { findLatestExtractionGateRow } from '../db/repositories/onboarding-extraction-repo';
 import { findCurationDataJsonById, findItemById } from '../db/repositories/onboarding-item-repo';
-import { findCohortParentGateRow } from '../db/repositories/classification-cohort-run-repo';
 import {
   buildManualEvidenceFieldValues,
   isManualFieldValueInherited,
 } from '../onboarding/manual-evidence-eligibility';
 import { currentListingEvidenceHashes } from './listing-evidence-currentness';
-import { evaluateListingEvidenceGate } from './listing-evidence-gate';
-import { findWorkspace } from '../db/repositories/workspace-repo';
+import { evaluateListingEvidenceGate, evaluateListingCompletenessGate } from './listing-evidence-gate';
+import { loadItemListingReadiness } from './item-listing-readiness';
 import { findBatchById } from '../db/repositories/onboarding-batch-repo';
-import type { NameEvidenceText } from './name-candidates';
-import type { ClassificationEvidence } from '../shared/schemas/classification';
+import { getCurrentItemEvidenceView } from '../onboarding/item-evidence';
+import { validateLiveItemExecutionCurrentness } from './item-execution-currentness';
+import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
+import { acceptedItemNameSpans, type NameEvidenceText } from './name-candidates';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { evaluateCanonicalReadiness } from './classification-readiness';
 import {
@@ -30,34 +31,21 @@ import { getActivePageImportHash, listVerifiedPageOptions } from '../db/reposito
 import { sha256Hex } from '../shared/stable-id';
 import { NameDecisionSchema } from '../shared/schemas/onboarding';
 import { hashNameInput, NAME_NORMALIZATION_VERSION } from './name-decision';
-import {
-  DISTRIBUTOR_SPAN_FIELDS,
-  MANUAL_SPAN_FIELD,
-  MANUAL_SPAN_SOURCE,
-  OFFICIAL_TITLE_SPAN_FIELDS,
-  OFFICIAL_WEIGHT_SPAN_FIELD,
-  assembleNameSpans,
-  readFirstEvidenceText,
-} from './name-span-contract';
 /**
- * Live workspace policy context for one onboarding item (issue #366 gap
- * 5): resolved from the owning batch so the policy leg of the gate always
- * compares current-vs-current. Returns undefined only when the item/batch
- * row is unreadable (advisory caller — digest leg inert, listing/evidence
- * staleness still enforced).
+ * Resolve policy context only through the item's exact owning batch. An
+ * unreadable or missing item/batch is unavailable; never substitute the
+ * unrelated active workspace.
  */
 export function workspacePolicyContextForItem(itemId: string): { workspacePath?: string; workspaceId?: string } | undefined {
   try {
     const item = findItemById(itemId);
     if (!item) return undefined;
     const batch = findBatchById(item.batchId);
-    if (batch) return { workspacePath: undefined, workspaceId: batch.workspaceId };
-    const active = findWorkspace();
-    if (active) return { workspacePath: active.workspacePath, workspaceId: active.id };
+    if (!batch || !batch.workspaceId) return undefined;
+    return { workspaceId: batch.workspaceId };
   } catch {
-    // fall through to undefined (advisory leg inert)
+    return undefined;
   }
-  return undefined;
 }
 
 export type ReviewCompletionGateResult =
@@ -81,6 +69,12 @@ export interface ReviewCompletionGateInput {
  * at every release path.
  */
 export function validateListingEvidenceForReview(itemId: string, policyContext?: { workspacePath?: string; workspaceId?: string }): ReviewCompletionGateResult | null {
+  const item = findItemById(itemId);
+  const batch = item ? findBatchById(item.batchId) : null;
+  if (!item || !batch || (policyContext?.workspaceId && policyContext.workspaceId !== batch.workspaceId)) {
+    return { ok: false, code: 'listing_evidence_workspace_unavailable', reason: 'The item’s owning workspace is unavailable; review readiness cannot be established.' };
+  }
+  const effectiveContext = { workspaceId: batch.workspaceId };
   const curationJson = findCurationDataJsonById(itemId);
   if (!curationJson) return null;
   let parsed: Record<string, unknown>;
@@ -92,17 +86,13 @@ export function validateListingEvidenceForReview(itemId: string, policyContext?:
     return null;
   }
   if (parsed.listingEvidenceValidation === undefined || parsed.listingEvidenceValidation === null) return null;
-  // Gap 5: default to live workspace context when the caller supplies none
-  // (review completion, durable approval) so policy removal/rotation stales
-  // the record instead of disabling the check. Explicit callers (export,
-  // push, change-set) pass frozen-artifact context directly.
-  const effectiveContext = policyContext ?? workspacePolicyContextForItem(itemId);
   const current = currentListingEvidenceHashes(itemId, parsed, effectiveContext);
   const gate = evaluateListingEvidenceGate({
     curationData: parsed,
     currentListingHash: current.listingHash,
     currentEvidenceHash: current.evidenceHash,
     currentModelPolicyDigest: current.modelPolicyDigest,
+    currentRequiredFields: current.requiredFields,
     currentSourceAuthority: current.sourceAuthority,
   });
   if (gate.ok) return null;
@@ -110,143 +100,58 @@ export function validateListingEvidenceForReview(itemId: string, policyContext?:
 }
 
 /**
- * Rebuild the CURRENT eligible name spans for an item from the run's gateway
- * evidence (same per-SKU channels as the singleton stage). Runless (legacy)
- * rows rebuild from the item's own live extraction payload instead of
- * returning null — fail-open to titleHash-only is forbidden: an evidence
- * edit on a runless row must fail closed via inputHash mismatch (or drop
- * the decision at the PUT layer). Returns null only when NEITHER a run's
- * gateway evidence NOR live item state is resolvable.
+ * Rebuild current name spans exclusively from the item's accepted evidence
+ * snapshot, bound to the exact workspace/batch/SKU and committed run receipt.
  */
 export function currentNameEligibleSpans(itemId: string, parsed: Record<string, unknown>): NameEvidenceText[] | null {
+  const item = findItemById(itemId);
+  if (!item) return null;
+  const batch = findBatchById(item.batchId);
+  if (!batch) return null;
   const runId = typeof parsed.classificationRunId === 'string' ? parsed.classificationRunId : null;
-  let evidence: ClassificationEvidence[] = [];
-  if (runId) {
-    try {
-      evidence = getEvidenceByRun(runId);
-    } catch {
-      evidence = [];
-    }
-  }
-  if (evidence.length === 0 && !runId) {
-    // Runless fallback: live item state (legacy rows). Mirrors
-    // legacyMemberSpans channel coverage so stale decisions cannot survive
-    // evidence edits on rows with no validated run link. Assembled through
-    // the shared assembler — same normalization, same canonical order.
-    try {
-      const item = findItemById(itemId);
-      const ext = (item?.extractionData ?? {}) as Record<string, unknown>;
-      const ocr = (ext.packagingOcrData ?? null) as { productName?: unknown; weight?: unknown; size?: unknown; count?: unknown; flavorVariety?: unknown; species?: unknown; productForm?: unknown } | null;
-      const ocrSpecies = Array.isArray(ocr?.species)
-        ? ocr.species.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map(v => ({ value: v.trim() }))
-        : [];
-      const refValues = ext.distributorReferenceValues as Record<string, unknown> | undefined;
-      const refSpans: Array<{ value: string; evidenceId?: string }> = [];
-      if (refValues && typeof refValues === 'object') {
-        for (const [field, values] of Object.entries(refValues)) {
-          if (field === 'distributorSku' || field === 'distributorUpc') continue;
-          if (Array.isArray(values)) for (const v of values) {
-            if (typeof v === 'string' && v.trim()) refSpans.push({ value: v.trim(), evidenceId: `distributor:${field}:evidence` });
-          }
-        }
-      }
-      const variantAttrs = ext.variantAttributes as Record<string, unknown> | undefined;
-      const variantSpans: Array<{ value: string; evidenceId?: string }> = [];
-      if (variantAttrs && typeof variantAttrs === 'object') {
-        for (const [field, v] of Object.entries(variantAttrs)) {
-          if (typeof v === 'string' && v.trim()) variantSpans.push({ value: v.trim(), evidenceId: `distributor:${field}:evidence` });
-        }
-      }
-      const live = assembleNameSpans({
-        registerName: typeof item?.name === 'string' ? item.name : null,
-        officialTitle: typeof ext.title === 'string' ? ext.title : null,
-        officialWeight: typeof ext.weight === 'string' ? ext.weight : null,
-        distributor: [
-          ...refSpans,
-          ...variantSpans,
-          ...(typeof ext.distributorSku === 'string' && ext.distributorSku.trim()
-            ? [{ value: ext.distributorSku.trim(), evidenceId: 'distributor:distributorSku:evidence' }]
-            : []),
-        ],
-        ocrTitle: ocr && typeof ocr.productName === 'string' ? { value: ocr.productName } : undefined,
-        ocrWeight: ocr && typeof ocr.weight === 'string' ? { value: ocr.weight } : undefined,
-        ocrSize: ocr && typeof ocr.size === 'string' ? { value: ocr.size } : undefined,
-        ocrCount: ocr && typeof ocr.count === 'string' ? { value: ocr.count } : undefined,
-        ocrFlavor: ocr && typeof ocr.flavorVariety === 'string' ? { value: ocr.flavorVariety } : undefined,
-        ocrSpecies,
-        ocrProductForm: ocr && typeof ocr.productForm === 'string' && ocr.productForm.trim() ? { value: ocr.productForm } : undefined,
-        manualTitle: typeof ext.manualEvidenceAttestationId === 'string' && ext.manualEvidenceAttestationId.trim()
-          && typeof ext.title === 'string' ? ext.title : null,
-        manualEvidenceId: typeof ext.manualEvidenceAttestationId === 'string' && ext.manualEvidenceAttestationId.trim()
-          ? `manual:${ext.manualEvidenceAttestationId.trim()}` : undefined,
-      });
-      if (live.length > 0) return live;
-    } catch {
-      // fall through to null
-    }
+  const receipt = parsed.itemExecutionCurrentness;
+  if (!runId || !receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return null;
+  const currentness = receipt as Record<string, unknown>;
+  if (currentness.classificationRunId !== runId) return null;
+  const run = getRun(runId);
+  if (
+    !run ||
+    run.workspaceId !== batch.workspaceId ||
+    run.onboardingItemId !== item.id ||
+    run.productSku !== item.upc ||
+    run.cohortRunId !== null ||
+    !['completed', 'completed_with_abstentions'].includes(run.status)
+  ) {
     return null;
   }
-  if (evidence.length === 0) return null;
-  const read = (source: string, field: string): string | null =>
-    readFirstEvidenceText(evidence, source, [field]);
-  const readId = (source: string, field: string): string | undefined =>
-    evidence.find(e => e.source === source && e.sourceField === field
-      && typeof e.value === 'string' && e.value.trim().length > 0)?.id;
-  const distributor: Array<{ value: string; evidenceId?: string }> = [];
-  for (const e of evidence) {
-    if (e.source !== 'distributor_record' && e.source !== 'third_party_page') continue;
-    if (typeof e.value !== 'string' || !(e.value as string).trim()) continue;
-    if (typeof e.sourceField !== 'string' || !(DISTRIBUTOR_SPAN_FIELDS as readonly string[]).includes(e.sourceField)) continue;
-    const meta = (e.metadata ?? {}) as Record<string, unknown>;
-    const attemptId = typeof meta.attemptId === 'string' ? meta.attemptId : 'evidence';
-    const providerId = typeof meta.providerId === 'string' ? meta.providerId : 'evidence';
-    distributor.push({ value: e.value as string, evidenceId: e.id ?? `distributor:${providerId}:${attemptId}` });
+  const view = getCurrentItemEvidenceView(batch.workspaceId, itemId);
+  const evidence = view.evidence;
+  if (
+    view.status !== 'accepted' ||
+    !evidence ||
+    evidence.workspaceId !== batch.workspaceId ||
+    evidence.batchId !== item.batchId ||
+    evidence.itemId !== item.id ||
+    evidence.sku !== item.upc ||
+    currentness.evidenceId !== evidence.id ||
+    currentness.evidenceRevision !== evidence.revision ||
+    currentness.evidenceHash !== evidence.evidenceHash ||
+    currentness.inputHash !== evidence.inputHash ||
+    currentness.sourceStateHash !== evidence.sourceStateHash ||
+    currentness.authorityHash !== evidence.authorityHash
+  ) {
+    return null;
   }
-  const manualText = read(MANUAL_SPAN_SOURCE, MANUAL_SPAN_FIELD);
-  const manualId = readId(MANUAL_SPAN_SOURCE, MANUAL_SPAN_FIELD) ?? 'manual:operator-attestation';
-  void itemId;
-  // ONE shared assembler (name-span-contract): register, official,
-  // distributor, OCR, manual — identical eligibility, normalization, and
-  // ordering for generation and review, so a freshly generated decision
-  // hashes the same bundle at review without edits.
-  return assembleNameSpans({
-    registerName: read('spreadsheet', 'name') ?? undefined,
-    registerNameEvidenceId: readId('spreadsheet', 'name'),
-    expectedName: read('spreadsheet', 'expected_name') ?? undefined,
-    expectedNameEvidenceId: readId('spreadsheet', 'expected_name'),
-    officialTitle: readFirstEvidenceText(evidence, 'official_product_page', OFFICIAL_TITLE_SPAN_FIELDS) ?? undefined,
-    officialTitleEvidenceId: OFFICIAL_TITLE_SPAN_FIELDS.map(f => readId('official_product_page', f)).find(id => id !== undefined),
-    officialWeight: read('official_product_page', OFFICIAL_WEIGHT_SPAN_FIELD) ?? undefined,
-    officialWeightEvidenceId: readId('official_product_page', OFFICIAL_WEIGHT_SPAN_FIELD),
-    distributor,
-    ocrTitle: (() => { const v = read('visual_product_evidence', 'name'); return v ? { value: v, evidenceId: readId('visual_product_evidence', 'name') } : undefined; })(),
-    ocrWeight: (() => { const v = read('visual_product_evidence', 'weight'); return v ? { value: v, evidenceId: readId('visual_product_evidence', 'weight') } : undefined; })(),
-    ocrSize: (() => { const v = read('visual_product_evidence', 'size'); return v ? { value: v, evidenceId: readId('visual_product_evidence', 'size') } : undefined; })(),
-    ocrCount: (() => { const v = read('visual_product_evidence', 'count'); return v ? { value: v, evidenceId: readId('visual_product_evidence', 'count') } : undefined; })(),
-    ocrFlavor: (() => { const v = read('visual_product_evidence', 'flavor'); return v ? { value: v, evidenceId: readId('visual_product_evidence', 'flavor') } : undefined; })(),
-    ocrSpecies: evidence
-      .filter(e => e.source === 'visual_product_evidence' && e.sourceField === 'species' && typeof e.value === 'string' && (e.value as string).trim())
-      .map(e => ({ value: (e.value as string).trim(), evidenceId: e.id })),
-    ocrProductForm: (() => {
-      const v = read('visual_product_evidence', 'productForm') ?? read('visual_product_evidence', 'food-form');
-      const id = readId('visual_product_evidence', 'productForm') ?? readId('visual_product_evidence', 'food-form');
-      return v ? { value: v, evidenceId: id } : undefined;
-    })(),
-    manualTitle: manualText ?? undefined,
-    manualEvidenceId: manualId,
-  });
+  const eligible = acceptedItemNameSpans(evidence);
+  return eligible.conflictingBrands.length === 0 ? eligible.spans : null;
 }
 
 /**
- * Evidence-backed name review backstop (issue #365). Read-only,
- * fail-closed: when the committed curation data carries a `nameDecision`
- * record, it must parse against NameDecisionSchema AND match the CURRENT
- * eligible evidence bundle (recomputed `inputHash` over the run's gateway
- * evidence, built through the same per-SKU span builders as the stages)
- * plus the current `curatedTitle` (`titleHash`). A title-preserving
- * evidence edit drops the decision at the PUT layer AND fails here via
- * inputHash mismatch; a title change fails via titleHash. Grandfathers
- * legacy rows (absent record passes); unparseable or stale records refuse.
+ * Evidence-backed name review backstop (issue #365). Read-only and
+ * fail-closed when a name decision is present: the record must parse against
+ * NameDecisionSchema and match the current accepted own-item evidence spans,
+ * committed run receipt, and projected title. Missing accepted evidence or
+ * stale/malformed decision data refuses review readiness.
  */
 export function validateNameDecisionForReview(itemId: string): ReviewCompletionGateResult | null {
   const curationJson = findCurationDataJsonById(itemId);
@@ -270,7 +175,9 @@ export function validateNameDecisionForReview(itemId: string): ReviewCompletionG
     return { ok: false, code: 'name_decision_stale', reason: 'Committed name decision no longer matches the curated title; the item cannot be review-ready (re-run naming).' };
   }
   const spans = currentNameEligibleSpans(itemId, parsed);
-  if (spans === null) return null;
+  if (spans === null) {
+    return { ok: false, code: 'name_evidence_unavailable', reason: 'Current accepted item evidence is unavailable; the item cannot be review-ready.' };
+  }
   const current = hashNameInput(spans);
   if (current !== decision.data.inputHash) {
     return { ok: false, code: 'name_decision_stale', reason: 'Committed name decision is stale against current eligible evidence; the item cannot be review-ready (re-run naming).' };
@@ -511,6 +418,26 @@ export function validateReviewCompletionGate(
       reason: `Classification run has status "${run.status}". Only completed runs can be reviewed.`,
     };
   }
+  const committedCurationJson = findCurationDataJsonById(input.onboardingItemId);
+  let committedCuration: Record<string, unknown> | null = null;
+  if (!committedCurationJson) {
+    return { ok: false, code: 'classification_authority_missing', reason: 'Current item curation data is unavailable.' };
+  }
+  try {
+    const parsed: unknown = JSON.parse(String(committedCurationJson));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      committedCuration = parsed as Record<string, unknown>;
+    }
+  } catch {
+    return { ok: false, code: 'semantic_validation_blocked', reason: 'Curation data is corrupt; the item cannot be review-ready.' };
+  }
+  if (committedCuration?.classificationRunId !== input.activeRunId) {
+    return {
+      ok: false,
+      code: 'classification_authority_missing',
+      reason: 'The classification run is not the current run recorded for this item.',
+    };
+  }
 
   // Parent #101 (manual-evidence route, ticket #103 thin slice): a manual
   // extraction row without an ACTIVE attestation join can never complete
@@ -519,26 +446,9 @@ export function validateReviewCompletionGate(
   const manualEvidenceGate = validateManualEvidenceForReview(input.onboardingItemId);
   if (manualEvidenceGate) return manualEvidenceGate;
 
-  // PR9 C3 (issue #30, DECISION-C) + review round 2 (R2-A): the cohort
-  // SEMANTIC validation gate. Two distinct paths:
-  //
-  // 1. ACTIVE COHORT CHILD (`cohort_run_id` non-null) — STRICT gate. A child
-  //    can be reviewed ONLY when (b) the committed projection references
-  //    THIS child run, (c) the parent run exists in the same workspace, (d)
-  //    the parent is NOT superseded (a superseded parent's children are
-  //    historical — never reviewable), (e) the parent is in a terminal
-  //    reviewable state (completed / completed_with_abstentions /
-  //    completed_with_member_failures — a running/freezing parent means the
-  //    post-loop Brand validation has not finished, so the child is never
-  //    reviewable while the parent is in flight), and (f/g) the committed
-  //    `semanticValidation` parses against the EXACT shared schema and is
-  //    `passed` (blocked → refuse with the first finding; MISSING or
-  //    malformed → fail closed, never review-ready — the surface helper's
-  //    documented contract treats missing/malformed as corruption).
-  //
-  // 2. LEGACY (`cohort_run_id` null) — EXACTLY today's behavior: an absent
-  //    semanticValidation key proceeds, a `blocked` status refuses, and
-  //    corrupt curation JSON fails closed (byte-identical).
+  // Persisted semantic validation is item-local. A blocked result refuses;
+  // missing cohort-wide summaries never import parent completion status or
+  // sibling outcomes into this item's review gate.
   if (run.cohort_run_id === null) {
     // ── Legacy path (byte-identical pre-R2 behavior) ──
     {
@@ -610,53 +520,7 @@ export function validateReviewCompletionGate(
       };
     }
 
-    // (c) The parent run must exist and belong to the same workspace.
-    const cohortParent = findCohortParentGateRow(run.cohort_run_id);
-    const parentRun = cohortParent ? { id: cohortParent.id, status: cohortParent.status, workspace_id: cohortParent.workspaceId } : undefined;
-    if (!parentRun) {
-      return {
-        ok: false,
-        code: 'parent_not_found',
-        reason: `Cohort parent run ${run.cohort_run_id} not found.`,
-      };
-    }
-    if (parentRun.workspace_id !== input.workspaceId) {
-      return {
-        ok: false,
-        code: 'workspace_mismatch',
-        reason: `Cohort parent run ${parentRun.id} belongs to a different workspace.`,
-      };
-    }
-
-    // (d) A superseded parent's completed children are historical — never
-    // reviewable (the parent's outputs are no longer the live revision).
-    if (parentRun.status === 'superseded') {
-      return {
-        ok: false,
-        code: 'parent_superseded',
-        reason:
-          `Cohort parent run ${parentRun.id} was superseded; its completed children are historical ` +
-          'and cannot be reviewed.',
-      };
-    }
-
-    // (e) A running/freezing parent is in flight (post-loop Brand validation
-    // happens AFTER member completion) — a child is never reviewable until
-    // the parent reaches a terminal reviewable state.
-    const PARENT_REVIEWABLE_STATUSES = new Set([
-      'completed',
-      'completed_with_abstentions',
-      'completed_with_member_failures',
-    ]);
-    if (!PARENT_REVIEWABLE_STATUSES.has(parentRun.status)) {
-      return {
-        ok: false,
-        code: 'parent_not_completed',
-        reason:
-          `Cohort parent run ${parentRun.id} has status "${parentRun.status}"; a child cannot be ` +
-          'reviewed while its parent is in flight.',
-      };
-    }
+    // Parent status and membership are not part of this item's review authority.
 
     // (f/g) The committed semanticValidation must parse against the EXACT
     // shared schema; missing or malformed data fails closed (never
@@ -981,7 +845,50 @@ export function validateReviewCompletionGate(
   // the record instead of disabling the check.
   const listingGate = validateListingEvidenceForReview(input.onboardingItemId, workspacePolicyContextForItem(input.onboardingItemId));
   if (listingGate) return listingGate;
-
+  const listingReadiness = loadItemListingReadiness(input.workspaceId, input.onboardingItemId);
+  const liveItem = findItemById(input.onboardingItemId);
+  const liveRun = getRun(input.activeRunId);
+  const runtimeSnapshot = run.config_snapshot_hash
+    ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash)
+    : null;
+  const livePolicy = runtimeSnapshot?.modelPolicy
+    ? modelPolicyViewFromConfig(runtimeSnapshot.modelPolicy, runtimeSnapshot.snapshotHash)
+    : null;
+  if (
+    !liveItem ||
+    !liveRun ||
+    !runtimeSnapshot ||
+    !livePolicy ||
+    !run.config_snapshot_hash ||
+    !liveRun.configSnapshotHash ||
+    !listingReadiness.evidence ||
+    !validateLiveItemExecutionCurrentness({
+      workspaceId: input.workspaceId,
+      item: liveItem,
+      run: liveRun,
+      evidence: listingReadiness.evidence,
+      configSnapshotId: liveRun.configSnapshotId,
+      configSnapshotHash: liveRun.configSnapshotHash,
+      runtimeSnapshotHash: runtimeSnapshot.snapshotHash,
+      policyDigest: livePolicy.policyDigest,
+      classificationEvidence: getEvidenceByRun(liveRun.id),
+      proposals: getProposalsByRun(liveRun.id),
+      stageResults: getStageResults(liveRun.id).map(stage => ({
+        stage_name: String(stage.stage_name),
+        output_json: typeof stage.output_json === 'string' ? stage.output_json : null,
+      })),
+    })
+  ) {
+    return {
+      ok: false,
+      code: 'item_execution_currentness_stale',
+      reason: 'The item execution receipt is missing or stale against the current input, evidence, run output, or policy.',
+    };
+  }
+  const completenessGate = evaluateListingCompletenessGate(listingReadiness.evaluation);
+  if (!completenessGate.ok) {
+    return { ok: false, code: completenessGate.code, reason: completenessGate.reason };
+  }
   return { ok: true, proposalCount: proposals.length };
 }
 // ─── Catalog Product Review Completion Gate ──────────────────────────────────

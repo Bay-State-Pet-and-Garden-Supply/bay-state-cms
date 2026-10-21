@@ -30,8 +30,18 @@ import { getApiKey } from '../db/repositories/api-key-repo';
 import { getFullAiRoutingConfig, getProviderConnection, isAiComputeConfigured } from '../db/repositories/provider-connection-repo';
 import { hashCanonicalJson } from '../shared/stable-id';
 import { dispatchWorkloadChat } from '../ai/inference-dispatcher';
-import { AiPolicyDeniedError } from '../ai/network-transport';
-import { isConnectionUsable, type ProviderConnection, type ModelTarget } from '../ai/provider-connections';
+import {
+  AiPolicyDeniedError,
+  fetchResponseBytes,
+  limitFetchResponseBytes,
+} from '../ai/network-transport';
+import { isConnectionUsable, type ModelTarget } from '../ai/provider-connections';
+import {
+  getItemAcquisitionBudgetSignal,
+  getItemAcquisitionModelOutputLimit,
+  reserveItemAcquisitionModelAttempt,
+  type ItemAcquisitionModelAttempt,
+} from './item-acquisition-budget';
 import {
   getLlmTaskConfig,
   type LlmProvider,
@@ -76,6 +86,76 @@ export interface LlmConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+}
+
+interface LlmBudgetedDispatch {
+  response: Response;
+  attempt: ItemAcquisitionModelAttempt | null;
+  startedAt: number;
+}
+
+async function dispatchLlmRequest(
+  config: LlmConfig,
+  requestBody: Record<string, unknown>,
+  timeoutMs: number,
+  callerSignal?: AbortSignal,
+  assertHeld?: () => void,
+): Promise<LlmBudgetedDispatch> {
+  const outputTokenLimit = getItemAcquisitionModelOutputLimit(config.provider, config.model);
+  if (outputTokenLimit !== null) {
+    const requested = typeof requestBody.max_tokens === 'number' ? requestBody.max_tokens : outputTokenLimit;
+    requestBody.max_tokens = Math.min(requested, outputTokenLimit);
+  }
+  const serializedBody = JSON.stringify(requestBody);
+  const attempt = reserveItemAcquisitionModelAttempt({
+    provider: config.provider,
+    model: config.model,
+    requestBytes: Buffer.byteLength(serializedBody, 'utf8'),
+    requestedOutputTokens: typeof requestBody.max_tokens === 'number' ? requestBody.max_tokens : 0,
+    timeoutMs,
+  });
+  const startedAt = Date.now();
+  const scopedSignal = getItemAcquisitionBudgetSignal(callerSignal);
+  const signal = scopedSignal
+    ? AbortSignal.any([scopedSignal, AbortSignal.timeout(timeoutMs)])
+    : AbortSignal.timeout(timeoutMs);
+  try {
+    assertHeld?.();
+    attempt?.markDispatched();
+    let response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: serializedBody,
+      redirect: 'manual',
+      signal,
+    });
+    if (attempt) response = limitFetchResponseBytes(response, attempt.maxResponseBytes);
+    return { response, attempt, startedAt };
+  } catch (error) {
+    try { attempt?.settleUnknown(); } catch { /* scope finalization preserves unresolved billing */ }
+    throw error;
+  }
+}
+
+function settleLlmRequest(
+  dispatch: LlmBudgetedDispatch,
+  usage: { prompt_tokens?: unknown; completion_tokens?: unknown },
+): void {
+  const attempt = dispatch.attempt;
+  if (!attempt) return;
+  const inputTokens = typeof usage.prompt_tokens === 'number' && Number.isSafeInteger(usage.prompt_tokens) && usage.prompt_tokens >= 0
+    ? usage.prompt_tokens : undefined;
+  const outputTokens = typeof usage.completion_tokens === 'number' && Number.isSafeInteger(usage.completion_tokens) && usage.completion_tokens >= 0
+    ? usage.completion_tokens : undefined;
+  attempt.settle({
+    responseBytes: fetchResponseBytes(dispatch.response) ?? attempt.maxResponseBytes,
+    inputTokens,
+    outputTokens,
+    durationMs: Date.now() - dispatch.startedAt,
+  });
 }
 
 /** Optional operation-scoped constraints, checked at every protected HTTP boundary. */
@@ -845,6 +925,7 @@ async function callLlmForTaskAudited(
   };
 
   let slotAcquired = false;
+  let budgetedDispatch: LlmBudgetedDispatch | null = null;
   try {
     await acquireLlmSlot(config.provider, options.dispatchGuard?.signal);
     slotAcquired = true;
@@ -861,22 +942,14 @@ async function callLlmForTaskAudited(
     let response: Response;
     try {
       assertGuardedLlmAttempt(config, options.dispatchGuard);
-      response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-        redirect: 'manual',
-        signal: options.dispatchGuard
-          ? AbortSignal.any([options.dispatchGuard.signal, AbortSignal.timeout(timeoutMs)])
-          : AbortSignal.timeout(timeoutMs),
-      });
+      budgetedDispatch = await dispatchLlmRequest(config, requestBody, timeoutMs, options.dispatchGuard?.signal, options.assertHeld);
+      response = budgetedDispatch.response;
     } catch (err) {
+      const errorName = err && typeof err === 'object' && 'name' in err ? err.name : undefined;
+      const errorMessage = err && typeof err === 'object' && 'message' in err && typeof err.message === 'string' ? err.message : '';
       const isAbort =
-        (err as { name?: string })?.name === 'AbortError' ||
-        (err as { message?: string })?.message?.includes('abort') === true ||
+        errorName === 'AbortError' ||
+        errorMessage.toLowerCase().includes('abort') ||
         options.dispatchGuard?.signal.aborted === true;
       const terminal = isAbort ? MODEL_CALL_STATUS.cancelled : MODEL_CALL_STATUS.failed;
       markTerminal({
@@ -938,6 +1011,8 @@ async function callLlmForTaskAudited(
     // unknown cloud rates are null + 'unknown' (never a guessed zero).
     const promptTokens = data.usage?.prompt_tokens ?? null;
     const completionTokens = data.usage?.completion_tokens ?? null;
+    settleLlmRequest(budgetedDispatch, data.usage ?? {});
+    budgetedDispatch = null;
     const cost = computeModelCallCost(resolvedLocality, promptTokens, completionTokens);
 
     const terminalDurable = markTerminal({
@@ -969,6 +1044,7 @@ async function callLlmForTaskAudited(
       },
     };
   } catch (err) {
+    try { budgetedDispatch?.attempt?.settleUnknown(); } catch { /* preserve the original call/audit failure */ }
     // PR4 P1-1 seam: ownership loss is NEVER swallowed or converted into a
     // terminal/null outcome — a stale owner aborts with NO further audit
     // write (the in-flight row stays `started`, crash-equivalent abandoned)
@@ -1117,7 +1193,7 @@ export async function callLlmForTask(
 
   // Standalone protected operation call with modelPolicy but without modelCall:
   if (protectedOp) {
-    await acquireLlmSlot(config.provider);
+    let budgetedDispatch: LlmBudgetedDispatch | null = null;
     try {
       if (options.modelPolicy) {
         reassertProtectedRouteBeforeTransport(task, config, {
@@ -1135,39 +1211,30 @@ export async function callLlmForTask(
         ],
         temperature,
       };
-      if (reasoningEffort) {
-        requestBody.reasoning_effort = reasoningEffort;
-      }
-      const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-        redirect: 'manual',
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
+      budgetedDispatch = await dispatchLlmRequest(config, requestBody, timeoutMs, undefined, options.assertHeld);
+      const response = budgetedDispatch.response;
 
       if (response.status >= 300 && response.status < 400) {
         throw new Error(`HTTP redirect (${response.status}) forbidden on LLM connection (Anti-SSRF).`);
       }
-
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(
-          `LLM API request failed (${config.provider}): ${response.status} - ${redactTransportText(text)}`,
-        );
+        throw new Error(`LLM API request failed (${config.provider}): ${response.status} - ${redactTransportText(text)}`);
       }
 
       const data = (await response.json()) as {
         choices: Array<{ message: { content: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
       const content = data.choices?.[0]?.message?.content;
-      if (!content || !content.trim()) {
-        throw new Error('LLM returned an empty response.');
-      }
+      if (!content || !content.trim()) throw new Error('LLM returned an empty response.');
+      settleLlmRequest(budgetedDispatch, data.usage ?? {});
+      budgetedDispatch = null;
       return content.trim();
+    } catch (error) {
+      try { budgetedDispatch?.attempt?.settleUnknown(); } catch { /* preserve the original transport failure */ }
+      throw error;
     } finally {
       releaseLlmSlot(config.provider);
     }
@@ -1191,6 +1258,7 @@ export async function callLlmForTask(
 
   const makeSingleRequest = async (cfg: LlmConfig): Promise<{ content: string; promptTokens: number | null; completionTokens: number | null }> => {
     await acquireLlmSlot(cfg.provider);
+    let budgetedDispatch: LlmBudgetedDispatch | null = null;
     try {
       if (options.modelPolicy) {
         reassertProtectedRouteBeforeTransport(task, cfg, {
@@ -1208,24 +1276,12 @@ export async function callLlmForTask(
         ],
         temperature,
       };
-      if (reasoningEffort) {
-        requestBody.reasoning_effort = reasoningEffort;
-      }
-      const response = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cfg.apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
+      if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
+      budgetedDispatch = await dispatchLlmRequest(cfg, requestBody, timeoutMs, undefined, options.assertHeld);
+      const response = budgetedDispatch.response;
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(
-          `LLM API request failed (${cfg.provider}): ${response.status} - ${redactTransportText(text)}`,
-        );
+        throw new Error(`LLM API request failed (${cfg.provider}): ${response.status} - ${redactTransportText(text)}`);
       }
 
       const data = (await response.json()) as {
@@ -1233,14 +1289,17 @@ export async function callLlmForTask(
         usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
       const content = data.choices?.[0]?.message?.content;
-      if (!content || !content.trim()) {
-        throw new Error('LLM returned an empty response.');
-      }
+      if (!content || !content.trim()) throw new Error('LLM returned an empty response.');
+      settleLlmRequest(budgetedDispatch, data.usage ?? {});
+      budgetedDispatch = null;
       return {
         content: content.trim(),
         promptTokens: data.usage?.prompt_tokens ?? null,
         completionTokens: data.usage?.completion_tokens ?? null,
       };
+    } catch (error) {
+      try { budgetedDispatch?.attempt?.settleUnknown(); } catch { /* preserve the original request failure */ }
+      throw error;
     } finally {
       releaseLlmSlot(cfg.provider);
     }

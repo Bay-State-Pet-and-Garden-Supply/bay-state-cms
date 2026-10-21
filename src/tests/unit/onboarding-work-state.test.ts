@@ -319,7 +319,7 @@ describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
     expect(state.label).toBe('Extraction complete');
   });
 
-  it('curation pending + cohort waiting (3/4 ready) → waiting_on_family with counts', () => {
+  it('curation remains item-local when a sibling is still waiting', () => {
     const batchId = makeBatch();
     const ready1 = createItem(batchId, { upc: 'F1', name: 'Blue Buffalo Life Protection Chicken 30 lb', brandHint: 'Blue Buffalo', stage: 'discovery', stageStatus: 'pending' });
     const ready2 = createItem(batchId, { upc: 'F2', name: 'Blue Buffalo Life Protection Chicken 15 lb', brandHint: 'Blue Buffalo', stage: 'discovery', stageStatus: 'pending' });
@@ -334,14 +334,14 @@ describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
     advanceItemsToNextStage([waiting]); // extraction/pending
     refreshCandidateCohorts(workspaceId, batchId);
 
-    // Move ready members into curation/pending (the family barrier applies)
+    // Move ready members into item-local Curation even though one sibling is pending.
     for (const id of [ready1, ready2, ready3]) {
       advanceItemsToNextStage([id]);
     }
     const state = derive(batchId, ready1);
-    expect(state.category).toBe('waiting_on_family');
+    expect(state.category).toBe('processing');
     expect(state.activity).toBe('curation');
-    expect(state.label).toBe('Family not ready yet');
+    expect(state.label).toBe('Curating product');
     expect(state.family).not.toBeNull();
     expect(state.family!.memberCount).toBe(4);
     expect(state.family!.readyCount).toBe(3);
@@ -361,11 +361,11 @@ describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
     const state = derive(batchId, m1);
     expect(state.category).toBe('processing');
     expect(state.activity).toBe('curation');
-    expect(state.label).toBe('Curating product family');
+    expect(state.label).toBe('Curating product');
     expect(state.family!.readyCount).toBe(2);
   });
 
-  it('cohort with a blocked member → waiting_on_family / family blocked', () => {
+  it('curation proceeds when another family member is blocked', () => {
     const batchId = makeBatch();
     const ok1 = createItem(batchId, { upc: 'H1', name: 'Blue Buffalo Life Protection Chicken 30 lb', brandHint: 'Blue Buffalo', stage: 'discovery', stageStatus: 'pending' });
     const blocked = createItem(batchId, { upc: 'H2', name: 'Blue Buffalo Life Protection Chicken 15 lb', brandHint: 'Blue Buffalo', stage: 'discovery', stageStatus: 'pending' });
@@ -374,10 +374,9 @@ describe('work-state projection — mapping table (epic #46 Phase 1)', () => {
     refreshCandidateCohorts(workspaceId, batchId);
     advanceItemsToNextStage([ok1]); // curation/pending
     const state = derive(batchId, ok1);
-    expect(state.category).toBe('waiting_on_family');
-    expect(state.label).toBe('Family blocked');
+    expect(state.category).toBe('processing');
+    expect(state.label).toBe('Curating product');
     expect(state.family!.blockedCount).toBe(1);
-    expect(state.detail).toContain('Member failed in Extraction');
   });
 
   it('curation completed → ready_for_review / unreviewed', () => {
@@ -500,7 +499,7 @@ describe('batch work-state counts + filters', () => {
   });
 });
 
-describe('epic #46 review remediation — fix 2: semantic-blocked curation is never ready_for_review', () => {
+describe('legacy cohort semantic output is not item release authority', () => {
   function seedCurationWithSemantic(itemId: string, status: 'blocked' | 'passed' | null): void {
     const payload: Record<string, unknown> = { curatedTitle: 'X', titleSource: 'web' };
     if (status) {
@@ -514,16 +513,13 @@ describe('epic #46 review remediation — fix 2: semantic-blocked curation is ne
     getDb().run('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?', [JSON.stringify(payload), itemId]);
   }
 
-  it('curation/completed + blocked → needs_attention / semantic_validation_blocked (NEVER ready_for_review)', () => {
+  it('parent-owned semantic findings do not block independent item progression', () => {
     const batchId = makeBatch();
     const id = createItem(batchId, { upc: 'S1', name: 'X', stage: 'curation', stageStatus: 'completed' });
     seedCurationWithSemantic(id, 'blocked');
     const state = derive(batchId, id);
-    expect(state.category).toBe('needs_attention');
-    expect(state.attentionReason).toBe('semantic_validation_blocked');
-    expect(state.attentionAction).toBe('resolve_semantic_conflict');
-    expect(state.label).toBe('Curation blocked by semantic validation');
-    expect(state.detail).toContain('Family members disagree');
+    expect(state.category).toBe('ready_for_review');
+    expect(state.attentionReason).toBeNull();
   });
 
   it('curation/completed + semantic passed → ready_for_review unchanged', () => {
@@ -543,15 +539,15 @@ describe('epic #46 review remediation — fix 2: semantic-blocked curation is ne
     expect(state.category).toBe('ready_for_review');
   });
 
-  it('blocked curation items are excluded from the ready_for_review count', () => {
+  it('legacy blocked parent findings do not alter item readiness counts', () => {
     const batchId = makeBatch();
     const ok = createItem(batchId, { upc: 'S4', name: 'X', stage: 'curation', stageStatus: 'completed' });
     const blocked = createItem(batchId, { upc: 'S5', name: 'Y', stage: 'curation', stageStatus: 'completed' });
     seedCurationWithSemantic(ok, null);
     seedCurationWithSemantic(blocked, 'blocked');
     const payload = getBatchWorkState(batchId);
-    expect(payload.counts.ready_for_review).toBe(1);
-    expect(payload.counts.needs_attention).toBe(1);
+    expect(payload.counts.ready_for_review).toBe(2);
+    expect(payload.counts.needs_attention).toBe(0);
   });
 });
 

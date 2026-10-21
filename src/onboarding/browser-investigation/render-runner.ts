@@ -36,12 +36,14 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-/** One page the render worker should load through the validating proxy. */
+/** One page and its caller-issued, code-owned read actions. */
 interface Tier1RenderPage {
   pageIndex: number;
   url: string;
   /** Host-retained broker-capture artifact ref for the same URL (evidence anchor). */
   artifactRef: string;
+  expectedPageId?: string;
+  actions?: Array<{ id: string; kind: 'observe' | 'links' | 'variants' | 'accordion'; targetId?: string }>;
 }
 
 interface Tier1RenderRequest {
@@ -56,13 +58,21 @@ interface Tier1RenderRequest {
 export interface Tier1RenderedObservation {
   kind: string;
   sourceUrl: string;
-  /** SHA-256 of the rendered snapshot bytes seen in-container (full hash only). */
+  /** SHA-256 of the retained full observation payload. */
   artifactHash: string;
   detail?: string;
   incomplete: boolean;
   /** Host artifact ref anchoring this observation to retained evidence. */
   artifactRef: string;
   pageIndex: number;
+  contentType?: 'text/plain' | 'application/json';
+  content?: string;
+  links?: Array<{ id: string; text: string; href: string }>;
+  actionId?: string;
+  actionKind?: 'observe' | 'links' | 'variants' | 'accordion';
+  pageId?: string;
+  targetIds?: string[];
+  finalUrl?: string;
 }
 
 interface Tier1RenderResult {
@@ -155,7 +165,7 @@ export class DockerRenderContainerRunner implements Tier1RenderRunner {
     const payload = JSON.stringify({
       investigationId: request.investigationId,
       approvedHosts: request.approvedHosts,
-      pages: request.pages,
+      pages: request.pages.map(({ actions, ...page }) => actions?.length ? { ...page, actions } : page),
       maxReads: request.maxReads,
       maxObservationBytesPerOperation: request.maxObservationBytesPerOperation,
     });

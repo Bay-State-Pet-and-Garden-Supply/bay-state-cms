@@ -104,10 +104,9 @@ describe('Settings classification tabs (P1 UI revamp)', () => {
     expect(banner!.textContent).toContain('immutable taxonomy release');
     expect(banner!.textContent).toContain('read-only');
 
-    // Read-only surface: no save/submit-style controls rendered
-    const buttons = Array.from(panel!.querySelectorAll('button'));
-    expect(buttons.length).toBe(0);
-
+    // Configuration controls are intentionally available on this read-only
+    // surface; the frozen banner protects taxonomy mutations, not settings.
+    expect(panel!.querySelectorAll('button').length).toBeGreaterThan(0);
     // Reused workbench content renders (product types list)
     expect(panel!.textContent).toContain('Dog Food');
     expect(getClassificationConfig).toHaveBeenCalled();

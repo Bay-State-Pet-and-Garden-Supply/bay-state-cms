@@ -27,6 +27,7 @@ import type {
   ListingEvidenceClaim,
   ListingEvidenceValidation,
 } from '../../../../shared/schemas/onboarding';
+import { ReviewListingChecklistPanel } from './ReviewListingChecklistPanel';
 
 export interface ReviewListingEvidencePanelProps {
   detail: ItemDetailResponse | null;
@@ -113,7 +114,7 @@ export function ReviewListingEvidencePanel({ detail, itemId, onChanged }: Review
   const [verifyOpen, setVerifyOpen] = useState<string | null>(null);
   const id = itemId ?? detail?.item.id ?? null;
 
-  if (!record) return null;
+  if (!record) return id ? <ReviewListingChecklistPanel itemId={id} onChanged={onChanged} /> : null;
 
   const blocked = record.status === 'blocked' || record.status === 'needs_review';
   const unavailable = record.status === 'unavailable' || record.status === 'stale';
@@ -214,6 +215,7 @@ export function ReviewListingEvidencePanel({ detail, itemId, onChanged }: Review
   }
   return (
     <section id="rv-listing-evidence" aria-label="Listing evidence findings" style={{ marginTop: 12 }}>
+      {id && <ReviewListingChecklistPanel itemId={id} onChanged={onChanged} />}
       <h3 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>Listing evidence</h3>
       <p role="status" style={{ margin: '0 0 8px' }}>
         Status: {record.status}

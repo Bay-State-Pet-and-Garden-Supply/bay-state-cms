@@ -7,27 +7,12 @@ import { getChangeSetDetail, loadApprovedLinkedExport } from '../services/change
 import { createExportPackage } from '../../shopsite/export-package';
 import { hasBlockingDriftForSku } from '../../db/repositories/drift-repo';
 import { planFamilyPushSet, checkFamilyPushStalenessFiles } from '../../shopsite/family-push-operation';
-import { findCurationDataJsonById } from '../../db/repositories/onboarding-item-repo';
-import { getDb } from '../../db/connection';
+import { findCurationDataJsonById, findLatestItemIdByWorkspaceAndUpc } from '../../db/repositories/onboarding-item-repo';
 import { draftListingEvidenceHashes, draftVariantFactsFor, currentSourceAuthority } from '../../classification/listing-evidence-currentness';
 import { evaluateListingEvidenceGate } from '../../classification/listing-evidence-gate';
 import { findLinkedManifest, listConflictingDraftChangeSets } from '../../db/repositories/change-set-repo';
 import { repairChangeSetImagesForWorkspace } from '../services/store-manager-image-repair';
 import type { Product } from '../../shared/types';
-/**
- * Slice-A-local workspace-scoped item lookup (issue #363 restore): latest
- * item id for a workspace + SKU, newest row first through the owning batch.
- * Single inline-SQL owner; throws on DB failure so callers fail closed.
- */
-function findLatestItemIdByWorkspaceAndUpc(workspaceId: string, upc: string): string | null {
-  const row = getDb()
-    .query(
-      `SELECT i.id AS id FROM onboarding_items i JOIN onboarding_batches b ON b.id = i.batch_id
-       WHERE b.workspace_id = ? AND i.upc = ? ORDER BY i.created_at DESC LIMIT 1`,
-    )
-    .get(workspaceId, upc) as { id: string } | undefined;
-  return row?.id ?? null;
-}
 
 /**
  * Standalone-draft listing-evidence refusal (issue #366 gap 1): interpret

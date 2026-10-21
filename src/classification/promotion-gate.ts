@@ -1,17 +1,12 @@
 /**
  * Promotion Gate (issue #30 PR11, DECISION-A).
  *
- * Deterministic, read-only validation that runs PER-ITEM inside `promoteItems`
- * BEFORE any proposal/draft work. A member that is semantically blocked, a
- * child of a superseded (or in-flight) parent, or carrying an accepted
- * proposal whose type dependency no longer matches the item's CURRENT
- * effective type never reaches a CMS draft — while every sibling promotes
- * normally.
+ * Deterministic, read-only validation that runs PER-ITEM before draft work.
+ * Each item is authorized only by its own current terminal classification
+ * run, currentness receipt, reviewed classification, and accepted proposals.
+ * Parent cohort status and sibling outcomes are not release authority.
  *
- * The gate is PURE over its inputs: the caller loads all DB state (the
- * validated active run, the parent cohort run, the accepted proposals, the
- * current effective type id, and the dependency rows) and passes them in; this
- * module never queries.
+ * The pure gate consumes caller-loaded item-local state and never queries.
  *
  * The gate consumes the PR9-review dependency semantics (PR9 C4,
  * DECISION-B): universal-attribute proposals carry NO product-type dependency
@@ -42,12 +37,9 @@ export type PromotionGateResult =
       ok: false;
       code:
         | 'classification_authority_missing'
-        | 'semantic_validation_blocked'
         | 'semantic_validation_unavailable'
+        | 'semantic_validation_blocked'
         | 'run_not_completed'
-        | 'parent_not_found'
-        | 'parent_superseded'
-        | 'parent_not_completed'
         | 'workspace_mismatch'
         | 'reviewed_product_type_required'
         | 'stale_proposal'
@@ -86,12 +78,7 @@ export interface PromotionGateInput {
    */
   dependencyLookup: (proposalId: string) => PromotionGateDependencyRow[];
   /**
-   * PR12 C2 (DECISION-A): the CURRENT authority value-hashes, recomputed by
-   * the caller from the SAME authority inputs the target comparison uses (the
-   * parent run's current execution type id + confidence for the execution
-   * kind; the reviewed resolution for the reviewed kind). Absent = the
-   * pre-PR12 target-only behavior for direct/synthetic callers; the
-   * production caller always supplies it.
+   * Current item-local authority hashes. Absent means target-only staleness.
    */
   currentAuthorityHashes?: { execution?: string | null; reviewed?: string | null };
   /**
@@ -105,14 +92,7 @@ export interface PromotionGateInput {
   verifiedPageIds?: ReadonlySet<string>;
 }
 
-/** A cohort parent is terminal (promotion-eligible) only in these states. */
-const PARENT_TERMINAL_STATUSES = new Set([
-  'completed',
-  'completed_with_abstentions',
-  'completed_with_member_failures',
-]);
-
-const SEMANTIC_BLOCKED_DEFAULT = 'A hard cohort semantic validation finding blocks this item.';
+const SEMANTIC_BLOCKED_DEFAULT = 'A hard semantic validation finding blocks this item.';
 
 function firstFindingMessage(semanticValidation: Record<string, unknown>): string {
   const findings = semanticValidation.findings;
@@ -126,24 +106,10 @@ function firstFindingMessage(semanticValidation: Record<string, unknown>): strin
 }
 
 /**
- * The item's CURRENT effective Product Type id for the staleness check
- * (architecture-report §2.1; PR11 review R1 P1-A + R2):
- *
- * REVIEWED-FIRST — Reviewed Product Type is the catalog/Promotion authority:
- *   1. the in-run accepted/revised `product_classification` decision (paired
- *      `revisedTargetId` materialized by `getAcceptedProposals`; ADR 0041:
- *      legacy `primary_product_type` rows are history-only);
- *   2. a provenance-compatible reviewed canonical-pair fact carried in
- *      the frozen runtime snapshot (`getReviewedTypeFromSnapshot` — the PR5
- *      second reviewed source; the cohort executor's
- *      `getEffectiveCurationTypeForSnapshot` uses the same fact when deciding
- *      what drove member-local Curation, and dependency stamping records
- *      `reviewed_product_type` when that snapshot fact won);
- *   3. `null` — the Execution Product Type is NEVER a substitute for missing
- *      reviewed authority at Promotion (issue #30: Execution drives first-pass
- *      Curation; Reviewed is catalog truth). The gate refuses active cohort
- *      children with `reviewed_product_type_required`; a present
- *      type-dependency against a null reviewed type is itself stale.
+ * REVIEWED-FIRST — the item's reviewed canonical classification is its only
+ * catalog/Promotion type authority (ADR 0041). Execution Product Type values
+ * can drive first-pass Curation but never substitute for a missing reviewed
+ * type. Legacy `primary_product_type` proposals remain history-only.
  *
  * PRESENCE vs VALUE (PR11 review R3): an in-run accepted `product_classification`
  * decision is authoritative BY PRESENCE — including an explicit null target
@@ -155,11 +121,11 @@ function firstFindingMessage(semanticValidation: Record<string, unknown>): strin
  * no in-run accepted type decision exists at all.
  */
 export function resolvePromotionEffectiveTypeId(
-  parentRun: CohortRun | null,
+  _parentRun: CohortRun | null,
   acceptedProposals: ClassificationProposal[],
   snapshot?: RuntimeClassificationSnapshot | null,
 ): string | null {
-  return resolvePromotionEffectiveClassification(parentRun, acceptedProposals, snapshot).productTypeId;
+  return resolvePromotionEffectiveClassification(_parentRun, acceptedProposals, snapshot).productTypeId;
 }
 
 /**
@@ -170,7 +136,7 @@ export function resolvePromotionEffectiveTypeId(
  * member suppresses the frozen fallback for that member.
  */
 export function resolvePromotionEffectiveClassification(
-  parentRun: CohortRun | null,
+  _parentRun: CohortRun | null,
   acceptedProposals: ClassificationProposal[],
   snapshot?: RuntimeClassificationSnapshot | null,
 ): { categoryId: string | null; productTypeId: string | null } {
@@ -218,9 +184,8 @@ export function computeReviewedAuthorityHash(reviewedTypeId: string | null): str
 }
 
 /**
- * Fail-closed promotion validation. Deterministic over its inputs; the caller
- * loads the DB state. Returns the FIRST refusal (semantic → parent-currentness
- * → stale-proposal), or `{ ok: true }` when every check passes.
+ * Fail-closed promotion validation over item-local state. Returns the FIRST
+ * refusal (semantic → run currentness → stale-proposal), or `{ ok: true }`.
  */
 export function validatePromotionGate(input: PromotionGateInput): PromotionGateResult {
   const {
@@ -229,14 +194,12 @@ export function validatePromotionGate(input: PromotionGateInput): PromotionGateR
     productSku,
     curationData,
     activeRun,
-    parentRun,
     effectiveTypeId,
     acceptedProposals,
     dependencyLookup,
     currentAuthorityHashes,
   } = input;
 
-  // Classification-authorized draft creation requires the current run pointer.
   // Historical items without one need reclassification; they cannot bypass
   // pair/profile readiness by taking the legacy promotion path.
   if (!curationData || !curationData.classificationRunId) {
@@ -246,23 +209,24 @@ export function validatePromotionGate(input: PromotionGateInput): PromotionGateR
       reason: `Item ${itemId} (SKU ${productSku}) has no current classification run authority; reclassify before promotion.`,
     };
   }
-  // A present run pointer that failed the caller's ownership validation never
-  // reaches the gate (the caller refuses it); defensive fail-closed anyway.
+  // A present run pointer that failed ownership validation is never trusted.
   if (!activeRun) {
     return {
       ok: false,
       code: 'semantic_validation_unavailable',
-      reason:
-        `Classification run pointer ${curationData.classificationRunId} did not resolve to a validated onboarding run ` +
-        `for item ${itemId} (workspace ${workspaceId}); promotion blocked.`,
+      reason: `Classification run pointer ${curationData.classificationRunId} did not resolve to a validated run for item ${itemId} (workspace ${workspaceId}); promotion blocked.`,
     };
   }
 
-  // PR11 review R1 (P1-B): the child run's TERMINAL authority is validated
-  // independently — `getValidatedOnboardingRun` proves workspace/item/SKU/
-  // source ownership but NOT completion. Promotion is the authoritative final
-  // gate; it must not depend on 'Review must have caught this earlier'. A
-  // non-terminal child (running/freezing/failed/… ) can never promote.
+  // The item's own terminal classification run is the release authority.
+  if (activeRun.workspaceId !== workspaceId || activeRun.onboardingItemId !== itemId ||
+      activeRun.productSku !== productSku || activeRun.id !== curationData.classificationRunId) {
+    return {
+      ok: false,
+      code: 'workspace_mismatch',
+      reason: `Classification run ${activeRun.id} is not bound to item ${itemId}, SKU ${productSku}, and workspace ${workspaceId}.`,
+    };
+  }
   if (activeRun.status !== 'completed' && activeRun.status !== 'completed_with_abstentions') {
     return {
       ok: false,
@@ -272,101 +236,35 @@ export function validatePromotionGate(input: PromotionGateInput): PromotionGateR
         `(SKU ${productSku}); only completed runs can promote.`,
     };
   }
-
-  // 2. Semantic validation. A `blocked` status refuses with the first finding.
-  //    An ACTIVE cohort child additionally fails closed when the committed
-  //    payload is missing or malformed (never a silent pass-through).
+  // Item-local semantic blockers remain binding. Missing cohort summaries
+  // are not authority: a sibling or parent run cannot decide this item.
   const semanticValidation = curationData.semanticValidation;
-  if (
-    semanticValidation &&
-    typeof semanticValidation === 'object' &&
-    (semanticValidation as { status?: unknown }).status === 'blocked'
-  ) {
+  if (semanticValidation !== undefined && semanticValidation !== null) {
+    const parsedSemantic = CohortSemanticValidationSchema.safeParse(semanticValidation);
+    if (!parsedSemantic.success) {
+      return {
+        ok: false,
+        code: 'semantic_validation_unavailable',
+        reason: `Committed item semantic validation is malformed for item ${itemId} (SKU ${productSku}); promotion blocked.`,
+      };
+    }
+    if (parsedSemantic.data.status === 'blocked') {
+      return {
+        ok: false,
+        code: 'semantic_validation_blocked',
+        reason: firstFindingMessage(semanticValidation as Record<string, unknown>),
+      };
+    }
+  }
+
+  // Reviewed Product Type is the catalog authority. Execution type never
+  // substitutes for a missing reviewed decision (ADR 0041).
+  if (effectiveTypeId === null) {
     return {
       ok: false,
-      code: 'semantic_validation_blocked',
-      reason: firstFindingMessage(semanticValidation as Record<string, unknown>),
+      code: 'reviewed_product_type_required',
+      reason: `Item ${itemId} (SKU ${productSku}) has no Reviewed Product Type and cannot promote.`,
     };
-  }
-  if (activeRun.cohortRunId) {
-    if (semanticValidation === undefined || semanticValidation === null) {
-      return {
-        ok: false,
-        code: 'semantic_validation_unavailable',
-        reason:
-          `Committed cohort semantic validation payload is missing for item ${itemId} (SKU ${productSku}); ` +
-          'the item cannot promote.',
-      };
-    }
-    const parsed = CohortSemanticValidationSchema.safeParse(semanticValidation);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        code: 'semantic_validation_unavailable',
-        reason:
-          `Committed cohort semantic validation payload is malformed for item ${itemId} (SKU ${productSku}); ` +
-          'the item cannot promote.',
-      };
-    }
-  }
-
-  // 3. Parent-currentness for cohort children (defense-in-depth: the re-run
-  //    lifecycle already resets members, but a partially-advanced member or an
-  //    out-of-band state must never promote).
-  if (activeRun.cohortRunId) {
-    if (!parentRun) {
-      return {
-        ok: false,
-        code: 'parent_not_found',
-        reason: `Cohort parent run ${activeRun.cohortRunId} not found for item ${itemId} (workspace ${workspaceId}).`,
-      };
-    }
-    // PR11 review R1 (P1-B): the parent must belong to the SAME workspace —
-    // a cross-workspace parent can never be this item's authority.
-    if (parentRun.workspaceId !== workspaceId) {
-      return {
-        ok: false,
-        code: 'workspace_mismatch',
-        reason:
-          `Cohort parent run ${parentRun.id} belongs to workspace ${parentRun.workspaceId}, not ${workspaceId}; ` +
-          'promotion blocked.',
-      };
-    }
-    if (parentRun.status === 'superseded') {
-      return {
-        ok: false,
-        code: 'parent_superseded',
-        reason:
-          `Cohort parent run ${parentRun.id} was superseded; this item's proposal decisions are historical ` +
-          'and cannot promote.',
-      };
-    }
-    if (!PARENT_TERMINAL_STATUSES.has(parentRun.status)) {
-      return {
-        ok: false,
-        code: 'parent_not_completed',
-        reason:
-          `Cohort parent run ${parentRun.id} has status "${parentRun.status}"; a child cannot promote ` +
-          'while its parent is in flight.',
-      };
-    }
-    // PR11 review R2 (P1): an ACTIVE cohort child with NO Reviewed Product
-    // Type — neither an in-run accepted/revised decision nor a
-    // provenance-compatible frozen reviewed fact — can never promote. The
-    // Execution Product Type drives first-pass Curation only; Reviewed Product
-    // Type is the catalog/Promotion authority (issue #30 core separation).
-    // The Execution Type remains available as dependency provenance/history
-    // but is NEVER a substitute for missing reviewed authority.
-    if (effectiveTypeId === null) {
-      return {
-        ok: false,
-        code: 'reviewed_product_type_required',
-        reason:
-          `Item ${itemId} (SKU ${productSku}) has no Reviewed Product Type — neither an accepted ` +
-          'product_classification decision nor a frozen reviewed fact — so it cannot promote ' +
-          '(the Execution Product Type is Curation-only authority).',
-      };
-    }
   }
 
   // 4. Stale proposals: an accepted proposal whose type-dependency target no

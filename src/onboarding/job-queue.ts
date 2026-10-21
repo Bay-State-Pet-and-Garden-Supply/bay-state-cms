@@ -4,9 +4,20 @@ import {
   updateItemStageStatus,
   incrementRetryCount,
   setDiscoverySourceUrl,
-  listItemsByBatch,
-  releaseHeldFamilyClaim,
+  findItemById,
+  storedStageIs,
+  commitClaimedItemCuration,
+  failClaimedItemCuration,
+  releaseClaimedItemCuration,
+  type ClaimedItemCurationLease,
+  type ClaimedItemExtractionLease,
+  commitClaimedItemExtraction,
+  requireClaimedItemExtractionInput,
+  releaseClaimedItemExtraction,
+  failClaimedItemExtraction,
+  type OnboardingItemWithEntryPolicy,
 } from '../db/repositories/onboarding-item-repo';
+import { findBatchById } from '../db/repositories/onboarding-batch-repo';
 import { randomUUID } from 'node:crypto';
 import { discoverSources } from './source-discovery';
 import { captureModelPolicySnapshot } from './model-policy-snapshot';
@@ -56,36 +67,28 @@ export function createDiscoveryFetch(officialDomains: string[]): (input: string 
 }
 import { enrichUrlMetadata } from '../db/repositories/brand-url-index-repo';
 import { resolveExecutableProfile } from './domain-version-health';
-import { curateItemWithPipeline } from './product-curator';
+import { curateItemWithPipeline, type GapCorrectionOverlay } from './product-curator';
 import { refreshCandidateCohorts } from './curation-cohort-service';
-import {
-  createCohortCuration,
-  observeCohortShadowTypeResolution,
-} from './cohort-curation/index';
-import type { CohortCuration } from './cohort-curation/index';
-import type { CohortShadowObservation } from './cohort-curation/index';
 
 
-import { getCohortCurationFlags } from '../classification/flags';
-import type { CohortCurationFlags } from '../classification/flags';
 import {
-  claimReadyCurationCohorts,
-  reclaimExpiredCohortRuns,
   getCurrentCohortRun,
   supersedeCohortRun,
-  COHORT_LEASE_TTL_MS,
 } from '../db/repositories/classification-cohort-run-repo';
-import { getCohortById, getCohortMembers, listCohortsByWorkspace, listWaitingCohortMemberIdsByWorkspace, insertCohortShadowObservationIfChanged } from '../db/repositories/curation-cohort-repo';
-import { findBatchById } from '../db/repositories/onboarding-batch-repo';
-import type { CohortRun } from '../shared/schemas/cohorts';
-import { determineProductGroup } from './product-line-grouper';
-import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from '../classification/consistency-validator';
+import { listCohortsByWorkspace } from '../db/repositories/curation-cohort-repo';
 import { insertExtraction } from '../db/repositories/onboarding-extraction-repo';
 import { onboardingEvents } from './sse-emitter';
 import { getDb } from '../db/connection';
 import { readStoreConfig } from '../git/workspace-files';
-import type { OnboardingItem, OnboardingSource, PipelineStage } from '../shared/schemas/onboarding';
+import type { OnboardingSource, PipelineStage } from '../shared/schemas/onboarding';
+import type { AcceptedItemEvidence } from '../shared/schemas/item-evidence';
+import { refreshItemEvidence, getCurrentItemEvidenceView } from './item-evidence';
+import { withItemAcquisitionBudget } from './item-acquisition-budget';
+import { createItemAcquisitionRun, finishItemAcquisitionRun } from './item-acquisition-run';
+import { getAllowedOfficialPageDomains, isAuthorizedOfficialPageUrl } from './official-page-authority';
 import { getSourcingFlags } from './flags';
+import { runItemEvidenceAcquisition } from './item-evidence-acquisition';
+import { redactTransportText } from '../classification/model-policy-gateway';
 import { normalizeGtin } from './sourcing/contracts';
 import { listCurrentGenerationConflictsForItem } from '../db/repositories/onboarding-conflict-repo';
 import type { SourcingConflict } from '../shared/schemas/onboarding';
@@ -120,10 +123,10 @@ import {
   assessListingEvidenceGap,
   openPreparationGap,
   getPreparationGap,
-  markCorrectionRun,
   resolveAfterValidation,
   hasUnresolvedPreparationGap,
   blockingPreparationFields,
+  markCorrectionRun,
 } from '../db/repositories/preparation-gap-repo';
 import type { StrategyCollectionResult } from './sourcing/strategy-collection-result';
 import { usableContributions } from './sourcing/strategy-collection-result';
@@ -131,13 +134,18 @@ import type { SourcingDecision, SourcingDecisionV2 } from '../shared/schemas/onb
 import { sweepAutoAdvance } from './auto-advance';
 import { sweepDomainReleases } from './domain-release';
 
+class ItemCurationLeaseLostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ItemCurationLeaseLostError';
+  }
+}
 /**
  * Automatic per-item processing stages (ADR 0014 Amendment A). Sourcing
  * joins the list ONLY for valid manual/automatic rollout modes with the
  * capability effective-enabled; observe mode never claims Sourcing (imports
  * enter Discovery and are shadow-observed from there), and OFF/invalid modes
- * never include it. Curation's cohort-exclusivity logic inside poll() is
- * unaffected by the stage list.
+  // Manual and automatic stages share the item-local claim path.
  */
 function buildAutoStages(): PipelineStage[] {
   const flags = getSourcingFlags();
@@ -148,22 +156,6 @@ function buildAutoStages(): PipelineStage[] {
     : ['prepare_listing', 'collect_details', 'find_product_page'];
 }
 
-// ─── Cohort-centric Curation V2 — see src/classification/flags.ts for rollout semantics ─────────────────
-
-/** Cohort curation active when flag ON and not shadow-only. See src/classification/flags.ts. */
-function isCohortCurationActive(flags: CohortCurationFlags): boolean {
-  return flags.cohortCurationV2Enabled && !flags.cohortShadowOnly;
-}
-
-/** Terminal parent-run states that remain the current historical decision
- *  until drift supersedes them (D9 — never re-claimed while they match). */
-const COHORT_RUN_TERMINAL = new Set([
-  'completed',
-  'completed_with_abstentions',
-  'completed_with_member_failures',
-  'failed',
-  'cancelled',
-]);
 
 // ─── Auto-selection policy helpers ──────────────────────────────────────────────
 
@@ -255,6 +247,44 @@ function yieldToEventLoop(): Promise<void> {
  * approval, export, source-conflict resolution, URL/profile exception
  * resolution. Retries are idempotent (pending requeue, never backwards).
  */
+function acceptedEvidenceExtractionProjection(evidence: AcceptedItemEvidence, sourceUrl: string): Record<string, unknown> {
+  const byField = new Map<string, AcceptedItemEvidence['facts'][number]>();
+  for (const entry of evidence.facts) if (!byField.has(entry.field.toLowerCase())) byField.set(entry.field.toLowerCase(), entry);
+  const title = byField.get('title');
+  const brand = byField.get('brand');
+  const gtinIdentity = evidence.observations.find(observation => observation.identity.proofType === 'gtin')?.identity ?? null;
+  const fieldProvenance = Object.fromEntries(evidence.facts.map(entry => [entry.field, `accepted-item-fact:${entry.id}`]));
+  const variantAttributes = Object.fromEntries(
+    evidence.facts
+      .filter(entry => ['size', 'count', 'packcount', 'flavor', 'formula'].includes(entry.field.toLowerCase()))
+      .map(entry => [entry.field, entry.value]),
+  );
+  return {
+    title: title?.value ?? null,
+    brand: brand?.value ?? null,
+    description: null,
+    bulletPoints: [],
+    primaryImage: null,
+    additionalImages: [],
+    price: evidence.importedPrice,
+    weight: byField.get('weight')?.value ?? null,
+    dimensions: byField.get('dimensions')?.value ?? null,
+    searchKeywords: null,
+    sourceType: 'official_page',
+    sourceUrl,
+    fieldProvenance,
+    acceptedEvidenceProvenance: {
+      snapshotId: evidence.id,
+      revision: evidence.revision,
+      evidenceHash: evidence.evidenceHash,
+      inputHash: evidence.inputHash,
+      factIds: evidence.facts.map(entry => entry.id),
+      gtinIdentityProof: gtinIdentity ? { proofType: gtinIdentity.proofType, proofHash: gtinIdentity.proofHash } : null,
+    },
+    variantAttributes,
+  };
+}
+
 export class OnboardingWorker {
   private interval: ReturnType<typeof setInterval> | null = null;
   private running = new Map<string, Promise<void>>();
@@ -271,25 +301,9 @@ export class OnboardingWorker {
   private lastPollDurationMs: number | null = null;
   /** Reviewer P1: set by stop(), cleared by start() — in-flight polls no-op. */
   private stopped = false;
-  /**
-   * Epic #46 refinement: the family-barrier hold emits SSE + logs ONLY when
-   * the held set CHANGES. The poll loop runs every 2s — emitting per held
-   * member on every poll produced constant console spam and a UI refresh
-   * loop while a family waited. Members that remain held are silent.
-   */
-  private lastHeldFamilyBarrierIds = new Set<string>();
   private workspacePath: string;
   private workspaceId: string;
   private workerId: string;
-  /** Cohort Curation execution seam (plan Slice 2): bound once, owns
-   *  freeze-or-resume ordering for claimed runs. The worker keeps
-   *  startup/poll reclaim, claim concurrency, dispatch, and advancement. */
-  private cohortCuration: CohortCuration;
-  // PR4 C5: cohortId → last logged shadow observation line. The shadow
-  // observer recomputes on every poll (ready cohorts are cheap and few); the
-  // log line is emitted only when the outcome detail CHANGES so shadow mode
-  // never floods the worker log.
-  private shadowObservedOutcomes = new Map<string, string>();
   /** Test seam: inject the sourcing engine factory (defaults to the real engine). */
   private engineFactory: (() => SourcingEngine) | null;
   /** Discovery/verification overrides (test/embedding seam, default null → real impls). */
@@ -326,7 +340,6 @@ export class OnboardingWorker {
     this.maxConcurrency = maxConcurrency;
     this.maxExtractionConcurrency = maxExtractionConcurrency;
     this.workerId = randomUUID();
-    this.cohortCuration = createCohortCuration({ workspacePath, workspaceId });
     this.engineFactory = engineFactory ?? null;
     this.deps = deps ?? null;
   }
@@ -344,35 +357,18 @@ export class OnboardingWorker {
       console.error('[OnboardingWorker] Failed to requeue stale in_progress items:', err);
     }
 
-    // PR3 M3 (issue #30): startup recovery for crashed cohort workers — reclaim
-    // expired cohort-run leases (resume-on-match / supersede-on-drift) right
-    // next to the item stale sweep. Flag-gated: OFF/shadow mode never touches
-    // cohort runs. Resumed runs are dispatched to the freeze/execute path so a
-    // crash never strands a claimed cohort.
-    const flags = getCohortCurationFlags();
-    if (isCohortCurationActive(flags)) {
-      try {
-        // PR3 hardening (Commit A): expiry timestamps compare to NOW — the
-        // caller passes `new Date().toISOString()`, never `now - TTL` (a lease
-        // is reclaimable the moment it passes its TTL, not a full TTL later).
-        const nowIso = new Date().toISOString();
-        const reclaim = reclaimExpiredCohortRuns(
-          this.workspaceId,
-          nowIso,
-          run => this.cohortCuration.verifyFrozen(run),
-          this.workerId,
-          COHORT_LEASE_TTL_MS,
-        );
-        if (reclaim.resumed.length > 0) {
-          console.log(`[OnboardingWorker] Startup reclaim: resumed ${reclaim.resumed.length} expired cohort run(s): ${reclaim.resumed.map(r => r.id).join(', ')}`);
+    // Cohort-owned in-flight plans from the previous orchestration are
+    // incompatible with item-local execution. Supersede them without
+    // rewriting their immutable history or reusing their outputs.
+    try {
+      for (const cohort of listCohortsByWorkspace(this.workspaceId)) {
+        const run = getCurrentCohortRun(cohort.id);
+        if (run && (run.status === 'freezing' || run.status === 'running')) {
+          supersedeCohortRun(run.id, 'Superseded by item-local onboarding execution');
         }
-        if (reclaim.superseded.length > 0) {
-          console.warn(`[OnboardingWorker] Startup reclaim: superseded ${reclaim.superseded.length} drifted cohort run(s).`);
-        }
-        for (const run of reclaim.resumed) this.dispatchCohortRun(run);
-      } catch (err) {
-        console.error('[OnboardingWorker] Failed to reclaim expired cohort runs on startup:', err);
       }
+    } catch (err) {
+      console.error('[OnboardingWorker] Failed to supersede in-flight cohort runs at item-local cutover:', err);
     }
 
     this.interval = setInterval(() => this.poll(), 2000);
@@ -410,9 +406,8 @@ export class OnboardingWorker {
       // continuation sweeps run on every poll so happy-path progression needs
       // ZERO manual advance clicks:
       //   1. Discovery-completed with a confirmed URL → Extraction;
-      //      Extraction-completed with data → Curation (family barrier);
-      //      Curation-completed (not semantic-blocked, parent terminal) →
-      //      Review.
+      //      Extraction-completed with data → Curation;
+      //      Curation-completed with its own current output → Review.
       //   2. Blocked Extraction items whose domain NOW has a usable extractor
       //      profile → re-queued (domain-level release; no per-SKU clicks).
       // Both are deterministic, idempotent, and fail closed into an
@@ -448,8 +443,6 @@ export class OnboardingWorker {
         console.error('[OnboardingWorker] Domain-release sweep failed (non-blocking):', err);
       }
 
-      // Batches with in-flight (claimed) items — refreshed once per poll.
-      const inFlightBatches = new Set<string>();
 
       // Process stages in priority order: discovery first, then extraction, then curation
       for (const stage of buildAutoStages()) {
@@ -458,37 +451,10 @@ export class OnboardingWorker {
         // Extraction has a separate concurrency limit to avoid bot detection
         if (stage === 'collect_details' && this.extractionRunning >= this.maxExtractionConcurrency) continue;
 
-        // PR3 M3 (issue #30): with the cohort flag active, Curation is
-        // cohort-claimed EXCLUSIVELY — reclaim expired leases, reconcile
-        // drift-before-claimable, claim ready cohorts and dispatch them to
-        // the freeze/execute path. `claimItemsForProcessing('prepare_listing', ...)`
-        // is NEVER called in this mode; Discovery/Extraction stay per-item.
-        if (stage === 'prepare_listing' && isCohortCurationActive(getCohortCurationFlags())) {
-          this.claimAndDispatchCohortRuns(inFlightBatches);
-          continue;
-        }
-        // PR4 C5 (DECISION-E): shadow mode (`cohortCurationV2Enabled` ON +
-        // `cohortShadowOnly`) — run the DETERMINISTIC-ONLY cohort Execution
-        // Product Type resolution over ready cohorts, log the outcome, write
-        // NOTHING (no runs claimed, no PR4 columns, no dependency rows, no
-        // model calls). The legacy per-item Curation path below then runs
-        // unchanged — byte-identical PR3 shadow semantics.
-        if (stage === 'prepare_listing') {
-          const curationFlags = getCohortCurationFlags();
-          if (curationFlags.cohortCurationV2Enabled && curationFlags.cohortShadowOnly) {
-            try {
-              this.observeCohortTypeShadow();
-            } catch (err) {
-              console.error('[OnboardingWorker] Shadow cohort type observation failed (non-blocking):', err);
-            }
-          }
-        }
 
         const available = this.maxConcurrency - this.running.size;
         const claimedItems = claimItemsForProcessing(stage, available, this.workspaceId, this.workerId);
-        const dispatchableItems = this.holdWaitingFamilyMembers(stage, claimedItems);
-
-        for (const item of dispatchableItems) {
+        for (const item of claimedItems) {
           if (this.running.has(item.id)) {
             // Claim race resolution: `claimItemsForProcessing` already wrote
             // stage_status='in_progress' for this row, but the item is still
@@ -511,7 +477,6 @@ export class OnboardingWorker {
             break;
           }
 
-          inFlightBatches.add(item.batchId);
 
           const promise = this.processItem(item, stage);
           this.running.set(item.id, promise);
@@ -521,16 +486,6 @@ export class OnboardingWorker {
         }
       }
 
-      // Issue #30 PR2: refresh candidate cohorts for every batch with in-flight
-      // items (cheap, idempotent). Family readiness must stay current while
-      // items are being processed; failures never block the worker loop.
-      for (const batchId of inFlightBatches) {
-        try {
-          await refreshCandidateCohorts(this.workspaceId, batchId);
-        } catch (err) {
-          console.warn(`[OnboardingWorker] Candidate cohort refresh failed for batch ${batchId} (non-blocking):`, err);
-        }
-      }
     } catch (err) {
       pollFailed = true;
       console.error('[OnboardingWorker] Error in poll loop:', err);
@@ -569,301 +524,6 @@ export class OnboardingWorker {
     return this.consecutivePollFailures;
   }
 
-  /**
-   * Epic #46 audit fix (family barrier in DEFAULT legacy mode): per-item
-   * Curation claiming must never start partial-family Curation.
-   *
-   * In the default configuration (cohort flags fully OFF — the ADR 0013
-   * legacy per-item Curation path), any claimed `curation/pending` item that
-   * is a member of an ACTIVE candidate cohort still `forming`/`waiting` is
-   * released back to `curation/pending` (unclaimed) and never dispatched.
-   * The item projects as Waiting-on-Family and becomes claimable once its
-   * cohort transitions to `ready`.
-   *
-   * NOT applied when cohort Curation flags are ON (active mode owns cohort
-   * claiming exclusively; shadow mode keeps the byte-identical PR3 legacy
-   * path — it only observes). Singletons and members of ready cohorts are
-   * never held. Idempotent and claim-owner-guarded (a concurrent rebind is
-   * never clobbered). Emits an SSE `item:status` (pending, familyBarrier)
-   * per held member so the UI + telemetry stay live.
-   */
-  private holdWaitingFamilyMembers(
-    stage: PipelineStage,
-    claimedItems: Array<{ id: string; batchId: string }>,
-  ): Array<{ id: string; batchId: string }> {
-    if (stage !== 'prepare_listing' || claimedItems.length === 0) return claimedItems;
-    const flags = getCohortCurationFlags();
-    // Active OR shadow mode: the cohort path (or its legacy sibling under
-    // shadow observation) owns claiming — never hold here.
-    if (flags.cohortCurationV2Enabled) return claimedItems;
-    const waitingIds = new Set(listWaitingCohortMemberIdsByWorkspace(this.workspaceId));
-    if (waitingIds.size === 0) {
-      // Nothing waits right now — sync the tracked set so a future re-hold
-      // of the same members emits again (they left and re-entered).
-      this.lastHeldFamilyBarrierIds.clear();
-      return claimedItems;
-    }
-    const dispatchable: Array<{ id: string; batchId: string }> = [];
-    const heldNow = new Map<string, string>(); // itemId → batchId
-    for (const item of claimedItems) {
-      if (!waitingIds.has(item.id)) {
-        dispatchable.push(item);
-        continue;
-      }
-      if (releaseHeldFamilyClaim(item.id, this.workerId)) {
-        heldNow.set(item.id, item.batchId);
-      } else {
-        // Claim lost the race — let the normal dispatch loop handle it.
-        dispatchable.push(item);
-      }
-    }
-    if (heldNow.size === 0) {
-      // Members left the barrier (or the claim race resolved elsewhere):
-      // sync tracking silently — nothing to announce.
-      this.lastHeldFamilyBarrierIds.clear();
-      return dispatchable;
-    }
-    // SSE + log only on CHANGE: newly held members emit once; members that
-    // stayed held from a prior poll are silent (no per-poll refresh spam).
-    const newlyHeld = [...heldNow.keys()].filter(id => !this.lastHeldFamilyBarrierIds.has(id));
-    for (const id of newlyHeld) {
-      onboardingEvents.emitItemStatus(heldNow.get(id)!, id, 'pending', {
-        stage: 'prepare_listing',
-        familyBarrier: true,
-      });
-    }
-    if (newlyHeld.length > 0 || heldNow.size !== this.lastHeldFamilyBarrierIds.size) {
-      console.log(
-        `[OnboardingWorker] Held ${heldNow.size} family member(s) behind readiness barrier (curation/pending)` +
-          (newlyHeld.length > 0 ? `; ${newlyHeld.length} newly held` : ''),
-      );
-    }
-    this.lastHeldFamilyBarrierIds = new Set(heldNow.keys());
-    return dispatchable;
-  }
-
-  // ─── Cohort-centric Curation V2 (issue #30, PR3 M3) ─────────────────────────
-
-  /**
-   * The cohort curation leg of `poll()` (flag ON + !shadowOnly only):
-   * 1. reclaim expired cohort-run leases (live sibling recovery; reconcile
-   *    drift BEFORE deciding claimability — D9);
-   * 2. reconcile ready cohorts whose CURRENT terminal run no longer matches
-   *    the frozen world (supersede opens the claim slot); a matching terminal
-   *    run stays the current historical decision (no new run);
-   * 3. claim ready curation cohorts and dispatch each to the freeze/execute
-   *    path.
-   *
-   * Everything is best-effort — a failure here never breaks the poll loop,
-   * and ordinary GET/read endpoints never mutate runs (D9: this runs ONLY in
-   * the worker poll path).
-   */
-  private claimAndDispatchCohortRuns(inFlightBatches: Set<string>): void {
-    try {
-      // PR3 hardening (Commit A): expiry timestamps compare to NOW.
-      const nowIso = new Date().toISOString();
-      const reclaim = reclaimExpiredCohortRuns(
-        this.workspaceId,
-        nowIso,
-        run => this.cohortCuration.verifyFrozen(run),
-        this.workerId,
-        COHORT_LEASE_TTL_MS,
-      );
-      if (reclaim.resumed.length > 0) {
-        console.log(`[OnboardingWorker] Reclaimed ${reclaim.resumed.length} expired cohort run(s): ${reclaim.resumed.map(r => r.id).join(', ')}`);
-        for (const run of reclaim.resumed) this.dispatchCohortRun(run, inFlightBatches);
-      }
-      if (reclaim.superseded.length > 0) {
-        console.warn(`[OnboardingWorker] Superseded ${reclaim.superseded.length} drifted cohort run(s) during reclaim.`);
-      }
-
-      this.reconcileDriftedTerminalRuns();
-
-      const available = this.maxConcurrency - this.running.size;
-      if (available <= 0) return;
-      const claimed = claimReadyCurationCohorts(this.workspaceId, available, this.workerId, COHORT_LEASE_TTL_MS);
-      for (const run of claimed) this.dispatchCohortRun(run, inFlightBatches);
-    } catch (err) {
-      console.error('[OnboardingWorker] Cohort curation leg failed (non-blocking):', err);
-    }
-  }
-
-  /**
-   * D9 reconcile-before-claimable: for every READY cohort whose current
-   * (non-superseded) run is in a terminal state, verify the frozen world
-   * still matches (`verifyCohortRunFrozen`). Drift → supersede the old run
-   * (opens the slot so the claim can create a fresh run); match → leave the
-   * terminal run as the current historical decision (never re-claimed until
-   * drift supersedes it). Never runs from read endpoints.
-   *
-   * PR3 hardening (Commit A, R5): a `cancelled` current run is a RETRYABLE
-   * terminal — a cancelled pre-freeze run never carries frozen evidence (it
-   * left `freezing` via `cancelFreezingRun` with NULL hashes), so it is
-   * superseded unconditionally before claiming and the slot reopens. A
-   * `failed`/completed run is re-verified against the frozen world as before.
-   */
-  private reconcileDriftedTerminalRuns(): void {
-    const readyCohorts = listCohortsByWorkspace(this.workspaceId).filter(c => c.status === 'ready');
-    for (const cohort of readyCohorts) {
-      const members = getCohortMembers(cohort.id);
-      const items = listItemsByBatch(cohort.batchId);
-      const itemMap = new Map(items.map(i => [i.id, i]));
-      const allPastCuration = members.length > 0 && members.every(m => {
-        const it = itemMap.get(m.onboardingItemId);
-        return it && (it.stage === 'review_listings' || it.stage === 'create_drafts');
-      });
-      if (allPastCuration) continue;
-
-      const current = getCurrentCohortRun(cohort.id);
-      if (!current || !COHORT_RUN_TERMINAL.has(current.status)) continue;
-      // Cancelled ⇒ retryable: supersede so the claim slot reopens. This never
-      // needs a frozen-world re-verification (there is no frozen world to
-      // match — a cancelled pre-freeze run has no evidence snapshot).
-      if (current.status === 'cancelled') {
-        supersedeCohortRun(current.id, 'Cancelled run retry (slot reopen)');
-        console.warn(`[OnboardingWorker] Superseded cancelled run ${current.id} for ready cohort ${cohort.id} — slot reopened.`);
-        continue;
-      }
-      if (this.cohortCuration.verifyFrozen(current) === 'match') {
-        // Frozen world still matches — the terminal run is the current
-        // historical decision; a new run is NOT created.
-        continue;
-      }
-      supersedeCohortRun(current.id, 'Authority drift during pre-claim reconciliation');
-      console.warn(`[OnboardingWorker] Superseded drifted terminal run ${current.id} for ready cohort ${cohort.id}.`);
-    }
-  }
-
-  /**
-   * PR4 C5 shadow-mode observation (DECISION-E): compute the deterministic-only
-   * cohort Execution Product Type resolution over every ready cohort and log a
-   * structured `cohort_product_type_shadow` line (cohort id, outcome,
-   * per-member ids/sources) on change. The observer writes NOTHING — no run
-   * rows, no PR4 columns, no dependency rows, no model calls — and the log
-   * line is the only artifact (byte-identical PR3 shadow behavior otherwise).
-   */
-  private observeCohortTypeShadow(): void {
-    let observations: CohortShadowObservation[];
-    try {
-      observations = observeCohortShadowTypeResolution(this.workspaceId, this.workspacePath);
-    } catch (err) {
-      console.warn(`[OnboardingWorker] Shadow cohort type resolution failed (non-blocking): ${err instanceof Error ? err.message : String(err)}`);
-      return;
-    }
-    for (const observation of observations) {
-      const detail = observation.perMember
-        .map(member =>
-          `${member.onboardingItemId}${member.productSku ? `(${member.productSku})` : ''}:${member.productTypeId ?? 'abstained'}@${member.source ?? 'none'}`,
-        )
-        .join('; ');
-      const line = `cohort_product_type_shadow: cohort=${observation.cohortId} outcome=${observation.outcome} members=[${detail}]`;
-      if (this.shadowObservedOutcomes.get(observation.cohortId) === line) continue;
-      this.shadowObservedOutcomes.set(observation.cohortId, line);
-      console.log(line);
-
-      // PR4 C5 + Package B: persist the changed observation (durable
-      // shadow — one row per cohort per state CHANGE; the repo dedupes
-      // against the latest row, so this is restart-safe). Best-effort:
-      // a failed insert never breaks the per-item curation poll leg.
-      try {
-        this.persistShadowObservation(observation);
-      } catch (err) {
-        console.warn(`[OnboardingWorker] Shadow observation persist failed (non-blocking): ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-  }
-
-  /** Package B: write one durable `cohort_shadow_observations` row. */
-  private persistShadowObservation(observation: CohortShadowObservation): void {
-    const cohort = getCohortById(observation.cohortId);
-    const nonNullTypes = observation.perMember
-      .map(member => member.productTypeId)
-      .filter((id): id is string => id !== null && id !== undefined);
-    // The deterministic aggregated Execution Product Type for coherent
-    // outcomes = the most common non-null member type (the resolver does not
-    // expose a single aggregate id; the mode is faithful for the observation).
-    const executionTypeId =
-      observation.outcome === 'coherent' || observation.outcome === 'coherent_with_abstentions'
-        ? (() => {
-            if (nonNullTypes.length === 0) return null;
-            const counts = new Map<string, number>();
-            for (const v of nonNullTypes) counts.set(v, (counts.get(v) ?? 0) + 1);
-            let best: string | null = null;
-            let bestCount = 0;
-            for (const [v, c] of counts) if (c > bestCount) { best = v; bestCount = c; }
-            return best;
-          })()
-        : null;
-    insertCohortShadowObservationIfChanged({
-      workspaceId: this.workspaceId,
-      cohortId: observation.cohortId,
-      groupKey: cohort?.groupKey ?? null,
-      groupLabel: cohort?.groupLabel ?? null,
-      status: cohort?.status ?? null,
-      memberCount: observation.perMember.length,
-      // The observer only processes READY, non-superseded cohorts — every
-      // observed member is ready by construction.
-      readyCount: observation.perMember.length,
-      executionTypeId,
-      productTypeConfidence: null, // shadow never computes a single confidence
-      outcome: observation.outcome,
-      membersJson: JSON.stringify(
-        observation.perMember.map(member => ({
-          onboardingItemId: member.onboardingItemId,
-          productSku: member.productSku,
-          productTypeId: member.productTypeId,
-          source: member.source,
-        })),
-      ),
-      groupingVersion: cohort?.groupingVersion ?? null,
-      observedAt: new Date().toISOString(),
-    });
-  }
-
-  /** Dispatch a claimed/resumed cohort run to the freeze + execute path. */
-  private dispatchCohortRun(run: CohortRun, inFlightBatches?: Set<string>): void {
-    if (this.running.has(run.id)) return;
-    // Batch-state gate: cohort runs reach this point via claim, lease
-    // reclaim, or startup reclaim — none of which read batch state. A run
-    // whose owning batch is not active+running stays DORMANT here (never
-    // failed): it remains claimed and a later reclaim re-evaluates once the
-    // batch resumes. Mirrors the stage-leg gating in claimItemsForProcessing.
-    try {
-      const cohort = getCohortById(run.cohortId);
-      if (cohort) {
-        if (inFlightBatches) inFlightBatches.add(cohort.batchId);
-        const batch = findBatchById(cohort.batchId);
-        if (!batch || batch.status !== 'active' || batch.executionState !== 'running') {
-          return;
-        }
-      }
-    } catch { /* best-effort gate — never break the poll loop */ }
-    const promise = this.processCohortRun(run);
-    this.running.set(run.id, promise);
-    promise.finally(() => this.running.delete(run.id));
-  }
-
-  /**
-   * Execute one cohort run through the Cohort Curation execution seam:
-   * `freezing` → freeze (CAS; superseded-on-drift is a normal outcome) →
-   * `running` → process. Errors are logged and never break the poll loop;
-   * a run that fails to freeze stays claimed and is recovered by a later
-   * reclaim once its lease expires. The worker supplies no hashes,
-   * projections, maps, or snapshots and sequences nothing itself.
-   */
-  private async processCohortRun(run: CohortRun): Promise<void> {
-    if (process.env.BAYSTATE_CMS_DEBUG_WORKER) console.debug(`[OnboardingWorker] Processing cohort run ${run.id} (cohort ${run.cohortId}, status=${run.status})`);
-    try {
-      const disposition = await this.cohortCuration.executeClaim(run.id, this.workerId);
-      if (!disposition.executed && disposition.disposition !== 'freeze-not-finalized') {
-        console.warn(`[OnboardingWorker] Cohort run ${run.id} not executed (${disposition.disposition})`);
-      } else if (!disposition.executed) {
-        console.warn(`[OnboardingWorker] Cohort run ${run.id} freeze did not finalize`);
-      }
-    } catch (err) {
-      console.error(`[OnboardingWorker] Cohort run ${run.id} failed:`, err);
-    }
-  }
 
   private async processItem(item: any, stage: PipelineStage): Promise<void> {
     if (process.env.BAYSTATE_CMS_DEBUG_WORKER) console.debug(`[OnboardingWorker] Processing ${item.name} (${item.upc}) in stage: ${stage} (claimed by ${this.workerId})`);
@@ -2092,11 +1752,165 @@ export class OnboardingWorker {
       }
     }
   }
+  private async processOfficialIdentityBootstrap(
+    item: any,
+    claim: ClaimedItemExtractionLease,
+    assertHeld: () => void,
+  ): Promise<void> {
+    const needsInput = (reason: string): void => {
+      const message = reason.slice(0, 500);
+      if (requireClaimedItemExtractionInput(item.id, claim, message)) {
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', { stage: 'collect_details', error: message });
+      }
+    };
+    let runId: string | null = null;
+    try {
+      assertHeld();
+      const decisions = listOfficialPageDecisions(item.id);
+      const decision = decisions.find(candidate =>
+        candidate.workspaceId === this.workspaceId && candidate.itemId === item.id && candidate.url === item.sourceUrl,
+      );
+      const domains = getAllowedOfficialPageDomains({
+        workspaceId: this.workspaceId,
+        itemId: item.id,
+        brandHint: item.brandHint ?? null,
+      });
+      if (
+        !item.sourceUrl || !decision ||
+        !isAuthorizedOfficialPageUrl(item.sourceUrl, domains) ||
+        !['automatic_name', 'operator_name', 'observed_gtin'].includes(decision.evidenceKind)
+      ) {
+        needsInput('A current confirmed official page and approved manufacturer authority are required for identity evidence collection.');
+        return;
+      }
+      const initialEvidence = refreshItemEvidence(this.workspaceId, item.id);
+      if (initialEvidence.status === 'stale') {
+        releaseClaimedItemExtraction(item.id, claim);
+        return;
+      }
+      if (initialEvidence.status === 'conflict') {
+        needsInput(initialEvidence.findings.map(finding => finding.reason).join('; ') || 'Current item evidence contains an identity or source conflict.');
+        return;
+      }
+      const acceptedEvidence = initialEvidence.status === 'accepted' ? initialEvidence.evidence : null;
+      const run = createItemAcquisitionRun({
+        item,
+        workspaceId: this.workspaceId,
+        workspacePath: this.workspacePath,
+        inputRevision: claim.inputRevision,
+        evidence: acceptedEvidence,
+        assertHeld,
+      });
+      runId = run.run.id;
+      const acquisition = await withItemAcquisitionBudget(
+        { workspaceId: this.workspaceId, itemId: item.id, runId, assertHeld },
+        () => runItemEvidenceAcquisition({
+          workspaceId: this.workspaceId,
+          itemId: item.id,
+          runId: run.run.id,
+          intent: 'identity_bootstrap',
+          assertHeld,
+          modelPolicy: run.modelPolicy ?? undefined,
+        }),
+      );
+      assertHeld();
+      if (acquisition.status === 'stale' || acquisition.status === 'cancelled') {
+        finishItemAcquisitionRun(runId, 'failed', acquisition.reason ?? 'Bootstrap evidence acquisition became stale.');
+        releaseClaimedItemExtraction(item.id, claim);
+        return;
+      }
+      if (acquisition.status !== 'completed') {
+        finishItemAcquisitionRun(runId, 'completed', acquisition.reason);
+        needsInput(acquisition.reason ?? 'Current official identity evidence is incomplete and needs operator resolution.');
+        return;
+      }
+      const refreshed = refreshItemEvidence(this.workspaceId, item.id);
+      const evidence = refreshed.evidence;
+      if (
+        refreshed.status !== 'accepted' || !evidence ||
+        !acquisition.evidence ||
+        evidence.id !== acquisition.evidence.id ||
+        evidence.revision !== acquisition.evidence.revision ||
+        evidence.evidenceHash !== acquisition.evidence.evidenceHash ||
+        evidence.inputHash !== acquisition.evidence.inputHash ||
+        !evidence.facts.some(fact => fact.field === 'title')
+      ) {
+        finishItemAcquisitionRun(runId, 'failed', 'Accepted identity evidence changed or remained incomplete after acquisition.');
+        needsInput(refreshed.findings.map(finding => finding.reason).join('; ') || 'A complete accepted product title and current matching identity evidence are required.');
+        return;
+      }
+      const extractionData = acceptedEvidenceExtractionProjection(evidence, item.sourceUrl);
+      assertHeld();
+      const committed = commitClaimedItemExtraction(item.id, claim, JSON.stringify(extractionData), () => {
+        const currentEvidence = getCurrentItemEvidenceView(this.workspaceId, item.id);
+        if (
+          currentEvidence.status !== 'accepted' || !currentEvidence.evidence ||
+          currentEvidence.evidence.id !== evidence.id ||
+          currentEvidence.evidence.revision !== evidence.revision ||
+          currentEvidence.evidence.evidenceHash !== evidence.evidenceHash ||
+          currentEvidence.evidence.inputHash !== evidence.inputHash
+        ) throw new ItemCurationLeaseLostError('Accepted identity evidence changed before Extraction commit.');
+        insertExtraction({
+          itemId: item.id,
+          sourceUrl: item.sourceUrl,
+          extractionDataJson: JSON.stringify(extractionData),
+          extractionMethod: 'accepted_item_evidence_bootstrap',
+          confidence: 0,
+          imagesJson: null,
+          rawStructuredDataJson: JSON.stringify(extractionData.acceptedEvidenceProvenance),
+        });
+        finishItemAcquisitionRun(runId!, 'completed');
+      });
+      if (!committed) {
+        finishItemAcquisitionRun(runId, 'failed', 'The Extraction item lease or input changed before commit.');
+        releaseClaimedItemExtraction(item.id, claim);
+        return;
+      }
+      onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
+        stage: 'collect_details',
+        extractedData: extractionData,
+        evidenceSnapshotId: evidence.id,
+        evidenceRevision: evidence.revision,
+      });
+    } catch (error) {
+      if (runId) {
+        try { finishItemAcquisitionRun(runId, 'failed', 'Identity bootstrap did not complete under its current item lease.'); } catch { /* immutable run may already be terminal */ }
+      }
+      if (error instanceof ItemCurationLeaseLostError) {
+        releaseClaimedItemExtraction(item.id, claim);
+        return;
+      }
+      const message = error instanceof Error ? redactTransportText(error.message) : 'Identity bootstrap failed.';
+      needsInput(message);
+    }
+  }
+
 
   private async processExtraction(item: any): Promise<void> {
     this.extractionRunning++;
     const done = () => { this.extractionRunning = Math.max(0, this.extractionRunning - 1); };
+    const claim: ClaimedItemExtractionLease = {
+      workerId: this.workerId,
+      claimedAt: typeof item.claimedAt === 'string' ? item.claimedAt : '',
+      inputRevision: typeof item.inputRevision === 'string' ? item.inputRevision : '',
+    };
+    if (!claim.claimedAt || !claim.inputRevision || item.claimedBy !== this.workerId) {
+      done();
+      return;
+    }
+    const assertHeld = (): void => {
+      if (this.stopped) throw new ItemCurationLeaseLostError('Worker stopped during item Extraction.');
+      const current = findItemById(item.id);
+      const batch = findBatchById(item.batchId);
+      if (
+        !current || current.claimedBy !== claim.workerId || current.claimedAt !== claim.claimedAt ||
+        current.inputRevision !== claim.inputRevision || current.stageStatus !== 'in_progress' ||
+        !storedStageIs(current.stage, 'collect_details') || !batch || batch.status !== 'active' ||
+        (batch.executionState !== 'running' && batch.executionState !== null)
+      ) throw new ItemCurationLeaseLostError('The Extraction item claim, input, stage, or active batch state changed.');
+    };
     try {
+      assertHeld();
       // Amendment A (Milestone D): a distributor-record source item has NO
       // official page — the extraction is the deterministic structured
       // materialization of the qualified distributor evidence (no URL, no
@@ -2109,11 +1923,12 @@ export class OnboardingWorker {
       }
 
       if (!item.sourceUrl) {
-        updateItemStageStatus(item.id, 'failed', 'No confirmed source URL');
-        onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-          stage: 'collect_details',
-          error: 'No confirmed source URL',
-        });
+        if (requireClaimedItemExtractionInput(item.id, claim, 'No confirmed source URL is bound to this item.')) {
+          onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', {
+            stage: 'collect_details',
+            error: 'No confirmed source URL is bound to this item.',
+          });
+        }
         return;
       }
 
@@ -2127,13 +1942,14 @@ export class OnboardingWorker {
       }
       try {
         resolveExecutableProfile(domain);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        updateItemStageStatus(item.id, 'failed', errorMsg);
-        onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-          stage: 'collect_details',
-          error: errorMsg,
-        });
+      } catch (error) {
+        if (error instanceof Error && /^No extractor profile for .+ — profile required/.test(error.message)) {
+          await this.processOfficialIdentityBootstrap(item, claim, assertHeld);
+        } else {
+          if (failClaimedItemExtraction(item.id, claim, 'The approved extraction profile could not be resolved.')) {
+            onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', { stage: 'collect_details', error: 'The approved extraction profile could not be resolved.' });
+          }
+        }
         return;
       }
 
@@ -2496,265 +2312,216 @@ export class OnboardingWorker {
     });
   }
 
-  private async processCuration(item: any): Promise<void> {
-    console.log(`[OnboardingWorker] Curation for ${item.name} (${item.upc})`);
+  private async processCuration(item: OnboardingItemWithEntryPolicy): Promise<void> {
+    const claim: ClaimedItemCurationLease = {
+      workerId: this.workerId,
+      claimedAt: typeof item.claimedAt === 'string' ? item.claimedAt : '',
+      inputRevision: typeof item.inputRevision === 'string' ? item.inputRevision : '',
+    };
+    if (!claim.claimedAt || !claim.inputRevision || item.claimedBy !== this.workerId) return;
 
-    const now = new Date().toISOString();
-
-    // ── Sibling context for family-aware curation ────────────────────────
-    // Before running the pipeline, determine product-line groups so the
-    // name_consolidation and page-assignment stages receive sibling INPUT
-    // context (names, web titles, OCR titles, SKUs) as read-only hints.
-    // listItemsByBatch returns full OnboardingItem objects (camelCase).
-    let siblingGroup: ReturnType<typeof determineProductGroup> | null = null;
-    try {
-      const batchItems = listItemsByBatch(item.batchId);
-      siblingGroup = determineProductGroup(item as OnboardingItem, batchItems);
-      if (siblingGroup) {
-        console.log(`[OnboardingWorker] Sibling context for ${item.upc}: group "${siblingGroup.groupId}", ${siblingGroup.siblingNames.length} sibling(s)`);
+    let acceptedEvidence: AcceptedItemEvidence | null = null;
+    const assertHeld = (): void => {
+      if (this.stopped) throw new ItemCurationLeaseLostError('Worker stopped while item curation was running.');
+      const current = findItemById(item.id);
+      const batch = findBatchById(item.batchId);
+      if (
+        !current ||
+        current.claimedBy !== claim.workerId ||
+        current.claimedAt !== claim.claimedAt ||
+        current.inputRevision !== claim.inputRevision ||
+        current.stageStatus !== 'in_progress' ||
+        !storedStageIs(current.stage, 'prepare_listing') ||
+        !batch ||
+        batch.workspaceId !== this.workspaceId ||
+        batch.status !== 'active' ||
+        batch.executionState !== 'running'
+      ) {
+        throw new ItemCurationLeaseLostError('The item claim or active batch state changed during curation.');
       }
-    } catch (err: any) {
-      console.warn(`[OnboardingWorker] Sibling context discovery failed (non-blocking): ${err.message}`);
-    }
-
-    // Pass sibling context through to the pipeline as read-only input.
-    // product-curator.ts checks this first and falls back to its own internal query.
-    (item as OnboardingItem & { siblingGroup?: typeof siblingGroup }).siblingGroup = siblingGroup;
-
-    // Ticket #122: strategy-collection authority gate. A distributor item
-    // whose current generation holds a finalized envelope curates ONLY
-    // under that frozen authority (never reconstructed from live config);
-    // a present-but-invalid envelope fails closed. Generations without an
-    // envelope keep the legacy interpretation (compat fallback).
-    let strategyEnvelope: { envelope: StrategyCollectionResult; hash: string } | null = null;
-    if (item.sourceType === 'distributor_record') {
-      try {
-        const curationGeneration = getCurrentSourcingGeneration(item.id);
-        strategyEnvelope = curationGeneration ? getStrategyCollectionResult(curationGeneration.id) : null;
-      } catch (err) {
-        const code = err instanceof Error ? (err as Error & { code?: string }).code ?? 'invalid_envelope' : 'invalid_envelope';
-        if (code !== 'missing_envelope') {
-          const errorMsg = `strategy_collection:${code}`;
-          console.error(`[OnboardingWorker] Strategy-collection authority failure for ${item.id}: ${code}`);
-          updateItemStageStatus(item.id, 'failed', errorMsg);
-          onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-            stage: 'prepare_listing',
-            error: errorMsg,
-          });
-          return;
+      if (acceptedEvidence) {
+        const currentEvidence = getCurrentItemEvidenceView(this.workspaceId, item.id);
+        if (
+          !currentEvidence.evidence ||
+          currentEvidence.status === 'stale' ||
+          currentEvidence.status === 'conflict' ||
+          currentEvidence.evidence.id !== acceptedEvidence.id ||
+          currentEvidence.evidence.revision !== acceptedEvidence.revision ||
+          currentEvidence.evidence.evidenceHash !== acceptedEvidence.evidenceHash ||
+          currentEvidence.evidence.inputHash !== acceptedEvidence.inputHash ||
+          currentEvidence.evidence.sourceStateHash !== acceptedEvidence.sourceStateHash ||
+          currentEvidence.evidence.authorityHash !== acceptedEvidence.authorityHash
+        ) {
+          throw new ItemCurationLeaseLostError('Accepted item evidence changed during curation.');
         }
       }
-    }
+    };
+    const release = (reason: string): void => {
+      if (releaseClaimedItemCuration(item.id, claim)) {
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', { stage: 'prepare_listing', error: reason });
+      }
+    };
+    const fail = (reason: string): void => {
+      if (failClaimedItemCuration(item.id, claim, reason.slice(0, 500))) {
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', { stage: 'prepare_listing', error: reason.slice(0, 500) });
+      }
+    };
 
-    // Ticket #124: load an open gap's recorded correction overlay (if any)
-    // BEFORE curating. The envelope row is immutable; a concurrent new
-    // correction supersedes this run's overlay (stale → run proceeds
-    // without it, gap stays open — never a mixed-revision blend).
-    let correctionOverlay: import('./product-curator').GapCorrectionOverlay | null = null;
-    let correctionRevision = 0;
-    let correctionHash: string | null = null;
-    let correctionActor: string | null = null;
-    let correctionBaseEvidenceHash: string | null = null;
     try {
-      const openGap = getPreparationGap(item.id);
-      const envelope = openGap?.status === 'open' ? openGap.correctionEnvelope : null;
-      if (envelope && (envelope.status === 'recorded' || envelope.status === 'preparing')) {
+      assertHeld();
+      const evidenceResult = refreshItemEvidence(this.workspaceId, item.id);
+      if (evidenceResult.status === 'stale') {
+        release('Accepted item evidence changed; item returned to pending for a fresh run.');
+        return;
+      }
+      if (evidenceResult.status === 'conflict') {
+        fail(evidenceResult.findings[0]?.reason ?? 'Accepted item evidence has an unresolved conflict.');
+        return;
+      }
+      if (!evidenceResult.evidence) {
+        fail(evidenceResult.findings[0]?.reason ?? 'Current accepted item evidence is unavailable.');
+        return;
+      }
+      acceptedEvidence = evidenceResult.evidence;
+      assertHeld();
+
+      let strategyEnvelope: { envelope: StrategyCollectionResult; hash: string } | null = null;
+      if (item.sourceType === 'distributor_record') {
         try {
-          markCorrectionRun({ itemId: item.id, revision: envelope.revision, runId: null, status: 'preparing' });
-          correctionOverlay = {
-            values: envelope.values,
-            correctionHash: envelope.correctionHash,
-            actor: envelope.actor,
-            revision: envelope.revision,
-          };
-          correctionRevision = envelope.revision;
-          correctionHash = envelope.correctionHash;
-          correctionActor = envelope.actor;
-          correctionBaseEvidenceHash = envelope.baseEvidenceHash ?? null;
-        } catch {
-          correctionOverlay = null;
+          const generation = getCurrentSourcingGeneration(item.id);
+          strategyEnvelope = generation ? getStrategyCollectionResult(generation.id) : null;
+        } catch (error) {
+          const code = error instanceof Error ? (error as Error & { code?: string }).code ?? 'invalid_envelope' : 'invalid_envelope';
+          if (code !== 'missing_envelope') throw new Error(`strategy_collection:${code}`, { cause: error });
         }
       }
-    } catch {
-      correctionOverlay = null;
-    }
+      const gapAtStart = getPreparationGap(item.id);
+      const correction = gapAtStart?.status === 'open' ? gapAtStart.correctionEnvelope : null;
+      const correctionOverlay: GapCorrectionOverlay | null =
+        correction && (correction.status === 'recorded' || correction.status === 'preparing')
+          ? {
+              values: correction.values,
+              correctionHash: correction.correctionHash,
+              actor: correction.actor,
+              revision: correction.revision,
+            }
+          : null;
+      const curationData = await curateItemWithPipeline(item, this.workspacePath, this.workspaceId, correctionOverlay, {
+        assertHeld,
+        inputRevision: claim.inputRevision,
+        acceptedEvidence,
+      });
 
-    try {
-      const curationData = await curateItemWithPipeline(item, this.workspacePath, this.workspaceId, correctionOverlay);
+      assertHeld();
 
-      const db = getDb();
-      db.query('UPDATE onboarding_items SET curation_data_json = ?, updated_at = ? WHERE id = ?').run(
-        JSON.stringify(curationData),
-        now,
-        item.id,
-      );
+      const refreshedEvidence = refreshItemEvidence(this.workspaceId, item.id);
+      if (
+        !refreshedEvidence.evidence ||
+        refreshedEvidence.status === 'stale' ||
+        refreshedEvidence.status === 'conflict' ||
+        refreshedEvidence.evidence.id !== acceptedEvidence.id ||
+        refreshedEvidence.evidence.revision !== acceptedEvidence.revision ||
+        refreshedEvidence.evidence.evidenceHash !== acceptedEvidence.evidenceHash ||
+        refreshedEvidence.evidence.inputHash !== acceptedEvidence.inputHash ||
+        refreshedEvidence.evidence.sourceStateHash !== acceptedEvidence.sourceStateHash ||
+        refreshedEvidence.evidence.authorityHash !== acceptedEvidence.authorityHash
+      ) {
+        release('Accepted item evidence changed during curation; item returned to pending for a fresh run.');
+        return;
+      }
+      assertHeld();
 
-      // Tickets #122/#124: post-consolidation sufficiency for strategy
-      // items (and any item carrying a recorded correction). Required
-      // fields come from EXISTING blocking validation requirements —
-      // never a hardcoded checklist. Consolidated output (curated first,
-      // extraction fallback) is assessed; remaining gaps persist durably
-      // (approval/review/promotion refuse while open); a fully sufficient
-      // result resolves the gap only through validation-gated resolve.
-      if (strategyEnvelope || correctionOverlay || correctionRevision > 0 || hasUnresolvedPreparationGap(item.id)) {
-        let extractionDescription: string | null = null;
-        try {
-          const extractionPayload = item.extraction_data_json
-            ? (JSON.parse(item.extraction_data_json) as { description?: unknown })
-            : null;
-          extractionDescription = typeof extractionPayload?.description === 'string'
-            ? extractionPayload.description
-            : null;
-        } catch { extractionDescription = null; }
-        const curated = curationData as { curatedTitle?: unknown; curatedDescription?: unknown };
-        const consolidatedDescription = typeof curated.curatedDescription === 'string' && curated.curatedDescription.trim()
-          ? curated.curatedDescription
-          : extractionDescription;
-        // Ticket #124 P2-11: store-configured validation severities
-        // (health-config.json rules, same seam as change-set validation)
-        // participate in gap derivation — a store that configures
-        // MISSING_DESCRIPTION:blocker gets description gaps from the
-        // worker. Absent/unreadable config → framework defaults.
+      const beforeCommit = (): void => {
+        const commitEvidence = getCurrentItemEvidenceView(this.workspaceId, item.id);
+        if (
+          !commitEvidence.evidence ||
+          commitEvidence.status === 'stale' ||
+          commitEvidence.status === 'conflict' ||
+          commitEvidence.evidence.id !== acceptedEvidence!.id ||
+          commitEvidence.evidence.revision !== acceptedEvidence!.revision ||
+          commitEvidence.evidence.evidenceHash !== acceptedEvidence!.evidenceHash ||
+          commitEvidence.evidence.inputHash !== acceptedEvidence!.inputHash ||
+          commitEvidence.evidence.sourceStateHash !== acceptedEvidence!.sourceStateHash ||
+          commitEvidence.evidence.authorityHash !== acceptedEvidence!.authorityHash
+        ) {
+          throw new ItemCurationLeaseLostError('Accepted item evidence changed before curation commit.');
+        }
+        const liveGap = getPreparationGap(item.id);
+        const activeCorrection = liveGap?.status === 'open' ? liveGap.correctionEnvelope : null;
+        if (
+          (correctionOverlay &&
+            (!activeCorrection ||
+              activeCorrection.revision !== correctionOverlay.revision ||
+              activeCorrection.correctionHash !== correctionOverlay.correctionHash)) ||
+          (!correctionOverlay &&
+            activeCorrection &&
+            (activeCorrection.status === 'recorded' || activeCorrection.status === 'preparing'))
+        ) {
+          throw Object.assign(new Error('Preparation correction changed during validation.'), { code: 'stale_gap' });
+        }
+        if (!strategyEnvelope && !hasUnresolvedPreparationGap(item.id)) return;
+        const fields = {
+          title: curationData.curatedTitle,
+          description: curationData.curatedDescription,
+        };
         const { missing } = assessListingEvidenceGap({
-          consolidatedFields: {
-            title: curated.curatedTitle as string | null | undefined,
-            description: consolidatedDescription,
-          },
+          consolidatedFields: fields,
           requiredFields: blockingPreparationFields(loadPreparationRulesConfig(this.workspacePath)),
         });
         if (missing.length > 0) {
-          // Ticket #124 T-7: the refreshed reason names the still-missing
-          // fields (bounded to 160 chars by safeReason) so a failed
-          // correction stays actionable instead of merely "open".
-          const refreshed = openPreparationGap({
+          openPreparationGap({
             workspaceId: this.workspaceId,
             itemId: item.id,
             batchId: item.batchId,
             collectionResultVersion: 'strategy-collection-v1',
             missingFields: missing,
             reason: `Preparation is still missing required listing information: ${missing.join(', ')}.`,
-            evidenceHash: strategyEnvelope?.hash ?? getPreparationGap(item.id)?.evidenceHash ?? null,
+            evidenceHash: strategyEnvelope?.hash ?? liveGap?.evidenceHash ?? null,
           });
-          void refreshed;
-          if (correctionOverlay && correctionHash) {
-            try {
-              markCorrectionRun({ itemId: item.id, revision: correctionRevision, runId: null, status: 'failed' });
-            } catch {
-              // Audit transition is best-effort; the open gap is authoritative.
-            }
-          }
-        } else if (correctionOverlay && correctionHash && correctionActor) {
-          // Ticket #124 P1-1/P1-5: the resolve binds the VALIDATION-time
-          // collection hash (never the just-read gap row, which would be
-          // tautological), and a stale_gap (concurrent newer correction or
-          // re-finalized collection) returns the item to pending for
-          // reclaim instead of stranding it in failed.
-          try {
-            resolveAfterValidation({
+          if (correctionOverlay) {
+            markCorrectionRun({
               itemId: item.id,
-              revision: correctionRevision,
-              correctionHash,
-              evidenceHash: strategyEnvelope?.hash ?? correctionBaseEvidenceHash ?? null,
-              resolvedBy: correctionActor,
+              revision: correctionOverlay.revision,
+              runId: curationData.classificationRunId ?? null,
+              status: 'failed',
             });
-          } catch (err) {
-            if (err instanceof Error && (err as Error & { code?: string }).code === 'stale_gap') {
-              const staleMsg = 'gap correction superseded during preparation; awaiting re-preparation';
-              console.warn(`[OnboardingWorker] Stale gap resolve for ${item.id} (rev ${correctionRevision}); returning to pending.`);
-              updateItemStageStatus(item.id, 'pending', staleMsg);
-              onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', {
-                stage: 'prepare_listing',
-                error: staleMsg,
-              });
-              return;
-            }
-            throw err;
           }
-        } else {
-          // Sufficient on retained evidence alone (e.g. explicit
-          // recollection fixed it): clear an open gap without correction.
-          const liveGap = getPreparationGap(item.id);
-          if (liveGap?.status === 'open') {
-            try {
-              resolveAfterValidation({
-                itemId: item.id,
-                revision: 0,
-                correctionHash: '',
-                evidenceHash: strategyEnvelope?.hash ?? liveGap.evidenceHash ?? null,
-                resolvedBy: 'preparation-validation',
-              });
-            } catch (err) {
-              if (err instanceof Error && (err as Error & { code?: string }).code === 'stale_gap') {
-                const staleMsg = 'gap changed during preparation; awaiting re-preparation';
-                console.warn(`[OnboardingWorker] Stale revision-0 gap resolve for ${item.id}; returning to pending.`);
-                updateItemStageStatus(item.id, 'pending', staleMsg);
-                onboardingEvents.emitItemStatus(item.batchId, item.id, 'pending', {
-                  stage: 'prepare_listing',
-                  error: staleMsg,
-                });
-                return;
-              }
-              throw err;
-            }
-          }
+        } else if (liveGap?.status === 'open') {
+          resolveAfterValidation({
+            itemId: item.id,
+            revision: correctionOverlay?.revision ?? 0,
+            correctionHash: correctionOverlay?.correctionHash ?? '',
+            evidenceHash: strategyEnvelope?.hash ?? liveGap.evidenceHash ?? null,
+            resolvedBy: correctionOverlay?.actor ?? 'preparation-validation',
+          });
         }
+      };
+
+      if (!commitClaimedItemCuration(item.id, claim, JSON.stringify(curationData), beforeCommit)) {
+        release('The item claim or input changed before its curation output could be committed.');
+        return;
       }
-
-      updateItemStageStatus(item.id, 'completed');
-
-      // PR9 C3 (issue #30, DECISION-C): in ACTIVE cohort mode an item whose
-      // active run is a cohort child surfaces the NEW validator's findings
-      // instead of the legacy `validateSiblingConsistency` warnings
-      // (legacy/shadow keep the legacy warnings byte-identical — the
-      // defensive branch below is unreachable in practice because active mode
-      // curates cohorts exclusively). PR9 review R1 (B6): the discriminated
-      // surface never falls back to legacy live-regrouping in active mode.
-      const semanticSurface = activeCohortSemanticFindingsForItem(item);
-      // Run cross-sibling consistency check and include warnings in SSE event
-      let consistencyWarnings: Array<{ field: string; message: string }> = [];
-      try {
-        if (semanticSurface.mode === 'active') {
-          consistencyWarnings = semanticSurface.semanticValidation.findings.map(finding => ({
-            field: finding.code,
-            message: finding.message,
-          }));
-        } else {
-          const allWarnings = validateSiblingConsistency(item.batchId);
-          consistencyWarnings = allWarnings
-            .filter(w => {
-              // w.values is Record<sku, string[]> — check if this item's SKU is a key
-              return Object.prototype.hasOwnProperty.call(w.values, item.upc);
-            })
-            .map(w => ({ field: w.field, message: w.message }));
-          if (consistencyWarnings.length > 0) {
-            console.warn(`[OnboardingWorker] Consistency warnings for ${item.upc}:`, JSON.stringify(consistencyWarnings));
-          }
-        }
-      } catch (err: any) {
-        console.warn(`[OnboardingWorker] Consistency check failed (non-blocking): ${err.message}`);
-      }
-
       onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
         stage: 'prepare_listing',
         curationData,
-        consistencyWarnings: consistencyWarnings.length > 0 ? consistencyWarnings : undefined,
-        semanticValidation: semanticSurface.mode === 'active' ? semanticSurface.semanticValidation : undefined,
       });
-
       console.log(
         `[OnboardingWorker] ✓ Curation complete for "${item.name}" (${item.upc}): ` +
-        `curatedTitle="${curationData.curatedTitle || 'N/A'}", ` +
-        `titleSource=${curationData.titleSource}, ` +
-        `suggestedPages=[${(curationData.suggestedPages || []).join(', ') || 'none'}], ` +
-        `productType=${curationData.suggestedProductType || 'N/A'}`
+          `curatedTitle="${curationData.curatedTitle || 'N/A'}", ` +
+          `titleSource=${curationData.titleSource}, ` +
+          `suggestedPages=[${(curationData.suggestedPages || []).join(', ') || 'none'}], ` +
+          `productType=${curationData.suggestedProductType || 'N/A'}`,
       );
-    } catch (err) {
-      console.error(`[OnboardingWorker] Curation error for ${item.id}:`, err);
-      updateItemStageStatus(item.id, 'failed', String(err));
-      onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', {
-        stage: 'prepare_listing',
-        error: String(err),
-      });
+    } catch (error) {
+      if (
+        error instanceof ItemCurationLeaseLostError ||
+        (error instanceof Error && ['stale_gap', 'item_evidence_stale'].includes((error as Error & { code?: string }).code ?? ''))
+      ) {
+        release(error.message);
+        return;
+      }
+      console.error(`[OnboardingWorker] Curation error for ${item.id}:`, error);
+      fail(error instanceof Error ? error.message : String(error));
     }
   }
 }

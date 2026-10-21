@@ -280,7 +280,7 @@ describe('telemetry — review state, edits, approval', () => {
   });
 });
 
-describe('telemetry — cohort Curation success + family wait duration', () => {
+describe('telemetry — cohort Curation success', () => {
   beforeAll(makeWorkspace);
 
   it('computes cohortCurationSuccessRate from terminal run outcomes', () => {
@@ -295,25 +295,7 @@ describe('telemetry — cohort Curation success + family wait duration', () => {
     expect(metrics.metrics.cohortCurationSuccessRate.note).toContain('1 success / 1 failed');
   });
 
-  it('estimates family wait duration for cohorts that reached ready', () => {
-    const batchId = makeBatch();
-    // Cohort created ~2h before ready (updated_at ≈ ready time).
-    insertCohortWithRuns(batchId, [], 2);
 
-    const metrics = getOnboardingMetrics({ workspaceId, batchId });
-    const wait = metrics.metrics.familyWaitDurationHours;
-    expect(wait.derivation).toBe('approximation');
-    expect(wait.value).not.toBeNull();
-    expect(wait.value!).toBeGreaterThan(1.5);
-    expect(wait.value!).toBeLessThan(2.5);
-  });
-
-  it('reports not_available when no cohort has reached ready', () => {
-    const batchId = makeBatch();
-    const metrics = getOnboardingMetrics({ workspaceId, batchId });
-    expect(metrics.metrics.familyWaitDurationHours.value).toBeNull();
-    expect(metrics.metrics.familyWaitDurationHours.derivation).toBe('not_available');
-  });
 });
 
 describe('telemetry — export success (batch + global) and scoping', () => {
@@ -400,7 +382,6 @@ describe('telemetry — empty states and derivation markers', () => {
     const metrics = getOnboardingMetrics({ workspaceId });
     expect(metrics.metrics.reviewThroughputProductsPerMinute.value).toBeNull();
     expect(metrics.metrics.reviewThroughputProductsPerMinute.derivation).toBe('not_available');
-    expect(metrics.metrics.familyWaitDurationHours.derivation).toBe('not_available');
   });
 
   it('empty batch yields zero honest metrics and null unavailable ones', () => {

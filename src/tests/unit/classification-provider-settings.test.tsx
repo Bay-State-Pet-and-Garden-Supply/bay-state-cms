@@ -16,6 +16,7 @@ vi.mock('../../client/api', () => ({
 
 const mockSettings: api.ClassificationPolicySettingsResponse = {
   migrationRequired: false,
+  copyGeneration: null,
   bundleHash: '1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff',
   activeRevision: 'bay-state-v5',
   defaultProvider: 'ollama',
@@ -146,8 +147,10 @@ describe('ClassificationProviderSettings UI', () => {
       root.render(<ClassificationProviderSettings />);
     });
 
-    // Find the override checkbox for Primary Product Type
-    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    // Find the override checkbox for Primary Product Type (stage cards render
+    // after the writer card, so scope to checkboxes labeled Override Stage Provider)
+    const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]')).filter((box) =>
+      box.closest('label')?.textContent?.includes('Override Stage Provider'));
     expect(checkboxes.length).toBeGreaterThan(0);
 
     // Toggle override on first stage
@@ -155,10 +158,8 @@ describe('ClassificationProviderSettings UI', () => {
       (checkboxes[0] as HTMLInputElement).click();
     });
 
-    // Select TypeSafe Jev connection
-    const selects = container.querySelectorAll('select');
-    // Find connection select (it has option for conn-typesafe)
-    const connSelect = Array.from(selects).find(s => s.textContent?.includes('TypeSafe Jev'));
+    const connSelect = Array.from(container.querySelectorAll('select'))
+      .find(s => Array.from(s.options).some(option => option.value === 'conn-typesafe'));
     expect(connSelect).toBeDefined();
 
     await act(async () => {
@@ -180,7 +181,7 @@ describe('ClassificationProviderSettings UI', () => {
         baseBundleHash: mockSettings.bundleHash,
         dataSharingEffects: [],
         validationErrors: ['Cloud provider requires textDataSharing to be cloud_allowed.'],
-        diff: { stages: {}, dataSharing: { text: { from: 'local_only', to: 'local_only' }, image: { from: 'local_only', to: 'local_only' } } },
+        diff: { stages: {}, dataSharing: { text: { from: 'local_only', to: 'local_only' }, image: { from: 'local_only', to: 'local_only' } }, copyGeneration: { from: null, to: null } },
       },
     });
 

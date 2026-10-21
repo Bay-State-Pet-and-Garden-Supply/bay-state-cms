@@ -123,6 +123,7 @@ describe('groupAttentionItems', () => {
       'source_conflict',
       'processing_failed',
       'semantic_validation_blocked',
+      'listing_completeness_unresolved',
       'unknown',
     ]);
   });

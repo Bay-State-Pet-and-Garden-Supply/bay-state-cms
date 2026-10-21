@@ -6,7 +6,7 @@
 "fitExecutedBeforeFreezeNote": "The dev corpus was executed through the pure deterministic functions (buildNameCandidates, deterministicNameChoice, buildClaimUnits, eligibleEvidenceFor, deterministicClaimCheck, toDeterministicClaimRecord, evaluateListingEvidenceGate) BEFORE the frozen bytes above were hashed: dev-03/dev-08 needed evidence rows and dev-12's variant fact was narrowed during fitting, then the corpus was re-frozen and re-hashed. publishedBeforeHoldoutInspection attests the holdout seal ordering (dev fit + policy publish happened before any holdout-corpus content was inspected or executed), not that dev was frozen before it was ever run.",
 "frozenCommit": "untracked-working-tree (new pack files, never committed; HEAD 079b9a4aede0fc48a056166de3c1c998bc3462cd is the unrelated base)",
 "frozenRecordedAt": "2026-10-19T18:00:00Z",
-"freezeAmendmentNote": "2026-10-19: dev-corpus.json description corrected (14 distinct families -> 13 distinct families; dev-13/dev-14 share one family by design). No row bytes changed besides the description string; dev sha256 re-pinned above. No further edits permitted after this amendment (see noFurtherEditLock).",
+"freezeAmendmentNote": "2026-10-19: dev-corpus.json description corrected (14 distinct families -> 13 distinct families; dev-13/dev-14 share one family by design). No row bytes changed besides the description string; dev sha256 re-pinned above. No further edits permitted after this amendment (see noFurtherEditLock). 2026-10-21: dev-07 expectation amended (missing->resolved, category missing_size->sizeless_resolved) to match the N2 applicable-variant rule in spec 6.1 and name-normalization-v2: size is not a universal naming requirement, so a complete brand+title with no evidenced quantity resolves. Counts: resolved 10->11, missingHeld 2->1. dev sha256 re-pinned above. Activation stays OFF; re-attestation required (see freezeReview).",
 "listingRule": "listing-evidence-rules-v1",
 "listingRuleVersion": "listing-evidence-rules-v1",
 "modelPin": "jev-1.13.0",
@@ -18,13 +18,13 @@
 "promptTemplate": "jev-naming-listing-v1",
 "publishedBeforeHoldoutInspection": true,
 "selectionFloor": 0.5,
-"sha256": "56cc8a44c61a94042f6d1adf51516ede4d02e38a004310b1a95b10dbd3c4c289",
+"sha256": "60fe87a8b1759b86b66ce7aaa376345fa1dfc175b22b985ca545fd73f18f37af",
 "holdoutSha256": "d3784713414af1561dd2ba1e648ed1474f743ce8ba6cd5a0c1574feac39ca981",
 "noFurtherEditLock": true,
 "freezeReview": {
 "reviewer": "UNASSIGNED - independent reviewer sign-off required before any holdout run",
 "status": "pending",
-"scope": "Attest that the fit-then-freeze sequence (fitExecutedBeforeFreezeNote) plus the description-only amendment (freezeAmendmentNote) did not alter row-level fixture bytes, and that the sha256/holdoutSha256 pins match the frozen files. Record reviewer id + date here; status flips to signed only then.",
+"scope": "Attest that the fit-then-freeze sequence plus BOTH amendments (2026-10-19 description-only; 2026-10-21 dev-07 expectation change for N2) match the frozen files, that sha256/holdoutSha256 pins match, and that dev-07 resolved expectation is consistent with spec 6.1/N2. Record reviewer id + date here; status flips to signed only then.",
 "statement": "No independent review yet. The re-freeze is NOT attested: activation stays OFF until status=signed."
 },
 "similarityCeiling": {

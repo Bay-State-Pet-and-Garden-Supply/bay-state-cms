@@ -17,6 +17,8 @@
 // denial section gates on a daemon and skips loudly otherwise.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as http from 'node:http';
+import { BrokerError } from '../../onboarding/browser-investigation/broker';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFileSync } from 'node:fs';
@@ -356,21 +358,27 @@ describe('validating forward proxy: broker policy per request', () => {
     }).then((proxy) => ({ proxy, ledger }));
   }
 
-  async function getViaProxy(proxyUrl: string, target: string): Promise<{ status: number; body: string }> {
-    const { default: http } = await import('node:http');
+  async function getViaProxy(
+    proxyUrl: string,
+    target: string,
+    headers?: Record<string, string>,
+  ): Promise<{ status: number; body: string }> {
     const proxy = new URL(proxyUrl);
-    return new Promise((resolve, reject) => {
-      const req = http.get(
-        { host: proxy.hostname, port: Number(proxy.port), path: target, timeout: 10_000 },
-        (res) => {
-          const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-          res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }));
-        },
-      );
-      req.on('error', reject);
-      req.on('timeout', () => req.destroy(new Error('timeout')));
-    });
+    const response = Promise.withResolvers<{ status: number; body: string }>();
+    const req = http.get(
+      { host: proxy.hostname, port: Number(proxy.port), path: target, headers, timeout: 10_000 },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+        res.on('end', () => response.resolve({
+          status: res.statusCode ?? 0,
+          body: Buffer.concat(chunks).toString('utf8'),
+        }));
+      },
+    );
+    req.on('error', response.reject);
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    return response.promise;
   }
 
   it('relays broker-approved GETs and charges the shared ledger', async () => {
@@ -383,6 +391,56 @@ describe('validating forward proxy: broker policy per request', () => {
     } finally {
       await proxy.close();
     }
+  });
+  it('records broker-authoritative final URL and redirect chain for main documents', async () => {
+    const transport: BrokerTransport = async (req) => req.url.endsWith('/old')
+      ? {
+        status: 302,
+        headers: { location: 'https://brand.example/products/new', 'content-type': 'text/html' },
+        body: Buffer.alloc(0),
+        connectedIp: req.validatedAddresses[0] ?? null,
+      }
+      : {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+        body: Buffer.from('<html>final</html>'),
+        connectedIp: req.validatedAddresses[0] ?? null,
+      };
+    const { proxy } = await proxyWith(transport, ['https://brand.example/products/old']);
+    try {
+      const response = await getViaProxy(proxy.url, 'https://brand.example/products/old', { 'sec-fetch-dest': 'document' });
+      expect(response.body).toBe('<html>final</html>');
+      expect(proxy.documentProvenance()).toEqual([{
+        requestUrl: 'https://brand.example/products/old',
+        finalUrl: 'https://brand.example/products/new',
+        redirectChain: ['https://brand.example/products/new'],
+        status: 200,
+        contentType: 'text/html',
+        bodyHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        connectedIp: '93.184.216.34',
+      }]);
+    } finally {
+      await proxy.close();
+    }
+  });
+
+  it('aborts and drains broker requests when the proxy closes', async () => {
+    const entered = Promise.withResolvers<void>();
+    let aborted = false;
+    const transport: BrokerTransport = (request) => new Promise((_, reject) => {
+      entered.resolve();
+      request.signal?.addEventListener('abort', () => {
+        aborted = true;
+        reject(new BrokerError('cancelled', 'broker request cancelled'));
+      }, { once: true });
+    });
+    const { proxy, ledger } = await proxyWith(transport);
+    const pending = getViaProxy(proxy.url, 'https://brand.example/products/alpha');
+    await entered.promise;
+    await proxy.close();
+    await expect(pending).rejects.toThrow();
+    expect(aborted).toBe(true);
+    expect(ledger.snapshot().requestAttempts).toBe(1);
   });
 
   it('refuses CONNECT tunnels, non-GET methods, and non-absolute targets', async () => {

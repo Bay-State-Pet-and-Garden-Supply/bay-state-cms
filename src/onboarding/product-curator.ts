@@ -28,6 +28,14 @@ import { getDb } from '../db/connection';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from '../classification/config-loader';
 import { createConfigSnapshot, syncConfigToCache, getPersistedConfigSnapshotId, upsertConfigSnapshot } from '../db/repositories/classification-config-repo';
 import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../classification/runtime-snapshot';
+import { acceptedEvidenceToClassificationEvidence, refreshItemEvidence } from './item-evidence';
+import type { AcceptedItemEvidence } from '../shared/schemas/item-evidence';
+import type { ClassificationEvidence } from '../shared/types';
+import { hashCanonicalJson } from '../shared/stable-id';
+import { prepareGroundedCopyForItem, type GroundedCopyPreparationResult } from './grounded-copy';
+import { runItemEvidenceAcquisition } from './item-evidence-acquisition';
+import { withItemAcquisitionBudget } from './item-acquisition-budget';
+import { buildItemExecutionCurrentness, hashClassificationRunOutput } from '../classification/item-execution-currentness';
 import type { RuntimeClassificationSnapshot } from '../classification/runtime-snapshot';
 import {
   createRun,
@@ -49,6 +57,7 @@ import {
 import { valueGapAbstainStage } from '../classification/stages/value-gap-abstain';
 import { getUniversalTierFlags } from '../classification/flags';
 import { modelPolicyViewFromConfig } from './model-policy-snapshot';
+import { loadItemListingReadinessForRun } from '../classification/item-listing-readiness';
 import { redactTransportText, type ModelPolicyView } from '../classification/model-policy-gateway';
 import { selectClassificationProposal } from '../classification/proposal-selection';
 import { getCategoryIdFromValue } from '../classification/assignment-projection';
@@ -162,6 +171,32 @@ export function composeCurationPipelineStages(): StageDefinition[] {
     categoryPageProposalsStage,
     productDraftProjectionStage,
   ];
+}
+
+function acceptedEvidenceStage(
+  snapshot: AcceptedItemEvidence,
+  evidence: ClassificationEvidence[],
+): StageDefinition {
+  const metadata = {
+    acceptedEvidenceId: snapshot.id,
+    acceptedEvidenceRevision: snapshot.revision,
+    acceptedEvidenceHash: snapshot.evidenceHash,
+    acceptedInputHash: snapshot.inputHash,
+    acceptedSourceStateHash: snapshot.sourceStateHash,
+    acceptedAuthorityHash: snapshot.authorityHash,
+  };
+  return {
+    name: 'evidence_extraction',
+    requires: [],
+    evidenceFrom: [],
+    execute: async () => evidence.length > 0
+      ? { status: 'succeeded', output: { evidence, proposals: [], abstained: false, metadata } }
+      : {
+          status: 'abstained',
+          reason: 'No accepted item facts are available for this SKU.',
+          output: { evidence: [], proposals: [], abstained: true, metadata },
+        },
+  };
 }
 
 // ─── Prepared-member narrow entry (Slice 5) ─────────────────────────────────
@@ -348,6 +383,15 @@ interface ResolvedPreparedInputs {
   assertOwnershipHeld?: () => void;
 }
 
+class StaleItemEvidenceError extends Error {
+  readonly code = 'item_evidence_stale';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleItemEvidenceError';
+  }
+}
+
 /**
  * Runs the modular classification pipeline for a curated item.
  * Uses the Classification Configuration from store/classification/
@@ -356,19 +400,35 @@ interface ResolvedPreparedInputs {
  * Does NOT call legacy `curateItem()` — instead runs the full modular
  * pipeline including the name_consolidation stage for title synthesis.
  *
- * Falls back to a minimal compatibility object if no classification
- * config exists or the pipeline throws, so curation never blocks
- * the onboarding worker.
+ * Item-local execution binds output to accepted evidence and fails closed when
+ * its input, lease, config, or policy authority becomes stale.
  */
 export async function curateItemWithPipeline(
   item: OnboardingItem,
   workspacePath: string,
   workspaceId: string,
   correctionOverlay?: GapCorrectionOverlay | null,
-  executionOptions?: { assertHeld?: () => void },
+  executionOptions?: {
+    assertHeld?: () => void;
+    inputRevision?: string;
+    acceptedEvidence?: AcceptedItemEvidence;
+  },
 ): Promise<CurationData> {
   executionOptions?.assertHeld?.();
-  const ext = (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
+  const acceptedEvidence = executionOptions?.acceptedEvidence;
+  if (
+    acceptedEvidence &&
+    (
+      !executionOptions?.inputRevision ||
+      acceptedEvidence.workspaceId !== workspaceId ||
+      acceptedEvidence.batchId !== item.batchId ||
+      acceptedEvidence.itemId !== item.id ||
+      acceptedEvidence.sku !== item.upc
+    )
+  ) {
+    throw new Error('Accepted evidence or item input revision does not belong to this onboarding item.');
+  }
+  const ext = acceptedEvidence ? {} as ExtractionData & Record<string, unknown> : (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
 
   // ADR 0014 / PI-6: distributor images are DISPLAY-ONLY. The non-cohort
   // distributor image backfill (previously copied identityJson.images into
@@ -467,7 +527,7 @@ export async function curateItemWithPipeline(
       configSnapshotRef,
       focusedFileHashes,
       catalogEvidenceHash,
-      sourceProductHash: '',
+      sourceProductHash: acceptedEvidence?.inputHash ?? '',
       // Amendment B (M5b-2): a VERIFIED v2 distributor materialization may
       // contribute its materialized description to keyword synthesis; v1 /
       // unverified / tampered distributor copy never does (identity-only).
@@ -519,8 +579,8 @@ export async function curateItemWithPipeline(
     }
 
     // Create a classification run bound to the immutable runtime snapshot.
-    // The onboarding source hash is null (no product source identity), matching
-    // the snapshot's normalized representation so reviewed facts carry forward.
+    // Each run binds to this SKU's accepted evidence input hash; legacy
+    // non-item-local callers retain the absent source-hash representation.
     executionOptions?.assertHeld?.();
     run = createRun(workspaceId, item.upc, runtimeSnapId, runtimeSnapHash, {
       onboardingItemId: item.id,
@@ -529,19 +589,36 @@ export async function curateItemWithPipeline(
     });
   }
 
-  return executeCurationPipeline({
-    item,
-    correctionOverlay: correctionOverlay ?? null,
-    workspacePath,
-    workspaceId,
-    run,
-    runtimeSnapshot,
-    configSnapshotRef,
-    runModelPolicyView,
-    legacyPageSnapshot,
-    memberExtractionMethod: null,
-    prepared: null,
-    assertHeld: executionOptions?.assertHeld,
+  let executionStarted = false;
+  const execute = () => {
+    executionStarted = true;
+    return executeCurationPipeline({
+      item,
+      correctionOverlay: correctionOverlay ?? null,
+      workspacePath,
+      workspaceId,
+      run,
+      runtimeSnapshot,
+      configSnapshotRef,
+      runModelPolicyView,
+      legacyPageSnapshot,
+      memberExtractionMethod: null,
+      prepared: null,
+      acceptedEvidence,
+      itemInputRevision: executionOptions?.inputRevision,
+      assertHeld: executionOptions?.assertHeld,
+    });
+  };
+  if (!acceptedEvidence) return execute();
+  return withItemAcquisitionBudget(
+    { workspaceId, itemId: item.id, runId: run.id, assertHeld: executionOptions?.assertHeld },
+    execute,
+  ).catch((error: unknown) => {
+    if (!executionStarted) {
+      executionOptions?.assertHeld?.();
+      completeRun(run.id, 'failed', redactTransportText(error instanceof Error ? error.message : String(error)));
+    }
+    throw error;
   });
 }
 
@@ -567,6 +644,8 @@ async function executeCurationPipeline(args: {
   legacyPageSnapshot: { pageImportId: string | null; verifiedPageIds: string[] } | null;
   memberExtractionMethod: string | null;
   prepared: ResolvedPreparedInputs | null;
+  acceptedEvidence?: AcceptedItemEvidence;
+  itemInputRevision?: string;
   assertHeld?: () => void;
 }): Promise<CurationData> {
   const {
@@ -580,8 +659,9 @@ async function executeCurationPipeline(args: {
     legacyPageSnapshot,
   } = args;
   const cohortMode = args.prepared !== null;
+  const itemLocalExecution = args.acceptedEvidence !== undefined;
   const prepared = args.prepared;
-  const ext = (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
+  const ext = itemLocalExecution ? {} as ExtractionData & Record<string, unknown> : (item.extractionData ?? {}) as ExtractionData & Record<string, unknown>;
   const { distributorSource, verifiedV2Distributor } = resolveDistributorCopyInputs(item, ext, args.memberExtractionMethod);
 
   if (process.env.BAYSTATE_CMS_DEBUG_WORKER) console.debug(`[ProductCurator] Starting classification pipeline for: "${item.name}"`);
@@ -624,7 +704,7 @@ async function executeCurationPipeline(args: {
           flavorVariantCount: 0,
         };
       }
-    } else {
+    } else if (!itemLocalExecution) {
       productLineGroup = (item as OnboardingItem & { siblingGroup?: ReturnType<typeof determineProductGroup> }).siblingGroup ?? null;
       if (!productLineGroup) {
         try {
@@ -723,7 +803,7 @@ async function executeCurationPipeline(args: {
     // item's own pipeline persists only its selected title metadata.
     let preComputedTitle: string | undefined;
     let preComputedTitleSource: 'llm_cohort' | 'cohort_fallback' | undefined;
-    if ((productLineGroup?.siblingSkus.length ?? 0) >= 2) {
+    if (!itemLocalExecution && (productLineGroup?.siblingSkus.length ?? 0) >= 2) {
       if (cohortMode) {
         // Prepared mode: the settled MEMBER title input was selected before
         // the seam — prepared children NEVER call
@@ -758,6 +838,7 @@ async function executeCurationPipeline(args: {
       workspacePath,
       workspaceId,
       runId: run.id,
+      acceptedEvidence: args.acceptedEvidence,
       configSnapshotRef,
       snapshot: runtimeSnapshot,
       // PR3 hardening C (1a): the member pipeline asserts the parent claim
@@ -773,9 +854,10 @@ async function executeCurationPipeline(args: {
       cohortFrozenEvidence: cohortMode
         ? prepared!.memberProjection
         : undefined,
-      // Issue #351 (SKU-local evidence): no execution-type context is
-      // seeded — stages resolve the member's own reviewed pair (or none).
-      productLineContext: productLineGroup
+      // Item-local execution never seeds any sibling or parent-computed
+      // title/page context. Shared computation is only an optimization,
+      // never an authority for this SKU's outputs.
+      productLineContext: !itemLocalExecution && productLineGroup
         ? {
             groupId: productLineGroup.groupId,
             groupLabel: productLineGroup.groupLabel,
@@ -785,31 +867,34 @@ async function executeCurationPipeline(args: {
             siblingSkus: productLineGroup.siblingSkus,
           }
         : undefined,
-      productLineItems,
-      preComputedTitle,
-      preComputedTitleSource,
-      // PR7 C4/C5: the durable parent-run page outputs (attached for every
-      // member — groups AND singletons; empty map in DECISION-C config-level
-      // absence). When present, the `category_page_proposals` stage skips the
-      // reviewed-Type gate and both LLM paths and MATERIALIZES the stored
-      // result with ZERO Page LLM calls.
-      coordinatedPages: prepared?.coordinatedPages,
-      // PR7 review R2 (F3.3): expected-empty marker — the child page stage
-      // abstains with the clean legacy reason instead of warning about a
-      // missing parent page output.
-      pageCoordinationAbsent: prepared?.pageCoordinationAbsent,
+      productLineItems: itemLocalExecution ? undefined : productLineItems,
+      preComputedTitle: itemLocalExecution ? undefined : preComputedTitle,
+      preComputedTitleSource: itemLocalExecution ? undefined : preComputedTitleSource,
+      coordinatedPages: itemLocalExecution ? undefined : prepared?.coordinatedPages,
+      pageCoordinationAbsent: itemLocalExecution ? undefined : prepared?.pageCoordinationAbsent,
     };
 
     // Initial evidence starts empty — evidence_extraction stage handles
     // reading the onboarding item's extraction_data_json from the DB
     // and producing spreadsheet, web, and visual evidence entries.
 
-    // Run the full modular pipeline including name_consolidation. The
-    // packaging_ocr stage joins the list ONLY when the master flag is ON —
-    // see composeCurationPipelineStages (P2-T6 ordered consumer migration).
-    const stages: StageDefinition[] = composeCurationPipelineStages();
+    // Item-local evidence is a frozen accepted snapshot mapped to this SKU's
+    // run. It never falls back to current extraction_data_json or siblings.
 
-    const result = await runPipeline(stages, context, {
+    const stages: StageDefinition[] = composeCurationPipelineStages();
+    const executableStages = args.acceptedEvidence
+      ? stages.filter((stage) => stage.name !== 'packaging_ocr').map((stage) => {
+          if (stage.name === 'evidence_extraction') {
+            return acceptedEvidenceStage(
+              args.acceptedEvidence!,
+              acceptedEvidenceToClassificationEvidence(args.acceptedEvidence!, run.id),
+            );
+          }
+          return stage;
+        })
+      : stages;
+
+    const result = await runPipeline(executableStages, context, {
       sku: item.upc,
       onboardingItemId: item.id,
       evidence: [],
@@ -829,20 +914,11 @@ async function executeCurationPipeline(args: {
     // Determine final status
     const hasAbstentions = result.proposals.some(p => p.proposalType === 'reviewable_abstention');
     const finalStatus = hasAbstentions ? 'completed_with_abstentions' : 'completed';
-    // PR3 hardening (Commit B / R3): prepared-cohort mode leaves the child run
-    // RUNNING — the terminal child write happens atomically with the
-    // member-projection commit in processCohort (curation_data_json + item
-    // stage + child terminal status in ONE transaction). A crash between
-    // pipeline completion and that commit is therefore recovered: the recovery
-    // skip rule only skips a member whose committed projection references a
-    // terminal-success child. The child run id rides in
-    // `curationData.classificationRunId`. Legacy (non-cohort) mode completes
-    // the child exactly as today.
+    // Prepared-cohort runs retain their parent-controlled terminal write.
+    // Item-local runs complete before readiness/acquisition so those services
+    // can inspect this immutable run; the item output still commits only
+    // after its claim and accepted evidence are revalidated.
     if (!cohortMode) {
-      // Ownership-guarded terminal child write (PR3 hardening A2): in
-      // prepared-cohort mode the member's terminal write only proceeds while
-      // the parent claim is still held — a sibling reclaim during the pipeline
-      // leaves the child untouched (the new owner re-executes the member).
       args.assertHeld?.();
       completeRun(run.id, finalStatus);
     }
@@ -851,14 +927,82 @@ async function executeCurationPipeline(args: {
     const allEvidence = getEvidenceByRun(run.id);
     const allProposals = getProposalsByRun(run.id);
     const stageResults = getStageResults(run.id);
-
-    // Build compatibility CurationData from pipeline outputs
-    // Name consolidation metadata comes from the name_consolidation stage output
     const nameMeta = result.stageOutputs.name_consolidation?.metadata as Record<string, unknown> | undefined;
-    const curatedTitle = nameMeta?.curatedTitle as string ?? ext.title ?? item.name;
+    const curatedTitle = itemLocalExecution
+      ? (typeof nameMeta?.curatedTitle === 'string' ? nameMeta.curatedTitle : null)
+      : (nameMeta?.curatedTitle as string ?? ext.title ?? item.name);
     const titleSource = (nameMeta?.titleSource as string) ?? 'web';
-    const packagingOcrTitle = (nameMeta?.packagingOcrTitle as string | null) ??
-      ext.packagingOcrData?.productName ?? ext.packagingTitle ?? null;
+    const packagingOcrTitle = itemLocalExecution
+      ? null
+      : (nameMeta?.packagingOcrTitle as string | null) ?? ext.packagingOcrData?.productName ?? ext.packagingTitle ?? null;
+    if (itemLocalExecution && args.acceptedEvidence) {
+      const acquisition = await runItemEvidenceAcquisition({
+        workspaceId,
+        itemId: item.id,
+        runId: run.id,
+        assertHeld: context.assertHeld,
+        modelPolicy: runModelPolicyView,
+      });
+      if (acquisition.status === 'stale') {
+        throw new StaleItemEvidenceError(acquisition.reason ?? 'Accepted item evidence changed during supplemental acquisition.');
+      }
+      if (
+        acquisition.status === 'conflict' ||
+        acquisition.status === 'budget_exhausted' ||
+        acquisition.status === 'cancelled'
+      ) {
+        context.assertHeld?.();
+        throw new Error(acquisition.reason ?? `Supplemental item acquisition ${acquisition.status}.`);
+      }
+      const refreshed = refreshItemEvidence(workspaceId, item.id);
+      if (refreshed.status === 'stale') {
+        throw new StaleItemEvidenceError(refreshed.findings[0]?.reason ?? 'Accepted item evidence changed during supplemental acquisition.');
+      }
+      if (refreshed.status === 'conflict') {
+        throw new Error(refreshed.findings[0]?.reason ?? 'Accepted item evidence has an unresolved conflict after supplemental acquisition.');
+      }
+      if (!refreshed.evidence) {
+        throw new Error(refreshed.findings[0]?.reason ?? 'Current accepted item evidence is unavailable after supplemental acquisition.');
+      }
+      if (
+        refreshed.evidence.id !== args.acceptedEvidence.id ||
+        refreshed.evidence.revision !== args.acceptedEvidence.revision ||
+        refreshed.evidence.evidenceHash !== args.acceptedEvidence.evidenceHash ||
+        refreshed.evidence.inputHash !== args.acceptedEvidence.inputHash ||
+        refreshed.evidence.sourceStateHash !== args.acceptedEvidence.sourceStateHash ||
+        refreshed.evidence.authorityHash !== args.acceptedEvidence.authorityHash
+      ) {
+        throw new StaleItemEvidenceError('Supplemental acquisition updated accepted facts; item must replay classification against the new evidence.');
+      }
+      context.assertHeld?.();
+    }
+
+    let groundedCopy: GroundedCopyPreparationResult | null = null;
+    if (itemLocalExecution && args.acceptedEvidence && curatedTitle) {
+      const readiness = loadItemListingReadinessForRun(workspaceId, item.id, run.id);
+      const standard = readiness.standard;
+      const sameEvidence =
+        readiness.evidence?.id === args.acceptedEvidence.id &&
+        readiness.evidence.revision === args.acceptedEvidence.revision &&
+        readiness.evidence.evidenceHash === args.acceptedEvidence.evidenceHash;
+      if (standard && sameEvidence) {
+        const variantFacts: Record<string, string> = {};
+        for (const fact of args.acceptedEvidence.facts) {
+          if (typeof fact.value === 'string' && fact.value.trim()) variantFacts[fact.field] = fact.value;
+        }
+        groundedCopy = await prepareGroundedCopyForItem(workspaceId, item.id, {
+          runId: run.id,
+          snapshot: runtimeSnapshot,
+          modelPolicy: runModelPolicyView,
+          assertHeld: args.assertHeld,
+          projectedTitle: curatedTitle,
+          variantFacts,
+          requiredFields: standard.requirements.filter((requirement) => requirement.required).map((requirement) => requirement.field),
+          writingRequirements: standard.requirements.map((requirement) => `${requirement.field}: ${requirement.label}`),
+          standardHash: standard.standardHash,
+        });
+      }
+    }
 
     // ── Collect and deduplicate page proposals ────────────────────────────
     const pageProposals = allProposals
@@ -908,7 +1052,7 @@ async function executeCurationPipeline(args: {
     // executed member never re-reads live extraction data (the frozen-mode
     // evidence stage materializes from the projection, and OCR already ran
     // once at freeze).
-    if (!cohortMode) {
+    if (!cohortMode && !itemLocalExecution) {
       try {
         const freshRow = findExtractionDataJsonRowById(item.id);
         if (freshRow?.extraction_data_json) {
@@ -953,7 +1097,7 @@ async function executeCurationPipeline(args: {
     // LEGACY fallback — active cohort mode skips this; kept for flag-OFF compatibility only.
     // Validated via category-page-correctness — unverified/incompatible pages abstain.
     // See Deslop H1: gate explicitly behind !cohortMode (== cohortCurationV2Enabled===false).
-    if (!cohortMode && suggestedPages.length === 0 && (suggestedProductType || item.name)) {
+    if (!cohortMode && !itemLocalExecution && suggestedPages.length === 0 && (suggestedProductType || curatedTitle)) {
       try {
         const text = `${suggestedProductType || ''} ${item.name}`.toLowerCase();
         const allStorePages = listDistinctProductPageNames();
@@ -1009,7 +1153,15 @@ async function executeCurationPipeline(args: {
         return typeof v === 'string' ? v : Array.isArray(v) ? v.join(', ') : null;
       })
       .filter((v): v is string => !!v);
-    const speciesLabels = ext.packagingOcrData?.species ?? [];
+    const acceptedStringField = (field: string): string | null => {
+      const value = args.acceptedEvidence?.facts.find((fact) => fact.field.toLowerCase() === field.toLowerCase())?.value;
+      return typeof value === 'string' ? value : null;
+    };
+    const speciesLabels = itemLocalExecution
+      ? args.acceptedEvidence!.facts.flatMap((fact) =>
+          fact.field.toLowerCase() === 'species' && typeof fact.value === 'string' ? [fact.value] : [],
+        )
+      : ext.packagingOcrData?.species ?? [];
 
     // ── Distributor record: consolidate multi-provider copy ───────────────
     // This runs AFTER the classification pipeline intentionally.
@@ -1036,8 +1188,11 @@ async function executeCurationPipeline(args: {
         } | null;
       }).distributorRecordProvenance?.merchandisingProvenance
       ?? {};
-    const selectedDescription =
-      verifiedV2Distributor && typeof ext.description === 'string' && ext.description.trim().length > 0
+    const selectedDescription = itemLocalExecution
+      ? groundedCopy && (groundedCopy.status === 'prepared' || groundedCopy.status === 'blocked')
+        ? groundedCopy.description
+        : null
+      : verifiedV2Distributor && typeof ext.description === 'string' && ext.description.trim().length > 0
         ? ext.description
         : null;
     const curatedDescription: string | null = selectedDescription;
@@ -1057,10 +1212,10 @@ async function executeCurationPipeline(args: {
     // evidence, never over pipeline values). Applied identically in both
     // worker modes — the overlay arrived frozen (legacy: recorded envelope;
     // cohort: member projection).
-    const overlayApplied = applyGapCorrectionOverlay(args.correctionOverlay, {
-      title: curatedTitle,
-      description: curatedDescription,
-    });
+    const overlayApplied = applyGapCorrectionOverlay(
+      args.correctionOverlay,
+      { title: curatedTitle, description: curatedDescription },
+    );
     const searchKeywords = synthesizeSearchKeywords({
       // Ticket #124 P2-7: synthesize from overlay-applied copy (identical
       // to pre-overlay values unless a correction filled a blank) so a
@@ -1070,32 +1225,59 @@ async function executeCurationPipeline(args: {
       // the extraction description to preserve the pre-#124 contract that
       // official-page copy feeds keyword synthesis. Unverified distributor
       // copy stays excluded by the outer ternary either way.
-      title: overlayApplied.title ?? curatedTitle,
-      brand: ext.brand ?? item.brandHint,
-      // Amendment B (M5b-2): a verified v2 distributor materialization's
-      // materialized description contributes to keyword synthesis; v1 /
-      // unverified / tampered distributor copy never does. Operator
-      // correction text on an unverified distributor item stays out as
-      // well (fail closed: keywords never launder unverified copy).
-      description: distributorSource && !verifiedV2Distributor
-        ? null
-        : (overlayApplied.description ?? ext.description ?? null),
+      title: overlayApplied.title ?? curatedTitle ?? item.name,
+      brand: itemLocalExecution ? acceptedStringField('brand') : ext.brand ?? item.brandHint,
+      description: itemLocalExecution
+        ? curatedDescription
+        : distributorSource && !verifiedV2Distributor
+          ? null
+          : (overlayApplied.description ?? ext.description ?? null),
       suggestedPages,
       suggestedProductType,
       species: speciesLabels,
-      lifeStage: ext.packagingOcrData?.lifeStage,
-      productForm: ext.packagingOcrData?.productForm,
+      lifeStage: itemLocalExecution ? acceptedStringField('lifeStage') : ext.packagingOcrData?.lifeStage,
+      productForm: itemLocalExecution ? acceptedStringField('productForm') : ext.packagingOcrData?.productForm,
       attributes: attributeKeywords,
     });
 
+    const classificationOutputHash = hashClassificationRunOutput({
+      evidence: allEvidence,
+      proposals: allProposals,
+      stageResults: stageResults.map((stage) => ({ stage_name: stage.stage_name, output_json: stage.output_json })),
+    });
+    const itemExecutionCurrentness = itemLocalExecution && args.acceptedEvidence && args.itemInputRevision
+      ? buildItemExecutionCurrentness({
+          recordVersion: 1,
+          inputRevision: args.itemInputRevision,
+          evidenceId: args.acceptedEvidence.id,
+          evidenceRevision: args.acceptedEvidence.revision,
+          evidenceHash: args.acceptedEvidence.evidenceHash,
+          inputHash: args.acceptedEvidence.inputHash,
+          sourceStateHash: args.acceptedEvidence.sourceStateHash,
+          authorityHash: args.acceptedEvidence.authorityHash,
+          configSnapshotId: configSnapshotRef.id,
+          configSnapshotHash: configSnapshotRef.hash,
+          runtimeSnapshotId: null,
+          runtimeSnapshotHash: runtimeSnapshot.snapshotHash,
+          policyDigest: runModelPolicyView?.policyDigest ?? hashCanonicalJson({ modelPolicy: runtimeSnapshot.modelPolicy }),
+          classificationRunId: run.id,
+          classificationOutputHash,
+        })
+      : undefined;
     return {
       curatedTitle: overlayApplied.title,
       searchKeywords,
       packagingOcrTitle,
-      curatedWeight: convertToLbs(
-        ext.packagingOcrData?.weight || ext.weight || extractWeightFromName(item.name) || null,
-      ),
-      titleSource: titleSource as 'web' | 'ocr' | 'llm' | 'manual' | 'llm_cohort' | 'cohort_fallback',
+      curatedWeight: itemLocalExecution
+        ? (() => {
+            const weight = args.acceptedEvidence?.facts.find((fact) => ['weight', 'size'].includes(fact.field.toLowerCase()))?.value;
+            return convertToLbs(typeof weight === 'string' || typeof weight === 'number' ? String(weight) : null);
+          })()
+        : convertToLbs(ext.packagingOcrData?.weight || ext.weight || extractWeightFromName(item.name) || null),
+      titleSource: titleSource as 'web' | 'ocr' | 'llm' | 'manual' | 'llm_cohort' | 'cohort_fallback' | 'typesafe' | 'deterministic',
+      ...(itemLocalExecution && nameMeta?.nameDecision
+        ? { nameDecision: nameMeta.nameDecision as NonNullable<CurationData['nameDecision']> }
+        : {}),
       curatedDescription: overlayApplied.description,
       curatedDescriptionSourceAttemptIds,
       // Ticket #124: operator-correction provenance (absent without an
@@ -1117,6 +1299,27 @@ async function executeCurationPipeline(args: {
       curationMethod: 'auto',
       classificationRunId: run.id,
       classificationConfigSnapshot: context.configSnapshotRef,
+      ...(itemLocalExecution
+        ? {
+            itemExecutionCurrentness: itemExecutionCurrentness ?? null,
+            groundedCopyProvenance: groundedCopy && (groundedCopy.status === 'prepared' || groundedCopy.status === 'blocked')
+              ? {
+                  status: groundedCopy.status,
+                  evidenceId: groundedCopy.evidenceId,
+                  evidenceRevision: groundedCopy.evidenceRevision,
+                  evidenceHash: groundedCopy.evidenceHash,
+                  currentnessHash: groundedCopy.currentnessHash,
+                  descriptionHash: hashCanonicalJson(groundedCopy.description),
+                  factIds: groundedCopy.factIds,
+                  callIds: groundedCopy.callIds,
+                  producer: groundedCopy.producer,
+                }
+              : null,
+          }
+        : {}),
+      ...(groundedCopy && (groundedCopy.status === 'prepared' || groundedCopy.status === 'blocked')
+        ? { listingEvidenceValidation: groundedCopy.listingEvidenceValidation }
+        : {}),
       classificationEvidence: allEvidence,
       classificationProposals: allProposals,
       classificationDecisions: [],

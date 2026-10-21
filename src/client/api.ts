@@ -1012,6 +1012,11 @@ export interface ConnectionOptionView {
   models: Array<{ id: string; name?: string }>;
   stageSupport: Record<string, { supported: boolean; reason?: string }>;
 }
+export interface GenerativeCopyWorkloadView {
+  provider: string;
+  model: string;
+  textDataSharing: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
+}
 
 export interface ClassificationPolicySettingsResponse {
   migrationRequired: boolean;
@@ -1023,6 +1028,7 @@ export interface ClassificationPolicySettingsResponse {
   imageDataSharing: 'local_only' | 'cloud_allowed';
   stages: EffectiveStageRouteView[];
   availableConnections: ConnectionOptionView[];
+  copyGeneration: GenerativeCopyWorkloadView | null;
 }
 
 export interface PreviewPolicyInputPayload {
@@ -1037,6 +1043,7 @@ export interface PreviewPolicyInputPayload {
   defaultModel?: string;
   textDataSharing?: 'local_only' | 'cloud_allowed';
   imageDataSharing?: 'local_only' | 'cloud_allowed';
+  copyGeneration?: GenerativeCopyWorkloadView | null;
 }
 
 export interface PreviewPolicyResultResponse {
@@ -1054,6 +1061,7 @@ export interface PreviewPolicyResultResponse {
       text: { from: string; to: string };
       image: { from: string; to: string };
     };
+    copyGeneration: { from: GenerativeCopyWorkloadView | null; to: GenerativeCopyWorkloadView | null };
   };
 }
 
@@ -1070,6 +1078,7 @@ export interface ApplyPolicyInputPayload {
   defaultModel?: string;
   textDataSharing?: 'local_only' | 'cloud_allowed';
   imageDataSharing?: 'local_only' | 'cloud_allowed';
+  copyGeneration?: GenerativeCopyWorkloadView | null;
 }
 
 interface ApplyPolicyResultResponse {

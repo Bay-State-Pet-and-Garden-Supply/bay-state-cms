@@ -174,7 +174,6 @@ describe('matrix helpers', () => {
     expect(emptyWorkStateCounts()).toEqual({
       processing: 0,
       needs_attention: 0,
-      waiting_on_family: 0,
       ready_for_review: 0,
       approved: 0,
       ready_to_export: 0,

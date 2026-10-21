@@ -25,7 +25,6 @@ import type { WorkStateCounts } from '../../shared/schemas/onboarding-work-state
 const ZERO_COUNTS: WorkStateCounts = {
   processing: 0,
   needs_attention: 0,
-  waiting_on_family: 0,
   ready_for_review: 0,
   approved: 0,
   ready_to_export: 0,
@@ -34,11 +33,10 @@ const ZERO_COUNTS: WorkStateCounts = {
 };
 
 describe('WORKSPACE_TABS', () => {
-  it('orders Needs Attention first, then Processing, Waiting on Family, Review, Approved, Ready to Export', () => {
+  it('orders Needs Attention first, then Processing, Review, Approved, Ready to Export', () => {
     expect(WORKSPACE_TABS.map(t => t.id)).toEqual([
       'needs_attention',
       'processing',
-      'waiting_on_family',
       'review',
       'approved',
       'ready_to_export',
@@ -86,18 +84,17 @@ describe('WORKSPACE_TABS', () => {
 });
 
 describe('counts / prominence', () => {
-  it('sums all eight categories in totalItemCount', () => {
+  it('sums all seven categories in totalItemCount', () => {
     const counts: WorkStateCounts = {
       processing: 100,
       needs_attention: 5,
-      waiting_on_family: 4,
       ready_for_review: 20,
       approved: 3,
       ready_to_export: 2,
       completed: 1,
       skipped: 9,
     };
-    expect(totalItemCount(counts)).toBe(144);
+    expect(totalItemCount(counts)).toBe(140);
   });
 
   it('is urgent only when needs_attention > 0', () => {
@@ -150,7 +147,7 @@ describe('hasActiveFilters', () => {
 describe('labels', () => {
   it('covers every work-state category with a human label', () => {
     expect(WORK_STATE_CATEGORY_LABELS.needs_attention).toBe('Needs Attention');
-    expect(Object.keys(WORK_STATE_CATEGORY_LABELS)).toHaveLength(8);
+    expect(Object.keys(WORK_STATE_CATEGORY_LABELS)).toHaveLength(7);
   });
 
   it('maps review states to friendly labels', () => {
@@ -171,7 +168,6 @@ describe('workspaceTabForCategory', () => {
   it('maps operation categories to their tab', () => {
     expect(workspaceTabForCategory('needs_attention')).toBe('needs_attention');
     expect(workspaceTabForCategory('processing')).toBe('processing');
-    expect(workspaceTabForCategory('waiting_on_family')).toBe('waiting_on_family');
     expect(workspaceTabForCategory('ready_for_review')).toBe('review');
     expect(workspaceTabForCategory('approved')).toBe('approved');
     expect(workspaceTabForCategory('ready_to_export')).toBe('ready_to_export');

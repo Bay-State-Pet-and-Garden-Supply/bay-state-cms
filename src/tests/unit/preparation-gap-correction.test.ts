@@ -9,12 +9,20 @@
  * validation-gated resolve).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { saveClassificationConfig, loadClassificationConfig } from '../../classification/config-loader';
+import { syncConfigToCache } from '../../db/repositories/classification-config-repo';
+import { setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
+import { loadItemAcquisitionPolicy, readItemAcquisitionPolicy } from '../../onboarding/item-acquisition-budget';
 import { Hono } from 'hono';
 import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { preparationGapRoutes } from '../../server/routes/preparation-gap-routes';
 import { getStageReadItems } from '../../onboarding/onboarding-stage-read';
-import { insertWorkspace } from '../../db/repositories/workspace-repo';
+import { insertWorkspace, updateWorkspacePaths } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import {
   insertItems,
@@ -22,7 +30,9 @@ import {
   completeSourcingWithDecision,
   updateItemStageStatus,
   advanceReviewedItemsToPromotion,
+  claimItemsForProcessing,
 } from '../../db/repositories/onboarding-item-repo';
+import { OnboardingWorker } from '../../onboarding/job-queue';
 import { recordAcceptances } from '../../db/repositories/onboarding-acceptance-repo';
 import { startSourcingGeneration, getCurrentSourcingGeneration } from '../../db/repositories/onboarding-evidence-repo';
 import {
@@ -178,7 +188,7 @@ async function seedStrategyLoop(args: {
     expectedRevision: 0,
   });
   const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
-  const [item] = insertItems(batch.id, [{ upc, name: args.itemName ?? 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'route_sources', 1);
+  const [item] = insertItems(batch.id, [{ upc, name: args.itemName ?? 'Acana Wild Coast', brandHint: 'Acana', rowNumber: 1 }], 'route_sources', 1);
   const registry = new TestRegistry();
   const connectors: MockConnector[] = [];
   for (const dist of args.distributors) {
@@ -553,18 +563,47 @@ describe('ticket #124: read sidecar projects persisted facts, never invents', ()
   };
 
   async function prepareWorkspace() {
-    const fs = await import('node:fs');
-    const os = await import('node:os');
-    const path = await import('node:path');
-    const { saveClassificationConfig, loadClassificationConfig } = await import('../../classification/config-loader');
-    const { syncConfigToCache } = await import('../../db/repositories/classification-config-repo');
-    const { setTaxonomyFreezeForTests } = await import('../../classification/taxonomy-freeze');
     setTaxonomyFreezeForTests(false);
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gap-worker-'));
+    const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gap-worker-')));
     const wsPath = path.join(tmp, 'ws');
     fs.mkdirSync(path.join(wsPath, '.baystate-cms'), { recursive: true });
     fs.mkdirSync(path.join(wsPath, 'store', 'classification'), { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: wsPath, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: wsPath, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.name', 'test'], { cwd: wsPath, stdio: 'ignore' });
     saveClassificationConfig(wsPath, V1_CONFIG as never);
+    const acquisitionLimits = {
+      attempts: 10, pages: 10, actions: 10, redirects: 10, bytes: 1_000_000,
+      artifacts: 10, durationMs: 60_000, inputTokens: 10_000, outputTokens: 10_000,
+      maxConcurrent: 10, maxCostMicros: null,
+    };
+    const acquisitionPolicy = {
+      schemaVersion: 1,
+      policy: {
+        recordVersion: 1,
+        enabled: true,
+        itemLimits: acquisitionLimits,
+        batchLimits: acquisitionLimits,
+        models: [],
+        services: [{ service: 'browser', costMicrosPerAttempt: 0 }],
+      },
+      approvedBy: 'gap-test',
+      approvedAt: '2026-01-01T00:00:00.000Z',
+    };
+    fs.mkdirSync(path.join(wsPath, 'store', 'item-acquisition'), { recursive: true });
+    fs.writeFileSync(
+      path.join(wsPath, 'store', 'item-acquisition', 'policy.json'),
+      `${JSON.stringify(acquisitionPolicy, null, 2)}\n`,
+    );
+    execFileSync('git', ['add', '-A'], { cwd: wsPath, stdio: 'ignore' });
+    execFileSync('git', ['add', '-f', 'store/item-acquisition/policy.json'], { cwd: wsPath, stdio: 'ignore' });
+    execFileSync('git', ['-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-qm', 'Fixture config'], {
+      cwd: wsPath,
+      stdio: 'ignore',
+    });
+    updateWorkspacePaths(workspaceId, wsPath, path.join(wsPath, '.git'));
+    expect(readItemAcquisitionPolicy(wsPath).policy).toBeTruthy();
+    expect(loadItemAcquisitionPolicy(workspaceId).status).toBe('available');
     syncConfigToCache(workspaceId, loadClassificationConfig(wsPath));
     return {
       wsPath,
@@ -574,6 +613,27 @@ describe('ticket #124: read sidecar projects persisted facts, never invents', ()
       },
     };
   }
+
+async function makeClaimedCurationWorker(wsPath: string): Promise<{ processCuration: (item: unknown) => Promise<void> }> {
+  const worker = new OnboardingWorker(workspaceId, wsPath);
+  const workerId = Reflect.get(worker, 'workerId');
+  const processCuration = Reflect.get(worker, 'processCuration');
+  if (typeof workerId !== 'string' || typeof processCuration !== 'function') {
+    throw new Error('Onboarding worker curation test seam is unavailable');
+  }
+  return {
+    processCuration: async (item: unknown) => {
+      if (!item || typeof item !== 'object' || !('id' in item) || typeof item.id !== 'string') {
+        throw new Error('Curation test input has no onboarding item id');
+      }
+      const itemId = item.id;
+      const claimed = claimItemsForProcessing('prepare_listing', 1, workspaceId, workerId)
+        .find((candidate) => candidate.id === itemId);
+      if (!claimed) throw new Error(`Could not claim item ${itemId} for curation`);
+      await Reflect.apply(processCuration, worker, [claimed]);
+    },
+  };
+}
 
   it('correction resumes preparation from retained evidence and resolves when sufficient', async () => {
     for (const dist of ['dist_phillips', 'dist_bci']) {
@@ -590,11 +650,11 @@ describe('ticket #124: read sidecar projects persisted facts, never invents', ()
       expectedRevision: 0,
     });
     const batch = createBatch({ workspaceId, name: 'b', fileName: 'b.csv', totalItems: 1 });
-    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Food', brandHint: 'Acana', rowNumber: 1 }], 'route_sources', 1);
+    const [item] = insertItems(batch.id, [{ upc: '012345678905', name: 'Acana Wild Coast', brandHint: 'Acana', rowNumber: 1 }], 'route_sources', 1);
     const registry = new TestRegistry();
     // Found records WITHOUT descriptions: title qualifies, description gaps.
-    registry.register('dist_phillips', new MockConnector('dist_phillips', 'Acana Adult Dog', null));
-    registry.register('dist_bci', new MockConnector('dist_bci', 'Acana Adult Dog', null));
+    registry.register('dist_phillips', new MockConnector('dist_phillips', 'Acana Wild Coast', null));
+    registry.register('dist_bci', new MockConnector('dist_bci', 'Acana Wild Coast', null));
     const generation = startSourcingGeneration(item.id);
     const engine = new DefaultSourcingEngine(registry);
     await engine.runGeneration({
@@ -630,10 +690,7 @@ describe('ticket #124: read sidecar projects persisted facts, never invents', ()
     getDb().query(`UPDATE onboarding_items SET stage = 'prepare_listing', stage_status = 'pending' WHERE id = ?`).run(item.id);
     const { wsPath, cleanup } = await prepareWorkspace();
     try {
-      const { OnboardingWorker } = await import('../../onboarding/job-queue');
-      const worker = new (OnboardingWorker as unknown as new (workspaceId: string, workspacePath: string) => { processCuration: (item: unknown) => Promise<void> })(
-        workspaceId, wsPath,
-      );
+      const worker = await makeClaimedCurationWorker(wsPath);
     // Direct curation would gap on title only by default; open the
     // description gap explicitly (store-configured blocking in production).
     openPreparationGap({
@@ -832,14 +889,11 @@ describe('ticket #124: correction HTTP routes authenticate, gate keys, and deleg
 describe('ticket #124: resume uses retained evidence under frozen discipline', () => {
   type Worker = { processCuration: (item: unknown) => Promise<void> };
   async function makeWorker(wsPath: string): Promise<Worker> {
-    const { OnboardingWorker } = await import('../../onboarding/job-queue');
-    return new (OnboardingWorker as unknown as new (workspaceId: string, workspacePath: string) => Worker)(
-      workspaceId, wsPath,
-    );
+    return makeClaimedCurationWorker(wsPath);
   }
   const distPair = () => ([
-    { id: 'dist_phillips', name: 'Acana Adult Dog', description: null },
-    { id: 'dist_bci', name: 'Acana Adult Dog', description: null },
+    { id: 'dist_phillips', name: 'Acana Wild Coast', description: null },
+    { id: 'dist_bci', name: 'Acana Wild Coast', description: null },
   ]);
 
   it('re-preparation performs zero refetches on the same generation and consumes the frozen snapshot (T-2)', async () => {
@@ -902,7 +956,7 @@ describe('ticket #124: resume uses retained evidence under frozen discipline', (
 
   it('store-configured blocking severities drive worker gap derivation (P2-11)', async () => {
     const loop = await seedStrategyLoop({
-      distributors: [{ id: 'dist_phillips', name: 'Acana Adult Dog', description: null }],
+      distributors: [{ id: 'dist_phillips', name: 'Acana Wild Coast', description: null }],
     });
     const { wsPath, cleanup } = await prepareWorkspace();
     try {
@@ -940,6 +994,7 @@ describe('ticket #124: resume uses retained evidence under frozen discipline', (
       const worker = await makeWorker(wsPath);
       await worker.processCuration(findItemById(loop.item.id));
       expect(getPreparationGap(loop.item.id)?.status).toBe('resolved');
+      getDb().query(`UPDATE onboarding_items SET stage_status = 'pending' WHERE id = ?`).run(loop.item.id);
       await worker.processCuration(findItemById(loop.item.id));
       expect(getPreparationGap(loop.item.id)?.status).toBe('resolved');
       expect(getPreparationGap(loop.item.id)?.correctionRevision).toBe(1);
@@ -1013,7 +1068,7 @@ describe('ticket #124: resume uses retained evidence under frozen discipline', (
 describe('ticket #124: resolved gaps flow through ordinary review; rights never correct', () => {
   it('after a validated resolve, markReviewed and approveAndAdvanceItems succeed with no bypass (T-3)', async () => {
     const loop = await seedStrategyLoop({
-      distributors: [{ id: 'dist_phillips', name: 'Acana Adult Dog', description: null }],
+      distributors: [{ id: 'dist_phillips', name: 'Acana Wild Coast', description: null }],
     });
     openPreparationGap({
       workspaceId, itemId: loop.item.id, batchId: loop.batch.id, missingFields: ['description'],
@@ -1026,10 +1081,7 @@ describe('ticket #124: resolved gaps flow through ordinary review; rights never 
     expect(corrected.ok).toBe(true);
     const { wsPath, cleanup } = await prepareWorkspace();
     try {
-      const { OnboardingWorker } = await import('../../onboarding/job-queue');
-      const worker = new (OnboardingWorker as unknown as new (workspaceId: string, workspacePath: string) => { processCuration: (item: unknown) => Promise<void> })(
-        workspaceId, wsPath,
-      );
+      const worker = await makeClaimedCurationWorker(wsPath);
       await worker.processCuration(findItemById(loop.item.id));
       expect(getPreparationGap(loop.item.id)?.status).toBe('resolved');
       // Ordinary Review listings transition on the prepared result.
@@ -1066,14 +1118,12 @@ describe('ticket #124: resolved gaps flow through ordinary review; rights never 
 
   it('a single distributor_record source with a title is sufficient and gap-free (T-4 sparse source)', async () => {
     const loop = await seedStrategyLoop({
-      distributors: [{ id: 'dist_phillips', name: 'Acana Adult Dog', description: null }],
+      itemName: '',
+      distributors: [{ id: 'dist_phillips', name: 'Acana Wild Coast', description: null }],
     });
     const { wsPath, cleanup } = await prepareWorkspace();
     try {
-      const { OnboardingWorker } = await import('../../onboarding/job-queue');
-      const worker = new (OnboardingWorker as unknown as new (workspaceId: string, workspacePath: string) => { processCuration: (item: unknown) => Promise<void> })(
-        workspaceId, wsPath,
-      );
+      const worker = await makeClaimedCurationWorker(wsPath);
       // One sparse source, no manual gap: a present title satisfies the
       // default blocking requirements — sparsity alone never interrupts.
       await worker.processCuration(findItemById(loop.item.id));
@@ -1267,7 +1317,7 @@ describe('ticket #124: legacy review-complete refuses open gaps with structured 
 describe('ticket #124: revision-0 stale resolve returns to pending (branch-2)', () => {
   it('a stale binding on the no-envelope path returns the item to pending, never failed', async () => {
     const loop = await seedStrategyLoop({
-      distributors: [{ id: 'dist_phillips', name: 'Acana Adult Dog', description: null }],
+      distributors: [{ id: 'dist_phillips', name: 'Acana Wild Coast', description: null }],
     });
     // Gap bound to a superseded hash; no correction recorded (rev 0, no
     // envelope). The worker resolves against the validation-time
@@ -1279,10 +1329,7 @@ describe('ticket #124: revision-0 stale resolve returns to pending (branch-2)', 
     });
     const { wsPath, cleanup } = await prepareWorkspace();
     try {
-      const { OnboardingWorker } = await import('../../onboarding/job-queue');
-      const worker = new (OnboardingWorker as unknown as new (workspaceId: string, workspacePath: string) => { processCuration: (item: unknown) => Promise<void> })(
-        workspaceId, wsPath,
-      );
+      const worker = await makeClaimedCurationWorker(wsPath);
       await worker.processCuration(findItemById(loop.item.id));
       expect(findItemById(loop.item.id)?.stageStatus).toBe('pending');
       expect(getPreparationGap(loop.item.id)?.status).toBe('open');

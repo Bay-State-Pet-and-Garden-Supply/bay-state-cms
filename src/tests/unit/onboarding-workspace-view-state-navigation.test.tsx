@@ -81,7 +81,7 @@ describe('Onboarding workspace entry, restoration, and history', () => {
     vi.mocked(api.getBatches).mockResolvedValue({
       batches: [batch('b1'), batch('b2')],
       workStateCounts: {
-        b1: { processing: 0, needs_attention: 7, waiting_on_family: 0, ready_for_review: 0, approved: 0, ready_to_export: 0, completed: 0, skipped: 0 },
+        b1: { processing: 0, needs_attention: 7, ready_for_review: 0, approved: 0, ready_to_export: 0, completed: 0, skipped: 0 },
       },
     });
     vi.mocked(api.getBatch).mockImplementation(async (id) => ({ batch: batch(id) }));

@@ -1,10 +1,6 @@
 /**
- * Task 3 — Conflict Inspector for curation semantic blocks.
- *
- * Operate mode: scanable, consistency-first, no marketing chrome.
- * One honest primary action: re-run family curation (POST /api/onboarding/cohorts/:id/re-run).
- * No per-value "Confirm Brand" buttons — no persistence endpoint exists for value-level confirms.
- * Secondary guidance directs operator to edit product then retry.
+ * Conflict inspector for item-local curation semantic blocks.
+ * No family-wide retry: each action targets this product only.
  */
 import React, { useCallback, useState } from 'react';
 import type { OnboardingWorkState } from '../../../../shared/schemas/onboarding-work-state';
@@ -34,7 +30,7 @@ function humanLabel(code: string | null): string {
 }
 
 export function SemanticConflictPanel({ item, onActionComplete }: SemanticConflictPanelProps): React.ReactElement {
-  const { findingCode, findingSummary, conflictingValues, findingDetails, attentionReason, detail, family, itemId } = item;
+  const { findingCode, findingSummary, conflictingValues, findingDetails, attentionReason, detail, itemId } = item;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -45,19 +41,7 @@ export function SemanticConflictPanel({ item, onActionComplete }: SemanticConfli
     setBusy(true);
     setError(null);
     try {
-      if (family?.cohortId) {
-        const res = await fetch(`/api/onboarding/cohorts/${encodeURIComponent(family.cohortId)}/re-run`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        const data = (await res.json().catch(() => ({}))) as { error?: unknown };
-        if (!res.ok) {
-          const msg = typeof data.error === 'string' ? data.error : 'Could not re-run family curation. Fix the underlying data and try again.';
-          throw new Error(msg);
-        }
-      } else {
-        await retryItem(itemId);
-      }
+      await retryItem(itemId);
       setDone(true);
       onActionComplete?.();
     } catch (err) {
@@ -65,7 +49,7 @@ export function SemanticConflictPanel({ item, onActionComplete }: SemanticConfli
     } finally {
       setBusy(false);
     }
-  }, [family?.cohortId, itemId, onActionComplete]);
+  }, [itemId, onActionComplete]);
 
   const hasStructured = Boolean(findingCode || findingDetails?.length);
 
@@ -119,10 +103,10 @@ export function SemanticConflictPanel({ item, onActionComplete }: SemanticConfli
 
       <div className="scp-actions">
         <button type="button" className="btn btn-primary scp-action" onClick={() => void handleRerun()} disabled={busy}>
-          {busy ? 'Working…' : 'Re-run family curation'}
+          {busy ? 'Working…' : 'Re-run this product'}
         </button>
         <p className="scp-secondary-guidance">
-          To change brand or product type, edit the product data and then re-run. Re-running without fixing the underlying data will block again with fresh findings.
+          To change brand or product type, edit this product and then re-run. Re-running without fixing the underlying data may block again with fresh findings.
         </p>
       </div>
 
@@ -133,7 +117,7 @@ export function SemanticConflictPanel({ item, onActionComplete }: SemanticConfli
       ) : null}
       {done ? (
         <div className="scp-done" role="status">
-          ✓ Re-queued — family curation will re-run automatically. This product returns to Review once findings are resolved.
+          ✓ This product was re-queued for processing. Review remains subject to its own findings.
         </div>
       ) : null}
 

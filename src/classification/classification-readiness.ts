@@ -21,14 +21,14 @@
  */
 import { getCachedAttributeMappings, getCachedClassificationOutputBindings } from '../db/repositories/classification-config-repo';
 import { findGateRunById, getAcceptedProposals, getLiveDecisionsByRun, getProposalsByRun } from '../db/repositories/classification-run-repo';
-import { composeEffectiveReviewedFacts } from './reviewed-facts';
+import { composeEffectiveReviewedFacts, findRejectedProductClassificationProposal } from './reviewed-facts';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
 import { getReviewedClassificationPair } from './effective-curation-type';
 import { getEffectiveClassificationPair } from './assignment-projection';
 import { validateAttributeProfileValue } from './attribute-value-validation';
 import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
 import { resolveAttributeProfilePlan } from './attribute-profile-plan';
-import { resolveWebsiteClassification } from './product-classification';
+import { resolveWebsiteClassification, isApprovedClassificationPair } from './product-classification';
 import { resolveCanonicalClassificationOutputBindings } from './classification-ownership';
 import type {
   CanonicalClassificationReadinessResult,
@@ -195,4 +195,108 @@ export function evaluateCanonicalReadiness(input: {
     ok: true, code: 'ready', reason: 'Canonical classification is resolved.',
     details: { categoryId, productTypeId, profileId: plan.profileId, requiredValues },
   };
+}
+/**
+ * Resolve the catalogue fields whose captured Attribute Profile rules are
+ * required and currently applicable for a completed V2 run. This deliberately
+ * uses the same live decisions, reviewed facts, and frozen profile planner as
+ * canonical readiness so callers cannot infer requiredness from value status
+ * alone (which also includes optional valued attributes).
+ */
+export function getRequiredCatalogFieldsForRun(input: {
+  workspaceId: string;
+  runId: string;
+}): string[] | null {
+  const run = findGateRunById(input.runId);
+  if (!run || run.workspaceId !== input.workspaceId ||
+    (run.status !== 'completed' && run.status !== 'completed_with_abstentions')) return null;
+  const snapshot = run.configSnapshotHash
+    ? getRuntimeSnapshotByHash(input.workspaceId, run.configSnapshotHash)
+    : null;
+  if (!snapshot || snapshot.schemaVersion !== 2 || snapshot.configAuthorityKind !== 'v2') return null;
+
+  const accepted = getAcceptedProposals(run.productSku, run.id);
+  const currentRunProposals = getProposalsByRun(run.id);
+  const decisions = getLiveDecisionsByRun(run.id);
+  const currentAccepted = accepted.filter(proposal =>
+    proposal.status === 'accepted' && !proposal.isStale &&
+    decisions.some(decision => decision.proposalId === proposal.id && decision.decision === 'accepted' &&
+      decision.id === proposal.currentDecisionId),
+  );
+  const acceptedPairs = accepted.filter(proposal =>
+    proposal.proposalType === 'product_classification' && proposal.status === 'accepted' && !proposal.isStale,
+  );
+  if (acceptedPairs.length > 1) return null;
+  const pair = acceptedPairs.length === 1
+    ? getEffectiveClassificationPair(acceptedPairs[0]!)
+    : getReviewedClassificationPair(snapshot, currentRunProposals);
+  if (!pair.categoryId || !pair.productTypeId) return null;
+  const facts = composeEffectiveReviewedFacts(snapshot, currentAccepted, run.id);
+  const plan = resolveAttributeProfilePlan(snapshot, pair, facts);
+  if (plan.status !== 'ready') return null;
+
+  return plan.entries
+    .filter(entry => entry.required && entry.applicability.state === 'applicable')
+    .map(entry => snapshot.attributeMappings.find(mapping => mapping.attributeId === entry.attribute.id)?.catalogField ??
+      entry.attribute.id);
+}
+export interface RunListingClassificationTarget {
+  source: 'reviewed' | 'provisional' | 'none';
+  categoryId: string | null;
+  productTypeId: string | null;
+}
+
+/**
+ * Resolve an own-run pair for item listing guidance. A provisional pair may
+ * select its finite configured target, but this helper never marks it reviewed
+ * or ready for release; callers must keep the returned source explicit.
+ */
+export function selectRunListingClassificationTarget(input: {
+  workspaceId: string;
+  runId: string;
+}): RunListingClassificationTarget {
+  const run = findGateRunById(input.runId);
+  if (!run || run.workspaceId !== input.workspaceId ||
+    !['running', 'completed', 'completed_with_abstentions'].includes(run.status)) {
+    return { source: 'none', categoryId: null, productTypeId: null };
+  }
+  const snapshot = run.configSnapshotHash
+    ? getRuntimeSnapshotByHash(input.workspaceId, run.configSnapshotHash)
+    : null;
+  if (!snapshot || snapshot.schemaVersion !== 2 || snapshot.configAuthorityKind !== 'v2') {
+    return { source: 'none', categoryId: null, productTypeId: null };
+  }
+  const runProposals = getProposalsByRun(run.id).filter(proposal =>
+    proposal.runId === run.id && proposal.productSku === run.productSku,
+  );
+  const accepted = getAcceptedProposals(run.productSku, run.id);
+  const acceptedPairs = accepted.filter(proposal =>
+    proposal.proposalType === 'product_classification' && proposal.status === 'accepted' && !proposal.isStale,
+  );
+  if (acceptedPairs.length > 1) return { source: 'none', categoryId: null, productTypeId: null };
+
+  const reviewedPair = acceptedPairs.length === 1
+    ? getEffectiveClassificationPair(acceptedPairs[0]!)
+    : getReviewedClassificationPair(snapshot, runProposals);
+  if (reviewedPair.categoryId || reviewedPair.productTypeId) {
+    if (!reviewedPair.categoryId || !reviewedPair.productTypeId) return { source: 'none', categoryId: null, productTypeId: null };
+    const valid = isApprovedClassificationPair({ categoryId: reviewedPair.categoryId, productTypeId: reviewedPair.productTypeId }, snapshot);
+    return valid
+      ? { source: 'reviewed', categoryId: reviewedPair.categoryId, productTypeId: reviewedPair.productTypeId }
+      : { source: 'none', categoryId: null, productTypeId: null };
+  }
+  if (findRejectedProductClassificationProposal(runProposals, run.productSku)) {
+    return { source: 'none', categoryId: null, productTypeId: null };
+  }
+
+  const provisional = runProposals
+    .filter(proposal => proposal.proposalType === 'product_classification' && !proposal.isStale &&
+      (proposal.status === 'pending' || proposal.status === 'deferred'))
+    .sort((a, b) => b.confidence - a.confidence)[0];
+  if (!provisional) return { source: 'none', categoryId: null, productTypeId: null };
+  const pair = getEffectiveClassificationPair(provisional);
+  if (!pair.categoryId || !pair.productTypeId) return { source: 'none', categoryId: null, productTypeId: null };
+  return isApprovedClassificationPair({ categoryId: pair.categoryId, productTypeId: pair.productTypeId }, snapshot)
+    ? { source: 'provisional', categoryId: pair.categoryId, productTypeId: pair.productTypeId }
+    : { source: 'none', categoryId: null, productTypeId: null };
 }

@@ -1,7 +1,7 @@
 import { clearValidationResults, listValidationResults, addValidationResult } from '../db/repositories/validation-repo';
 import { resolveBaseFileName, findDuplicateFileNames, normalizeFileName } from '../shopsite/file-name';
 import { listCatalogFilenameOwners } from '../db/repositories/product-index-repo';
-import { findChangeSetById, listChangeSetItems, setItemValidationStatus, listConflictingDraftChangeSets } from '../db/repositories/change-set-repo';
+import { findChangeSetById, listChangeSetItems, setItemValidationStatus, listConflictingDraftChangeSets, type ChangeSetItemRow } from '../db/repositories/change-set-repo';
 import { validateProduct, type ValidationContext, type ValidationOptions } from './product-validation';
 import { readStoreConfig, readProductFile } from '../git/workspace-files';
 import { findWorkspace, findWorkspacePathById } from '../db/repositories/workspace-repo';
@@ -12,6 +12,11 @@ import { extractSubproductSkus, extractSubproductSkuOccurrences, hashNativeRefer
 import { findCurationDataJsonById } from '../db/repositories/onboarding-item-repo';
 import { draftListingEvidenceHashes, draftVariantFactsFor, currentSourceAuthority } from '../classification/listing-evidence-currentness';
 import { evaluateListingEvidenceGate } from '../classification/listing-evidence-gate';
+import { getRun } from '../db/repositories/classification-run-repo';
+import { validateReviewCompletionGate } from '../classification/review-completion-gate';
+import { loadItemListingReadiness } from '../classification/item-listing-readiness';
+import { evaluateListingCompletenessGate } from '../classification/listing-evidence-gate';
+import { validateFamilyMemberOrigin } from '../classification/storefront-family-origin';
 import { listStorefrontFamilyPlans, parseStorefrontFamilyPlan, type StorefrontFamilyPlanRow } from '../db/repositories/storefront-family-plan-repo';
 import { validateStorefrontFamilyGroup, validateNonFoodFamilyGroup, type StorefrontFamilyIssue } from './storefront-family-validation';
 import { FOOD_FAMILY_VARIANT_RULE_VERSION } from '../classification/family-variant-rule';
@@ -21,22 +26,28 @@ import type { StorefrontFamilyPlan } from '../shared/schemas/storefront-family';
 import type { Product } from '../shared/types';
 import { GitClient } from '../git/git-client';
 import { skuToProductFilePath } from '../git/product-file-path';
-/**
- * Slice-A-local workspace-scoped item lookup (issue #363 restore): latest
- * item id for a workspace + SKU, newest row first through the owning batch.
- * Kept here instead of `onboarding-item-repo` (Slice B declined that seam):
- * single inline-SQL owner, same deterministic tie-break as
- * `findExtractionDataByWorkspaceAndUpc`. Null when no row matches; throws
- * on DB failure so callers fail closed.
- */
-function findLatestItemIdByWorkspaceAndUpc(workspaceId: string, upc: string): string | null {
-  const row = getDb()
-    .query(
-      `SELECT i.id AS id FROM onboarding_items i JOIN onboarding_batches b ON b.id = i.batch_id
-       WHERE b.workspace_id = ? AND i.upc = ? ORDER BY i.created_at DESC LIMIT 1`,
-    )
-    .get(workspaceId, upc) as { id: string } | undefined;
-  return row?.id ?? null;
+function onboardingDraftBinding(
+  workspaceId: string,
+  item: ChangeSetItemRow,
+): { itemId: string; runId: string } | null {
+  const draft = JSON.parse(item.draftJson) as { itemId?: unknown };
+  const originItemId = typeof draft.itemId === 'string' && draft.itemId.trim() ? draft.itemId : null;
+  if (!item.classificationRunId) {
+    if (originItemId) throw new Error('The onboarding draft has no frozen run binding; prepare a fresh draft.');
+    return null;
+  }
+  const run = getRun(item.classificationRunId);
+  if (!run || run.workspaceId !== workspaceId || run.productSku !== item.sku) {
+    throw new Error('The draft classification run is missing or belongs to another workspace or SKU.');
+  }
+  if (run.sourceKind === 'catalog_product') {
+    if (originItemId) throw new Error('A catalog run cannot replace an onboarding draft origin.');
+    return null;
+  }
+  if (!run.onboardingItemId || originItemId && originItemId !== run.onboardingItemId) {
+    throw new Error('The draft run is not bound to its exact originating onboarding item.');
+  }
+  return { itemId: run.onboardingItemId, runId: run.id };
 }
 
 
@@ -317,107 +328,78 @@ export function validateChangeSet(changeSetId: string, options?: ValidationOptio
   const isLinkedGroup = Object.entries(parsedForLinkCheck).some(([sku, draft]) =>
     extractSubproductSkus(draft).some((ref) => ref !== sku),
   );
-   // Issue #366: listing-evidence gate over the frozen draft artifact.
-   // Single fail-closed call per change-set member: resolve the linked
-   // onboarding item by SKU (drafts carry SKU only), then interpret its
-   // persisted record against the DRAFT being released (draft
-   // title/description over the live eligible bundle). A stale draft paired
-   // with a fresh record still refuses until re-evaluation. A
-   // present-but-stale / blocked / unavailable record blocks the change
-   // set; absent records grandfather (pre-feature rows). Never throws:
-   // lookup failure blocks closed, unresolvable SKUs (non-onboarding
-   // drafts) stay clear.
-   try {
-    const workspaceId = changeSet?.workspaceId ?? ws?.id ?? '';
-    for (const item of items) {
-      const sku = item.sku;
-      if (!sku) continue;
-      let itemId: string | null = null;
-      try {
-        itemId = findLatestItemIdByWorkspaceAndUpc(workspaceId, sku);
-      } catch {
-        itemId = null;
-      }
-      if (!itemId) continue;
-      let gate: { ok: false; code: string; reason: string } | null = null;
-      try {
-        // Frozen artifact projection (gap 4): hash the draft being released
-        // (title + description + the SHARED draft-variant projection —
-        // every extraction variantAttributes entry plus the draft's own
-        // weight), never live curated text or a weight-only fact set.
-        let draftTitle: string | null = null;
-        let draftDescription: string | null = null;
-        let draftWeight: string | null = null;
-        try {
-          const parsed = JSON.parse(item.draftJson) as { core?: { name?: unknown; description?: unknown; weight?: unknown } };
-          draftTitle = typeof parsed?.core?.name === 'string' ? parsed.core.name : null;
-          draftDescription = typeof parsed?.core?.description === 'string' ? parsed.core.description : null;
-          draftWeight = typeof parsed?.core?.weight === 'string' && parsed.core.weight.trim() ? parsed.core.weight : null;
-        } catch {
-          draftTitle = null;
-          draftDescription = null;
-          draftWeight = null;
-        }
-        const draftVariantFacts = draftVariantFactsFor(itemId, draftWeight);
-        const rawCuration = findCurationDataJsonById(itemId);
-        let parsedCuration: Record<string, unknown> | null = null;
-        try {
-          parsedCuration = rawCuration ? (JSON.parse(String(rawCuration)) as Record<string, unknown>) : null;
-        } catch {
-          gate = { ok: false, code: 'LISTING_EVIDENCE_CHECK_FAILED', reason: 'Onboarding curation for this SKU is unreadable; resolve before approval.' };
-        }
-        if (!gate) {
-          if (parsedCuration?.listingEvidenceValidation === undefined || parsedCuration?.listingEvidenceValidation === null) {
-            gate = null;
-          } else {
-            const draftHashes = draftListingEvidenceHashes(itemId, { title: draftTitle, description: draftDescription, variantFacts: draftVariantFacts }, { workspacePath: ws?.workspacePath, workspaceId: changeSet?.workspaceId ?? ws?.id });
-            const evaluated = evaluateListingEvidenceGate({
-              curationData: parsedCuration,
-              currentListingHash: draftHashes.listingHash,
-              currentEvidenceHash: draftHashes.evidenceHash,
-              currentModelPolicyDigest: draftHashes.modelPolicyDigest,
-              currentRequiredFields: draftHashes.requiredFields,
-              currentSourceAuthority: currentSourceAuthority(itemId),
-            });
-            gate = evaluated.ok ? null : { ok: false, code: evaluated.code, reason: evaluated.reason };
-          }
-        }
-      } catch {
-        gate = { ok: false, code: 'LISTING_EVIDENCE_CHECK_FAILED', reason: 'Listing-evidence draft check could not complete; resolve before approval.' };
-      }
-      if (gate) {
-        const code = gate.code;
-        const reason = gate.reason;
-        const row = addValidationResult({
-          scopeType: 'change_set',
-          scopeId: changeSetId,
-          severity: 'blocker',
-          code: 'LISTING_EVIDENCE_UNRESOLVED',
-          message: `SKU ${sku}: listing-evidence check refuses release (${code}): ${reason}`,
-          fieldPath: null,
-        });
-        const member = itemResults.find(i => i.sku === item.sku);
-        if (member) {
-          member.results.push({
-            severity: row.severity,
-            code: row.code,
-            message: row.message,
-            fieldPath: row.fieldPath,
+  // Onboarding releases use their exact frozen origin, never the latest
+  // import with the same SKU. Ordinary manual/catalog drafts stay separate.
+  for (const item of items) {
+    let gate: { code: string; reason: string } | null = null;
+    try {
+      const workspaceId = changeSet?.workspaceId ?? '';
+      const binding = onboardingDraftBinding(workspaceId, item);
+      if (!binding) continue;
+      const reviewed = validateReviewCompletionGate({
+        workspaceId,
+        onboardingItemId: binding.itemId,
+        productSku: item.sku,
+        activeRunId: binding.runId,
+      });
+      if (!reviewed.ok) {
+        gate = reviewed;
+      } else {
+        const product = JSON.parse(item.draftJson) as Product;
+        const draftTitle = typeof product.core?.name === 'string' ? product.core.name : null;
+        const draftDescription = typeof product.core?.description === 'string' ? product.core.description : null;
+        const draftWeight = typeof product.core?.weight === 'string' ? product.core.weight : null;
+        const variantFacts = draftVariantFactsFor(binding.itemId, draftWeight);
+        const projection = { title: draftTitle, description: draftDescription, variantFacts, product };
+        const completeness = evaluateListingCompletenessGate(
+          loadItemListingReadiness(workspaceId, binding.itemId, projection).evaluation,
+        );
+        if (!completeness.ok) {
+          gate = completeness;
+        } else {
+          const rawCuration = findCurationDataJsonById(binding.itemId);
+          const curation = rawCuration ? JSON.parse(rawCuration) as Record<string, unknown> : null;
+          const hashes = draftListingEvidenceHashes(binding.itemId, projection, {
+            workspacePath: ws?.workspacePath,
+            workspaceId,
           });
-          setItemValidationStatus(changeSetId, item.sku, 'blocked');
+          const evaluated = evaluateListingEvidenceGate({
+            curationData: curation,
+            currentListingHash: hashes.listingHash,
+            currentEvidenceHash: hashes.evidenceHash,
+            currentModelPolicyDigest: hashes.modelPolicyDigest,
+            currentRequiredFields: hashes.requiredFields,
+            currentSourceAuthority: currentSourceAuthority(binding.itemId),
+          });
+          if (!evaluated.ok) gate = evaluated;
         }
       }
+    } catch (error) {
+      gate = {
+        code: 'ONBOARDING_DRAFT_AUTHORITY_UNAVAILABLE',
+        reason: error instanceof Error ? error.message : 'The exact onboarding draft authority could not be verified.',
+      };
     }
-  } catch (err) {
-     addValidationResult({
-       scopeType: 'change_set',
-       scopeId: changeSetId,
-       severity: 'blocker',
-       code: 'LISTING_EVIDENCE_CHECK_FAILED',
-       message: `Listing-evidence check could not complete: ${err instanceof Error ? err.message : String(err)}. Resolve before approval.`,
-       fieldPath: null,
-     });
-   }
+    if (!gate) continue;
+    const row = addValidationResult({
+      scopeType: 'change_set',
+      scopeId: changeSetId,
+      severity: 'blocker',
+      code: 'LISTING_EVIDENCE_UNRESOLVED',
+      message: `SKU ${item.sku}: release refused (${gate.code}): ${gate.reason}`,
+      fieldPath: null,
+    });
+    const member = itemResults.find(result => result.sku === item.sku);
+    if (member) {
+      member.results.push({
+        severity: row.severity,
+        code: row.code,
+        message: row.message,
+        fieldPath: row.fieldPath,
+      });
+    }
+    setItemValidationStatus(changeSetId, item.sku, 'blocked');
+  }
   if (!isLinkedGroup) {
     const standaloneResults = listValidationResults('change_set', changeSetId);
     const standaloneBlockers = standaloneResults.filter(r => r.severity === 'blocker').length;
@@ -578,6 +560,47 @@ export function validateAdoptedFamilyChangeSet(
     block('FAMILY_PLAN_UNREADABLE', 'The linking family plan is unreadable; refusing approval.');
     return issues;
   }
+  // Applied plans are history: re-validation of an approved/recovered commit
+  // matches on the recorded appliedCommit. Anything else must be currently
+  // accepted; draft staging never applies — applied exists only via the
+  // approval/recovery completion that also landed the approved commit.
+  if (plan.status === 'applied') {
+    if (!plan.appliedCommit || plan.appliedCommit !== changeSet.approvedCommit ||
+      !['approved', 'pushed'].includes(changeSet.status)) {
+      block('FAMILY_PLAN_NOT_ACCEPTED', 'The applied family plan does not match this approved commit.');
+      return issues;
+    }
+  } else if (plan.status !== 'accepted') {
+    block('FAMILY_PLAN_NOT_ACCEPTED', 'The complete current family plan must be accepted before approval.');
+    return issues;
+  }
+  const workspacePath = findWorkspacePathById(changeSet.workspaceId);
+  if (!workspacePath) {
+    block('FAMILY_ORIGIN_UNRESOLVABLE', 'The family workspace is unavailable; source origins cannot be verified.');
+    return issues;
+  }
+  try {
+    const bindingsBySku = new Map(listChangeSetItems(changeSetId).map(item => [item.sku, item.classificationRunId]));
+    for (const member of plan.members) {
+      const origin = validateFamilyMemberOrigin({
+        workspaceId: changeSet.workspaceId,
+        workspacePath,
+        sku: member.sku,
+        origin: member.origin,
+      });
+      if (!origin.ok) {
+        block('FAMILY_ORIGIN_UNRESOLVABLE', `${origin.code}: ${origin.reason}`, member.sku);
+      } else if (!origin.purchasable) {
+        block('FAMILY_NOT_PURCHASABLE', 'The member has no current verified purchasability authority.', member.sku);
+      } else if (member.origin?.kind === 'onboarding' && bindingsBySku.has(member.sku) &&
+        bindingsBySku.get(member.sku) !== member.origin.runId) {
+        block('FAMILY_ORIGIN_MISMATCH', 'The changed member lost its exact onboarding run binding.', member.sku);
+      }
+    }
+  } catch {
+    block('FAMILY_ORIGIN_UNRESOLVABLE', 'The complete member source-origin check could not finish.');
+  }
+  if (issues.length > 0) return issues;
   const parsed = new Map<string, Product>();
   for (const item of items) {
     try {
@@ -718,42 +741,6 @@ export function validateAdoptedFamilyChangeSet(
     if (refs.length > 0) {
       block('FAMILY_CONFLICTING_MEMBERSHIP', `SKU "${sku}" hosts family member refs (${refs.join(', ')}); only the main "${plan.mainSku}" emits the managed block — other cycles refuse.`, sku, 'shopsite.preserved.advancedBlocks');
     }
-  }
-  // Purchasability re-check at approval (#368): every member must carry
-  // positive, current purchasable authority per SKU-local onboarding
-  // curation. A missing/unreadable row, a missing/unparseable curation
-  // record, or any flag other than explicit true refuses closed — absent
-  // authority never grandfathers and never bypasses.
-  try {
-    const workspaceId = changeSet.workspaceId;
-    for (const sku of plannedSet) {
-      let itemId: string | null = null;
-      try {
-        itemId = findLatestItemIdByWorkspaceAndUpc(workspaceId, sku);
-      } catch {
-        itemId = null;
-      }
-      if (!itemId) {
-        block('FAMILY_NOT_PURCHASABLE', `SKU "${sku}" has no current purchasability authority (no onboarding row); refusing approval until curation resolves.`, sku);
-        continue;
-      }
-      let curation: Record<string, unknown> | null = null;
-      try {
-        const raw = findCurationDataJsonById(itemId);
-        curation = raw ? (JSON.parse(String(raw)) as Record<string, unknown>) : null;
-      } catch {
-        curation = null;
-      }
-      if (!curation || typeof curation !== 'object') {
-        block('FAMILY_NOT_PURCHASABLE', `SKU "${sku}" has no current purchasability authority (unreadable curation); refusing approval until curation resolves.`, sku);
-        continue;
-      }
-      if (curation['purchasable'] !== true) {
-        block('FAMILY_NOT_PURCHASABLE', `SKU "${sku}" is not currently purchasable; changing staged evidence to non-purchasable refuses approval.`, sku);
-      }
-    }
-  } catch (err) {
-    block('FAMILY_PURCHASABILITY_UNRESOLVABLE', `Purchasability re-check could not complete: ${err instanceof Error ? err.message : String(err)} — refusing approval.`);
   }
   if (issues.length > 0) return issues;
   // Validate the STORED drafts as written: apply already materialized the

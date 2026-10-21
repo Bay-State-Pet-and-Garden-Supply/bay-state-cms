@@ -34,6 +34,7 @@ export interface BudgetConsumption {
   modelInputBytesTotal: number;
   modelOutputTokensTotal: number;
   imageAttachmentsTotal: number;
+  redirects: number;
 }
 
 export function emptyConsumption(): BudgetConsumption {
@@ -46,6 +47,7 @@ export function emptyConsumption(): BudgetConsumption {
     modelInputBytesTotal: 0,
     modelOutputTokensTotal: 0,
     imageAttachmentsTotal: 0,
+    redirects: 0,
   };
 }
 
@@ -59,11 +61,25 @@ export function emptyConsumption(): BudgetConsumption {
  * sharing (`allowImageSharing`). Without it the effective image cap is
  * zero, per the design-doc image-permission contract.
  */
+export interface BudgetLedgerRequestAttempt {
+  markDispatched(): void;
+  settle(input: { redirects: number; bytes: number; durationMs: number }): void;
+  settleUnknown(): void;
+  release(): void;
+}
+
+export interface BudgetLedgerHooks {
+  beforeRequestAttempt(input: { maxResponseBytes: number; timeoutMs: number }): BudgetLedgerRequestAttempt;
+}
+
 export class BudgetLedger {
   private readonly consumed = emptyConsumption();
   private imageSharingAllowed = false;
 
-  constructor(private readonly budget: InvestigationBudget) {}
+  constructor(
+    private readonly budget: InvestigationBudget,
+    private readonly hooks?: BudgetLedgerHooks,
+  ) {}
 
   /** Enable image attachments under the budget ceiling (explicit opt-in only). */
   setImageSharingAllowed(allowed: boolean): void {
@@ -102,6 +118,19 @@ export class BudgetLedger {
       );
     }
     this.consumed.requestAttempts += 1;
+  }
+
+  /** Reserve the next broker attempt durably before destination validation or transport. */
+  beginRequestAttempt(timeoutMs: number): BudgetLedgerRequestAttempt | null {
+    return this.hooks?.beforeRequestAttempt({
+      maxResponseBytes: this.budget.maxResponseBytesPerResponse,
+      timeoutMs,
+    }) ?? null;
+  }
+
+  /** Record one observed redirect hop in the shared in-memory investigation ledger. */
+  chargeRedirect(): void {
+    this.consumed.redirects += 1;
   }
 
   /**

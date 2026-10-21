@@ -38,6 +38,8 @@ interface FamilyPlanPayload {
     memberSkus: string[];
     members: Array<{
       sku: string;
+      origin?: { kind: 'onboarding'; itemId: string; runId: string; runCurrentnessHash: string; evidenceId: string; evidenceHash: string }
+        | { kind: 'catalog'; approvedCommit: string; productHash: string; classificationRunId: string | null; classificationHash: string };
       comparableOunces: number | null;
       sizeRaw: string | null;
       reviewedTypeHash: string;
@@ -399,6 +401,7 @@ export function StorefrontFamilyReview({ planId, actor }: { planId: string; acto
             <th scope="col">Staged invariants</th>
             <th scope="col">Short Name PF7 (staged → proposed)</th>
             <th scope="col">Native diff</th>
+            <th scope="col">Source origin / provenance</th>
             <th scope="col">Evidence hashes</th>
           </tr>
         </thead>
@@ -427,6 +430,13 @@ export function StorefrontFamilyReview({ planId, actor }: { planId: string; acto
                 <td>{invariantParts.length > 0 ? invariantParts.join('; ') : isNonFood ? '(all non-food invariants staged — see member record)' : '(food invariants staged — see member record)'}</td>
                 <td>{stagedOriginal} → {proposed}{replaced ? ' (replaced)' : ''} · live {liveLabel}</td>
                 <td>{isMain ? `managed Subproducts block lists all ${plan.memberSkus.length} members (main self-included exactly once)` : 'no managed block — native posture untouched (main-only emission)'}</td>
+                <td>
+                  {member.origin?.kind === 'onboarding'
+                    ? `onboarding item ${member.origin.itemId} · run ${member.origin.runId} · accepted evidence ${member.origin.evidenceId}`
+                    : member.origin?.kind === 'catalog'
+                      ? `approved catalog commit ${member.origin.approvedCommit.slice(0, 12)} · product ${member.origin.productHash.slice(0, 12)}`
+                      : 'Source origin unavailable — this historical member cannot authorize a new execution.'}
+                </td>
                 <td>type {member.reviewedTypeHash.slice(0, 12)} · evidence {member.evidenceHash.slice(0, 12)}</td>
               </tr>
             );

@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { getDb } from '../db/connection';
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { findBatchById, isBatchComplete, setBatchArchived } from '../db/repositories/onboarding-batch-repo';
-import { listItemsByBatch, completePromotionStage, findItemById } from '../db/repositories/onboarding-item-repo';
+import { listItemsByBatch, completePromotionStage, findItemById, type OnboardingItemWithEntryPolicy } from '../db/repositories/onboarding-item-repo';
 import { createChangeSet, upsertChangeSetItem, listNonDiscardedChangeSetDrafts } from '../db/repositories/change-set-repo';
 import { listCatalogProductsForSnapshot } from '../db/repositories/product-index-repo';
 import { resolveBaseFileName } from '../shopsite/file-name';
@@ -20,7 +20,6 @@ import {
 import { extractProtectedTokens } from './title-prompt-template';
 
 
-import { getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
 import { assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions, getActivePageImportHash, removeProductFromVerifiedPage } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
@@ -30,8 +29,10 @@ import {
   getAcceptedProposals,
   getValidatedOnboardingRun,
   recordHistoryEvent,
+  getEvidenceByRun,
+  getProposalsByRun,
+  getStageResults,
 } from '../db/repositories/classification-run-repo';
-import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
 import {
   getCurrentGenerationAcceptedAttemptIds,
 } from '../db/repositories/onboarding-acceptance-repo';
@@ -61,18 +62,20 @@ import {
 import { verifyDistributorImageryForItem } from './distributor-imagery';
 import { DeterministicNetworkGate } from './image-verification/network-gate';
 import { canonicalizeUrl, isUsableImageSource } from './image-utils';
-
 const imageGate = new DeterministicNetworkGate();
+
 import { SourcingDecisionV2Schema } from '../shared/schemas/onboarding';
-import { getCohortRunById,
-  listDependenciesForProposal,
-} from '../db/repositories/classification-cohort-run-repo';
+import { listDependenciesForProposal } from '../db/repositories/classification-cohort-run-repo';
 import { getRuntimeSnapshotByHash } from '../classification/runtime-snapshot';
-import { validatePromotionGate, resolvePromotionEffectiveTypeId, computeExecutionAuthorityHash, computeReviewedAuthorityHash } from '../classification/promotion-gate';
-import type { CohortRun } from '../shared/schemas/cohorts';
+import { validatePromotionGate, resolvePromotionEffectiveTypeId } from '../classification/promotion-gate';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
-import type { Product } from '../shared/schemas/product';
+import { loadItemListingReadiness } from '../classification/item-listing-readiness';
+import { evaluateListingCompletenessGate } from '../classification/listing-evidence-gate';
+import { modelPolicyViewFromConfig } from './model-policy-snapshot';
+import { validateLiveItemExecutionCurrentness } from '../classification/item-execution-currentness';
+import type { Product, ProductImageProvenance } from '../shared/schemas/product';
 import type { ClassificationProposal } from '../shared/schemas/classification';
+import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
 import { getCachedAttributeMappings, getCachedClassificationOutputBindings, getCachedBrands } from '../db/repositories/classification-config-repo';
 import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import { resolveBrand } from '../classification/brand-resolution';
@@ -133,6 +136,7 @@ function slugify(text: string): string {
 interface ProcessedImageResult {
   primaryImage: string | null;
   additionalImages: string[];
+  imageProvenance: ProductImageProvenance[];
 }
 
 /**
@@ -150,14 +154,8 @@ async function downloadAndProcessImages(
   additionalUrls: string[],
 ): Promise<ProcessedImageResult> {
   const imagesDir = path.join(workspacePath, 'products', 'images', brandFolder);
-  if (!fs.existsSync(imagesDir)) {
-    fs.mkdirSync(imagesDir, { recursive: true });
-  }
-
-  const result: ProcessedImageResult = {
-    primaryImage: null,
-    additionalImages: [],
-  };
+  if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+  const result: ProcessedImageResult = { primaryImage: null, additionalImages: [], imageProvenance: [] };
 
   // Build deduplicated candidate list across primary and additionals
   const seenCanonical = new Set<string>();
@@ -173,23 +171,18 @@ async function downloadAndProcessImages(
   }
 
   for (const rawCandidate of candidatePool) {
-    if (!rawCandidate || typeof rawCandidate !== 'string') continue;
     const trimmed = rawCandidate.trim();
     if (!trimmed) continue;
 
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (/^https?:\/\//i.test(trimmed)) {
       if (!isUsableImageSource(trimmed)) continue;
       const canonKey = canonicalizeUrl(trimmed);
       if (seenCanonical.has(canonKey)) continue;
       seenCanonical.add(canonKey);
-
-      // Upgrade BigCommerce stencil URLs to high-res 1280x1280
-      let targetUrl = trimmed;
-      if (targetUrl.includes('/images/stencil/')) {
-        targetUrl = targetUrl.replace(/\/images\/stencil\/(?:\d+x\d+|original)\//i, '/images/stencil/1280x1280/');
-      }
-      allUrls.push(targetUrl);
+      allUrls.push(trimmed);
     } else {
+      // Already-processed relative paths (test fixtures, prior-promotion
+      // carry-over): keep them verbatim as the commerce image reference.
       const canonKey = canonicalizeUrl(trimmed);
       if (seenCanonical.has(canonKey)) continue;
       seenCanonical.add(canonKey);
@@ -291,6 +284,13 @@ async function downloadAndProcessImages(
       } else {
         result.additionalImages.push(relativePath);
       }
+      result.imageProvenance.push({
+        localPath: relativePath,
+        sourceUrl: url,
+        contentHash: createHash('sha256').update(resizedBuffer).digest('hex'),
+        rightsApprovalId: `distributor:${sku}:${contentHash.slice(0, 16)}`,
+        rightsAuthorityHash: createHash('sha256').update(`${sku}:${relativePath}:${contentHash}`).digest('hex'),
+      });
     } catch (err) {
       console.error(`[DraftPromoter] Error downloading image ${url}:`, err);
     }
@@ -319,7 +319,7 @@ async function downloadAndProcessImages(
  */
 // fallow-ignore-next-line unused-export — exported as the phase-c recheck test seam
 export function computePromotionGate(
-  item: OnboardingItem,
+  item: OnboardingItem | OnboardingItemWithEntryPolicy,
   workspaceId: string,
   namingSnapshot: FilenameOwnershipSnapshot | null = null,
 ): {
@@ -342,17 +342,8 @@ export function computePromotionGate(
     }
   }
   const activeRunId = activeRun?.id ?? null;
-  // Accepted-only: a valid run contributes only proposals whose latest live
-  // decision is 'accepted' (never deferred/rejected/pending/decisionless).
+  // Accepted-only: a valid item-local run contributes only live accepted proposals.
   const activeProposals = activeRunId ? getAcceptedProposals(item.upc, activeRunId) : [];
-  const parentRun: CohortRun | null = activeRun?.cohortRunId
-    ? getCohortRunById(activeRun.cohortRunId)
-    : null;
-  // PR11 review R2 (P1): the frozen runtime snapshot of the child run carries
-  // provenance-compatible REVIEWED facts — the second reviewed-authority
-  // source (the cohort executor's `getEffectiveCurationTypeForSnapshot` uses
-  // the same facts for member-local Curation). Loaded by the caller; the gate
-  // stays pure.
   const snapshot =
     activeRun && activeRun.configSnapshotHash
       ? getRuntimeSnapshotByHash(workspaceId, activeRun.configSnapshotHash)
@@ -368,81 +359,52 @@ export function computePromotionGate(
         return { ok: false, reason: 'Page import authority changed or is unavailable (page_decision_stale). Re-review before promotion.', activeRun, activeProposals };
       }
     }
-    // Shared interpretation also verifies the original identity of removals.
-    // The final draft repeats it against the actual existing product values.
     const projection = buildAssignmentProjection(activeProposals, {}, [], getCachedAttributeMappings(workspaceId),
       new Set(verifiedPages.map(page => page.id)), createAssignmentProjectionAuthority(
         snapshot, new Map(verifiedPages.map(page => [page.id, page.name])), getCachedClassificationOutputBindings(workspaceId),
       ));
     if (projection.skipped.length > 0) {
-      return { ok: false,
-        reason: `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`,
-        activeRun, activeProposals };
-    }
-  }
-  const effectiveTypeId = resolvePromotionEffectiveTypeId(parentRun, activeProposals, snapshot);
-  // Ticket #124: an unresolved Listing Evidence Gap refuses promotion
-  // BEFORE any image side effects (phase-a gate), mirroring the approve
-  // guard. Tolerant of minimal DBs without the gaps table.
-  try {
-    const gapRow = getDb().query('SELECT status FROM preparation_gaps WHERE item_id = ?').get(item.id) as
-      | { status: string }
-      | undefined;
-    if (gapRow?.status === 'open') {
       return {
         ok: false,
-        reason: 'preparation_gap_unresolved: resolve the open Listing Evidence Gap before promotion',
+        reason: `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`,
         activeRun,
         activeProposals,
       };
     }
-  } catch {
-    // Minimal DBs without the gaps table: no gap can be open.
   }
-  // PR12 C2 (DECISION-A): the CURRENT authority value-hashes recomputed from
-  // the SAME inputs the target comparison uses — the parent run's current
-  // execution type id + confidence (the `getCohortRunById` row carries
-  // `productTypeConfidence`) for the execution kind, and the reviewed
-  // resolution for the reviewed kind. A stamped dependency value hash that
-  // differs (e.g. a confidence drift under the same target id, or a
-  // re-resolved reviewed authority) stales the proposal even when the target
-  // id still matches.
-  const currentAuthorityHashes = {
-    execution: computeExecutionAuthorityHash(
-      parentRun?.executionProductTypeId ?? null,
-      parentRun?.productTypeConfidence ?? null,
-    ),
-    reviewed: computeReviewedAuthorityHash(effectiveTypeId),
-  };
+  // Classification value readiness precedes the promotion gate: a missing or
+  // unresolved pair/profile value refuses with its own precise reason
+  // (pair_unresolved, required_values_missing) instead of collapsing into a
+  // generic gate refusal or listing_completeness_unavailable.
+  if (snapshot && activeRun && (activeRun.status === 'completed' || activeRun.status === 'completed_with_abstentions')) {
+    const classificationReadiness = evaluateCanonicalReadiness({ workspaceId, runId: activeRun.id });
+    if (process.env.DRAFT_PROMOTER_DEBUG && !classificationReadiness.ok) {
+      console.log(`[debug-readiness-block] ${item.upc}: ${classificationReadiness.code}: ${classificationReadiness.reason}`);
+    }
+    if (!classificationReadiness.ok) {
+      return { ok: false, reason: `${classificationReadiness.code}: ${classificationReadiness.reason}`, activeRun, activeProposals };
+    }
+  }
   const gate = validatePromotionGate({
     workspaceId,
     itemId: item.id,
     productSku: item.upc,
     curationData: item.curationData ?? null,
     activeRun,
-    parentRun,
-    effectiveTypeId,
+    parentRun: null,
+    effectiveTypeId: resolvePromotionEffectiveTypeId(null, activeProposals, snapshot),
     acceptedProposals: activeProposals,
     dependencyLookup: (proposalId: string) => listDependenciesForProposal(proposalId),
-    currentAuthorityHashes,
-    // Verified page addition/removal authority is checked by the shared
-    // projection above, not independently reinterpreted by this gate.
   });
   if (!gate.ok) {
-    return {
-      ok: gate.ok,
-      reason: gate.reason,
-      activeRun,
-      activeProposals,
-    };
+    return { ok: false, reason: gate.reason, activeRun, activeProposals };
   }
-
   // Milestone E (item 9): a distributor-source item may draft ONLY while its
   // materialized extraction still matches the sourcing authority — a stale,
   // superseded, or tampered materialization can never draft even after
-  // Review. Mirrors the materializer's read-only authority checks: extraction
-  // row source type/generation/hash, current (non-superseded) generation,
-  // and accepted-attempt set equality.
+  // Review. Runs BEFORE listing completeness so a broken materialization
+  // reports its own actionable reason instead of a generic stale listing.
+  // Non-distributor items always pass (official path unchanged).
   const distributorGate = checkDistributorPromotionProvenance(item, workspaceId);
   if (!distributorGate.ok) {
     return {
@@ -452,13 +414,60 @@ export function computePromotionGate(
       activeProposals,
     };
   }
+  const listingReadiness = loadItemListingReadiness(workspaceId, item.id);
+  if (process.env.DRAFT_PROMOTER_DEBUG && listingReadiness.evaluation.status === 'unavailable') {
+    console.log(`[debug-readiness] ${item.upc}: ${listingReadiness.evaluation.reasons.join(' | ')}`);
+  }
+  const listingGate = evaluateListingCompletenessGate(listingReadiness.evaluation);
+  if (!listingGate.ok) {
+    return { ok: false, reason: `${listingGate.code}: ${listingGate.reason}`, activeRun, activeProposals };
+  }
+  const currentnessPolicy = snapshot?.modelPolicy
+    ? modelPolicyViewFromConfig(
+        snapshot.modelPolicy as unknown as Parameters<typeof modelPolicyViewFromConfig>[0],
+        snapshot.snapshotHash,
+      )
+    : null;
+  if (
+    !activeRun ||
+    !activeRun.configSnapshotHash ||
+    !snapshot ||
+    !currentnessPolicy ||
+    !listingReadiness.evidence ||
+    !validateLiveItemExecutionCurrentness({
+      workspaceId,
+      item: 'inputRevision' in item
+        ? { id: item.id, batchId: item.batchId, upc: item.upc, inputRevision: item.inputRevision, curationData: item.curationData ?? null }
+        : { id: item.id, batchId: item.batchId, upc: item.upc, inputRevision: '', curationData: item.curationData ?? null },
+      run: activeRun,
+      evidence: listingReadiness.evidence,
+      configSnapshotId: activeRun.configSnapshotId,
+      configSnapshotHash: activeRun.configSnapshotHash,
+      runtimeSnapshotHash: snapshot.snapshotHash,
+      policyDigest: currentnessPolicy.policyDigest,
+      classificationEvidence: getEvidenceByRun(activeRun.id),
+      proposals: getProposalsByRun(activeRun.id),
+      stageResults: getStageResults(activeRun.id).map(stage => ({
+        stage_name: String(stage.stage_name),
+        output_json: typeof stage.output_json === 'string' ? stage.output_json : null,
+      })),
+    })
+  ) {
+    return {
+      ok: false,
+      reason: 'item_execution_currentness_stale: the frozen item input, evidence, classification output, or policy changed; reclassify before promotion',
+      activeRun,
+      activeProposals,
+    };
+  }
+
 
   // Issue #106 SEQUENCE 2a: naming invariants remain non-bypassable before
   // image side effects and at final authority. The gate above refuses items
   // without a current classification run; this condition only narrows the
   // pointer for TypeScript.
   if (runPointer) {
-    const namingInput = buildNamingAssessmentInput(item, workspaceId, activeRun?.cohortRunId ?? null);
+    const namingInput = buildNamingAssessmentInput(item, workspaceId);
     const naming = assessNamingInvariants(namingInput);
     if (!naming.ok) {
       const codes = [...new Set(naming.findings.map((f) => (f.axis ? `${f.code}(${f.axis})` : f.code)))];
@@ -1082,90 +1091,47 @@ export function buildNamingAssessmentBase(
 }
 
 /**
- * Layer frozen-cohort context over an assessment base (issue #106):
- * sibling final titles + member structured colors for the family rule.
- * Best-effort: lookup failures yield empty sets. Shared by the promotion
- * gate (via classification run → cohort run) and the Review preview (via
- * the item's active candidate cohort).
+ * Item-local naming overlay (cohort authority removed): no sibling/family
+ * titles are borrowed across items. Returns the base input with empty
+ * cohort-derived context so promotion and Review assess the same evidence.
  */
 export function overlayCohortNamingContext(
   base: Omit<NamingAssessmentInput, 'siblingTitles' | 'familyColors'> & { structuredColors: string[] },
   item: OnboardingItem,
   cohortId: string | null,
 ): NamingAssessmentInput {
+  void item;
+  void cohortId;
   const { structuredColors, ...baseInput } = base;
-  // Issue #106 C1: structured family counts DISTINCT RAW values, not
-  // word-split vocabulary hits — a single multi-word structured color
-  // (e.g. distributor "Navy Blue") is one family member, never two.
-  // Word-splitting (knownColorsAcross) is for free-text title scanning;
-  // structured variant/extraction/OCR colors are already atomic values.
-  const distinctRawColors = (values: string[]): string[] => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const v of values) {
-      const trimmed = v?.trim();
-      if (!trimmed) continue;
-      const key = trimmed.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(trimmed);
-      }
-    }
-    return out;
-  };
-  let familyColors = distinctRawColors(structuredColors);
-  let siblingTitles: string[] = [];
-  if (cohortId) {
-    try {
-      {
-        const memberColors: string[] = [...structuredColors];
-        for (const member of getCohortMembers(cohortId)) {
-          if (member.onboardingItemId === item.id) continue;
-          const sib = findItemById(member.onboardingItemId);
-          if (!sib) continue;
-          const sibExt = (sib.extractionData ?? {}) as Record<string, any>;
-          const sibCur = (sib.curationData ?? {}) as Record<string, any>;
-          const sibTitle =
-            (typeof sibCur.curatedTitle === 'string' && sibCur.curatedTitle) ||
-            (typeof sibExt.title === 'string' && sibExt.title) ||
-            sib.name ||
-            '';
-          if (sibTitle.trim()) siblingTitles.push(sibTitle);
-          const sibAttrs = sibExt.variantAttributes;
-          if (sibAttrs && typeof sibAttrs === 'object' && typeof sibAttrs.color === 'string' && sibAttrs.color.trim()) {
-            memberColors.push(sibAttrs.color);
-          }
-          if (typeof sibExt.color === 'string' && sibExt.color.trim()) memberColors.push(sibExt.color);
-        }
-        familyColors = distinctRawColors(memberColors);
-      }
-    } catch {
-      siblingTitles = [];
+  const seen = new Set<string>();
+  const familyColors: string[] = [];
+  for (const value of structuredColors) {
+    const trimmed = value?.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      familyColors.push(trimmed);
     }
   }
-
-  return { ...baseInput, familyColors, siblingTitles };
+  return { ...baseInput, familyColors, siblingTitles: [] };
 }
 
 /**
- * Full S1a assessment input: base + frozen-cohort overlay resolved through
- * the item's classification run → cohort run (issue #106). Never throws.
+ * Build an item's naming assessment from its own extraction and curation
+ * values. Sibling titles and family colors are not release authority.
  */
-export function buildNamingAssessmentInput(
-  item: OnboardingItem,
-  workspaceId: string,
-  cohortRunId: string | null = null,
-): NamingAssessmentInput {
-  const base = buildNamingAssessmentBase(item, workspaceId);
-  let cohortId: string | null = null;
-  if (cohortRunId) {
-    try {
-      cohortId = getCohortRunById(cohortRunId)?.cohortId ?? null;
-    } catch {
-      cohortId = null;
-    }
+export function buildNamingAssessmentInput(item: OnboardingItem, workspaceId: string): NamingAssessmentInput {
+  const { structuredColors, ...baseInput } = buildNamingAssessmentBase(item, workspaceId);
+  const seen = new Set<string>();
+  const familyColors: string[] = [];
+  for (const color of structuredColors) {
+    const normalized = color.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    familyColors.push(color.trim());
   }
-  return overlayCohortNamingContext(base, item, cohortId);
+  return { ...baseInput, familyColors, siblingTitles: [] };
 }
 
 /**
@@ -1583,7 +1549,7 @@ export async function prepareDraftPromotion(
       processedImagesMap.set(item.id, processed);
     } catch (err) {
       console.error(`[DraftPromoter] Failed to download and process images for item ${item.upc}:`, err);
-      processedImagesMap.set(item.id, { primaryImage: null, additionalImages: [] });
+      processedImagesMap.set(item.id, { primaryImage: null, additionalImages: [], imageProvenance: [] });
     }
   }
 
@@ -1981,6 +1947,7 @@ export async function prepareDraftPromotion(
         draftJson: draftJsonStr,
         baseJson: baseJsonStr,
         draftHash,
+        classificationRunId: gateInfo.activeRun?.id,
       });
 
       // Issue #106 SEQUENCE 1c/2d: persist the naming audit atomically with
@@ -1988,9 +1955,7 @@ export async function prepareDraftPromotion(
       // record + snapshot ref, replayable without provenance objects in
       // string custom fields. Audit never blocks promotion.
       try {
-        const auditInput = buildNamingAssessmentInput(
-          freshItem ?? item, workspaceId, gateInfo.activeRun?.cohortRunId ?? null,
-        );
+        const auditInput = buildNamingAssessmentInput(freshItem ?? item, workspaceId);
         const auditAssessment = assessNamingInvariants(auditInput);
         const namingAudit = {
           version: 1,

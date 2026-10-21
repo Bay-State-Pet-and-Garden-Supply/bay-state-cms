@@ -30,20 +30,29 @@ import {
   findStorefrontFamilyPlanById,
   parseStorefrontFamilyPlan,
   updateStorefrontFamilyPlan,
+  listStorefrontFamilyPlans,
   type StorefrontFamilyPlanRow,
 } from '../db/repositories/storefront-family-plan-repo';
 import { setManagedSubproducts, classifySubproductsSupport, extractSubproductSkus, readManagedMembership } from '../shopsite/storefront-subproducts';
 import { comparisonHashForProduct } from '../shopsite/catalog-comparison';
 import {
   createChangeSet,
+  findChangeSetByWorkspaceId,
+  listChangeSetItems,
   upsertChangeSetItem,
   listConflictingDraftChangeSets,
+  findLinkedManifest,
+  type ChangeSetRow,
 } from '../db/repositories/change-set-repo';
+import { LinkedManifestSchema } from '../shared/schemas/change-set';
+import { ProductSchema } from '../shared/schemas/product';
+import { findWorkspacePathById } from '../db/repositories/workspace-repo';
+import { validateFamilyMemberOrigin } from './storefront-family-origin';
 import { listOutstandingDriftForSku } from '../db/repositories/drift-repo';
 import { readProductFile } from '../git/workspace-files';
 import { hashJson } from '../git/deterministic-json';
 import { deterministicStringify } from '../git/deterministic-json';
-import type { StorefrontFamilyPlan } from '../shared/schemas/storefront-family';
+import type { FamilyMemberOrigin, StorefrontFamilyPlan } from '../shared/schemas/storefront-family';
 import type { Product } from '../shared/types';
 
 /**
@@ -94,6 +103,78 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+export function validateCurrentFamilyOrigins(
+  workspaceId: string,
+  workspacePath: string,
+  members: ReadonlyArray<{ sku: string; origin?: FamilyMemberOrigin }>,
+): Map<string, string | null> {
+  const runIds = new Map<string, string | null>();
+  for (const member of members) {
+    const validation = validateFamilyMemberOrigin({
+      workspaceId,
+      workspacePath,
+      sku: member.sku,
+      origin: member.origin,
+    });
+    if (!validation.ok) {
+      throw new Error(`family_origin_invalid: SKU "${member.sku}" has invalid source authority (${validation.code}: ${validation.reason}).`);
+    }
+    if (!validation.purchasable) {
+      throw new Error(`family_not_purchasable: SKU "${member.sku}" has no current positive purchasability authority.`);
+    }
+    runIds.set(member.sku, validation.classificationRunId);
+  }
+  return runIds;
+}
+
+export interface PreparedFamilyDraftItem {
+  sku: string;
+  operation: 'create' | 'update';
+  draftJson: string;
+  baseJson: string | null;
+  draftHash: string;
+  classificationRunId: string | null;
+}
+
+/** Reuse only the same complete, still-editable draft; never duplicate or overwrite a changed replay. */
+export function reuseCurrentFamilyPlanDraft(
+  workspaceId: string,
+  changeSetId: string,
+  expected: readonly PreparedFamilyDraftItem[],
+): ChangeSetRow {
+  const changeSet = findChangeSetByWorkspaceId(workspaceId, changeSetId);
+  if (!changeSet || changeSet.status !== 'draft') {
+    throw new Error(`family_apply_linked_draft_unavailable: linked change set "${changeSetId}" is missing or no longer a draft; re-stage the family.`);
+  }
+  const actual = listChangeSetItems(changeSetId);
+  const sortedExpected = [...expected].sort((a, b) => a.sku.localeCompare(b.sku));
+  if (actual.length !== sortedExpected.length || actual.some((item, index) => {
+    const wanted = sortedExpected[index];
+    return !wanted
+      || item.sku !== wanted.sku
+      || item.operation !== wanted.operation
+      || item.draftJson !== wanted.draftJson
+      || item.baseJson !== wanted.baseJson
+      || item.draftHash !== wanted.draftHash
+      || item.classificationRunId !== wanted.classificationRunId;
+  })) {
+    throw new Error(`family_apply_linked_draft_changed: linked change set "${changeSetId}" no longer matches the exact complete prepared family group; re-stage the family.`);
+  }
+  return changeSet;
+}
+
+function assertPreparedFamilySnapshot(plan: StorefrontFamilyPlan, draftsBySku: Map<string, Product>): void {
+  const drafts = plan.memberSkus.map((sku) => draftsBySku.get(sku));
+  if (drafts.some((draft) => draft === undefined)) {
+    const missing = plan.memberSkus.find((sku) => !draftsBySku.has(sku));
+    throw new Error(`family_member_missing_draft: SKU "${missing ?? 'unknown'}" has no prepared draft; the whole family group is required.`);
+  }
+  const preparedHash = familyReadWriteHashFor(drafts as Product[]);
+  if (preparedHash !== plan.writeHash || plan.readHash !== preparedHash.slice(0, 32)) {
+    throw new Error('family_apply_stale: the complete prepared member/read/write snapshot changed after review; re-stage the family.');
+  }
+}
+
 function planHashParts(
   members: Array<{ sku: string; factors: FamilyVariantFactors; pack: { packCountDeclared: boolean; packCount: number | null } }>,
   evidenceHashes: string[],
@@ -123,10 +204,8 @@ export function stageStorefrontFamilyPlan(args: StageFamilyInput): FamilyPlanVie
   if (skuSet.size !== parsed.members.length) {
     throw new Error('family_rule_duplicate_size: duplicate member SKUs refuse staging.');
   }
+  validateCurrentFamilyOrigins(args.workspaceId, args.workspacePath, parsed.members);
   for (const m of parsed.members) {
-    if (!m.purchasable) {
-      throw new Error(`family_not_purchasable: SKU "${m.sku}" is not a real purchasable size SKU.`);
-    }
     const curation = args.curationBySku.get(m.sku);
     if (!curation) {
       throw new Error(`family_member_unresolved: SKU "${m.sku}" has no current eligible SKU-local evidence.`);
@@ -199,14 +278,16 @@ export function stageStorefrontFamilyPlan(args: StageFamilyInput): FamilyPlanVie
   const at = nowIso();
   const plan: StorefrontFamilyPlan = {
     id: randomUUID(),
-    workspaceId: args.workspaceId,
+    appliedAt: null,
     ruleVersion: FOOD_FAMILY_VARIANT_RULE_VERSION,
     planVersion: 'storefront-family-plan-v1',
+    workspaceId: args.workspaceId,
     status: 'proposed',
     revision: 0,
     memberSkus: [...skuSet].sort(),
     members: parsed.members.map((m) => ({
       sku: m.sku,
+      origin: m.origin,
       comparableOunces: m.ounces,
       sizeRaw: m.sizeRaw,
       retailUnit: m.retailUnit,
@@ -264,10 +345,8 @@ export function stageNonFoodStorefrontFamilyPlan(args: StageNonFoodFamilyInput):
   if (skuSet.size !== parsed.members.length) {
     throw new Error('family_rule_duplicate_variant: duplicate member SKUs refuse staging.');
   }
+  validateCurrentFamilyOrigins(args.workspaceId, args.workspacePath, parsed.members);
   for (const m of parsed.members) {
-    if (!m.purchasable) {
-      throw new Error(`family_not_purchasable: SKU "${m.sku}" is not a real purchasable member SKU.`);
-    }
     if (!permittedTypes.includes(m.reviewedProductTypeId)) {
       throw new Error(
         `family_rule_type_not_applicable: SKU "${m.sku}" type "${m.reviewedProductTypeId}" is not declared for rule "${ruleVersion}"; unknown/undeclared types never resolve a rule.`,
@@ -362,14 +441,16 @@ export function stageNonFoodStorefrontFamilyPlan(args: StageNonFoodFamilyInput):
   const at = nowIso();
   const plan: StorefrontFamilyPlan = {
     id: randomUUID(),
-    workspaceId: args.workspaceId,
+    appliedAt: null,
     ruleVersion,
     planVersion: 'storefront-family-plan-v1',
+    workspaceId: args.workspaceId,
     status: 'proposed',
     revision: 0,
     memberSkus: [...skuSet].sort(),
     members: parsed.members.map((m) => ({
       sku: m.sku,
+      origin: m.origin,
       comparableOunces: m.countQuantity,
       sizeRaw: m.sizeRaw,
       packCountDeclared: m.packCountDeclared,
@@ -437,6 +518,18 @@ export function decideStorefrontFamilyPlan(input: {
   const row = findStorefrontFamilyPlanById(input.planId);
   if (!row) throw new Error(`family_plan_missing: no plan "${input.planId}".`);
   const plan = parseStorefrontFamilyPlan(row.planJson);
+  if (plan.status === 'applied') {
+    throw new Error('family_plan_applied: an applied plan is immutable; stage a new plan to change the family.');
+  }
+  if (plan.status === 'stale') {
+    throw new Error('family_plan_stale: re-stage the family against current evidence before deciding.');
+  }
+  if (plan.linkedChangeSetId) {
+    throw new Error('family_plan_materialized: this accepted plan is linked to a prepared draft and cannot be revised; discard it and re-stage the reviewed operation.');
+  }
+  const workspacePath = findWorkspacePathById(row.workspaceId);
+  if (!workspacePath) throw new Error('family_origin_workspace_unavailable: the plan workspace path is unavailable.');
+  validateCurrentFamilyOrigins(row.workspaceId, workspacePath, plan.members);
   // Decide-time recheck (#369): an accept on drifted/conflicting state
   // refuses closed — the operator re-reviews against current evidence first.
   if (input.action === 'accept') {
@@ -496,12 +589,6 @@ export function decideStorefrontFamilyPlan(input: {
         }
       }
     }
-  }
-  if (plan.status === 'applied') {
-    throw new Error('family_plan_applied: an applied plan is immutable; stage a new plan to change the family.');
-  }
-  if (plan.status === 'stale') {
-    throw new Error('family_plan_stale: re-stage the family against current evidence before deciding.');
   }
   if (input.mainOverrideSku) {
     if (!plan.memberSkus.includes(input.mainOverrideSku)) {
@@ -580,6 +667,11 @@ export function checkStorefrontFamilyFreshness(input: {
   if (!row) throw new Error(`family_plan_missing: no plan "${input.planId}".`);
   const plan = parseStorefrontFamilyPlan(row.planJson);
   const reasons: string[] = [];
+  try {
+    validateCurrentFamilyOrigins(row.workspaceId, input.workspacePath, plan.members);
+  } catch (err) {
+    reasons.push(err instanceof Error ? err.message : String(err));
+  }
   // Approved configuration pin (#372): a workspace rule-table change
   // invalidates plans staged under the superseded configuration, even when
   // per-member hashes still match. Legacy plans (empty pin) report stale
@@ -681,20 +773,9 @@ export function applyStorefrontFamilyPlan(input: {
   if ((plan.ruleConfigHash ?? '') !== familyRuleConfigHashFor(plan.ruleVersion)) {
     throw new Error(`family_apply_stale: approved rule configuration changed after staging (expected "${familyRuleConfigHashFor(plan.ruleVersion)}"); re-stage before applying.`);
   }
+  const classificationRunIds = validateCurrentFamilyOrigins(input.workspaceId, input.workspacePath, plan.members);
+  assertPreparedFamilySnapshot(plan, input.draftsBySku);
   for (const sku of plan.memberSkus) {
-    // Purchasability re-check (#368): every member must carry positive
-    // current purchasable authority. An explicit-false entry refuses, and
-    // a missing entry refuses when the caller threads the map (the route
-    // always does — absent means the current authority is unbound, never
-    // an unverified pass). An omitted map (direct service callers, e.g.
-    // tests) skips the re-check; staged purchasability was already
-    // enforced at stage time.
-    if (input.purchasableBySku?.get(sku) === false) {
-      throw new Error(`family_not_purchasable: SKU "${sku}" is not currently purchasable (or has no current purchasability authority); refusing apply.`);
-    }
-    if (input.purchasableBySku && !input.purchasableBySku.has(sku)) {
-      throw new Error(`family_not_purchasable: SKU "${sku}" is not currently purchasable (or has no current purchasability authority); refusing apply.`);
-    }
     if (!input.draftsBySku.has(sku)) {
       throw new Error(`family_member_missing_draft: SKU "${sku}" has no staged draft; accepting requires the complete validated set.`);
     }
@@ -763,7 +844,7 @@ export function applyStorefrontFamilyPlan(input: {
       throw new Error(`family_member_materialize_failed: SKU "${sku}" could not materialize its managed draft (${err instanceof Error ? err.message : String(err)}).`, { cause: err });
     }
   });
-  const applyBases = new Map<string, import('../shared/types').Product | null>();
+  const applyBases = new Map<string, Product | null>();
   for (const sku of plan.memberSkus) {
     try {
       applyBases.set(sku, readProductFile(input.workspacePath, sku));
@@ -780,40 +861,205 @@ export function applyStorefrontFamilyPlan(input: {
   if (blockers.length > 0) {
     throw new Error(`family_group_blocked: ${blockers.map((b) => `[${b.code}] ${b.message}`).slice(0, 5).join('; ')}`);
   }
+  const prepared: PreparedFamilyDraftItem[] = plan.memberSkus.map((sku) => {
+    const base = applyBases.get(sku) ?? null;
+    const managed = materializedMembers.find((member) => member.sku === sku)!;
+    const draftJson = deterministicStringify(managed);
+    return {
+      sku,
+      operation: base ? 'update' : 'create',
+      draftJson,
+      baseJson: base ? deterministicStringify(base) : null,
+      draftHash: hashJson(managed),
+      classificationRunId: classificationRunIds.get(sku) ?? null,
+    };
+  });
+  if (plan.linkedChangeSetId) {
+    const reused = reuseCurrentFamilyPlanDraft(input.workspaceId, plan.linkedChangeSetId, prepared);
+    return { changeSetId: reused.id, plan };
+  }
   const db = getDb();
   const familyKind = plan.ruleVersion === FOOD_FAMILY_VARIANT_RULE_VERSION ? 'food' : nonFoodFamilyKindLabel(plan.ruleVersion);
   const staged = db.transaction(() => {
+    const currentRow = findStorefrontFamilyPlanById(plan.id);
+    if (!currentRow || currentRow.workspaceId !== input.workspaceId) {
+      throw new Error(`family_plan_missing: no current plan "${plan.id}" in this workspace.`);
+    }
+    const currentPlan = parseStorefrontFamilyPlan(currentRow.planJson);
+    if (currentPlan.status !== 'accepted' || currentPlan.revision !== plan.revision || currentPlan.writeHash !== plan.writeHash) {
+      throw new Error('family_apply_stale: the accepted family plan changed during materialization; re-stage before applying.');
+    }
+    if (currentPlan.linkedChangeSetId) {
+      const reused = reuseCurrentFamilyPlanDraft(input.workspaceId, currentPlan.linkedChangeSetId, prepared);
+      return { changeSet: reused, plan: currentPlan };
+    }
     const changeSet = createChangeSet({
       workspaceId: input.workspaceId,
       title: `Storefront family ${plan.id.slice(0, 8)} (${plan.memberSkus.length} members)`,
       description: `Adopted ${familyKind} family under ${plan.ruleVersion}; main ${plan.mainSku}.`,
       baseCommit: readHeadCommit(input.workspacePath),
     });
-    for (const sku of plan.memberSkus) {
-      const base = readProductFile(input.workspacePath, sku);
-      const managed = withManagedFamilyDraft(input.draftsBySku.get(sku)!, plan);
+    for (const item of prepared) {
       upsertChangeSetItem({
         changeSetId: changeSet.id,
-        sku,
-        operation: base ? 'update' : 'create',
-        draftJson: deterministicStringify(managed),
-        baseJson: base ? deterministicStringify(base) : null,
-        draftHash: hashJson(managed),
-        classificationRunId: null,
+        sku: item.sku,
+        operation: item.operation,
+        draftJson: item.draftJson,
+        baseJson: item.baseJson,
+        draftHash: item.draftHash,
+        classificationRunId: item.classificationRunId,
       });
     }
-    return changeSet;
+    const next: StorefrontFamilyPlan = {
+      ...currentPlan,
+      status: 'accepted',
+      linkedChangeSetId: changeSet.id,
+      updatedAt: nowIso(),
+    };
+    updateStorefrontFamilyPlan({
+      id: plan.id,
+      plan: next,
+      status: 'accepted',
+      revision: plan.revision,
+      linkedChangeSetId: changeSet.id,
+    });
+    return { changeSet, plan: next };
   })();
-  const next: StorefrontFamilyPlan = {
-    ...plan,
-    status: 'applied',
-    linkedChangeSetId: staged.id,
-    updatedAt: nowIso(),
-  };
-  updateStorefrontFamilyPlan({ id: plan.id, plan: next, status: 'applied', revision: plan.revision, linkedChangeSetId: staged.id });
-  return { changeSetId: staged.id, plan: next };
+  return { changeSetId: staged.changeSet.id, plan: staged.plan };
 }
 
+export interface FinalizeStorefrontFamilyPlanApprovalResult {
+  finalized: boolean;
+  planIds: string[];
+}
+
+/**
+ * Complete family lifecycle only after linked approval has recorded the
+ * actual approved Git commit and its complete commit/index receipt.
+ */
+export function finalizeStorefrontFamilyPlanApproval(
+  changeSetId: string,
+  workspaceId: string,
+  approvedCommit: string,
+): FinalizeStorefrontFamilyPlanApprovalResult {
+  const rows = listStorefrontFamilyPlans(workspaceId).filter((candidate) => candidate.linkedChangeSetId === changeSetId);
+  if (rows.length === 0) return { finalized: false, planIds: [] };
+  if (rows.length !== 1) {
+    throw new Error(`family_approval_link_ambiguous: change set "${changeSetId}" links to more than one family plan.`);
+  }
+  if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(approvedCommit)) {
+    throw new Error('family_approval_commit_invalid: family approval requires the actual Git commit hash.');
+  }
+  const changeSet = findChangeSetByWorkspaceId(workspaceId, changeSetId);
+  if (!changeSet || changeSet.status !== 'approved' || changeSet.approvedCommit !== approvedCommit) {
+    throw new Error('family_approval_not_complete: linked change set is not approved at the supplied commit.');
+  }
+  const linked = findLinkedManifest(changeSetId);
+  if (!linked || (linked.status !== 'committed' && linked.status !== 'recovered') || linked.commitHash !== approvedCommit) {
+    throw new Error('family_approval_receipt_incomplete: the linked Git/index receipt has not completed for this approved commit.');
+  }
+  let rawManifest: unknown;
+  try {
+    rawManifest = JSON.parse(linked.manifestJson);
+  } catch {
+    throw new Error('family_approval_manifest_invalid: approved family receipt is unreadable.');
+  }
+  const manifestResult = LinkedManifestSchema.safeParse(rawManifest);
+  if (!manifestResult.success || manifestResult.data.changeSetId !== changeSetId || manifestResult.data.workspaceId !== workspaceId) {
+    throw new Error('family_approval_manifest_invalid: approved family receipt is not bound to this change set and workspace.');
+  }
+  const workspacePath = findWorkspacePathById(workspaceId);
+  if (!workspacePath) throw new Error('family_approval_commit_missing: the family workspace path is unavailable.');
+  const git = new GitClient(workspacePath);
+  if (!git.commitExists(approvedCommit)) {
+    throw new Error('family_approval_commit_missing: the complete approved Git commit is not present in this workspace.');
+  }
+  const manifest = manifestResult.data;
+  const items = listChangeSetItems(changeSetId);
+  const itemBySku = new Map(items.map((item) => [item.sku, item]));
+  if (itemBySku.size !== items.length || items.length === 0 || manifest.writes.length !== items.length) {
+    throw new Error('family_approval_group_incomplete: approved write receipts do not exactly cover the linked draft items.');
+  }
+  for (const write of manifest.writes) {
+    const item = itemBySku.get(write.sku);
+    if (!item || item.operation !== write.operation || item.draftHash !== write.draftHash) {
+      throw new Error(`family_approval_group_incomplete: approved receipt for SKU "${write.sku}" does not match the linked draft.`);
+    }
+    let draftJson: unknown;
+    try {
+      draftJson = JSON.parse(item.draftJson);
+    } catch {
+      throw new Error(`family_approval_group_incomplete: linked draft for SKU "${write.sku}" is unreadable.`);
+    }
+    const draft = ProductSchema.safeParse(draftJson);
+    if (!draft.success || draft.data.sku !== write.sku || hashJson(draft.data) !== item.draftHash) {
+      throw new Error(`family_approval_group_incomplete: linked draft hash or identity for SKU "${write.sku}" is invalid.`);
+    }
+    if (git.readFileAtCommit(approvedCommit, write.filePath) === null) {
+      throw new Error(`family_approval_group_incomplete: approved commit is missing family member "${write.sku}".`);
+    }
+  }
+  for (const read of manifest.reads) {
+    if (git.readFileAtCommit(approvedCommit, read.filePath) === null) {
+      throw new Error(`family_approval_group_incomplete: approved commit is missing read dependency "${read.sku}".`);
+    }
+  }
+  const plan = parseStorefrontFamilyPlan(rows[0]!.planJson);
+  const expectedSkus = new Set([...plan.memberSkus, ...(plan.membershipChange?.removedSkus ?? [])]);
+  const writtenSkus = new Set(items.map((item) => item.sku));
+  const readSkus = new Set(manifest.reads.map((read) => read.sku));
+  if ([...writtenSkus].some((sku) => readSkus.has(sku))
+    || [...writtenSkus, ...readSkus].some((sku) => !expectedSkus.has(sku))
+    || [...expectedSkus].some((sku) => !writtenSkus.has(sku) && !readSkus.has(sku))) {
+    throw new Error('family_approval_group_incomplete: approved writes and read dependencies do not cover the exact complete family plan.');
+  }
+  if (plan.joinOrigin) {
+    const requiredWrites = [...plan.joinOrigin.joinedSkus, plan.joinOrigin.familyMain];
+    for (const sku of requiredWrites) {
+      if (!writtenSkus.has(sku)) {
+        throw new Error(`family_approval_group_incomplete: join receipt omitted required write for SKU "${sku}".`);
+      }
+    }
+  } else if ([...expectedSkus].some((sku) => !writtenSkus.has(sku))) {
+    throw new Error('family_approval_group_incomplete: a non-join family operation must write every touched member.');
+  }
+  const memberBySku = new Map(plan.members.map((member) => [member.sku, member]));
+  for (const item of items) {
+    const member = memberBySku.get(item.sku);
+    const expectedRunId = member?.origin?.kind === 'onboarding'
+      ? member.origin.runId
+      : member?.origin?.kind === 'catalog'
+        ? member.origin.classificationRunId
+        : undefined;
+    if (!member || expectedRunId === undefined || item.classificationRunId !== expectedRunId) {
+      throw new Error(`family_approval_lineage_mismatch: linked draft for SKU "${item.sku}" lost its exact source classification run binding.`);
+    }
+  }
+  const db = getDb();
+  return db.transaction(() => {
+    const current = findStorefrontFamilyPlanById(plan.id);
+    if (!current || current.workspaceId !== workspaceId || current.linkedChangeSetId !== changeSetId) {
+      throw new Error('family_approval_plan_changed: linked family plan changed while finalizing approval.');
+    }
+    const currentPlan = parseStorefrontFamilyPlan(current.planJson);
+    if (currentPlan.status === 'applied') {
+      if (currentPlan.appliedCommit === approvedCommit) return { finalized: true, planIds: [plan.id] };
+      throw new Error('family_approval_history_immutable: applied family history cannot be rebound to another commit or backfilled.');
+    }
+    if (currentPlan.status !== 'accepted' || currentPlan.appliedCommit != null) {
+      throw new Error(`family_approval_plan_not_active: family plan status "${currentPlan.status}" is not a current accepted plan.`);
+    }
+    const next: StorefrontFamilyPlan = {
+      ...currentPlan,
+      status: 'applied',
+      appliedCommit: approvedCommit,
+      appliedAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    updateStorefrontFamilyPlan({ id: plan.id, plan: next, status: 'applied', revision: currentPlan.revision });
+    return { finalized: true, planIds: [plan.id] };
+  })();
+}
 function nonFoodFamilyKindLabel(ruleVersion: FamilyVariantRuleVersion): string {
   if (ruleVersion === 'non-food-size-family-variant-rule-v1') return 'non-food size';
   if (ruleVersion === 'non-food-color-family-variant-rule-v1') return 'non-food color';

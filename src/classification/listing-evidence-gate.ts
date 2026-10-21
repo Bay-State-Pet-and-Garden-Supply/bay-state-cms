@@ -35,6 +35,7 @@ import {
   type ReviewCompletenessBlockerCode,
 } from '../shared/schemas/onboarding';
 import { LISTING_EVIDENCE_RULES_VERSION } from './listing-evidence';
+import type { ItemChecklistEvaluation } from '../shared/schemas/item-evidence';
 
 export interface ListingEvidenceGateInput {
   /** Parsed curationData (or null when absent). */
@@ -62,10 +63,9 @@ export interface ListingEvidenceGateInput {
    */
   currentRequiredFields?: string[];
   /**
-   * Current selected-source authority (W2B367 stamps it on the record).
-   * Compared strictly when both sides present: a source change that leaves
-   * text hashes unchanged still stales the record. Absent on either side
-   * grandfathers (pre-authority records).
+   * Current accepted-snapshot authority hash. Compared strictly with the
+   * accepted authority bound into the record, so source-state drift cannot
+   * survive merely because evaluated prose is unchanged.
    */
   currentSourceAuthority?: string;
 }
@@ -141,10 +141,10 @@ export function evaluateListingEvidenceGate(input: ListingEvidenceGateInput): Li
   // Gap 6: requiredness is compared explicitly when the caller supplies
   // it (belt-and-braces over the hash leg: a requiredness-only change
   // that somehow kept the prose hash refuses with an explicit reason).
-  if (input.currentRequiredFields !== undefined && input.currentRequiredFields.length > 0) {
+  if (input.currentRequiredFields !== undefined) {
     const stamped = [...record.requiredFields].sort().join('\0');
     const live = [...input.currentRequiredFields].sort().join('\0');
-    if (stamped !== live && stamped !== '') {
+    if (stamped !== live) {
       return {
         ok: false,
         code: 'listing_evidence_stale',
@@ -152,19 +152,16 @@ export function evaluateListingEvidenceGate(input: ListingEvidenceGateInput): Li
       };
     }
   }
-  // Source-authority leg (W2B367 stamps `sourceAuthority` on the record):
-  // present-on-both-sides mismatch is stale; absence on either side
-  // grandfathers pre-authority records.
-  if (input.currentSourceAuthority !== undefined && input.currentSourceAuthority !== '') {
-    const rawRecord: unknown = record;
-    const stampedAuthority = rawRecord !== null && typeof rawRecord === 'object' && 'sourceAuthority' in rawRecord
-      ? rawRecord.sourceAuthority
-      : undefined;
-    if (typeof stampedAuthority === 'string' && stampedAuthority !== '' && stampedAuthority !== input.currentSourceAuthority) {
+  // When a live accepted-snapshot authority is supplied, it must be present
+  // and identical in the record. Missing/stale accepted evidence never
+  // falls through to legacy raw-source authority.
+  if (input.currentSourceAuthority !== undefined) {
+    const stampedAuthority = 'sourceAuthority' in record ? record.sourceAuthority : undefined;
+    if (!input.currentSourceAuthority || stampedAuthority !== input.currentSourceAuthority) {
       return {
         ok: false,
         code: 'listing_evidence_stale',
-        reason: 'The selected source changed since evaluation; re-run the listing check before release.',
+        reason: 'The accepted evidence authority changed or is unavailable; re-run the listing check before release.',
       };
     }
   }
@@ -210,4 +207,27 @@ export function currentnessMatches(
   current: { listingHash: string; evidenceHash: string },
 ): boolean {
   return record.listingHash === current.listingHash && record.evidenceHash === current.evidenceHash;
+}
+
+export type ListingCompletenessGateResult =
+  | { ok: true; status: 'ready' }
+  | { ok: false; code: 'listing_completeness_unavailable' | 'listing_completeness_stale' | 'listing_completeness_unresolved'; reason: string };
+
+/** One fail-closed interpretation of the shared item checklist for release callers. */
+export function evaluateListingCompletenessGate(
+  evaluation: ItemChecklistEvaluation | null,
+): ListingCompletenessGateResult {
+  if (!evaluation || evaluation.status === 'unavailable') {
+    return { ok: false, code: 'listing_completeness_unavailable', reason: 'Current listing completeness could not be evaluated.' };
+  }
+  if (evaluation.status === 'stale' || !evaluation.inputHash || !evaluation.evidenceHash ||
+      !evaluation.standardHash || !evaluation.classificationHash || !evaluation.listingHash) {
+    return { ok: false, code: 'listing_completeness_stale', reason: 'Listing completeness is stale or lacks required currentness hashes.' };
+  }
+  if (evaluation.status !== 'ready' || evaluation.requirements.some(requirement =>
+    requirement.required && !['satisfied', 'not_applicable', 'excepted'].includes(requirement.state),
+  )) {
+    return { ok: false, code: 'listing_completeness_unresolved', reason: evaluation.reasons[0] ?? 'Required listing requirements remain unresolved.' };
+  }
+  return { ok: true, status: 'ready' };
 }

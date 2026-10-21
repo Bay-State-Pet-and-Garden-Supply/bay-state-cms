@@ -4,6 +4,8 @@ Official pages usually expose no GTIN, so Discovery, manual confirmation, and Ex
 
 **Status:** accepted
 
+**Partial design supersession:** [ADR 0042](0042-evidence-first-item-local-onboarding.md) permits broader bounded candidate retrieval and per-item browser evidence acceptance without a healthy-profile prerequisite. Conservative name/variant matching, official-domain authority, honest URL provenance, and profile publishing governance remain binding; retailers do not become official pages and no runtime activation is implied.
+
 ## Context
 
 The worker previously auto-selected only exact structured-GTIN proof on an official domain. Managers report that official pages usually carry no page GTIN, so ordinary products parked regardless of clear visible-name matches. Imported/pasted URLs were also conflated with confirmed URLs, retrieval shortcuts hid plausible alternatives, permissive extraction overlap accepted changed pages, and profile setup exposed selector internals plus local-only approvals by default.
