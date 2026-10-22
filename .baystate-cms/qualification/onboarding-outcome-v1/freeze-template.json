@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "note": "TEMPLATE ONLY — not a committed freeze. Every null/TRIPLE-DASH field requires operator review and real values before any live pilot. Secrets are NEVER in this file; credential bindings reference env vars loaded via private FD at arm bootstrap.",
+  "id": "pilot-freeze-TEMPLATE",
+  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+  "authorizedArms": ["baseline", "candidate"],
+  "mode": "live_operational",
+  "population": {
+    "split_payload_paths": {
+      "development": [".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json"],
+      "holdout": [".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"]
+    }
+  },
+  "baseline": { "repository": "bay-state-cms", "revision": "91b52e9b489a7435d0a96e095da46952edac4cd7" },
+  "candidate": { "repository": "bay-state-cms", "revision": "4c3a5aa4bf380d9651c0314c89ec28f6392797c0" },
+  "authorization": {
+    "authorizationId": "pilot-2026-10-22-r8",
+    "qualificationRunId": "pilot-2026-10-22-r8",
+    "approvedCeilingMicros": 3000000,
+    "arms": ["baseline", "candidate"]
+  },
+  "artifacts": "SEE freeze-template.artifacts.json — generated per-file SHA-256 manifest lives beside this template; copy entries here after operator review",
+  "credentialReferences": [
+    { "name": "serper_search", "envVar": "SERPER_API_KEY", "note": "server-side serper_search key, injected via private FD, never logged" },
+    { "name": "typesafe", "envVar": "TYPESAFE_API_KEY", "note": "PRESENT BUT REFUSED live: transport denies monetary scope without enforceable bound. Included for preflight honesty, not dispatch." }
+  ],
+  "billingReferences": [
+    { "provider": "serper_search", "status": "UNVERIFIED — subscription credits/package assumed, no provider hard-cap evidenced. Worst-case reservation per POST required.", "evidenceRef": "docs/audits/onboarding-outcome-v1/provider-billing-evidence.md" },
+    { "provider": "typesafe", "status": "BLOCKED — no enforceable charge bound. Live TypeSafe calls stay refused.", "evidenceRef": "src/ai/systemone-transport.ts:833-845" }
+  ],
+  "runtimeRecords": "EXPORTED at freeze time via qualification-runtime-repo allowlisted tables; identity pins below must match the live workspace or preflight refuses",
+  "identityPins": {
+    "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
+    "catalogCommit": "7a9d49e1eef8d9561ef0cd90813d8d80a1058590",
+    "configRelease": "REVIEW storage/catalog/store/classification/manifest.json + state.json — DIRTY TREE (state.json modified); commit or pin dirty hash explicitly",
+    "catalogFieldsHash": "81b0fbe34aced37a6e1094bd54843ff4af4226fc60dbef7510395dca90586e9a",
+    "routingHash": "REVIEW provider_connections — typesafe-jev systemone/cloud present; sharing policy per data-sharing.json 2d110e4d91f753f9ce61f2e707da167c5ed6440d5828b6860f429460d8cbdd56a0c8",
+    "modelPolicyDigest": "REVIEW model-policies.json bundle — snapshot must resolve configured or preflight refuses",
+    "domainStrategyHash": "REVIEW brand_sites (200 rows) + approved strategies — no inferred domains"
+  },
+  "limits": {
+    "note": "Finite per-item/batch resource bounds reviewed as activation input — NOT invented here. Fill before live.",
+    "maxPolls": "---",
+    "maxItemsPerArm": 8,
+    "workerDeadlineMs": "---",
+    "perItemBytes": "---",
+    "perItemPages": "---"
+  },
+  "openBlockers": [
+    "Dirty catalog tree (state.json modified) — commit or explicitly pin dirty state before freeze",
+    "No verified Serper hard spend cap — worst-case per-POST reservation is the current mitigation, operator accepts residual risk or narrows scope",
+    "TypeSafe live permanently refused this pilot — Serper+browser paths only",
+    "Listing standards content + exception eligibility unreviewed — readiness stops stay needs_input, never auto-complete",
+    "Extractor profiles: 23 present, health per domain unverified for pilot rows — no-profile path covers, profile mismatches park"
+  ]
+}
