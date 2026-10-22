@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-type Manifest = {
+export type Manifest = {
   schema_version: number; protocol: string; status: string;
   baseline: { ref: string; sha: string };
   candidate: { comparison_freeze_sha: string | null };
@@ -12,12 +12,12 @@ type Manifest = {
   freeze: { holdout_labels_available_to_fit: boolean };
   blockers: string[];
 };
-type Row = { row_id?: string; split?: 'development' | 'holdout'; disposition?: string; [key: string]: unknown };
-const ROOT = process.cwd();
-const DEFAULT_MANIFEST = 'docs/audits/onboarding-outcome-v1/manifest.public.json';
-const PRIVATE_ROOT = '.baystate-cms/qualification/onboarding-outcome-v1';
-const BLOCKERS = ['BLOCKED_REAL_DATA_PROVENANCE','BLOCKED_POPULATION_SUPPORT','BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE','BLOCKED_EQUAL_INPUTS','BLOCKED_LABELS_OR_REVIEW','BLOCKED_METRIC_CAPTURE','BLOCKED_EXISTING_CAPABILITY_RECEIPT','BLOCKED_CANDIDATE_FREEZE','BLOCKED_BUDGET_OR_MODEL_POLICY','BLOCKED_NATIVE_OR_CATALOG_EVIDENCE','BLOCKED_STORE_AUTHORIZATION_OR_CANARY','BLOCKED_INSUFFICIENT_SUPPORT','BLOCKED_COMPARABILITY','BLOCKED_UNKNOWN_COST','BLOCKED_PREREQUISITE'];
-const USAGE = 'Usage: prepare [--preflight|--construct|--seal], run [--split development|holdout] [--arm baseline|candidate|both] [--mode mechanism-check|comparison] [--authorization path], fit, publish, review [--phase source-labels|freeze-labels|workflow|reconcile-time], score [--publish-report], canary [--kind family-local|family-store]';
+export type Row = { row_id?: string; split?: 'development' | 'holdout'; disposition?: string; [key: string]: unknown };
+export const ROOT = process.cwd();
+export const DEFAULT_MANIFEST = 'docs/audits/onboarding-outcome-v1/manifest.public.json';
+export const PRIVATE_ROOT = '.baystate-cms/qualification/onboarding-outcome-v1';
+export const BLOCKERS = ['BLOCKED_REAL_DATA_PROVENANCE','BLOCKED_POPULATION_SUPPORT','BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE','BLOCKED_EQUAL_INPUTS','BLOCKED_LABELS_OR_REVIEW','BLOCKED_METRIC_CAPTURE','BLOCKED_EXISTING_CAPABILITY_RECEIPT','BLOCKED_CANDIDATE_FREEZE','BLOCKED_BUDGET_OR_MODEL_POLICY','BLOCKED_NATIVE_OR_CATALOG_EVIDENCE','BLOCKED_STORE_AUTHORIZATION_OR_CANARY','BLOCKED_INSUFFICIENT_SUPPORT','BLOCKED_COMPARABILITY','BLOCKED_UNKNOWN_COST','BLOCKED_PREREQUISITE'];
+export const USAGE = 'Usage: prepare [--preflight|--construct|--seal], run [--split development|holdout] [--arm baseline|candidate|both] [--mode mechanism-check|comparison] [--authorization path], fit, publish, review [--phase source-labels|freeze-labels|workflow|reconcile-time], score [--publish-report], canary [--kind family-local|family-store]';
 
 function parseArgs(argv: string[]): { command: string; options: Record<string, string | true> } {
   const command = argv[0];
@@ -36,22 +36,22 @@ function option(options: Record<string, string | true>, key: string, fallback?: 
   if (value === true) throw new Error(`${key} requires a value`);
   return value ?? fallback;
 }
-function hashFile(file: string): string { return createHash('sha256').update(readFileSync(file)).digest('hex'); }
-function within(parent: string, child: string): boolean { const relative = path.relative(parent, child); return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)); }
-function rejectProductionPath(candidate: string, label: string): void {
+export function hashFile(file: string): string { return createHash('sha256').update(readFileSync(file)).digest('hex'); }
+export function within(parent: string, child: string): boolean { const relative = path.relative(parent, child); return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)); }
+export function rejectProductionPath(candidate: string, label: string): void {
   const full = path.resolve(candidate);
   const aliases: Record<string, true> = { production: true, prod: true, live: true, default: true, main: true, catalog: true, 'data.sqlite': true, 'production.db': true };
   const envPaths = Object.entries(process.env).filter(([key, value]) => !!value && /^(BAYSTATE|DATABASE|DB_PATH|SHOP[S_]*ITE).*?(DB|DATA|CATALOG|PATH)/i.test(key)).map(([, value]) => path.resolve(value!));
   const known = [path.resolve(ROOT,'.baystate-cms/data.sqlite'), path.resolve(ROOT,'data.sqlite'), ...envPaths];
   if (aliases[path.basename(candidate).toLowerCase()] || known.some(p => full === p || within(p, full))) throw new Error(`Refusing ${label} production path/alias: ${candidate}`);
 }
-function readManifest(file: string): Manifest {
+export function readManifest(file: string): Manifest {
   const manifest = JSON.parse(readFileSync(file, 'utf8')) as Manifest;
   if (manifest.schema_version !== 1 || manifest.protocol !== 'onboarding-outcome-v1' || !Array.isArray(manifest.blockers) || !manifest.population || !manifest.freeze) throw new Error(`Unsupported manifest.public.json schema: ${file}`);
   return manifest;
 }
-function rootPath(relative: string): string { return path.resolve(ROOT, relative); }
-function outputPath(relative: string): string {
+export function rootPath(relative: string): string { return path.resolve(ROOT, relative); }
+export function outputPath(relative: string): string {
   const file = rootPath(relative);
   rejectProductionPath(file, 'output');
   if (existsSync(file)) throw new Error(`Refusing existing output; select a new run ID: ${file}`);
@@ -59,8 +59,8 @@ function outputPath(relative: string): string {
   if (existsSync(parent) && !within(rootPath(PRIVATE_ROOT), realpathSync(parent))) throw new Error(`Output parent escapes private evaluation root: ${parent}`);
   return file;
 }
-function writeJson(file: string, data: unknown): void { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, { flag: 'wx' }); }
-function loadRows(manifest: Manifest, split: 'development' | 'holdout'): Row[] {
+export function writeJson(file: string, data: unknown): void { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, { flag: 'wx' }); }
+export function loadRows(manifest: Manifest, split: 'development' | 'holdout'): Row[] {
   const rows: Row[] = [];
   for (const relative of manifest.population.private_payload_paths ?? []) {
     const file = rootPath(relative);
@@ -71,15 +71,16 @@ function loadRows(manifest: Manifest, split: 'development' | 'holdout'): Row[] {
     if (Array.isArray(parsed)) inputRows = parsed;
     else if (parsed && typeof parsed === 'object' && 'rows' in parsed) inputRows = parsed.rows;
     if (!Array.isArray(inputRows)) throw new Error(`Payload must be a row array or contain rows[]: ${relative}`);
+    const pathSplit = path.basename(relative).startsWith(`${split}-input.`);
     inputRows.forEach((entry: unknown, index: number) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(`Invalid source row ${relative}#${index + 1}`);
       const row = entry as Row;
-      if (row.split === split) rows.push({ ...row, row_id: row.row_id ?? `${path.basename(relative)}:${index + 1}` });
+      if ((row.split === split || pathSplit) && (row.split === undefined || row.split === split)) rows.push({ ...row, row_id: row.row_id ?? `${path.basename(relative)}:${index + 1}` });
     });
   }
   return rows;
 }
-function verifyHashes(manifest: Manifest): void {
+export function verifyHashes(manifest: Manifest): void {
   for (const relative of manifest.population.private_payload_paths ?? []) {
     const expected = manifest.population.sha256_commitments?.[relative];
     if (!expected) continue;
