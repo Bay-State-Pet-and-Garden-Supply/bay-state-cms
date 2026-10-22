@@ -281,6 +281,15 @@ export function approveChangeSet(
       errors: first.map((i) => `[${i.code}] ${i.message}`),
     };
   }
+  // Complete validation includes family-specific gates (notably adopted
+  // dissolution classification validation) and must run before any writes.
+  const validation = validateChangeSet(changeSetId);
+  if (!validation.canApprove) {
+    return {
+      success: false,
+      errors: [`Change set has ${validation.blockers} blocker(s) preventing approval${validationBlockerDetail(validation)}`],
+    };
+  }
 
   const changeSkus = group.changeSkus;
   const targetFiles = [...new Set(changeSkus.map((sku) => skuToProductFilePath(sku)))];

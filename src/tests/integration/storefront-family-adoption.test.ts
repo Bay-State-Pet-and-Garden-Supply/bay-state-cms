@@ -506,8 +506,23 @@ describe('native family adoption (issue #369)', () => {
     // The explicit clear emits ON THE WIRE (not an omission).
     const wire = ShopSiteProductCodec.encodeMany(dissolutionItems.map((i) => JSON.parse(i.draftJson) as Product));
     expect((wire.xml.match(/<Subproducts><\/Subproducts>/g) ?? []).length).toBe(3);
+    // Tampering with a member's approved run binding after materialization
+    // must refuse approval before the linked path mutates or commits
+    // (FAMILY_ORIGIN_MISMATCH: changed catalog member lost its exact run).
+    const changedClassification = structuredClone(JSON.parse(dissolutionItems[0]!.draftJson) as Product);
+    upsertChangeSetItem({
+      changeSetId: appliedDissolution.changeSetId,
+      sku: dissolutionItems[0]!.sku,
+      operation: dissolutionItems[0]!.operation,
+      draftJson: deterministicStringify(changedClassification),
+      baseJson: dissolutionItems[0]!.baseJson,
+      draftHash: hashJson(changedClassification),
+      classificationRunId: 'tampered-run-id',
+    });
     const approvedDissolution = approveChangeSet(appliedDissolution.changeSetId, ctx2.workspacePath);
-    expect(approvedDissolution.success).toBe(true);
+    expect(approvedDissolution.success).toBe(false);
+    expect(approvedDissolution.errors.join(' ')).toMatch(/classification|type|family/i);
+    expect(findLinkedManifest(appliedDissolution.changeSetId)).toBeNull();
   });
 
   it('blocks stale bases and conflicting drafts at decision/approval/export with no partial commit', () => {
