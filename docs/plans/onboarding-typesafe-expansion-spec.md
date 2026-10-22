@@ -200,6 +200,12 @@ Use the existing ShopSite adapter and stable `uniqueName=SKU`. MIME completion p
 - **F13:** Partial remote import is not synced; a real compatible canary proves references, main self-membership, labels, ordering and purchase behavior.
 - **F14:** Reject/defer preserves independent listing progress and existing relationships, without implicit dissolution.
 
+### 5.5 Ticket 3 exercised results
+
+The Ticket 3 integration journey exercises native adoption through accepted review, materialization, actual approval, fresh catalog-origin resolution, routed join staging, accepted review, materialization, approval, and linked export. Fixtures bind incoming members to current reviewed onboarding evidence, page assignments, and exact run/currentness IDs; catalog members resolve through approved catalog projections. Assertions cover persisted plan states, change-set run bindings, write/read dependencies, the approved commit, native member order/self-reference, labels, SKU and unrelated product data, exported XML, and refusals for missing authority, stale catalog origins, variant conflicts, and snapshot drift. The proposal scenario records selection separately from authority; acceptance still passes the complete join gates and uses no fabricated model-call receipts.
+
+Exercised verification: `bun run typecheck` completed successfully. The adoption, join, proposal, export, linked-approval, family-origin, and family-plan suites ran together: **84 tests passed, 0 failed, 676 assertions across 7 files**. These are fixture/integration and unit results only; they do not qualify production publication, remote store behavior, or product-quality outcomes.
+
 ## 6. Evidence-backed naming and grounded copy
 
 ### 6.1 Names

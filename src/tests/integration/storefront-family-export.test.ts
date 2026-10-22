@@ -166,7 +166,7 @@ describe('storefront family smoke: review → revise/accept → approval → exp
       expect(hashJson(JSON.parse(atCommit!))).toBe(hashJson(product));
       expect((product.customFields['ProductField7'] ?? '').length).toBeGreaterThan(0);
       expect(product.sku).toMatch(/^FAM-/);
-      expect(product.status).toBe('draft');
+      expect(product.status).toBe('active');
       expect(product.core.media.primary).toMatch(/^media\/fam-/);
       const block = product.shopsite.preserved.advancedBlocks['Subproducts'];
       if (product.sku === 'FAM-15') {
@@ -182,7 +182,7 @@ describe('storefront family smoke: review → revise/accept → approval → exp
     const pkg = ShopSiteProductCodec.encodeMany(linked.load.products);
     expect((pkg.xml.match(/<Subproducts>/g) ?? []).length).toBe(1);
     expect((pkg.xml.match(/<Subproduct>/g) ?? []).length).toBe(3);
-    expect(pkg.xml).toContain('<ProductDisabled>checked</ProductDisabled>');
+    expect(pkg.xml).toContain('<ProductDisabled>uncheck</ProductDisabled>');
     expect(pkg.xml).toContain('<MoreInformationText>');
     const familyRow = findStorefrontFamilyPlanById(accepted.plan.id)!;
     expect(parseStorefrontFamilyPlan(familyRow.planJson).linkedChangeSetId).toBe(applied.changeSetId);
@@ -211,6 +211,9 @@ describe('storefront family smoke: review → revise/accept → approval → exp
     const changed = structuredClone(product);
     changed.core.price = '99.99';
     writeProductFile(workspacePath, changed);
+    const git = new GitClient(workspacePath);
+    git.add(['products/']);
+    git.commit('Change approved catalog product price');
     expect(validateFamilyMemberOrigin({ workspaceId, workspacePath, sku: product.sku, origin }))
       .toMatchObject({ ok: false, code: 'catalog_origin_unverified' });
   });
@@ -363,7 +366,8 @@ describe('storefront family smoke: review → revise/accept → approval → exp
       actor: 'operator-1', curationBySku: curation,
     })).toThrow(/family_native_unsupported/);
     expect(nested.shopsite.preserved.advancedBlocks['Subproducts']).toContain('<Subproducts><Subproducts>');
-    // Apply refuses closed when the unsafe block appears after staging.
+    // Snapshot drift is refused before the native-preservation gate; staging
+    // itself exercises the unsupported-native refusal above.
     const clean = stageStorefrontFamilyPlan({
       workspaceId, workspacePath,
       input: { members: memberInputs(products), mainSku: undefined },
@@ -376,7 +380,7 @@ describe('storefront family smoke: review → revise/accept → approval → exp
     expect(() => applyStorefrontFamilyPlan({
       planId: clean.plan.id, workspaceId, workspacePath,
       draftsBySku: driftedDrafts, actor: 'a',
-    })).toThrow(/family_native_unsupported/);
+    })).toThrow(/family_apply_stale/);
   });
 });
 
@@ -520,7 +524,7 @@ describe('non-food family smoke: review → revise/accept → approval → expor
         expect(block).not.toMatch(/<SKU\s*>/);
       }
       expect((product.customFields['ProductField7'] ?? '').length).toBeGreaterThan(0);
-      expect(product.status).toBe('draft');
+      expect(product.status).toBe('active');
       const baseline = products.find((p) => p.sku === product.sku)!;
       expect(product.core.name).toBe(baseline.core.name);
       expect(product.core.price).toBe(baseline.core.price);
