@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "measurement_performed": false,
+  "baseline_sha": "91b52e9b489a7435d0a96e095da46952edac4cd7",
+  "baseline_reason": "origin/main equals git merge-base origin/main HEAD at protocol publication; pre-expansion incumbent.",
+  "candidate_observation_not_freeze": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a",
+  "candidate_freeze_sha": null,
+  "metrics": null,
+  "population": null,
+  "blockers": ["BLOCKED_REAL_DATA_PROVENANCE", "BLOCKED_POPULATION_SUPPORT", "BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE", "BLOCKED_EQUAL_INPUTS", "BLOCKED_LABELS_OR_REVIEW", "BLOCKED_METRIC_CAPTURE", "BLOCKED_EXISTING_CAPABILITY_RECEIPT", "BLOCKED_CANDIDATE_FREEZE", "BLOCKED_BUDGET_OR_MODEL_POLICY", "BLOCKED_NATIVE_OR_CATALOG_EVIDENCE", "BLOCKED_STORE_AUTHORIZATION_OR_CANARY", "BLOCKED_INSUFFICIENT_SUPPORT", "BLOCKED_COMPARABILITY", "BLOCKED_UNKNOWN_COST", "BLOCKED_PREREQUISITE"]
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "protocol": "onboarding-outcome-v1",
+  "status": "BLOCKED",
+  "owner": "solo operator",
+  "baseline": {
+    "ref": "origin/main",
+    "sha": "91b52e9b489a7435d0a96e095da46952edac4cd7",
+    "merge_base_with_candidate_observation": "91b52e9b489a7435d0a96e095da46952edac4cd7",
+    "reason": "At protocol publication origin/main and git merge-base origin/main HEAD resolve to the same commit, so origin/main is the pre-expansion incumbent; pin merge-base instead if origin/main advanced after branching before freeze."
+  },
+  "candidate": {
+    "branch_at_protocol_publication": "feat/typesafe-onboarding-expansion",
+    "observed_head_not_comparison_freeze": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a",
+    "comparison_freeze_sha": null,
+    "freeze_rule": "Record candidate SHA after development fixes at comparison freeze; never treat observed publication HEAD as the eventual candidate pin."
+  },
+  "runtime_observation": {"bun_version": "1.4.2", "git_rev_parse_HEAD": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a"},
+  "population": {
+    "real_import_required": true,
+    "proposed_distinct_skus": 600,
+    "proposed_split": {"development": 300, "sealed_holdout": 300},
+    "proposal_pending_fit": true,
+    "private_payload_paths": null,
+    "sha256_commitments": null,
+    "strata": ["ordinary_control", "unknown_brand", "profile_unavailable", "source_unavailable", "abbreviated_name", "near_neighbor_model_flavor", "unit_case_pack", "no_fit", "ambiguous_variant", "missing_safety_evidence", "missing_rights_evidence", "actual_catalog_join"],
+    "provenance_requirements": "Private original actual POS/register/supplier export, untouched UPC/Register Name/Price derivation, catalog commit, source artifacts with locators/date/hash; see protocol.md."
+  },
+  "freeze": {"input_hashes": null, "rules": null, "budgets": null, "model_policies": null, "catalog_commit": null, "environment": null, "holdout_labels_available_to_fit": false},
+  "blockers": ["BLOCKED_REAL_DATA_PROVENANCE", "BLOCKED_POPULATION_SUPPORT", "BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE", "BLOCKED_EQUAL_INPUTS", "BLOCKED_LABELS_OR_REVIEW", "BLOCKED_METRIC_CAPTURE", "BLOCKED_EXISTING_CAPABILITY_RECEIPT", "BLOCKED_CANDIDATE_FREEZE", "BLOCKED_BUDGET_OR_MODEL_POLICY", "BLOCKED_NATIVE_OR_CATALOG_EVIDENCE", "BLOCKED_STORE_AUTHORIZATION_OR_CANARY", "BLOCKED_INSUFFICIENT_SUPPORT", "BLOCKED_COMPARABILITY", "BLOCKED_UNKNOWN_COST", "BLOCKED_PREREQUISITE"]
+}
