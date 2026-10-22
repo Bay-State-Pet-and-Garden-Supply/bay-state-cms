@@ -77,6 +77,16 @@ export function findStorefrontFamilyPlanById(id: string): StorefrontFamilyPlanRo
   return mapPlanRow(row);
 }
 
+/** Find the family plan (any status) linked to a change set, if one exists. */
+export function findStorefrontFamilyPlanByChangeSetId(changeSetId: string): StorefrontFamilyPlanRow | null {
+  const db = getDb();
+  const row = db.query('SELECT * FROM storefront_family_plans WHERE linked_change_set_id = ? ORDER BY updated_at DESC LIMIT 1').get(changeSetId) as
+    | Record<string, unknown>
+    | undefined;
+  if (!row) return null;
+  return mapPlanRow(row);
+}
+
 export function listStorefrontFamilyPlans(workspaceId: string): StorefrontFamilyPlanRow[] {
   const db = getDb();
   const rows = db.query(

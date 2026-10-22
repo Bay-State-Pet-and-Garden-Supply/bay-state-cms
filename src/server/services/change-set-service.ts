@@ -15,6 +15,7 @@ import {
   saveLinkedManifest, findLinkedManifest, markLinkedManifestCommitted, markLinkedManifestRecovered,
 } from '../../db/repositories/change-set-repo';
 import { getDb } from '../../db/connection';
+import { findStorefrontFamilyPlanByChangeSetId } from '../../db/repositories/storefront-family-plan-repo';
 import {
   findProductBySku, insertProductIndex, updateProductIndex, restoreProductIndexSnapshot,
 } from '../../db/repositories/product-index-repo';
@@ -240,16 +241,11 @@ export function approveChangeSet(
     }
   }
 
-  // Atomicity gate: a linked consistency group approves atomically. Linked
-  // means any structural Subproducts dependency in the operation: a member
-  // referencing another member (sibling write-write mesh) OR a member
-  // referencing a non-member (write with unchanged read deps). A parent-only
-  // update over live children is still a linked operation — its children are
-  // read dependencies the manifest/export path must bind. Only change sets
-  // with zero Subproducts references anywhere take the standalone path.
+  // Family plans require the linked approval/finalization path even when a
+  // dissolution clears every Subproducts reference from its resulting drafts.
   const linked = parsed.some(({ sku, product }) =>
     extractSubproductSkus(product).some((ref) => ref !== sku),
-  );
+  ) || Boolean(findStorefrontFamilyPlanByChangeSetId(changeSetId));
   if (!linked) {
     return approveStandaloneChangeSet(changeSet, workspacePath, parsed, parseErrors);
   }

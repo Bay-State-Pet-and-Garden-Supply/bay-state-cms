@@ -10,6 +10,8 @@ import { GitClient } from '../../git/git-client';
 import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { approveChangeSet, loadApprovedLinkedExport } from '../../server/services/change-set-service';
+import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
+import { sha256Hex } from '../../shared/stable-id';
 import { stageNativeAdoption, applyAdoptedFamilyPlan, type AdoptionEvidence } from '../../classification/storefront-family-adoption';
 import { decideStorefrontFamilyPlan, stageNonFoodStorefrontFamilyPlan, stageStorefrontFamilyPlan, applyStorefrontFamilyPlan } from '../../classification/storefront-family-plan-service';
 import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
@@ -146,14 +148,18 @@ async function setupEarlier() {
 async function seedImportedOrigin(input: {
   workspaceId: string; workspacePath: string; sku: string; name: string; brand: string;
   description: string; weight: string; recipe?: string; flavor?: string; species?: string;
-  lifeStage?: string; form?: string;
+  lifeStage?: string; form?: string; classificationPair?: { categoryId: string; productTypeId: string };
 }): Promise<Extract<FamilyMemberOrigin, { kind: 'onboarding' }>> {
   const batch = createBatch({ workspaceId: input.workspaceId, name: `Family evidence ${input.sku}`, fileName: `${input.sku}.csv`, totalItems: 1 });
   const [item] = insertItems(batch.id, [{ upc: input.sku, name: input.name, brandHint: input.brand, rowNumber: 1 }]);
-  assignProductToPage(input.sku, 'QA/test-only dog-food category');
+  const categoryPage = input.classificationPair
+    ? `QA/test-only ${input.classificationPair.productTypeId} category`
+    : 'QA/test-only dog-food category';
+  assignProductToPage(input.sku, categoryPage);
   const authority = seedListingEvidenceItem({
     workspaceId: input.workspaceId, workspacePath: input.workspacePath, itemId: item.id, sku: input.sku,
-    description: input.description, weight: input.weight, suggestedPages: ['QA/test-only dog-food category'],
+    description: input.description, weight: input.weight, suggestedPages: [categoryPage],
+    ...(input.classificationPair ? { productTypeId: input.classificationPair.productTypeId, categoryId: input.classificationPair.categoryId } : {}),
   });
   const current = getCurrentItemEvidenceView(input.workspaceId, item.id);
   if (current.status !== 'accepted' || !current.evidence) throw new Error(`Family evidence unavailable for ${input.sku}: ${current.status}`);
@@ -360,9 +366,22 @@ async function setupNonFoodEarlier() {
     item.product.sku, item.product.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
   ]));
   prepareListingEvidenceWorkspace(workspacePath, workspaceId);
+  activatePageImportFromRecords({
+    workspaceId,
+    sourceHash: sha256Hex('family-join-test-nonfood-pages-v1'),
+    parserFormatVersion: 'pages-xml-1',
+    records: [{
+      identity: { kind: 'exported_guid' as const, key: 'family-join-test-collars-leashes', status: 'verified' as const },
+      name: 'QA/test-only collars-leashes category',
+      parentRef: null,
+      availability: 'available' as const,
+    }],
+    activatedBy: 'family-join-test',
+  });
   activeImportedOrigins['NF-L-RED'] = await seedImportedOrigin({
     workspaceId, workspacePath, sku: 'NF-L-RED', name: 'Acme Trail Harness Large Red',
     brand: 'Acme', description: 'Nylon walking harness.', weight: 'Large',
+    classificationPair: { categoryId: 'pet-supplies', productTypeId: 'collars-leashes' },
   });
   activeImportedEvidenceHashes['NF-L-RED'] = activeImportedOrigins['NF-L-RED']!.evidenceHash;
   return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };

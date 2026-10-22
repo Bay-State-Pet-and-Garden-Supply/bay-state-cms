@@ -12,6 +12,7 @@ import { comparisonHashForProduct } from '../shopsite/catalog-comparison';
 import { getEffectivePrimaryProductTypeId } from './assignment-projection';
 import { computeReviewedAuthorityHash } from './promotion-gate';
 
+import { parseOunces } from '../validation/storefront-family-validation';
 function approvedCatalogProduct(input: {
   workspaceId: string;
   workspacePath: string;
@@ -146,18 +147,6 @@ function textOf(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-function ouncesFromRaw(value: string | null): number | null {
-  if (!value) return null;
-  const match = value.trim().match(/^([\d.,]+)\s*(oz|ounces?|lb|lbs|pounds?|g|grams?|kg|kilograms?)\.?$/i);
-  if (!match) return null;
-  const quantity = Number(match[1]!.replace(',', '.'));
-  if (!Number.isFinite(quantity) || quantity <= 0) return null;
-  const unit = match[2]!.toLowerCase();
-  if (unit === 'lb' || unit === 'lbs' || unit.startsWith('pound')) return quantity * 16;
-  if (unit === 'g' || unit.startsWith('gram')) return quantity / 28.349523125;
-  if (unit === 'kg' || unit.startsWith('kilogram')) return quantity * 35.27396195;
-  return quantity;
-}
 
 function projectCatalogProduct(
   source: { origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>; product: Product; reviewedProductTypeId: string },
@@ -183,7 +172,7 @@ function projectCatalogProduct(
     lifeStage: textOf(source.product.customFields.ProductField18),
     form: textOf(source.product.customFields.ProductField22),
     sizeRaw,
-    ounces: ouncesFromRaw(sizeRaw),
+    ounces: parseOunces(sizeRaw),
     retailUnit: textOf(attrs.retailUnit),
     packCountDeclared: attrs.packCountDeclared === 'true',
     packCount: intAttr('packCount'),

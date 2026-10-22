@@ -726,7 +726,7 @@ describe('family membership proposal lifecycle + acceptance smoke (issue #371)',
     });
     await seedProposalIncoming({
       workspaceId, workspacePath, sku: 'FAM-BEEF', name: 'Acme Beef Dinner 30 lb',
-      description: 'Real beef dinner.', weight: '30 lb',
+      description: 'Real beef dinner.', weight: '30 lb', recipe: 'Beef Dinner',
     });
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath, memberSkus: ['FAM-5', 'FAM-15'], actor: 'operator-1',
@@ -802,9 +802,11 @@ describe('family membership proposal lifecycle + acceptance smoke (issue #371)',
     expect(review.blockers).toEqual([]);
 
     // Same-flavor different recipe is a separate family: the complete plan gates refuse it.
-    const beef = joinEvidence371('FAM-BEEF', '30 lb', 480, 'Chicken', 'Beef Dinner');
+    const beefOrigin = activeImportedOrigins['FAM-BEEF'];
+    const beefBoundEvidence = joinEvidence371('FAM-BEEF', '30 lb', 480, 'Chicken', 'Beef Dinner');
+    beefBoundEvidence.sourceOrigin = beefOrigin;
     const beefEvidence = new Map(evidenceBySku);
-    beefEvidence.set('FAM-BEEF', beef);
+    beefEvidence.set('FAM-BEEF', beefBoundEvidence);
     expect(() => stageFamilyJoin({
       workspaceId, workspacePath, familyPlanId: adopted.plan.id, joinedSkus: ['FAM-BEEF'],
       actor: 'operator-1', evidenceBySku: beefEvidence,

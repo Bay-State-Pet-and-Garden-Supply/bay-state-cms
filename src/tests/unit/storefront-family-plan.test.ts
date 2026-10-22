@@ -103,6 +103,12 @@ describe('food family variant rule (issue #368)', () => {
     expect(classifyClassifierFamilyWrite('Subproducts')?.code).toBe('protected_target_refused');
     expect(classifyClassifierFamilyWrite('ProductField27')).toBeNull();
   });
+
+  it('treats comma-grouped gram quantities as thousands, not decimals', () => {
+    const grouped = parseOunces('1,000 g');
+    expect(grouped).toBe(parseOunces('1000 g'));
+    expect(grouped).not.toBe(parseOunces('1 g'));
+  });
 });
 function nonFoodFactors(sku: string, overrides: Record<string, unknown> = {}) {
   const base = {

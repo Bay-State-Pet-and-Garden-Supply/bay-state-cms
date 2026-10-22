@@ -15,6 +15,8 @@ interface SeedCanonicalPromotionAuthorityOptions {
   runId: string;
   includePair?: boolean;
   requiredAttributeId?: string;
+  productTypeId?: string;
+  categoryId?: string;
 }
 
 /** Persisted snapshot handle plus the frozen bundle for cache sync. */
@@ -28,30 +30,32 @@ export function seedCanonicalPromotionAuthority({
   runId,
   includePair = true,
   requiredAttributeId,
+  productTypeId = 'dog-food-dry',
+  categoryId = 'dog-food',
 }: SeedCanonicalPromotionAuthorityOptions): SeededCanonicalPromotionAuthority {
   const now = new Date().toISOString();
-  const websiteValues = new Map([
-    ['dog-food-dry', { category: 'QA/test-only dog-food category', productType: 'QA/test-only dry dog food' }],
-    ['dog-food-wet', { category: 'QA/test-only dog-food category', productType: 'QA/test-only wet dog food' }],
-    ['cat-food-wet', { category: 'QA/test-only cat-food category', productType: 'QA/test-only wet cat food' }],
-    ['bird-food', { category: 'QA/test-only bird category', productType: 'QA/test-only bird food' }],
-  ]);
+  const websiteValues: Record<string, { category: string; productType: string }> = {
+    'dog-food-dry': { category: 'QA/test-only dog-food category', productType: 'QA/test-only dry dog food' },
+    'dog-food-wet': { category: 'QA/test-only dog-food category', productType: 'QA/test-only wet dog food' },
+    'cat-food-wet': { category: 'QA/test-only cat-food category', productType: 'QA/test-only wet cat food' },
+    'bird-food': { category: 'QA/test-only bird category', productType: 'QA/test-only bird food' },
+    'collars-leashes': { category: 'QA/test-only collars-leashes category', productType: 'QA/test-only collars-leashes' },
+  };
   const seed = {
     ...BayStatePetGardenSeed,
     revision: 'qa-promotion-authority',
     createdAt: '2026-10-16T00:00:00.000Z',
-    profileTemplates: requiredAttributeId
-      ? BayStatePetGardenSeed.profileTemplates.map(profile => profile.id === 'pet-food'
+    profileTemplates: BayStatePetGardenSeed.profileTemplates.map(profile =>
+      profile.id === (productTypeId === 'collars-leashes' ? 'pet-accessory' : 'pet-food')
         ? {
           ...profile,
           attributes: profile.attributes.map(rule => rule.attributeId === requiredAttributeId
             ? { ...rule, required: true }
             : rule),
         }
-        : profile)
-      : BayStatePetGardenSeed.profileTemplates,
+        : profile),
     productTypes: BayStatePetGardenSeed.productTypes.map(type => {
-      const mappedValues = websiteValues.get(type.id);
+      const mappedValues = websiteValues[type.id];
       return mappedValues ? { ...type, websiteValues: mappedValues } : type;
     }),
     classificationOutputBindings: [
@@ -103,8 +107,8 @@ export function seedCanonicalPromotionAuthority({
     db.run(
       `INSERT OR IGNORE INTO classification_proposals
        (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'product_classification', 'dog-food-dry', ?, 1.0, 'accepted', ?)`,
-      [pairProposalId, runId, sku, JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }), now],
+       VALUES (?, ?, ?, 'product_classification', ?, ?, 1.0, 'accepted', ?)`,
+      [pairProposalId, runId, sku, productTypeId, JSON.stringify({ categoryId, productTypeId }), now],
     );
     db.run(
       `INSERT OR IGNORE INTO classification_proposal_decisions

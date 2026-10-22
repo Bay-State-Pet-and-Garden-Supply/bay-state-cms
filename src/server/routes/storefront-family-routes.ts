@@ -41,7 +41,7 @@ import {
 import { listConflictingDraftChangeSets } from '../../db/repositories/change-set-repo';
 import { findItemById } from '../../db/repositories/onboarding-item-repo';
 import { listOutstandingDriftForSku } from '../../db/repositories/drift-repo';
-import { StorefrontFamilyStagingInputSchema, NonFoodFamilyStagingInputSchema } from '../../validation/storefront-family-validation';
+import { StorefrontFamilyStagingInputSchema, NonFoodFamilyStagingInputSchema, parseOunces } from '../../validation/storefront-family-validation';
 import { getAcceptedProposals } from '../../db/repositories/classification-run-repo';
 import { getEffectivePrimaryProductTypeId } from '../../classification/assignment-projection';
 import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
@@ -366,7 +366,7 @@ route.post('/storefront-families/stage', async (c) => {
     if (!sizeRaw) {
       return c.json({ error: `No current eligible SKU-local evidence for SKU "${member.sku}".` }, 400);
     }
-    records.set(member.sku, { ...record, sizeRaw, ounces: record.ounces ?? parseOuncesLocal(sizeRaw) });
+    records.set(member.sku, { ...record, sizeRaw, ounces: record.ounces ?? parseOunces(sizeRaw) });
   }
   const stagedInput = StorefrontFamilyStagingInputSchema.safeParse({
     members: [...records.entries()].map(([sku, record]) => ({
@@ -1576,7 +1576,7 @@ function baseDerivedEvidence(workspacePath: string, sku: string): MemberRecord |
     lifeStage: textOf(cf['ProductField18']),
     form: textOf(cf['ProductField22']),
     sizeRaw: weight,
-    ounces: weight ? parseOuncesLocal(weight) : null,
+    ounces: weight ? parseOunces(weight) : null,
     retailUnit: textOf(attrs['retailUnit']),
     packCountDeclared: attrs['packCountDeclared'] === 'true',
     packCount: typeof attrs['packCount'] === 'string' && /^\d+$/.test(attrs['packCount'].trim()) ? Number(attrs['packCount'].trim()) : null,
@@ -1641,7 +1641,7 @@ function readJoinStageEvidence(
       lifeStage: record.lifeStage,
       form: record.form,
       sizeRaw,
-      ounces: record.ounces ?? parseOuncesLocal(sizeRaw),
+      ounces: record.ounces ?? parseOunces(sizeRaw),
       retailUnit: record.retailUnit,
       packCount: record.packCount,
       packCountDeclared: record.packCountDeclared,
@@ -1691,7 +1691,7 @@ route.post('/storefront-families/adopt-preview', async (c) => {
     if (!sizeRaw) return c.json({ error: `No size evidence for SKU "${sku}"; adoption requires verified sizes.` }, 400);
     liveBySku.set(sku, record.base);
     evidenceBySku.set(sku, { reviewedTypeHash: record.reviewedTypeHash, evidenceHash: record.evidenceHash });
-    axisBySku.set(sku, { ...record, sizeRaw, ounces: record.ounces ?? parseOuncesLocal(sizeRaw) });
+    axisBySku.set(sku, { ...record, sizeRaw, ounces: record.ounces ?? parseOunces(sizeRaw) });
   }
   // Non-food adoption routing (#369): when every member's reviewed type
   // resolves the same approved non-food rule, preview under that rule with
@@ -1770,7 +1770,7 @@ route.post('/storefront-families/adopt', async (c) => {
       axis: {
         brand: record.brand, recipe: record.recipe, flavor: record.flavor,
         species: record.species, lifeStage: record.lifeStage, form: record.form,
-        sizeRaw, ounces: record.ounces ?? parseOuncesLocal(sizeRaw), retailUnit: record.retailUnit,
+        sizeRaw, ounces: record.ounces ?? parseOunces(sizeRaw), retailUnit: record.retailUnit,
         packCountDeclared: record.packCountDeclared, packCount: record.packCount,
         purchasable: record.purchasable,
       },
@@ -2169,7 +2169,7 @@ function readMemberRecord(
     ? null
     : typeof fields.comparableOunces === 'number' && Number.isFinite(fields.comparableOunces) && fields.comparableOunces > 0
       ? fields.comparableOunces
-      : parseOuncesLocal(sizeRaw);
+      : parseOunces(sizeRaw);
   const countQuantity =
     typeof fields.countQuantity === 'number' && Number.isFinite(fields.countQuantity) && fields.countQuantity > 0
       ? Math.floor(fields.countQuantity)
@@ -2464,19 +2464,6 @@ function readExtractionImages(parsed: unknown): { primary: string | null; additi
     ? additionalRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0).map((u) => u.trim())
     : [];
   return { primary, additional };
-}
-
-function parseOuncesLocal(value: string): number | null {
-  const m = value.trim().match(/^([\d.,]+)\s*(oz|ounces?|lb|lbs|pounds?|g|grams?|kg|kilograms?)\.?$/i);
-  if (!m) return null;
-  const amount = Number(String(m[1]).replace(/,/g, ''));
-  if (!Number.isFinite(amount) || amount <= 0) return null;
-  const unit = m[2]!.toLowerCase();
-  if (unit.startsWith('oz') || unit.startsWith('ounce')) return amount;
-  if (unit.startsWith('lb') || unit.startsWith('pound')) return amount * 16;
-  if (unit === 'g' || unit.startsWith('gram')) return amount / 28.349523125;
-  if (unit === 'kg' || unit.startsWith('kilo')) return (amount * 1000) / 28.349523125;
-  return null;
 }
 
 /**

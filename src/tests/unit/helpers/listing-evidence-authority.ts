@@ -123,9 +123,18 @@ export function previewTitleDescriptionStandard(workspacePath: string): void {
     productTypeId: 'bird-food',
     requirements: [REQUIRED_TITLE],
   });
+  // Non-food collars-leashes pair for the family join fixtures; same title-only contract.
+  const collarsPreview = previewListingStandard({
+    workspacePath,
+    actor: 'listing-evidence-test',
+    standardId: 'listing-evidence-test-standard',
+    categoryId: 'pet-supplies',
+    productTypeId: 'collars-leashes',
+    requirements: [REQUIRED_TITLE],
+  });
   fs.writeFileSync(
     path.join(directory, 'listing-completeness.json'),
-    `${JSON.stringify({ recordVersion: 1, standards: [dogPreview.standard, catPreview.standard, wetPreview.standard, birdPreview.standard] }, null, 2)}\n`,
+    `${JSON.stringify({ recordVersion: 1, standards: [dogPreview.standard, catPreview.standard, wetPreview.standard, birdPreview.standard, collarsPreview.standard] }, null, 2)}\n`,
   );
 
   activatePageImportFromRecords({
@@ -152,6 +161,8 @@ export function seedListingEvidenceItem(input: {
   weight?: string;
   extractionData?: Record<string, unknown>;
   suggestedPages?: string[];
+  productTypeId?: string;
+  categoryId?: string;
 }): { runId: string; evidenceIds: string[]; titleEvidenceId: string } {
   const item = findItemById(input.itemId);
   if (!item) throw new Error(`Listing-evidence fixture item ${input.itemId} is missing.`);
@@ -195,8 +206,9 @@ export function seedListingEvidenceItem(input: {
     workspacePath: input.workspacePath,
     sku: input.sku,
     runId: run.id,
+    ...(input.productTypeId ? { productTypeId: input.productTypeId } : {}),
+    ...(input.categoryId ? { categoryId: input.categoryId } : {}),
   });
-  db.query('UPDATE classification_runs SET config_snapshot_id = ? WHERE id = ?').run(runtime.id, run.id);
   completeRun(run.id, 'completed');
 
   db.query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(

@@ -1341,7 +1341,7 @@ export function checkFamilyJoinFreshness(input: {
   // Competing active drafts over any group SKU block the whole plan —
   // another draft is never overwritten.
   try {
-    const conflicts = listConflictingDraftChangeSets(input.workspaceId, plan.memberSkus, '');
+    const conflicts = listConflictingDraftChangeSets(input.workspaceId, plan.memberSkus, plan.linkedChangeSetId ?? '');
     for (const conflict of conflicts) {
       reasons.push(`SKU "${conflict.sku}" is also staged in change set ${conflict.changeSetId.slice(0, 8)} (status "${conflict.status}"); resolve the competing draft before joining.`);
     }
