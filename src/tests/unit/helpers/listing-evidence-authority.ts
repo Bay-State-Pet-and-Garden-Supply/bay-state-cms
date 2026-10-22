@@ -151,6 +151,7 @@ export function seedListingEvidenceItem(input: {
   description?: string;
   weight?: string;
   extractionData?: Record<string, unknown>;
+  suggestedPages?: string[];
 }): { runId: string; evidenceIds: string[]; titleEvidenceId: string } {
   const item = findItemById(input.itemId);
   if (!item) throw new Error(`Listing-evidence fixture item ${input.itemId} is missing.`);
@@ -185,7 +186,7 @@ export function seedListingEvidenceItem(input: {
   // Listing behavior fixtures need the item in its normal review state; the
   // accepted snapshot is source-bound to identity, not this workflow stage.
   db.query(`UPDATE onboarding_items SET stage = 'review', stage_status = 'pending', error_message = NULL, curation_data_json = ? WHERE id = ?`)
-    .run(JSON.stringify({ suggestedPages: ['QA/test-only dog-food category'] }), input.itemId);
+    .run(JSON.stringify({ ...(input.suggestedPages ? { suggestedPages: input.suggestedPages } : {}) }), input.itemId);
 
   const run = createRun(input.workspaceId, input.sku, null, null, input.itemId);
   const runtime = seedCanonicalPromotionAuthority({
@@ -199,7 +200,7 @@ export function seedListingEvidenceItem(input: {
   completeRun(run.id, 'completed');
 
   db.query('UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?').run(
-    JSON.stringify({ suggestedPages: ['QA/test-only dog-food category'], classificationRunId: run.id }),
+    JSON.stringify({ ...(input.suggestedPages ? { suggestedPages: input.suggestedPages } : {}), classificationRunId: run.id }),
     input.itemId,
   );
   const current = getCurrentItemEvidenceView(input.workspaceId, input.itemId);

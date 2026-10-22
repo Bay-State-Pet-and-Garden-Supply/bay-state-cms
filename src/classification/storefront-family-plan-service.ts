@@ -568,9 +568,10 @@ export function decideStorefrontFamilyPlan(input: {
             throw new Error(`family_plan_decision_stale: SKU "${member.sku}" rule changed after staging; re-review before accepting.`);
           }
         }
-        if (f.currentProductTypeIdBySku && member.productTypeId != null) {
+        const stagedTypeId = member.reviewedProductTypeId ?? member.productTypeId;
+        if (f.currentProductTypeIdBySku && stagedTypeId != null) {
           const currentTypeId = f.currentProductTypeIdBySku.get(member.sku) ?? null;
-          if (currentTypeId !== null && currentTypeId !== member.productTypeId) {
+          if (currentTypeId !== null && currentTypeId !== stagedTypeId) {
             throw new Error(`family_plan_decision_stale: SKU "${member.sku}" product type changed after staging; re-review before accepting.`);
           }
         }
@@ -711,10 +712,11 @@ export function checkStorefrontFamilyFreshness(input: {
         reasons.push(`SKU "${member.sku}" rule changed after staging (stale rule).`);
       }
     }
-    if (input.currentProductTypeIdBySku && member.productTypeId != null) {
+    const stagedTypeId = member.reviewedProductTypeId ?? member.productTypeId;
+    if (input.currentProductTypeIdBySku && stagedTypeId != null) {
       const hasTypeId = input.currentProductTypeIdBySku.has(member.sku);
       const currentTypeId = input.currentProductTypeIdBySku.get(member.sku) ?? null;
-      if (!hasTypeId || currentTypeId === null || currentTypeId !== member.productTypeId) {
+      if (!hasTypeId || currentTypeId === null || currentTypeId !== stagedTypeId) {
         reasons.push(`SKU "${member.sku}" product type changed after staging (stale rule).`);
       }
     }

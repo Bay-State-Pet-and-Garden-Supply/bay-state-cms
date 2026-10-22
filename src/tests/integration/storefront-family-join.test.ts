@@ -7,12 +7,13 @@ import { ShopSiteProductCodec } from '../../shopsite/product-codec';
 import { createWorkspaceDirs, writeProductFile, readProductFile } from '../../git/workspace-files';
 import { skuToProductFilePath } from '../../git/product-file-path';
 import { GitClient } from '../../git/git-client';
+import { projectApprovedCatalogFamilyOrigin, projectBoundCatalogFamilyOrigin, type ApprovedCatalogFamilyProjection } from '../../classification/storefront-family-origin';
 import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { approveChangeSet, loadApprovedLinkedExport } from '../../server/services/change-set-service';
 import { stageNativeAdoption, applyAdoptedFamilyPlan, type AdoptionEvidence } from '../../classification/storefront-family-adoption';
 import { decideStorefrontFamilyPlan, stageNonFoodStorefrontFamilyPlan, stageStorefrontFamilyPlan, applyStorefrontFamilyPlan } from '../../classification/storefront-family-plan-service';
-import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
+import { createChangeSet, upsertChangeSetItem, listChangeSetItems } from '../../db/repositories/change-set-repo';
 import { deterministicStringify, hashJson } from '../../git/deterministic-json';
 import {
   discoverJoinCandidates,
@@ -29,7 +30,6 @@ import { canonicalJoinVariantTuple } from '../../classification/family-variant-r
 import { findStorefrontFamilyPlanById, parseStorefrontFamilyPlan } from '../../db/repositories/storefront-family-plan-repo';
 import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
 import { approveFamilyCatalogProduct } from './family-authority';
-import { projectBoundCatalogFamilyOrigin, type ApprovedCatalogFamilyProjection } from '../../classification/storefront-family-origin';
 import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
 import type { Product } from '../../shared/types';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
@@ -69,10 +69,17 @@ const EARLIER_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <MoreInformationText>Real chicken dinner.</MoreInformationText></Product>
 </Products></ShopSiteProducts>`;
 
+let activeWorkspaceId = '';
+let activeWorkspacePath = '';
 let activeFamilyOrigins: Map<string, FamilyMemberOrigin> = new Map();
 let activeFamilyTypeHashes: Record<string, string> = {};
 let activeFamilyProjections = new Map<string, ApprovedCatalogFamilyProjection>();
 let activeImportedOrigins: Record<string, Extract<FamilyMemberOrigin, { kind: 'onboarding' }>> = {};
+function currentCatalogOrigin(sku: string): FamilyMemberOrigin {
+  const projection = projectApprovedCatalogFamilyOrigin({ workspaceId: activeWorkspaceId, workspacePath: activeWorkspacePath, sku });
+  if (!projection) throw new Error(`No current approved catalog origin seeded for ${sku}`);
+  return projection.origin;
+}
 function axisFor(p: Product) {
   const ounces: Record<string, number> = { 'FAM-5': 80, 'FAM-15': 240, 'FAM-30': 480 };
   return {
@@ -83,10 +90,12 @@ function axisFor(p: Product) {
   };
 }
 
-function setupEarlier() {
+async function setupEarlier() {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-family-370-'));
   const dbPath = path.join(workspacePath, `family-370-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
   const workspaceId = `ws-family-370-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  activeWorkspaceId = workspaceId;
+  activeWorkspacePath = workspacePath;
   initDb(dbPath);
   runMigrations();
   const now = new Date().toISOString();
@@ -101,6 +110,7 @@ function setupEarlier() {
   git.init();
   const decoded = ShopSiteProductCodec.decode(EARLIER_XML, { workspaceId });
   for (const p of decoded.products) writeProductFile(workspacePath, p);
+  git.add(['products/', '.gitignore']);
   git.commit('Baseline for family join (earlier batch)');
   const authorized = decoded.products.map((product) => approveFamilyCatalogProduct({
     workspaceId, workspacePath, product, productTypeId: 'dog-food-dry',
@@ -117,17 +127,24 @@ function setupEarlier() {
     item.product.sku, item.product.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
   ]));
   prepareListingEvidenceWorkspace(workspacePath, workspaceId);
+  activeImportedOrigins = {};
+  for (const sku of ['FAM-30', 'FAM-DUPE', 'FAM-BEEF', 'FAM-NOTYPE']) {
+    activeImportedOrigins[sku] = await seedImportedOrigin({
+      workspaceId, workspacePath, sku, name: `Acme Chicken Dinner ${sku === 'FAM-DUPE' ? '5 lb' : '30 lb'}`, brand: 'Acme',
+      description: 'Real chicken dinner.', weight: '30 lb', suggestedPages: ['QA/test-only dog-food category'],
+    });
+  }
   return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
-async function seedImportedOrigin(input: { workspaceId: string; workspacePath: string; sku: string; name: string; brand: string; description: string; weight: string; }): Promise<Extract<FamilyMemberOrigin, { kind: 'onboarding' }>> {
+async function seedImportedOrigin(input: { workspaceId: string; workspacePath: string; sku: string; name: string; brand: string; description: string; weight: string; suggestedPages?: string[]; }): Promise<Extract<FamilyMemberOrigin, { kind: 'onboarding' }>> {
   const batch = createBatch({ workspaceId: input.workspaceId, name: `Family evidence ${input.sku}`, fileName: `${input.sku}.csv`, totalItems: 1 });
   const [item] = insertItems(batch.id, [{ upc: input.sku, name: input.name, brandHint: input.brand, rowNumber: 1 }]);
-  const authority = seedListingEvidenceItem({ workspaceId: input.workspaceId, workspacePath: input.workspacePath, itemId: item.id, sku: input.sku, description: input.description, weight: input.weight });
+  const authority = seedListingEvidenceItem({ workspaceId: input.workspaceId, workspacePath: input.workspacePath, itemId: item.id, sku: input.sku, description: input.description, weight: input.weight, suggestedPages: input.suggestedPages });
   const current = getCurrentItemEvidenceView(input.workspaceId, item.id);
   if (current.status !== 'accepted' || !current.evidence) throw new Error(`Family evidence unavailable for ${input.sku}: ${current.status}`);
   const spans = acceptedItemNameSpans(current.evidence).spans;
   const evidence = getDb().query('SELECT * FROM classification_evidence WHERE run_id = ?').all(authority.runId).map((row: unknown) => row as ClassificationEvidence);
-  const result = await resolveNameSelection({ evidence, spans, brand: input.brand, sku: input.sku, runId: authority.runId, snapshot: null, modelPolicy: null });
+  const result = await resolveNameSelection({ evidence, spans, brand: input.brand, sku: input.sku, runId: authority.runId, snapshot: null, modelPolicy: null, manualTitle: item.name });
   if (result.status !== 'resolved') throw new Error(`Family item name unresolved for ${input.sku}`);
   const decision = toNameDecision({ result, spans, brand: input.brand });
   if (!decision) throw new Error(`Family item name decision unavailable for ${input.sku}`);
@@ -217,6 +234,7 @@ function importEvidence(sku: string, weight: string, ounces: number): JoinMember
   return {
     sku,
     origin: 'import',
+    sourceOrigin: activeImportedOrigins[sku] ?? (() => { throw new Error(`No current imported origin seeded for ${sku}`); })(),
     base: null,
     draftBase: draft,
     purchasable: true,
@@ -266,6 +284,7 @@ function catalogEvidence(p: Product): JoinMemberEvidence {
     reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
     evidenceHash: `evidence-${p.sku}`,
     origin: 'catalog',
+    sourceOrigin: currentCatalogOrigin(p.sku),
     productTypeId: null,
     model: null,
     material: null,
@@ -295,10 +314,12 @@ const NON_FOOD_EARLIER_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <MoreInformationText>Nylon walking harness.</MoreInformationText></Product>
 </Products></ShopSiteProducts>`;
 
-function setupNonFoodEarlier() {
+async function setupNonFoodEarlier() {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-family-370-nf-'));
   const dbPath = path.join(workspacePath, `family-370-nf-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
   const workspaceId = `ws-family-370-nf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  activeWorkspaceId = workspaceId;
+  activeWorkspacePath = workspacePath;
   initDb(dbPath);
   runMigrations();
   const now = new Date().toISOString();
@@ -322,6 +343,14 @@ function setupNonFoodEarlier() {
   activeFamilyTypeHashes = Object.fromEntries(authorized.map((item) => [
     item.product.sku, item.product.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
   ]));
+  prepareListingEvidenceWorkspace(workspacePath, workspaceId);
+  activeImportedOrigins = {
+    'NF-L-RED': await seedImportedOrigin({
+      workspaceId, workspacePath, sku: 'NF-L-RED', name: 'Acme Trail Harness Large Red',
+      brand: 'Acme', description: 'Nylon walking harness.', weight: 'Large',
+      suggestedPages: ['QA/test-only dog-food category'],
+    }),
+  };
   return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
 
@@ -416,6 +445,7 @@ function nonFoodCatalogEvidence(p: Product, size: string | null, color: string):
     reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
     evidenceHash: `evidence-${p.sku}`,
     origin: 'catalog',
+    sourceOrigin: currentCatalogOrigin(p.sku),
     productTypeId: 'collars-leashes',
     model: NON_FOOD_IDENTITY.model,
     material: NON_FOOD_IDENTITY.material,
@@ -436,15 +466,15 @@ function nonFoodImportEvidence(sku: string, size: string, color: string): JoinMe
     sku, base: null, draftBase: nonFoodDraft(sku, size, color), purchasable: true, ...NON_FOOD_IDENTITY,
     recipe: null, flavor: null, species: null, lifeStage: null, form: null,
     sizeRaw: size, ounces: null, retailUnit: null, packCountDeclared: false, packCount: null,
-    reviewedTypeHash: computeReviewedAuthorityHash('collars-leashes') ?? (() => { throw new Error('Missing collars-leashes authority hash'); })(), evidenceHash: origin.evidenceHash, origin: 'import' as const,
-    productTypeId: 'collars-leashes', model: NON_FOOD_IDENTITY.model, material: NON_FOOD_IDENTITY.material,
+    reviewedTypeHash: computeReviewedAuthorityHash('collars-leashes') ?? (() => { throw new Error('Missing collars-leashes authority hash'); })(), evidenceHash: origin.evidenceHash, origin: 'import' as const, sourceOrigin: origin,
+    productTypeId: 'collars-leashes',
     function: NON_FOOD_IDENTITY.function, safetyDose: NON_FOOD_IDENTITY.safetyDose, strength: NON_FOOD_IDENTITY.strength,
     fit: NON_FOOD_IDENTITY.fit, colorRaw: color, countRaw: null, countQuantity: null,
   };
 }
 describe('imported size joins reviewed existing family (issue #370)', () => {
-  it('discovers the existing family, stages a join, and exports one complete commit with main/labels/data preserved', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('discovers the existing family, stages a join, and exports one complete commit with main/labels/data preserved', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     // Earlier batch: adopt the two-size native family (main FAM-5 preserved).
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
@@ -502,6 +532,11 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
       actor: 'operator-1',
       evidenceBySku,
     });
+    const originalMainOrigin = adopted.plan.members.find((member) => member.sku === 'FAM-5')?.origin;
+    const joinedMainOrigin = staged.plan.members.find((member) => member.sku === 'FAM-5')?.origin;
+    expect(originalMainOrigin?.kind).toBe('catalog');
+    expect(joinedMainOrigin?.kind).toBe('catalog');
+    expect(joinedMainOrigin).not.toEqual(originalMainOrigin);
     expect(staged.plan.mainSku).toBe('FAM-5');
     expect(staged.plan.mainOverridden).toBe(false);
     expect(staged.plan.memberSkus).toEqual(['FAM-15', 'FAM-30', 'FAM-5']);
@@ -566,6 +601,16 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
       currentProductTypeIdBySku: new Map([...evidenceBySku].map(([sku, ev]) => [sku, ev.productTypeId] as const)),
       currentLabelBySku: new Map([...evidenceBySku.keys()].map((sku) => [sku, null] as const)),
     });
+    expect(() => applyFamilyJoin({
+      planId: accepted.plan.id, workspaceId, workspacePath, draftsBySku: new Map(), actor: 'reviewer-2',
+    })).toThrow(/family_plan_materialized/);
+    expect(applied.plan.status).toBe('accepted');
+    expect(applied.plan.linkedChangeSetId).toBe(applied.changeSetId);
+    const preparedItems = listChangeSetItems(applied.changeSetId);
+    const stagedMainOrigin = applied.plan.members.find((member) => member.sku === 'FAM-5')?.origin;
+    const stagedImportOrigin = applied.plan.members.find((member) => member.sku === 'FAM-30')?.origin;
+    expect(preparedItems.find((item) => item.sku === 'FAM-5')?.classificationRunId).toBe(stagedMainOrigin?.kind === 'catalog' ? stagedMainOrigin.classificationRunId : null);
+    expect(preparedItems.find((item) => item.sku === 'FAM-30')?.classificationRunId).toBe(stagedImportOrigin?.kind === 'onboarding' ? stagedImportOrigin.runId : null);
     const approved = approveChangeSet(applied.changeSetId, workspacePath);
     expect(approved.success).toBe(true);
     const linked = loadApprovedLinkedExport(applied.changeSetId, workspacePath);
@@ -605,8 +650,32 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     expect(parseStorefrontFamilyPlan(familyRow.planJson).linkedChangeSetId).toBe(applied.changeSetId);
   });
 
-  it('refuses same-SKU ambiguity, competing families, smaller-main replacement, stale bases, and conflicting drafts', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('refuses an accepted-but-unapproved adoption as a join target', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
+    const adoption = stageNativeAdoption({
+      workspaceId, workspacePath, memberSkus: ['FAM-5', 'FAM-15'], actor: 'operator-1',
+      evidenceBySku: adoptionEvidence(products),
+    });
+    const accepted = decideStorefrontFamilyPlan({ planId: adoption.plan.id, actor: 'reviewer-2', action: 'accept' });
+    const prepared = applyAdoptedFamilyPlan({
+      planId: accepted.plan.id, workspaceId, workspacePath,
+      draftsBySku: new Map(products.map((product) => [product.sku, structuredClone(product)] as const)),
+      actor: 'reviewer-2',
+    });
+    expect(prepared.plan.status).toBe('accepted');
+    expect(prepared.plan.linkedChangeSetId).toBe(prepared.changeSetId);
+    const evidenceBySku = new Map<string, JoinMemberEvidence>([
+      ...products.map((product) => [product.sku, catalogEvidence(product)] as const),
+      ['FAM-30', importEvidence('FAM-30', '30 lb', 480)],
+    ]);
+    expect(() => stageFamilyJoin({
+      workspaceId, workspacePath, familyPlanId: adoption.plan.id, joinedSkus: ['FAM-30'],
+      actor: 'operator-1', evidenceBySku,
+    })).toThrow(/family_join_target_unapplied/);
+  });
+
+  it('refuses same-SKU ambiguity, competing families, smaller-main replacement, stale bases, and conflicting drafts', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
       memberSkus: ['FAM-5', 'FAM-15'],
@@ -698,8 +767,8 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     expect(stale.reasons.some((r) => r.includes('FAM-5'))).toBe(true);
   });
 
-  it('reject/defer preserves relationships and standalone progress', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('reject/defer preserves relationships and standalone progress', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
       memberSkus: ['FAM-5', 'FAM-15'],
@@ -745,8 +814,8 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     expect(decideFamilyJoin({ planId: deferred.plan.id, actor: 'reviewer-2', action: 'defer' }).plan.status).toBe('deferred');
   });
 
-  it('blocks a competing applied family until explicitly rejected, then stages with the rejection pinned', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('blocks a competing applied family until explicitly rejected, then stages with the rejection pinned', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
       memberSkus: ['FAM-5', 'FAM-15'],
@@ -772,6 +841,12 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
       workspaceId, workspacePath, product: rivalProduct, productTypeId: 'dog-food-dry',
     });
     const rivalDraft = rivalAuthority.product;
+    const rivalMainDraft = structuredClone(liveBySku.get('FAM-5')!);
+    delete rivalMainDraft.shopsite.preserved.rawAttributes['managedFamilyId'];
+    delete rivalMainDraft.shopsite.preserved.rawAttributes['managedFamilyMemberSkus'];
+    for (const tag of Object.keys(rivalMainDraft.shopsite.preserved.advancedBlocks ?? {})) {
+      if (tag.toLowerCase() === 'subproducts') delete rivalMainDraft.shopsite.preserved.advancedBlocks[tag];
+    }
     const rivalStaged = stageStorefrontFamilyPlan({
       workspaceId, workspacePath,
       input: {
@@ -780,35 +855,25 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
             sku: 'FAM-5', origin: activeFamilyOrigins.get('FAM-5')!, purchasable: true, brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken',
             species: 'Dog', lifeStage: 'Adult', form: 'Dry Kibble', sizeRaw: '5 lb', ounces: 80,
             retailUnit: null, packCountDeclared: false, packCount: null,
-            reviewedTypeHash: activeFamilyTypeHashes['FAM-5']!, evidenceHash: 'evidence-FAM-5',
+            reviewedTypeHash: computeReviewedAuthorityHash('dog-food-dry')!, evidenceHash: 'evidence-FAM-5',
           },
           {
             sku: 'FAM-30', origin: rivalAuthority.origin, purchasable: true, brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken',
             species: 'Dog', lifeStage: 'Adult', form: 'Dry Kibble', sizeRaw: '30 lb', ounces: 480,
             retailUnit: null, packCountDeclared: false, packCount: null,
-            reviewedTypeHash: rivalProduct.shopsite.preserved.rawAttributes.reviewedTypeHash as string, evidenceHash: 'evidence-FAM-30',
+            reviewedTypeHash: computeReviewedAuthorityHash('dog-food-dry')!, evidenceHash: 'evidence-FAM-30',
           },
         ],
       },
       actor: 'operator-2',
       curationBySku: new Map([
-        ['FAM-5', { base: liveBySku.get('FAM-5')!, draftBase: structuredClone(liveBySku.get('FAM-5')!) }],
+        ['FAM-5', { base: liveBySku.get('FAM-5')!, draftBase: rivalMainDraft }],
         ['FAM-30', { base: rivalProduct, draftBase: rivalDraft }],
       ]),
     });
     const rivalAccepted = decideStorefrontFamilyPlan({ planId: rivalStaged.plan.id, actor: 'reviewer-2', action: 'accept' });
-    const liveFam5 = structuredClone(liveBySku.get('FAM-5')!);
-    // The adopted family stamped managed markers on FAM-5's catalog base;
-    // the rival plan re-stages FAM-5 as a freestanding member, so strip the
-    // adopted markers from the rival's working draft (the rival writer
-    // re-stamps its own markers at apply). The catalog file keeps its own.
-    delete liveFam5.shopsite.preserved.rawAttributes['managedFamilyId'];
-    delete liveFam5.shopsite.preserved.rawAttributes['managedFamilyMemberSkus'];
-    for (const tag of Object.keys(liveFam5.shopsite.preserved.advancedBlocks ?? {})) {
-      if (tag.toLowerCase() === 'subproducts') delete liveFam5.shopsite.preserved.advancedBlocks[tag];
-    }
     const rivalDrafts = new Map<string, Product>([
-      ['FAM-5', liveFam5],
+      ['FAM-5', rivalMainDraft],
       ['FAM-30', structuredClone(rivalDraft)],
     ]);
     const rivalApplied = applyStorefrontFamilyPlan({
@@ -899,8 +964,8 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     })).toThrow(/family_join_rejection_stale/);
   });
 
-  it('refuses to overwrite a competing active draft and populates review blockers', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('refuses to overwrite a competing active draft and populates review blockers', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
       memberSkus: ['FAM-5', 'FAM-15'],
@@ -968,8 +1033,8 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     expect(review.blockers.some((b) => b.includes('FAM-30') && b.includes('change set'))).toBe(true);
   });
 
-  it('completes the revise → re-accept → apply lifecycle', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('completes the revise → re-accept → apply lifecycle', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
       memberSkus: ['FAM-5', 'FAM-15'],
@@ -1018,8 +1083,9 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
       currentProductTypeIdBySku: new Map([...evidenceBySku].map(([sku, ev]) => [sku, ev.productTypeId] as const)),
       currentLabelBySku: new Map([...evidenceBySku.keys()].map((sku) => [sku, null] as const)),
     });
-    expect(applied.plan.status).toBe('applied');
+    expect(applied.plan.status).toBe('accepted');
     expect(approveChangeSet(applied.changeSetId, workspacePath).success).toBe(true);
+    expect(parseStorefrontFamilyPlan(findStorefrontFamilyPlanById(staged.plan.id)!.planJson).status).toBe('applied');
     const linked = loadApprovedLinkedExport(applied.changeSetId, workspacePath);
     expect(linked.ok).toBe(true);
     if (!linked.ok) return;
@@ -1044,12 +1110,12 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     }
     const main = JSON.parse(git.readFileAtCommit(commitHash, 'products/FAM-5.json')!) as Product;
     const refs = [...(main.shopsite.preserved.advancedBlocks['Subproducts'] ?? '').matchAll(/<SKU\s*>([^<]*)<\/SKU\s*>/gi)].map((m) => m[1]!.trim()).sort();
-    expect(refs).toEqual(['FAM-30', 'FAM-5']);
+    expect(refs).toEqual(['FAM-15', 'FAM-30', 'FAM-5']);
     expect(ShopSiteProductCodec.encodeMany(linked.load.products).xml).toContain('<ProductDisabled>checked</ProductDisabled>');
   });
 
-  it('reviews a complete non-food join: member/model invariants, varying size/color axes, and exact write set', () => {
-    const { workspacePath, workspaceId, products } = setupNonFoodEarlier();
+  it('reviews a complete non-food join: member/model invariants, varying size/color axes, and exact write set', async () => {
+    const { workspacePath, workspaceId, products } = await setupNonFoodEarlier();
     // Earlier batch: a reviewed non-food size/color family (explicit main).
     const curation = new Map(products.map((p, _i) => [p.sku, {
       base: structuredClone(p),
@@ -1126,8 +1192,8 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     expect(linked.load.manifest.reads.map((r) => r.sku)).toContain('NF-S-BLUE');
   });
 
-  it('materializes accepted PF7 before comparing, gates full freshness on apply, and blocks missing evidence', () => {
-    const { workspacePath, workspaceId, products } = setupEarlier();
+  it('materializes accepted PF7 before comparing, gates full freshness on apply, and blocks missing evidence', async () => {
+    const { workspacePath, workspaceId, products } = await setupEarlier();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath,
       memberSkus: ['FAM-5', 'FAM-15'],
@@ -1171,7 +1237,7 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
       currentProductTypeIdBySku: new Map([...evidenceBySku].map(([sku, ev]) => [sku, ev.productTypeId] as const)),
       currentLabelBySku: new Map([...evidenceBySku.keys()].map((sku) => [sku, null] as const)),
     });
-    expect(applied.plan.status).toBe('applied');
+    expect(applied.plan.status).toBe('accepted');
     expect(approveChangeSet(applied.changeSetId, workspacePath).success).toBe(true);
     // Unbound authority fails closed at apply (no opt-out): a fresh
     // accepted plan without bound authority refuses stale, never assumes.

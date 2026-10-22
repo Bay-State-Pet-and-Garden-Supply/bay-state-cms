@@ -18,6 +18,8 @@ export function approveFamilyCatalogProduct(input: {
   productTypeId: string;
 }): { product: Product; runId: string; origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }> } {
   const product = structuredClone(input.product);
+  // ProductDisabled=checked decodes as draft; approved family catalog members must be live to sell.
+  product.status = 'active';
   const reviewedTypeHash = computeReviewedAuthorityHash(input.productTypeId);
   if (!reviewedTypeHash) throw new Error(`Family catalog authority hash unavailable for ${input.product.sku}`);
   product.shopsite.preserved.rawAttributes.reviewedTypeHash = reviewedTypeHash;

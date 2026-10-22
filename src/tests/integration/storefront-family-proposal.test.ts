@@ -471,6 +471,7 @@ const PROPOSAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </Products></ShopSiteProducts>`;
 
 let activeProposalProjections = new Map<string, ApprovedCatalogFamilyProjection>();
+let activeImportedOrigins: Record<string, Extract<FamilyMemberOrigin, { kind: 'onboarding' }>> = {};
 
 function setupProposalWorkspace() {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-family-371-'));
@@ -565,7 +566,7 @@ function joinEvidence371(sku: string, weight: string, ounces: number, flavor = '
     sku, base: null, draftBase: draft, purchasable: true, brand: 'Acme', recipe, flavor,
     species: 'Dog', lifeStage: 'Adult', form: 'Dry Kibble', sizeRaw: weight, ounces,
     retailUnit: null, packCountDeclared: false, packCount: null,
-    reviewedTypeHash: computeReviewedAuthorityHash('dog-food-dry') ?? (() => { throw new Error('Missing dog-food-dry authority hash'); })(), evidenceHash: `evidence-${sku}`, origin: 'import' as const,
+    reviewedTypeHash: computeReviewedAuthorityHash('dog-food-dry') ?? (() => { throw new Error('Missing dog-food-dry authority hash'); })(), evidenceHash: `evidence-${sku}`, origin: 'import' as const, sourceOrigin: activeImportedOrigins[sku]!,
     productTypeId: null, model: null, material: null, function: null, safetyDose: null,
     strength: null, fit: null, colorRaw: null, countRaw: null, countQuantity: null,
   };
@@ -578,6 +579,7 @@ function catalogEvidence371(p: Product): JoinMemberEvidence {
     form: 'Dry Kibble', sizeRaw: p.core.weight ?? '5 lb', ounces: p.sku === 'FAM-5' ? 80 : 240,
     retailUnit: null, packCountDeclared: false, packCount: null,
     reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string, evidenceHash: `evidence-${p.sku}`, origin: 'catalog',
+    sourceOrigin: activeProposalProjections.get(p.sku)?.origin ?? (() => { throw new Error(`No catalog origin seeded for ${p.sku}`); })(),
     productTypeId: null, model: null, material: null, function: null, safetyDose: null,
     strength: null, fit: null, colorRaw: null, countRaw: null, countQuantity: null,
   };

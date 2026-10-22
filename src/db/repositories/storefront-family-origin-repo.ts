@@ -41,7 +41,7 @@ export function listApprovedFamilyCatalogReceipts(workspaceId: string, sku: stri
 /** Exact item lookup. Multiple live imports remain ambiguous; callers must not pick newest. */
 export function listFamilyOnboardingOrigins(workspaceId: string, sku: string): FamilyOnboardingOriginRow[] {
   const rows = getDb().query(`
-    SELECT i.id AS item_id, i.batch_id, b.workspace_id, i.upc, i.input_revision,
+    SELECT i.id AS item_id, i.batch_id, b.workspace_id, i.upc, '' AS input_revision,
            i.curation_data_json,
            e.id AS evidence_id, e.evidence_hash
     FROM onboarding_items i
@@ -73,7 +73,7 @@ export function listFamilyOnboardingOrigins(workspaceId: string, sku: string): F
 
 export function findFamilyOnboardingOrigin(workspaceId: string, itemId: string): FamilyOnboardingOriginRow | null {
   const row = getDb().query(`
-    SELECT i.id AS item_id, i.batch_id, b.workspace_id, i.upc, i.input_revision,
+    SELECT i.id AS item_id, i.batch_id, b.workspace_id, i.upc, '' AS input_revision,
            i.curation_data_json, ec.snapshot_id AS evidence_id, e.evidence_hash,
            i.curation_data_json AS currentness_source
     FROM onboarding_items i

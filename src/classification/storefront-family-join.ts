@@ -45,6 +45,8 @@ import {
   createChangeSet,
   upsertChangeSetItem,
   listConflictingDraftChangeSets,
+  findChangeSetById,
+  listChangeSetItems,
 } from '../db/repositories/change-set-repo';
 import { listOutstandingDriftForSku } from '../db/repositories/drift-repo';
 import { readProductFile } from '../git/workspace-files';
@@ -53,7 +55,8 @@ import { adjustProposalsForPreservedLabels } from './storefront-family-plan-serv
 import { normalizeSkuMpn, tokenSet } from '../onboarding/variant-resolver';
 import { normalizeGtin } from '../shared/gtin';
 import { extractNameStem, normalizeBrand } from '../onboarding/product-line-grouper';
-import type { StorefrontFamilyPlan, JoinOrigin } from '../shared/schemas/storefront-family';
+import { validateFamilyMemberOrigin } from './storefront-family-origin';
+import type { FamilyMemberOrigin, StorefrontFamilyPlan, JoinOrigin } from '../shared/schemas/storefront-family';
 import type { Product } from '../shared/types';
 
 /**
@@ -468,7 +471,9 @@ export interface JoinMemberEvidence {
   packCount: number | null;
   reviewedTypeHash: string;
   evidenceHash: string;
+  /** Coarse review role; authority is exclusively the structured binding below. */
   origin: 'catalog' | 'import';
+  sourceOrigin: FamilyMemberOrigin;
   productTypeId: string | null;
   model: string | null;
   material: string | null;
@@ -547,8 +552,8 @@ export function stageFamilyJoin(input: StageFamilyJoinInput): { row: StorefrontF
   } catch {
     throw new Error(`family_join_target_unreadable: the target family plan "${input.familyPlanId}" is corrupt and unreadable; re-stage before joining.`);
   }
-  if (familyRow.status !== 'applied' || family.status !== 'applied') {
-    throw new Error(`family_join_target_unapplied: joins extend a reviewed applied family (target is "${familyRow.status}"); apply the family first.`);
+  if (familyRow.status !== 'applied' || family.status !== 'applied' || !family.appliedCommit) {
+    throw new Error(`family_join_target_unapplied: joins extend a fully approved family with a finalized commit (target is "${familyRow.status}"); approve the family first.`);
   }
   if (family.membershipChange) {
     throw new Error('family_join_target_changed: the target family carries a reviewed membership revision; joins extend the current membership — re-resolve against it first.');
@@ -567,11 +572,20 @@ export function stageFamilyJoin(input: StageFamilyJoinInput): { row: StorefrontF
     }
   }
   const groupSkus = [...existingSkus, ...joinedSorted].sort();
-  // Every group member needs current eligible evidence — the complete
-  // import+catalog membership is reviewed, never a subset.
   for (const sku of groupSkus) {
     const evidence = input.evidenceBySku.get(sku);
     if (!evidence) throw new Error(`family_member_unresolved: SKU "${sku}" has no current eligible SKU-local evidence.`);
+    if ((evidence.origin === 'catalog') !== (evidence.sourceOrigin.kind === 'catalog') ||
+      (evidence.origin === 'import') !== (evidence.sourceOrigin.kind === 'onboarding')) {
+      throw new Error(`family_origin_role_mismatch: SKU "${sku}" review role does not match its structured source origin.`);
+    }
+    if (joinedSorted.includes(sku) && evidence.origin === 'import' && evidence.base !== null) {
+      throw new Error(`family_join_same_sku: joined SKU "${sku}" already has an approved catalog base; same-SKU ambiguity routes to identity/duplicate resolution, never a duplicate product/file.`);
+    }
+    if ((existingSkus.includes(sku) && (evidence.origin !== 'catalog' || !evidence.base)) ||
+      (joinedSorted.includes(sku) && (evidence.origin !== 'import' || evidence.base !== null))) {
+      throw new Error(`family_origin_role_mismatch: SKU "${sku}" has an origin/base inconsistent with its existing or incoming join role.`);
+    }
     if (!evidence.purchasable) throw new Error(`family_not_purchasable: SKU "${sku}" is not a real purchasable size SKU.`);
     if (!evidence.reviewedTypeHash || !evidence.evidenceHash) {
       throw new Error(`family_member_unresolved: SKU "${sku}" lacks reviewed type/evidence authority.`);
@@ -824,6 +838,7 @@ export function stageFamilyJoin(input: StageFamilyJoinInput): { row: StorefrontF
         packCountDeclared: evidence.packCountDeclared,
         packCount: evidence.packCount,
         reviewedTypeHash: evidence.reviewedTypeHash,
+        origin: evidence.sourceOrigin,
         evidenceHash: evidence.evidenceHash,
         baseHash: evidence.base ? comparisonHashForProduct(evidence.base) : null,
         stagedLabel: null,
@@ -1231,6 +1246,14 @@ export function checkFamilyJoinFreshness(input: {
       reasons.push(`SKU "${member.sku}" base changed after staging (stale base).`);
     }
     const liveNativeHash = live ? hashNativeReferences(live) : null;
+    if (!member.origin) {
+      reasons.push(`SKU "${member.sku}" has no frozen source origin.`);
+    } else {
+      const validation = validateFamilyMemberOrigin({
+        workspaceId: plan.workspaceId, workspacePath: input.workspacePath, sku: member.sku, origin: member.origin,
+      });
+      if (!validation.ok) reasons.push(`SKU "${member.sku}" source origin is invalid (${validation.code}): ${validation.reason}`);
+    }
     if (live && liveNativeHash == null) {
       reasons.push(`SKU "${member.sku}" native references unreadable (stale native).`);
     }
@@ -1296,6 +1319,9 @@ export function checkFamilyJoinFreshness(input: {
   } else {
     try {
       const target = parseStorefrontFamilyPlan(targetRow.planJson);
+      if (!target.appliedCommit) {
+        reasons.push(`Target family "${joinOrigin.familyPlanId.slice(0, 8)}" has no finalized approved commit; accepted drafts are not join targets.`);
+      }
       if (targetRow.status !== 'applied' || target.status !== 'applied') {
         reasons.push(`Target family "${joinOrigin.familyPlanId.slice(0, 8)}" is no longer applied (status "${targetRow.status}"); re-resolve before joining.`);
       }
@@ -1384,6 +1410,9 @@ export function decideFamilyJoin(input: {
   if (!row) throw new Error(`family_plan_missing: no plan "${input.planId}".`);
   const plan = parseStorefrontFamilyPlan(row.planJson);
   if (!plan.joinOrigin) throw new Error(`family_join_not_join: plan "${input.planId}" carries no join origin.`);
+  if (plan.linkedChangeSetId) {
+    throw new Error('family_plan_materialized: linked join decisions are immutable; discard the linked draft and re-stage before changing the decision.');
+  }
   if (plan.status === 'applied') {
     throw new Error('family_plan_applied: an applied plan is immutable; stage a new plan to change the family.');
   }
@@ -1560,9 +1589,8 @@ export function applyFamilyJoin(input: {
   const plan = parseStorefrontFamilyPlan(row.planJson);
   const joinOrigin = plan.joinOrigin;
   if (!joinOrigin) throw new Error(`family_join_not_join: plan "${input.planId}" carries no join origin.`);
-  if (plan.status !== 'accepted') {
-    throw new Error(`family_plan_not_accepted: plan is "${plan.status}"; accept (or re-accept after revise) before applying.`);
-  }
+  if (plan.status !== 'accepted') throw new Error(`family_plan_not_accepted: join plan "${input.planId}" is "${plan.status}", not accepted.`);
+  if (plan.linkedChangeSetId) throw new Error('family_plan_materialized: this join already has a linked draft; replay is refused.');
   for (const sku of plan.memberSkus) {
     if (input.purchasableBySku?.has(sku) && input.purchasableBySku.get(sku) !== true) {
       throw new Error(`family_not_purchasable: SKU "${sku}" is not a real purchasable size SKU at apply time.`);
@@ -1680,7 +1708,7 @@ export function applyFamilyJoin(input: {
     throw new Error('family_apply_noop: every materialized member is identical to its approved base; nothing to write — re-stage before applying.');
   }
   const db = getDb();
-  const staged = db.transaction(() => {
+  const staged = getDb().transaction(() => {
     const changeSet = createChangeSet({
       workspaceId: input.workspaceId,
       title: `Join family ${plan.id.slice(0, 8)} (${joinOrigin.joinedSkus.join(', ')} joins ${joinOrigin.familyMain})`,
@@ -1690,6 +1718,10 @@ export function applyFamilyJoin(input: {
     for (const sku of writeSkus) {
       const base = readProductFile(input.workspacePath, sku);
       const managed = materializedBySku.get(sku)!;
+      const source = plan.members.find((member) => member.sku === sku)?.origin;
+      if (!source) throw new Error(`family_apply_origin_invalid: SKU "${sku}" has no frozen source origin.`);
+      const validation = validateFamilyMemberOrigin({ workspaceId: input.workspaceId, workspacePath: input.workspacePath, sku, origin: source });
+      if (!validation.ok) throw new Error(`family_apply_origin_invalid: SKU "${sku}" source origin is invalid (${validation.code}): ${validation.reason}`);
       upsertChangeSetItem({
         changeSetId: changeSet.id,
         sku,
@@ -1697,19 +1729,14 @@ export function applyFamilyJoin(input: {
         draftJson: deterministicStringify(managed),
         baseJson: base ? deterministicStringify(base) : null,
         draftHash: hashJson(managed),
-        classificationRunId: null,
+        classificationRunId: validation.classificationRunId,
       });
     }
-    return changeSet;
+    const next: StorefrontFamilyPlan = { ...plan, status: 'accepted', linkedChangeSetId: changeSet.id, updatedAt: nowIso() };
+    updateStorefrontFamilyPlan({ id: plan.id, plan: next, status: 'accepted', revision: plan.revision, linkedChangeSetId: changeSet.id });
+    return { changeSet, plan: next };
   })();
-  const next: StorefrontFamilyPlan = {
-    ...plan,
-    status: 'applied',
-    linkedChangeSetId: staged.id,
-    updatedAt: nowIso(),
-  };
-  updateStorefrontFamilyPlan({ id: plan.id, plan: next, status: 'applied', revision: plan.revision, linkedChangeSetId: staged.id });
-  return { changeSetId: staged.id, plan: next };
+  return { changeSetId: staged.changeSet.id, plan: staged.plan };
 }
 
 export type { StorefrontFamilyPlan };

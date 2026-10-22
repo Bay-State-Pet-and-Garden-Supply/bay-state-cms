@@ -264,6 +264,7 @@ route.get('/storefront-families/:id', (c) => {
           colorRaw: record.colorRaw,
           countRaw: record.countRaw,
           countQuantity: record.countQuantity,
+          sourceOrigin: record.origin,
         });
       }
       let conflictingDrafts: Array<{ changeSetId: string; sku: string; status: string }> = [];
@@ -1046,7 +1047,7 @@ route.post('/storefront-families/join', async (c) => {
   if (!parsedBody.success) {
     return c.json({ error: `Invalid join staging input: ${parsedBody.error.issues.map((i) => i.message).join('; ')}` }, 400);
   }
-  const staged = readJoinStageEvidence(workspace.workspacePath, parsedBody.data.familyPlanId, parsedBody.data.joinedSkus);
+  const staged = readJoinStageEvidence(workspace.workspacePath, workspace.id, parsedBody.data.familyPlanId, parsedBody.data.joinedSkus);
   if (!staged.ok) return c.json({ error: staged.error }, 400);
   // #371: an accepted membership proposal binds the disposed anchor; the
   // complete plan gates below still validate everything (proposal disposes,
@@ -1596,6 +1597,7 @@ function baseDerivedEvidence(workspacePath: string, sku: string): MemberRecord |
 
 function readJoinStageEvidence(
   workspacePath: string,
+  workspaceId: string,
   familyPlanId: string,
   joinedSkus: string[],
 ): { ok: true; evidenceBySku: Map<string, JoinMemberEvidence> } | { ok: false; error: string } {
@@ -1610,7 +1612,13 @@ function readJoinStageEvidence(
     // whose curation evidence aged out falls back to live-base-derived
     // evidence rather than refusing the whole join. Joined imports have no
     // base to fall back to — they still refuse closed.
-    const record = readMemberRecord(workspacePath, sku) ?? (isJoined ? null : baseDerivedEvidence(workspacePath, sku));
+    const record = readMemberRecord(
+      workspacePath,
+      sku,
+      workspaceId,
+      undefined,
+      isJoined ? 'onboarding' : 'catalog',
+    ) ?? (isJoined ? null : baseDerivedEvidence(workspacePath, sku));
     if (!record) return { ok: false, error: `No current eligible SKU-local evidence for SKU "${sku}"; the whole join blocks.` };
     const sizeRaw = (record.sizeRaw ?? record.base?.core.weight?.trim()) || null;
     if (!sizeRaw) return { ok: false, error: `No size evidence for SKU "${sku}"; joins require verified sizes.` };
@@ -1639,8 +1647,9 @@ function readJoinStageEvidence(
       packCountDeclared: record.packCountDeclared,
       reviewedTypeHash: record.reviewedTypeHash,
       evidenceHash: record.evidenceHash,
-      productTypeId: record.reviewedProductTypeId,
       origin: isJoined ? 'import' : 'catalog',
+      productTypeId: record.reviewedProductTypeId,
+      sourceOrigin: record.origin,
       model: record.model,
       material: record.material,
       function: record.function,
