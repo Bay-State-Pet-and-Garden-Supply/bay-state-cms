@@ -306,12 +306,11 @@ function buildManualNameDecision(correctedTitle: string, eligibleSpans: NameEvid
 import { validateReviewCompletionGate, validateItemCategoryPagesAssigned, validateListingEvidenceForReview, currentNameEligibleSpans } from '../../classification/review-completion-gate';
 import { validateSiblingConsistency, activeCohortSemanticFindingsForItem } from '../../classification/consistency-validator';
 import { getRuntimeSnapshotByHash } from '../../classification/runtime-snapshot';
-import { blockingPreparationFields } from '../../db/repositories/preparation-gap-repo';
+import { currentSourceAuthority, resolveListingEvidenceRequiredFields } from '../../classification/listing-evidence-currentness';
 import { buildClaimUnits, deterministicClaimCheck, eligibleEvidenceFor, hashAcceptedEvidenceBundle, hashEvidenceBundle, hashFinalListing, toDeterministicClaimRecord, LISTING_EVIDENCE_RULES_VERSION } from '../../classification/listing-evidence';
 import { evaluateListingEvidence } from '../../classification/listing-evidence-service';
 import { acceptedEvidenceToClassificationEvidence, getCurrentItemEvidenceView } from '../../onboarding/item-evidence';
 import { captureModelPolicySnapshot } from '../../onboarding/model-policy-snapshot';
-import { currentSourceAuthority } from '../../classification/listing-evidence-currentness';
 import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
 import { projectCurrentReviewedDraft } from '../../classification/stages/draft-projection';
 import {
@@ -2403,13 +2402,11 @@ route.post('/onboarding/items/:id/listing-evidence-rerun', async (c) => {
     const curatedWeight = readString(curation.curatedWeight);
     const weight = curatedWeight ?? readString(extractionWeight);
     if (weight) variantFacts.weight = weight;
-    let requiredFields: string[];
-    try {
-      requiredFields = blockingPreparationFields();
-    } catch {
-      requiredFields = ['title'];
-    }
     const runId = typeof curation.classificationRunId === 'string' ? curation.classificationRunId : null;
+    const requiredFields = runId
+      ? resolveListingEvidenceRequiredFields(workspace.workspacePath, workspace.id, itemId, runId)
+      : null;
+    if (!requiredFields) throw new Error('Active listing standard authority is unavailable for listing-evidence re-run.');
     const acceptedView = (() => { try { return getCurrentItemEvidenceView(workspace.id, itemId); } catch { return null; } })();
     const accepted = acceptedView?.status === 'accepted' ? acceptedView.evidence : null;
     const acceptedConverted = accepted && runId ? acceptedEvidenceToClassificationEvidence(accepted, runId) : [];

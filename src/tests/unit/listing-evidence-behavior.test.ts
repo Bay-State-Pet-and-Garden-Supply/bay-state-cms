@@ -56,7 +56,7 @@ import { evaluateListingEvidence, aggregateStatus } from '../../classification/l
 import { evaluateListingEvidenceGate } from '../../classification/listing-evidence-gate';
 import type { ClassificationEvidence } from '../../shared/schemas/classification';
 import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
-import { prepareListingEvidenceWorkspace, rotateListingEvidenceAuthority, seedListingEvidenceItem } from './helpers/listing-evidence-authority';
+import { prepareListingEvidenceWorkspace, previewTitleDescriptionStandard, rotateListingEvidenceAuthority, seedListingEvidenceItem } from './helpers/listing-evidence-authority';
 import { approveAndAdvanceItems, markReviewed } from '../../db/repositories/onboarding-review-repo';
 import { Hono } from 'hono';
 import onboardingRoutes from '../../server/routes/onboarding-routes';
@@ -104,7 +104,7 @@ function seedItem(upc = 'SKU-366', name = 'Acana Adult Dog 5 lb'): string {
   return insertItems(batchId, [{ upc, name, brandHint: 'Acana', rowNumber: 1 }], 'review', 1)[0].id;
 }
 
-function seedRun(itemId: string, sku: string, options: { weight?: string; extractionData?: Record<string, unknown> } = {}): { id: string } {
+function seedRun(itemId: string, sku: string, options: { description?: string; weight?: string; extractionData?: Record<string, unknown> } = {}): { id: string } {
   const authority = seedListingEvidenceItem({ workspaceId, workspacePath, itemId, sku, ...options });
   return { id: authority.runId };
 }
@@ -260,9 +260,8 @@ describe('issue #366 criterion 10 — gate refusal and recovery', () => {
     const before = validateListingEvidenceForReview(id);
     expect(before).not.toBeNull();
 
-    // Correction: remove the unsafe optional description; the stale record
-    // drops via PUT invalidation semantics (recomputed live hash mismatches
-    // until re-evaluation writes a fresh passed record).
+    // Correction removes unsafe description copy; the required field remains
+    // part of the standard and is evaluated as missing.
     const current = currentListingEvidenceHashes(id, { curatedTitle: title, curatedDescription: null, classificationRunId: run.id });
     writeCuration(id, {
       curatedTitle: title,
@@ -380,7 +379,7 @@ describe('issue #366 criterion 10 — gate refusal and recovery', () => {
         rulesVersion: 'listing-evidence-rules-v1',
         modelPolicyDigest: 'policy_unavailable',
         claims: [],
-        overflow: false,
+        requiredFields: ['title'],
         modelCallIds: [],
         status: 'blocked',
         findings: ['Contradicted description "Bad claim…": eligible evidence denies it'],
@@ -808,7 +807,72 @@ describe('issue #366 wave 2A gap 7 — real correction/refusal smoke (PUT + reru
     expect(validateListingEvidenceForReview(id)).toBeNull();
   });
 
+  it('reruns against active title+description authority and stamps current required fields', async () => {
+    previewTitleDescriptionStandard(workspacePath);
+    const app = makeApp();
+    const id = seedItem('SKU-STD366', 'Acana Adult Dog');
+    const description = 'Acana adult dog food made with chicken and wholesome grains';
+    const run = seedRun(id, 'SKU-STD366', { description });
+    writeCuration(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: description, classificationRunId: run.id });
+    const response = await app.request(`/api/onboarding/items/${id}/listing-evidence-rerun`, { method: 'POST' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: 'passed', deterministic: true });
+    const record = (findItemById(id)?.curationData as Record<string, unknown>).listingEvidenceValidation as Record<string, unknown>;
+    const hashes = currentListingEvidenceHashes(id);
+    expect(record.requiredFields).toEqual(['description', 'title']);
+    expect(record.listingHash).toBe(hashes.listingHash);
+    expect(validateListingEvidenceForReview(id)).toBeNull();
+  });
+
+  it('uses the bounded evaluator when deterministic support is unresolved and keeps the record current', async () => {
+    previewTitleDescriptionStandard(workspacePath);
+    const app = makeApp();
+    const id = seedItem('SKU-BOUNDED366', 'Acana Adult Dog');
+    // No description in accepted evidence: the description claim stays unresolved, forcing the bounded evaluator.
+    const description = 'Acana adult dog food crafted for nutrition with wild salmon';
+    const run = seedRun(id, 'SKU-BOUNDED366');
+    writeCuration(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: description, classificationRunId: run.id });
+    const response = await app.request(`/api/onboarding/items/${id}/listing-evidence-rerun`, { method: 'POST' });
+    expect(response.status).toBe(200);
+    const body = await response.json() as { status?: string; deterministic?: boolean };
+    expect(body.deterministic).toBe(false);
+    const record = (findItemById(id)?.curationData as Record<string, unknown>).listingEvidenceValidation as Record<string, unknown>;
+    const hashes = currentListingEvidenceHashes(id);
+    expect(record.requiredFields).toEqual(['description', 'title']);
+    expect(record.listingHash).toBe(hashes.listingHash);
+  });
+
+  it('real listing, evidence, and required-field changes stale a fresh rerun record', async () => {
+    previewTitleDescriptionStandard(workspacePath);
+    const app = makeApp();
+    const id = seedItem('SKU-STALE366', 'Acana Adult Dog');
+    const description = 'Acana adult dog food made with chicken and wholesome grains';
+    const run = seedRun(id, 'SKU-STALE366', { description });
+    writeCuration(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: description, classificationRunId: run.id });
+    const response = await app.request(`/api/onboarding/items/${id}/listing-evidence-rerun`, { method: 'POST' });
+    expect(response.status).toBe(200);
+    const original = currentListingEvidenceHashes(id);
+    const record = (findItemById(id)?.curationData as Record<string, unknown>).listingEvidenceValidation;
+    rotateListingEvidenceAuthority(workspaceId, id);
+    writeCuration(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: `${description} for adults`, classificationRunId: run.id, listingEvidenceValidation: record });
+    expect(validateListingEvidenceForReview(id)).not.toBeNull();
+    expect(original.evidenceHash).not.toBe(currentListingEvidenceHashes(id).evidenceHash);
+  });
+
+  it('never falls back to title-only when active standard authority is unavailable', async () => {
+    const app = makeApp();
+    const id = seedItem('SKU-NOSTD366', 'Acana Adult Dog');
+    const run = seedRun(id, 'SKU-NOSTD366');
+    writeCuration(id, { curatedTitle: 'Acana Adult Dog', curatedDescription: null, classificationRunId: run.id });
+    fs.rmSync(path.join(workspacePath, 'store', 'classification', 'listing-completeness.json'));
+    const response = await app.request(`/api/onboarding/items/${id}/listing-evidence-rerun`, { method: 'POST' });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('standard authority') });
+    expect(validateListingEvidenceForReview(id)).not.toBeNull();
+  });
+
   it('rotated accepted evidence authority refuses at the review gate', () => {
+    previewTitleDescriptionStandard(workspacePath);
     const id = seedItem('SKU-TAMP366', 'Acana Adult Dog');
     const run = seedRun(id, 'SKU-TAMP366');
     const title = 'Acana Adult Dog';
@@ -821,8 +885,8 @@ describe('issue #366 wave 2A gap 7 — real correction/refusal smoke (PUT + reru
         recordVersion: 1,
         listingHash: cur.listingHash,
         evidenceHash: cur.evidenceHash,
-        requiredFields: ['title'],
         rulesVersion: 'listing-evidence-rules-v1',
+        sourceAuthority: cur.sourceAuthority,
         modelPolicyDigest: cur.modelPolicyDigest || 'policy_unavailable',
         claims: [],
         overflow: false,

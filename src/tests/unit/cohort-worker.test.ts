@@ -1,3 +1,4 @@
+import type { CurationData } from '../../shared/schemas/onboarding';
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'bun:test';
 import path from 'path';
 import fs from 'fs';
@@ -2790,7 +2791,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     expect(sv.findings.some(f => f.code === 'family_brand')).toBe(true);
   });
 
-  it('B3 (PR9 review R1): a crash after a committed member-local block → reclaim → the resume guard restores the committed member failure (issue #351: blocks are member-local, never family type)', async () => {
+  it('B3 (PR9 review R1): historical characterization — a crash after a committed member-local block → reclaim → the resume guard restores the committed member failure (issue #351: blocks are member-local, never family type)', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     saveTwoTypesConfig(workspaceId, wsPath);
     const { items } = createReadyCohort(workspaceId, {
@@ -2803,14 +2804,23 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     expect(finalized.executionProductTypeId).toBeNull(); // Issue #351: freeze writes no execution type.
     seedV1TitleOutputs(workspaceId, finalized);
 
-    // Crash AFTER member 1's projection commit — its BLOCKED semanticValidation
-    // commits, the parent stays `running`.
-    // Inject a member-local block: a non-universal 'size' assignment outside
-    // the profile → member_attribute_applicability. Production callers never
-    // pass this seam; it deterministically stands in for any real local block.
-    let injected = false;
-    const blockSeam = (curationData: { classificationProposals: Array<Record<string, unknown>> }) => {
-      if (injected) return;
+    // Historical characterization: model the seeded cohort title authority
+    // in each member projection so neither healthy baseline is independently
+    // blocked by coordinated_title against the extraction default.
+    const seededTitles = loadFrozenProjectionForRun(workspaceId, finalized).members.map(member => ({
+      productSku: member.productSku ?? '',
+      title: cohortNameCoordinator.formatDeterministicTitle(
+        member.spreadsheetIdentity.name,
+        member.spreadsheetIdentity.brandHint,
+      ),
+    }));
+    const blockSeam = (curationData: CurationData, item?: { upc?: string | null }) => {
+      const seededTitle = seededTitles.find(output => output.productSku === item?.upc);
+      if (seededTitle) {
+        curationData.curatedTitle = seededTitle.title;
+        curationData.titleSource = 'cohort_fallback';
+      }
+      if (item?.upc !== '100000000001' || injected) return;
       injected = true;
       curationData.classificationProposals.push({
         id: 'injected-size-1', runId: 'injected-child-run', productSku: 'injected-sku',
@@ -2820,6 +2830,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
         createdAt: new Date().toISOString(),
       } as unknown as Record<string, unknown> as never);
     };
+    let injected = false;
     let commitCount = 0;
     const curation = createCohortCuration({ workspacePath: wsPath, workspaceId });
     await expect(curation.executeClaim(finalized.id, 'worker-a', {
@@ -2829,8 +2840,14 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
         if (commitCount === 1) throw new MemberCommitCrashSimulationError('simulated crash after member 1 commit');
       },
     })).rejects.toThrow('simulated crash after member 1 commit');
+    const firstBaseline = findItemById(items[0].id)!.curationData!.semanticValidation!;
+    const secondBaseline = findItemById(items[1].id)!.curationData!.semanticValidation!;
+    expect(firstBaseline.findings.map(f => f.code)).toEqual(['member_attribute_applicability']);
+    expect(firstBaseline.findings[0]).toMatchObject({ code: 'member_attribute_applicability', memberSku: '100000000001' });
+    expect(firstBaseline.status).toBe('blocked');
+    expect(secondBaseline.findings).toEqual([]);
+    expect(secondBaseline.status).toBe('passed');
     expect(findItemById(items[0].id)!.stageStatus).toBe('completed');
-    expect(findItemById(items[0].id)!.curationData!.semanticValidation!.status).toBe('blocked');
     expect(getCohortRunById(finalized.id)!.status).toBe('running');
 
     // Reclaim + re-enter: member 1 is skipped by the resume guard, but its
@@ -2851,7 +2868,7 @@ describe('PR9 C2 — per-member semantic validation + post-loop brand coherence 
     const summary = resumedResult.summary;
     expect(summary.parentStatus).toBe('completed_with_member_failures');
     // The committed member-1 block was restored (deduplicated to ONE entry);
-    // member 2 passes SKU-locally and never appears.
+    // member 2 has no baseline finding and never appears.
     const skuCounts = new Map<string, number>();
     for (const failure of summary.memberFailures) {
       skuCounts.set(failure.productSku ?? '', (skuCounts.get(failure.productSku ?? '') ?? 0) + 1);

@@ -21,10 +21,15 @@ import { validateAdoptedFamilyChangeSet } from '../../validation/change-set-vali
 import { deterministicStringify, hashJson } from '../../git/deterministic-json';
 import { findStorefrontFamilyPlanById, parseStorefrontFamilyPlan } from '../../db/repositories/storefront-family-plan-repo';
 import type { Product } from '../../shared/types';
+import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
+import { validateFamilyMemberOrigin } from '../../classification/storefront-family-origin';
+import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
+import { approveFamilyCatalogProduct } from './family-authority';
 
 // Redacted native-family shape (issue #368 §10): adopted families author
 // real Subproducts + PF7 on the wire through the managed writer (the sole
 // author). Unmanaged products keep raw preservation untouched.
+let activeFamilyOrigins: Map<string, FamilyMemberOrigin> = new Map();
 const NATIVE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <ShopSiteProducts version="15.0"><Products>
 <Product><SKU>FAM-5</SKU><Name>Acme Chicken Dinner 5 lb</Name><Price>19.99</Price>
@@ -70,14 +75,18 @@ function setupFamily() {
   for (const p of decoded.products) writeProductFile(workspacePath, p);
   git.add(['products/', '.gitignore']);
   git.commit('Baseline for storefront family');
-  return { workspacePath, workspaceId, products: decoded.products };
+  const authorized = decoded.products.map((product) => approveFamilyCatalogProduct({
+    workspaceId, workspacePath, product, productTypeId: 'dog-food-dry',
+  }));
+  activeFamilyOrigins = new Map(authorized.map((item) => [item.product.sku, item.origin] as const));
+  return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
 
 function memberInputs(products: Product[]) {
   const ounces: Record<string, number> = { 'FAM-5': 80, 'FAM-15': 240, 'FAM-30': 480 };
   return products.map((p) => ({
     sku: p.sku,
-    origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
+    origin: activeFamilyOrigins.get(p.sku)!,
     purchasable: true,
     brand: 'Acme',
     recipe: 'Chicken Dinner',
@@ -90,10 +99,11 @@ function memberInputs(products: Product[]) {
     retailUnit: null,
     packCountDeclared: false,
     packCount: null,
-    reviewedTypeHash: 'reviewed-type-v1',
+    reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
     evidenceHash: `evidence-${p.sku}`,
   }));
 }
+
 
 describe('storefront family smoke: review → revise/accept → approval → export (issue #368)', () => {
   it('completes the full path for three sizes with main self-membership, PF7, preservation, disabled state', () => {
@@ -153,6 +163,33 @@ describe('storefront family smoke: review → revise/accept → approval → exp
     expect((pkg.xml.match(/<Subproduct>/g) ?? []).length).toBe(3);
     const familyRow = findStorefrontFamilyPlanById(accepted.plan.id)!;
     expect(parseStorefrontFamilyPlan(familyRow.planJson).linkedChangeSetId).toBe(applied.changeSetId);
+  });
+
+  it('validates generated catalog origins and refuses missing, wrong-run, stale-product, and wrong-commit bindings', () => {
+    const { workspacePath, workspaceId, products } = setupFamily();
+    const product = products[0]!;
+    const origin = activeFamilyOrigins.get(product.sku)!;
+    if (origin.kind !== 'catalog') throw new Error('Expected catalog origin in fixture');
+    expect(validateFamilyMemberOrigin({ workspaceId, workspacePath, sku: product.sku, origin }).ok).toBe(true);
+    expect(validateFamilyMemberOrigin({ workspaceId, workspacePath, sku: product.sku, origin: undefined }))
+      .toMatchObject({ ok: false, code: 'family_origin_missing' });
+    expect(validateFamilyMemberOrigin({
+      workspaceId, workspacePath, sku: product.sku,
+      origin: { ...origin, classificationRunId: null },
+    })).toMatchObject({ ok: false, code: 'catalog_origin_unverified' });
+    expect(validateFamilyMemberOrigin({
+      workspaceId, workspacePath, sku: product.sku,
+      origin: { ...origin, classificationRunId: 'wrong-run' },
+    })).toMatchObject({ ok: false, code: 'catalog_origin_unverified' });
+    expect(validateFamilyMemberOrigin({
+      workspaceId, workspacePath, sku: product.sku,
+      origin: { ...origin, approvedCommit: 'f'.repeat(40) },
+    })).toMatchObject({ ok: false, code: 'catalog_origin_unverified' });
+    const changed = structuredClone(product);
+    changed.core.price = '99.99';
+    writeProductFile(workspacePath, changed);
+    expect(validateFamilyMemberOrigin({ workspaceId, workspacePath, sku: product.sku, origin }))
+      .toMatchObject({ ok: false, code: 'catalog_origin_unverified' });
   });
 
   it('keeps unmanaged Subproducts raw-preserved, refuses unsafe structures, stale bases, and refusals', () => {
@@ -279,7 +316,7 @@ describe('storefront family smoke: review → revise/accept → approval → exp
       planId: reaccepted.plan.id,
       workspacePath,
       liveBySku: new Map(products.map((p) => [p.sku, p])),
-      currentTypeHashBySku: new Map(products.map((p) => [p.sku, 'reviewed-type-v1'])),
+      currentTypeHashBySku: new Map(products.map((p) => [p.sku, p.shopsite.preserved.rawAttributes.reviewedTypeHash as string])),
       currentEvidenceHashBySku: new Map(products.map((p) => [p.sku, p.sku === 'FAM-5' ? 'evidence-drifted' : `evidence-${p.sku}`])),
     });
     expect(stale.fresh).toBe(false);
@@ -362,7 +399,11 @@ function setupNonFoodFamily() {
   for (const p of decoded.products) writeProductFile(workspacePath, p);
   git.add(['products/', '.gitignore']);
   git.commit('Baseline for non-food storefront family');
-  return { workspacePath, workspaceId, products: decoded.products };
+  const authorized = decoded.products.map((product) => approveFamilyCatalogProduct({
+    workspaceId, workspacePath, product, productTypeId: 'collars-leashes',
+  }));
+  activeFamilyOrigins = new Map(authorized.map((item) => [item.product.sku, item.origin] as const));
+  return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
 
 function nonFoodMemberInputs(): Array<{
@@ -376,29 +417,33 @@ function nonFoodMemberInputs(): Array<{
     { sku: 'NF-S-BLUE', size: 'Small', color: 'Blue' },
     { sku: 'NF-L-RED', size: 'Large', color: 'Red' },
   ];
-  return defs.map((d) => ({
-    sku: d.sku,
-    origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
-    purchasable: true,
-    retailUnit: null,
-    brand: 'Acme',
-    model: 'Trail Harness',
-    material: 'Nylon',
-    function: 'Walking',
-    safetyDose: 'N/A',
-    strength: 'Standard',
-    fit: 'Adjustable',
-    sizeRaw: d.size,
-    colorRaw: d.color,
-    ounces: null,
-    countRaw: null,
-    countQuantity: null,
-    packCountDeclared: false,
-    packCount: null,
-    reviewedTypeHash: 'reviewed-type-collars-v1',
-    reviewedProductTypeId: 'collars-leashes',
-    evidenceHash: `evidence-${d.sku}`,
-  }));
+  return defs.map((d) => {
+    const origin = activeFamilyOrigins.get(d.sku);
+    if (!origin || origin.kind !== 'catalog') throw new Error(`Expected catalog origin for ${d.sku}`);
+    return {
+      sku: d.sku,
+      origin,
+      purchasable: true,
+      retailUnit: null,
+      brand: 'Acme',
+      model: 'Trail Harness',
+      material: 'Nylon',
+      function: 'Walking',
+      safetyDose: 'N/A',
+      strength: 'Standard',
+      fit: 'Adjustable',
+      sizeRaw: d.size,
+      colorRaw: d.color,
+      ounces: null,
+      countRaw: null,
+      countQuantity: null,
+      packCountDeclared: false,
+      packCount: null,
+      reviewedTypeHash: computeReviewedAuthorityHash('collars-leashes') ?? (() => { throw new Error('Missing collars-leashes authority hash'); })(),
+      reviewedProductTypeId: 'collars-leashes',
+      evidenceHash: `evidence-${d.sku}`,
+    };
+  });
 }
 
 describe('non-food family smoke: review → revise/accept → approval → export (issue #372)', () => {
@@ -503,7 +548,12 @@ describe('non-food family smoke: review → revise/accept → approval → expor
   });
 
   it('completes the count-combination path with main-only emission', () => {
-    const { workspacePath, workspaceId, products } = setupNonFoodFamily();
+    const { workspacePath, workspaceId, products: initialProducts } = setupNonFoodFamily();
+    const authorized = initialProducts.map((product) => approveFamilyCatalogProduct({
+      workspaceId, workspacePath, product, productTypeId: 'dog-waste-bags',
+    }));
+    const products = authorized.map((item) => item.product);
+    activeFamilyOrigins = new Map(authorized.map((item) => [item.product.sku, item.origin] as const));
     const curation = new Map(products.map((p) => [p.sku, { base: p, draftBase: structuredClone(p) }]));
     const defs = [
       { sku: 'NF-S-RED', sizeRaw: 'Small', colorRaw: 'Red', countRaw: '60 ct', countQuantity: 60 },
@@ -512,7 +562,7 @@ describe('non-food family smoke: review → revise/accept → approval → expor
     ];
     const members = defs.map((d) => ({
       sku: d.sku,
-      origin: { kind: 'catalog' as const, approvedCommit: 'a'.repeat(40), productHash: 'b'.repeat(64), classificationRunId: null, classificationHash: 'c'.repeat(64) },
+      origin: activeFamilyOrigins.get(d.sku)!,
       purchasable: true,
       ounces: null,
       retailUnit: null,
@@ -529,7 +579,7 @@ describe('non-food family smoke: review → revise/accept → approval → expor
       countQuantity: d.countQuantity,
       packCountDeclared: true,
       packCount: d.countQuantity,
-      reviewedTypeHash: 'reviewed-type-waste-v1',
+      reviewedTypeHash: computeReviewedAuthorityHash('dog-waste-bags') ?? (() => { throw new Error('Missing dog-waste-bags authority hash'); })(),
       reviewedProductTypeId: 'dog-waste-bags',
       evidenceHash: 'evidence-' + d.sku,
     }));
@@ -597,10 +647,9 @@ describe('non-food family smoke: review → revise/accept → approval → expor
       planId: staged.plan.id,
       workspacePath,
       liveBySku: new Map(products.map((p) => [p.sku, p])),
-      currentTypeHashBySku: new Map(products.map((p) => [p.sku, 'reviewed-type-collars-v1'])),
+      currentTypeHashBySku: new Map(products.map((p) => [p.sku, p.shopsite.preserved.rawAttributes.reviewedTypeHash as string])),
       currentEvidenceHashBySku: new Map(products.map((p) => [p.sku, `evidence-${p.sku}`])),
       currentRuleVersionBySku: new Map(products.map((p) => [p.sku, 'non-food-color-family-variant-rule-v1'])),
-      currentProductTypeIdBySku: new Map(products.map((p) => [p.sku, 'dog-toys'])),
     });
     expect(sameHashRuleDrift.fresh).toBe(false);
     expect(sameHashRuleDrift.reasons.some((r) => r.includes('stale rule'))).toBe(true);

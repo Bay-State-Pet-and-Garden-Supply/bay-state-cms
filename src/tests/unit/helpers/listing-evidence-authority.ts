@@ -15,7 +15,16 @@ import { getRuntimeSnapshotByHash } from '../../../classification/runtime-snapsh
 import { modelPolicyViewFromConfig } from '../../../onboarding/model-policy-snapshot';
 import { activatePageImportFromRecords } from '../../../shopsite/page-import-service';
 import { sha256Hex } from '../../../shared/stable-id';
-
+const REQUIRED_DESCRIPTION = ListingRequirementSchema.parse({
+  id: 'product-description',
+  field: 'description',
+  label: 'Product description',
+  kind: 'field',
+  required: true,
+  exceptionEligible: false,
+  allowedSourceRoles: ['operator_attested', 'distributor_record', 'manufacturer_official'],
+  applicableWhen: null,
+});
 const REQUIRED_TITLE = ListingRequirementSchema.parse({
   id: 'product-title',
   field: 'title',
@@ -30,8 +39,33 @@ const REQUIRED_TITLE = ListingRequirementSchema.parse({
   applicableWhen: null,
 });
 
-/** Install a strictly versioned active manifest and its approved listing standard. */
-export function prepareListingEvidenceWorkspace(workspacePath: string, workspaceId: string): void {
+/** Title+description standard for rerun/currentness parity tests (T4). The shared workspace default stays title-only. */
+export function previewTitleDescriptionStandard(workspacePath: string): void {
+  const directory = path.join(workspacePath, 'store', 'classification');
+  const preview = previewListingStandard({
+    workspacePath,
+    actor: 'listing-evidence-test',
+    standardId: 'listing-evidence-test-standard',
+    categoryId: 'dog-food',
+    productTypeId: 'dog-food-dry',
+    requirements: [REQUIRED_TITLE, REQUIRED_DESCRIPTION],
+  });
+  const current = JSON.parse(fs.readFileSync(path.join(directory, 'listing-completeness.json'), 'utf8')) as {
+    recordVersion: number; standards: Array<Record<string, unknown>>;
+  };
+  const next = current.standards.filter((s) => !(
+    (s as { categoryId?: string }).categoryId === 'dog-food' &&
+    (s as { productTypeId?: string }).productTypeId === 'dog-food-dry'
+  ));
+  next.push(preview.standard as unknown as Record<string, unknown>);
+  fs.writeFileSync(
+    path.join(directory, 'listing-completeness.json'),
+    `${JSON.stringify({ recordVersion: 1, standards: next }, null, 2)}\n`,
+  );
+}
+
+ /** Install a strictly versioned active manifest and its approved listing standard. */
+ export function prepareListingEvidenceWorkspace(workspacePath: string, workspaceId: string): void {
   const directory = path.join(workspacePath, 'store', 'classification');
   fs.mkdirSync(directory, { recursive: true });
   const now = new Date().toISOString();
@@ -62,8 +96,7 @@ export function prepareListingEvidenceWorkspace(workspacePath: string, workspace
     productTypeId: 'dog-food-dry',
     requirements: [REQUIRED_TITLE],
   });
-  // The reviewer-correction fixtures resolve a cat-food pair; the same
-  // title-only contract applies there.
+  // The cat-food pair retains its title-only contract.
   const catPreview = previewListingStandard({
     workspacePath,
     actor: 'listing-evidence-test',

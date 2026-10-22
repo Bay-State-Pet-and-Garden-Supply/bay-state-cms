@@ -47,6 +47,8 @@ import { upsertProviderConnection } from '../../db/repositories/provider-connect
 import type { ProviderConnection } from '../../ai/provider-connections';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
 import type { Product } from '../../shared/types';
+import { approveFamilyCatalogProduct } from './family-authority';
+import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
 
 // Behavioral coverage for issue #371: TypeSafe ambiguous family membership.
 // Pure gates first (no workspace), then repo lifecycle, then an isolated
@@ -483,7 +485,10 @@ function setupProposalWorkspace() {
   for (const p of decoded.products) writeProductFile(workspacePath, p);
   git.add(['products/', '.gitignore']);
   git.commit('Baseline for family membership proposal');
-  return { workspacePath, workspaceId, products: decoded.products };
+  const authorized = decoded.products.map((product) => approveFamilyCatalogProduct({
+    workspaceId, workspacePath, product, productTypeId: 'dog-food-dry',
+  }));
+  return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
 
 function axisFor371(p: Product) {
@@ -517,7 +522,7 @@ function joinEvidence371(sku: string, weight: string, ounces: number, flavor = '
     sku, base: null, draftBase: draft, purchasable: true, brand: 'Acme', recipe, flavor,
     species: 'Dog', lifeStage: 'Adult', form: 'Dry Kibble', sizeRaw: weight, ounces,
     retailUnit: null, packCountDeclared: false, packCount: null,
-    reviewedTypeHash: 'reviewed-type-v1', evidenceHash: `evidence-${sku}`, origin: 'import',
+    reviewedTypeHash: computeReviewedAuthorityHash('dog-food-dry') ?? (() => { throw new Error('Missing dog-food-dry authority hash'); })(), evidenceHash: `evidence-${sku}`, origin: 'import' as const,
     productTypeId: null, model: null, material: null, function: null, safetyDose: null,
     strength: null, fit: null, colorRaw: null, countRaw: null, countQuantity: null,
   };
@@ -529,7 +534,7 @@ function catalogEvidence371(p: Product): JoinMemberEvidence {
     brand: 'Acme', recipe: 'Chicken Dinner', flavor: 'Chicken', species: 'Dog', lifeStage: 'Adult',
     form: 'Dry Kibble', sizeRaw: p.core.weight ?? '5 lb', ounces: p.sku === 'FAM-5' ? 80 : 240,
     retailUnit: null, packCountDeclared: false, packCount: null,
-    reviewedTypeHash: 'reviewed-type-v1', evidenceHash: `evidence-${p.sku}`, origin: 'catalog',
+    reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string, evidenceHash: `evidence-${p.sku}`, origin: 'catalog',
     productTypeId: null, model: null, material: null, function: null, safetyDose: null,
     strength: null, fit: null, colorRaw: null, countRaw: null, countQuantity: null,
   };
@@ -585,7 +590,7 @@ describe('family membership proposal lifecycle + acceptance smoke (issue #371)',
       workspaceId, workspacePath, memberSkus: ['FAM-5', 'FAM-15'], actor: 'operator-1',
       evidenceBySku: new Map(products.map((p) => [p.sku, {
         base: structuredClone(p), draftBase: structuredClone(p),
-        reviewedTypeHash: 'reviewed-type-v1', evidenceHash: `evidence-${p.sku}`, axis: axisFor371(p),
+        reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string, evidenceHash: `evidence-${p.sku}`, axis: axisFor371(p),
       } satisfies AdoptionEvidence])),
     });
     const acceptedAdoption = decideStorefrontFamilyPlan({ planId: adopted.plan.id, actor: 'reviewer-2', action: 'accept' });

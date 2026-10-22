@@ -163,7 +163,7 @@ function acceptedVariantFacts(evidence: NonNullable<ReturnType<typeof getCurrent
   return result;
 }
 
-function resolveRequiredFields(
+export function resolveListingEvidenceRequiredFields(
   workspacePath: string,
   workspaceId: string,
   itemId: string,
@@ -205,7 +205,7 @@ export function currentListingEvidenceHashes(
     (typeof curation.classificationRunId === 'string' ? curation.classificationRunId : null);
   if (!runId) return empty;
   let requiredFields: string[] | null;
-  try { requiredFields = resolveRequiredFields(workspacePath, workspaceId, itemId, runId, projection); }
+  try { requiredFields = resolveListingEvidenceRequiredFields(workspacePath, workspaceId, itemId, runId, projection); }
   catch { return empty; }
   if (!requiredFields) return empty;
   let accepted;
