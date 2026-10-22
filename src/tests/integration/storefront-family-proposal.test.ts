@@ -48,6 +48,11 @@ import type { ProviderConnection } from '../../ai/provider-connections';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
 import type { Product } from '../../shared/types';
 import { approveFamilyCatalogProduct } from './family-authority';
+import {
+  projectBoundCatalogFamilyOrigin,
+  type ApprovedCatalogFamilyProjection,
+} from '../../classification/storefront-family-origin';
+import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
 import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
 
 // Behavioral coverage for issue #371: TypeSafe ambiguous family membership.
@@ -465,6 +470,8 @@ const PROPOSAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <MoreInformationText>Real chicken dinner.</MoreInformationText></Product>
 </Products></ShopSiteProducts>`;
 
+let activeProposalProjections = new Map<string, ApprovedCatalogFamilyProjection>();
+
 function setupProposalWorkspace() {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-family-371-'));
   const dbPath = path.join(workspacePath, `family-371-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
@@ -488,6 +495,13 @@ function setupProposalWorkspace() {
   const authorized = decoded.products.map((product) => approveFamilyCatalogProduct({
     workspaceId, workspacePath, product, productTypeId: 'dog-food-dry',
   }));
+  activeProposalProjections = new Map(authorized.map((item) => {
+    const projection = projectBoundCatalogFamilyOrigin({
+      workspaceId, workspacePath, sku: item.product.sku, origin: item.origin,
+    });
+    if (!projection) throw new Error(`Approved family projection unavailable for ${item.product.sku}`);
+    return [item.product.sku, projection] as const;
+  }));
   return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
 
@@ -499,6 +513,35 @@ function axisFor371(p: Product) {
     sizeRaw: p.core.weight ?? '5 lb', ounces: ounces[p.sku] ?? 80,
     retailUnit: null, packCountDeclared: false, packCount: null, purchasable: true,
   };
+}
+function adoptionEvidence371(products: Product[]): Map<string, AdoptionEvidence> {
+  return new Map(products.map((product) => {
+    const projection = activeProposalProjections.get(product.sku);
+    if (!projection) throw new Error(`Approved family projection unavailable for ${product.sku}`);
+    return [product.sku, {
+      base: structuredClone(projection.product),
+      draftBase: structuredClone(projection.product),
+      origin: projection.origin,
+      reviewedProductTypeId: projection.reviewedProductTypeId,
+      reviewedTypeHash: projection.reviewedTypeHash,
+      evidenceHash: projection.evidenceHash,
+      axis: {
+        brand: projection.brand, recipe: projection.recipe, flavor: projection.flavor,
+        species: projection.species, lifeStage: projection.lifeStage, form: projection.form,
+        sizeRaw: projection.sizeRaw ?? product.core.weight ?? '',
+        ounces: projection.ounces, retailUnit: projection.retailUnit,
+        packCountDeclared: projection.packCountDeclared, packCount: projection.packCount,
+        purchasable: projection.purchasable,
+      },
+      nonFoodAxis: {
+        model: projection.model, material: projection.material, function: projection.function,
+        safetyDose: projection.safetyDose, strength: projection.strength, fit: projection.fit,
+        sizeRaw: projection.sizeRaw, colorRaw: projection.colorRaw, countRaw: projection.countRaw,
+        countQuantity: projection.countQuantity,
+        reviewedProductTypeId: projection.reviewedProductTypeId,
+      },
+    }];
+  }));
 }
 
 function joinEvidence371(sku: string, weight: string, ounces: number, flavor = 'Chicken', recipe = 'Chicken Dinner'): JoinMemberEvidence {
@@ -588,10 +631,7 @@ describe('family membership proposal lifecycle + acceptance smoke (issue #371)',
     const { workspacePath, workspaceId, products } = setupProposalWorkspace();
     const adopted = stageNativeAdoption({
       workspaceId, workspacePath, memberSkus: ['FAM-5', 'FAM-15'], actor: 'operator-1',
-      evidenceBySku: new Map(products.map((p) => [p.sku, {
-        base: structuredClone(p), draftBase: structuredClone(p),
-        reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string, evidenceHash: `evidence-${p.sku}`, axis: axisFor371(p),
-      } satisfies AdoptionEvidence])),
+      evidenceBySku: adoptionEvidence371(products),
     });
     const acceptedAdoption = decideStorefrontFamilyPlan({ planId: adopted.plan.id, actor: 'reviewer-2', action: 'accept' });
     const appliedAdoption = applyAdoptedFamilyPlan({

@@ -580,7 +580,9 @@ export function validateAdoptedFamilyChangeSet(
     return issues;
   }
   try {
-    const bindingsBySku = new Map(listChangeSetItems(changeSetId).map(item => [item.sku, item.classificationRunId]));
+    const changeSetItems = listChangeSetItems(changeSetId);
+    const bindingsBySku = new Map(changeSetItems.map(item => [item.sku, item.classificationRunId]));
+    const changedSkus = new Set(items.map((item) => item.sku));
     for (const member of plan.members) {
       const origin = validateFamilyMemberOrigin({
         workspaceId: changeSet.workspaceId,
@@ -592,9 +594,13 @@ export function validateAdoptedFamilyChangeSet(
         block('FAMILY_ORIGIN_UNRESOLVABLE', `${origin.code}: ${origin.reason}`, member.sku);
       } else if (!origin.purchasable) {
         block('FAMILY_NOT_PURCHASABLE', 'The member has no current verified purchasability authority.', member.sku);
-      } else if (member.origin?.kind === 'onboarding' && bindingsBySku.has(member.sku) &&
-        bindingsBySku.get(member.sku) !== member.origin.runId) {
+      } else if (member.origin?.kind === 'onboarding' && changedSkus.has(member.sku) &&
+        (!bindingsBySku.has(member.sku) || bindingsBySku.get(member.sku) !== member.origin.runId)) {
         block('FAMILY_ORIGIN_MISMATCH', 'The changed member lost its exact onboarding run binding.', member.sku);
+      } else if (member.origin?.kind === 'catalog' && changedSkus.has(member.sku) &&
+        (!bindingsBySku.has(member.sku) || !member.origin.classificationRunId ||
+          bindingsBySku.get(member.sku) !== member.origin.classificationRunId)) {
+        block('FAMILY_ORIGIN_MISMATCH', 'The changed member lost its exact approved catalog classification run binding.', member.sku);
       }
     }
   } catch {

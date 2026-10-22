@@ -27,6 +27,7 @@ import {
   updateStorefrontFamilyPlan,
   type StorefrontFamilyPlanRow,
 } from '../db/repositories/storefront-family-plan-repo';
+import { reuseCurrentFamilyPlanDraft, type PreparedFamilyDraftItem } from './storefront-family-plan-service';
 import {
   setManagedSubproducts,
   clearSubproductsBlock,
@@ -41,7 +42,8 @@ import { createChangeSet, upsertChangeSetItem, listConflictingDraftChangeSets } 
 import { listOutstandingDriftForSku } from '../db/repositories/drift-repo';
 import { readProductFile } from '../git/workspace-files';
 import { hashJson, deterministicStringify } from '../git/deterministic-json';
-import type { StorefrontFamilyPlan } from '../shared/schemas/storefront-family';
+import type { StorefrontFamilyPlan, FamilyMemberOrigin } from '../shared/schemas/storefront-family';
+import { projectBoundCatalogFamilyOrigin, validateFamilyMemberOrigin } from './storefront-family-origin';
 import type { Product } from '../shared/types';
 
 /**
@@ -338,8 +340,10 @@ function invariantRows(
 
 /** Evidence bundle for adoption staging — resolved server-side, never trusted from the client body. */
 export interface AdoptionEvidence {
-  base: Product | null;
+  base: Product;
   draftBase: Product;
+  origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>;
+  reviewedProductTypeId: string;
   reviewedTypeHash: string;
   evidenceHash: string;
   axis: {
@@ -348,13 +352,12 @@ export interface AdoptionEvidence {
     sizeRaw: string; ounces: number | null; retailUnit: string | null;
     packCountDeclared: boolean; packCount: number | null; purchasable: boolean;
   };
-  /** Non-food axis evidence (route threads staged raw attributes); absent = food path. */
-  nonFoodAxis?: {
+  nonFoodAxis: {
     model: string | null; material: string | null; function: string | null;
     safetyDose: string | null; strength: string | null; fit: string | null;
     sizeRaw: string | null; colorRaw: string | null; countRaw: string | null;
     countQuantity: number | null; reviewedProductTypeId: string | null;
-  } | null;
+  };
 }
 
 /**
@@ -469,7 +472,45 @@ export function stageNativeAdoption(input: {
     return { sku, shortName: derived.find((d) => d.sku === sku)!.shortName, replaced: false };
   });
   const drafts = skus.map((s) => input.evidenceBySku.get(s)!.draftBase);
-  const bases = skus.map((s) => input.evidenceBySku.get(s)!.base).filter((b): b is Product => b !== null);
+  const bases = skus.map((s) => input.evidenceBySku.get(s)!.base);
+  for (const sku of skus) {
+    const ev = input.evidenceBySku.get(sku)!;
+    const projection = projectBoundCatalogFamilyOrigin({
+      workspaceId: input.workspaceId,
+      workspacePath: input.workspacePath,
+      sku,
+      origin: ev.origin,
+    });
+    const nf = ev.nonFoodAxis;
+    if (!projection ||
+      projection.origin.approvedCommit !== ev.origin.approvedCommit ||
+      projection.origin.productHash !== ev.origin.productHash ||
+      projection.origin.classificationRunId !== ev.origin.classificationRunId ||
+      projection.origin.classificationHash !== ev.origin.classificationHash ||
+      comparisonHashForProduct(ev.base) !== comparisonHashForProduct(projection.product) ||
+      comparisonHashForProduct(ev.draftBase) !== comparisonHashForProduct(projection.product) ||
+      ev.reviewedProductTypeId !== projection.reviewedProductTypeId ||
+      ev.reviewedTypeHash !== projection.reviewedTypeHash ||
+      ev.evidenceHash !== projection.evidenceHash ||
+      ev.axis.brand !== projection.brand || ev.axis.recipe !== projection.recipe ||
+      ev.axis.flavor !== projection.flavor || ev.axis.species !== projection.species ||
+      ev.axis.lifeStage !== projection.lifeStage || ev.axis.form !== projection.form ||
+      ev.axis.sizeRaw !== projection.sizeRaw || ev.axis.ounces !== projection.ounces ||
+      ev.axis.retailUnit !== projection.retailUnit ||
+      ev.axis.packCountDeclared !== projection.packCountDeclared ||
+      ev.axis.packCount !== projection.packCount || ev.axis.purchasable !== projection.purchasable ||
+      nf?.model !== projection.model || nf?.material !== projection.material ||
+      nf?.function !== projection.function || nf?.safetyDose !== projection.safetyDose ||
+      nf?.strength !== projection.strength || nf?.fit !== projection.fit ||
+      nf?.sizeRaw !== projection.sizeRaw || nf?.colorRaw !== projection.colorRaw ||
+      nf?.countRaw !== projection.countRaw || nf?.countQuantity !== projection.countQuantity ||
+      nf?.reviewedProductTypeId !== projection.reviewedProductTypeId) {
+      throw new Error(`family_origin_projection_mismatch: SKU "${sku}" catalog source binding or consumed factors changed; re-stage from the current approved catalog product.`);
+    }
+    if (!projection.purchasable) {
+      throw new Error(`family_not_purchasable: SKU "${sku}" has no current positive purchasability authority.`);
+    }
+  }
   const evidenceHashes = skus.map((s) => input.evidenceBySku.get(s)!.evidenceHash);
   const at = nowIso();
   const plan: StorefrontFamilyPlan = {
@@ -485,6 +526,7 @@ export function stageNativeAdoption(input: {
       const nf = !isFoodAdoption ? ev.nonFoodAxis ?? null : null;
       return {
         sku,
+        origin: ev.origin,
         comparableOunces: ev.axis.ounces,
         sizeRaw: ev.axis.sizeRaw,
         retailUnit: ev.axis.retailUnit,
@@ -492,8 +534,15 @@ export function stageNativeAdoption(input: {
         packCount: ev.axis.packCount,
         reviewedTypeHash: ev.reviewedTypeHash,
         evidenceHash: ev.evidenceHash,
-        baseHash: ev.base ? comparisonHashForProduct(ev.base) : null,
+        baseHash: comparisonHashForProduct(ev.base),
         stagedLabel: null,
+        brand: ev.axis.brand,
+        recipe: ev.axis.recipe,
+        flavor: ev.axis.flavor,
+        species: ev.axis.species,
+        lifeStage: ev.axis.lifeStage,
+        form: ev.axis.form,
+        reviewedProductTypeId: ev.reviewedProductTypeId,
         productTypeId: nf?.reviewedProductTypeId ?? null,
         model: nf?.model ?? null,
         material: nf?.material ?? null,
@@ -558,6 +607,9 @@ export function stageMembershipChange(input: {
   }
   if (plan.status === 'stale') {
     throw new Error('family_plan_stale: re-stage the family against current evidence before deciding.');
+  }
+  if (plan.linkedChangeSetId) {
+    throw new Error('family_plan_materialized: this accepted plan is linked to a prepared draft and cannot be revised; discard it and re-stage the reviewed operation.');
   }
   // Clean subset refusal: every removed SKU must be a current member. A
   // bogus removal is refused here as not_member — never staged as a ghost
@@ -691,6 +743,7 @@ export function applyAdoptedFamilyPlan(input: {
 }): { changeSetId: string; plan: StorefrontFamilyPlan } {
   const row = findStorefrontFamilyPlanById(input.planId);
   if (!row) throw new Error(`family_plan_missing: no plan "${input.planId}".`);
+  if (row.workspaceId !== input.workspaceId) throw new Error(`family_plan_missing: no plan "${input.planId}" in this workspace.`);
   const plan = parseStorefrontFamilyPlan(row.planJson);
   if (plan.status !== 'accepted') {
     throw new Error(`family_plan_not_accepted: plan is "${plan.status}"; accept (or re-accept after revise) before applying.`);
@@ -718,6 +771,16 @@ export function applyAdoptedFamilyPlan(input: {
     if (bi === -1) return -1;
     return ai - bi;
   });
+  for (const member of plan.members) {
+    const validation = validateFamilyMemberOrigin({
+      workspaceId: input.workspaceId,
+      workspacePath: input.workspacePath,
+      sku: member.sku,
+      origin: member.origin,
+    });
+    if (!validation.ok) throw new Error(`family_origin_invalid: SKU "${member.sku}" has invalid source authority (${validation.code}: ${validation.reason}).`);
+    if (!validation.purchasable) throw new Error(`family_not_purchasable: SKU "${member.sku}" has no current positive purchasability authority.`);
+  }
   for (const sku of isDissolution ? plan.memberSkus : effectiveMembers) {
     if (input.purchasableBySku?.get(sku) === false) {
       throw new Error(`family_not_purchasable: SKU "${sku}" is not a real purchasable size SKU at apply time.`);
@@ -822,8 +885,40 @@ export function applyAdoptedFamilyPlan(input: {
   if (blockers.length > 0) {
     throw new Error(`family_group_blocked: ${blockers.map((b) => `[${b.code}] ${b.message}`).slice(0, 5).join('; ')}`);
   }
+  const touched = isDissolution ? plan.memberSkus : isRemoval ? [...orderedMembers, ...(change?.removedSkus ?? [])] : orderedMembers;
+  const prepared: PreparedFamilyDraftItem[] = touched.map((sku) => {
+    const base = readProductFile(input.workspacePath, sku);
+    const managed = isDissolution || (isRemoval && !(change?.remainingSkus ?? []).includes(sku))
+      ? withDissolvedDraft(input.draftsBySku.get(sku)!)
+      : withAdoptedFamilyDraft(input.draftsBySku.get(sku)!, plan, orderedMembers, hostRaw, nameBySku);
+    const origin = plan.members.find((member) => member.sku === sku)?.origin;
+    return {
+      sku,
+      operation: base ? 'update' : 'create',
+      draftJson: deterministicStringify(managed),
+      baseJson: base ? deterministicStringify(base) : null,
+      draftHash: hashJson(managed),
+      classificationRunId: origin?.kind === 'onboarding' ? origin.runId : origin?.classificationRunId ?? null,
+    };
+  });
+  if (plan.linkedChangeSetId) {
+    const reused = reuseCurrentFamilyPlanDraft(input.workspaceId, plan.linkedChangeSetId, prepared);
+    return { changeSetId: reused.id, plan };
+  }
   const db = getDb();
   const staged = db.transaction(() => {
+    const currentRow = findStorefrontFamilyPlanById(plan.id);
+    if (!currentRow || currentRow.workspaceId !== input.workspaceId) {
+      throw new Error(`family_plan_missing: no current plan "${plan.id}" in this workspace.`);
+    }
+    const currentPlan = parseStorefrontFamilyPlan(currentRow.planJson);
+    if (currentPlan.status !== 'accepted' || currentPlan.revision !== plan.revision || currentPlan.writeHash !== plan.writeHash) {
+      throw new Error('family_apply_stale: the accepted family plan changed during materialization; re-stage before applying.');
+    }
+    if (currentPlan.linkedChangeSetId) {
+      const reused = reuseCurrentFamilyPlanDraft(input.workspaceId, currentPlan.linkedChangeSetId, prepared);
+      return { changeSet: reused, plan: currentPlan };
+    }
     const changeSet = createChangeSet({
       workspaceId: input.workspaceId,
       title: isDissolution
@@ -838,32 +933,33 @@ export function applyAdoptedFamilyPlan(input: {
           : `Adopted native family under ${plan.ruleVersion}; existing main ${plan.mainSku} preserved.`,
       baseCommit: readHeadCommit(input.workspacePath),
     });
-    const touched = isDissolution ? plan.memberSkus : isRemoval ? [...orderedMembers, ...(change?.removedSkus ?? [])] : orderedMembers;
-    for (const sku of touched) {
-      const base = readProductFile(input.workspacePath, sku);
-      const managed = isDissolution || (isRemoval && !(change?.remainingSkus ?? []).includes(sku))
-        ? withDissolvedDraft(input.draftsBySku.get(sku)!)
-        : withAdoptedFamilyDraft(input.draftsBySku.get(sku)!, plan, orderedMembers, hostRaw, nameBySku);
+    for (const item of prepared) {
       upsertChangeSetItem({
         changeSetId: changeSet.id,
-        sku,
-        operation: base ? 'update' : 'create',
-        draftJson: deterministicStringify(managed),
-        baseJson: base ? deterministicStringify(base) : null,
-        draftHash: hashJson(managed),
-        classificationRunId: null,
+        sku: item.sku,
+        operation: item.operation,
+        draftJson: item.draftJson,
+        baseJson: item.baseJson,
+        draftHash: item.draftHash,
+        classificationRunId: item.classificationRunId,
       });
     }
-    return changeSet;
+    const next: StorefrontFamilyPlan = {
+      ...currentPlan,
+      status: 'accepted',
+      linkedChangeSetId: changeSet.id,
+      updatedAt: nowIso(),
+    };
+    updateStorefrontFamilyPlan({
+      id: plan.id,
+      plan: next,
+      status: 'accepted',
+      revision: plan.revision,
+      linkedChangeSetId: changeSet.id,
+    });
+    return { changeSet, plan: next };
   })();
-  const next: StorefrontFamilyPlan = {
-    ...plan,
-    status: 'applied',
-    linkedChangeSetId: staged.id,
-    updatedAt: nowIso(),
-  };
-  updateStorefrontFamilyPlan({ id: plan.id, plan: next, status: 'applied', revision: plan.revision, linkedChangeSetId: staged.id });
-  return { changeSetId: staged.id, plan: next };
+  return { changeSetId: staged.changeSet.id, plan: staged.plan };
 }
 
 function withAdoptedFamilyDraft(

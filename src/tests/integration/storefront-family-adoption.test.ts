@@ -1,3 +1,4 @@
+import { findLinkedManifest } from '../../db/repositories/change-set-repo';
 import { describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,7 +14,9 @@ import { createWorkspaceDirs, writeProductFile, readProductFile } from '../../gi
 import { GitClient } from '../../git/git-client';
 import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
-import { approveChangeSet, loadApprovedLinkedExport } from '../../server/services/change-set-service';
+import { approveFamilyCatalogProduct } from './family-authority';
+import { projectBoundCatalogFamilyOrigin, validateFamilyMemberOrigin, type ApprovedCatalogFamilyProjection } from '../../classification/storefront-family-origin';
+import { approveChangeSet, loadApprovedLinkedExport, recoverLinkedApproval } from '../../server/services/change-set-service';
 import {
   stageNativeAdoption,
   previewNativeAdoption,
@@ -27,6 +30,7 @@ import { createChangeSet, upsertChangeSetItem, listChangeSetItems } from '../../
 import { deterministicStringify, hashJson } from '../../git/deterministic-json';
 import { findStorefrontFamilyPlanById, parseStorefrontFamilyPlan } from '../../db/repositories/storefront-family-plan-repo';
 import type { Product } from '../../shared/types';
+import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
 
 // Native family as the live store actually persists it (issue #369): the
 // existing main hosts one raw Subproducts block listing every member
@@ -60,6 +64,9 @@ const NATIVE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <MoreInformationText>Real chicken dinner.</MoreInformationText></Product>
 </Products></ShopSiteProducts>`;
 
+const catalogOrigins: Record<string, Extract<FamilyMemberOrigin, { kind: 'catalog' }>> = {};
+const catalogProjections: Record<string, ApprovedCatalogFamilyProjection> = {};
+
 function setupNative() {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-family-369-'));
   const dbPath = path.join(workspacePath, `family-369-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
@@ -80,7 +87,18 @@ function setupNative() {
   for (const p of decoded.products) writeProductFile(workspacePath, p);
   git.add(['products/', '.gitignore']);
   git.commit('Baseline native family for adoption');
-  return { workspacePath, workspaceId, products: decoded.products };
+  const authorized = decoded.products.map((product) => approveFamilyCatalogProduct({
+    workspaceId, workspacePath, product, productTypeId: 'dog-food-dry',
+  }));
+  for (const item of authorized) {
+    catalogOrigins[item.product.sku] = item.origin;
+    const projection = projectBoundCatalogFamilyOrigin({
+      workspaceId, workspacePath, sku: item.product.sku, origin: item.origin,
+    });
+    if (!projection) throw new Error(`Approved family projection unavailable for ${item.product.sku}`);
+    catalogProjections[item.product.sku] = projection;
+  }
+  return { workspacePath, workspaceId, products: authorized.map((item) => item.product) };
 }
 
 function axisFor(p: Product) {
@@ -94,13 +112,33 @@ function axisFor(p: Product) {
 }
 
 function evidenceFor(products: Product[]): Map<string, AdoptionEvidence> {
-  return new Map(products.map((p) => [p.sku, {
-    base: structuredClone(p),
-    draftBase: structuredClone(p),
-    reviewedTypeHash: 'reviewed-type-v1',
-    evidenceHash: `evidence-${p.sku}`,
-    axis: axisFor(p),
-  }]));
+  return new Map(products.map((p) => {
+    const projection = catalogProjections[p.sku];
+    if (!projection) throw new Error(`Missing approved family projection for ${p.sku}`);
+    return [p.sku, {
+      base: structuredClone(projection.product),
+      draftBase: structuredClone(projection.product),
+      origin: projection.origin,
+      reviewedProductTypeId: projection.reviewedProductTypeId,
+      reviewedTypeHash: projection.reviewedTypeHash,
+      evidenceHash: projection.evidenceHash,
+      axis: {
+        brand: projection.brand, recipe: projection.recipe, flavor: projection.flavor,
+        species: projection.species, lifeStage: projection.lifeStage, form: projection.form,
+        sizeRaw: projection.sizeRaw ?? p.core.weight ?? '',
+        ounces: projection.ounces, retailUnit: projection.retailUnit,
+        packCountDeclared: projection.packCountDeclared, packCount: projection.packCount,
+        purchasable: projection.purchasable,
+      },
+      nonFoodAxis: {
+        model: projection.model, material: projection.material, function: projection.function,
+        safetyDose: projection.safetyDose, strength: projection.strength, fit: projection.fit,
+        sizeRaw: projection.sizeRaw, colorRaw: projection.colorRaw, countRaw: projection.countRaw,
+        countQuantity: projection.countQuantity,
+        reviewedProductTypeId: projection.reviewedProductTypeId,
+      },
+    }];
+  }));
 }
 
 describe('native family adoption (issue #369)', () => {
@@ -125,7 +163,10 @@ describe('native family adoption (issue #369)', () => {
       workspaceId, workspacePath,
       skus: ['ADOPT-5', 'ADOPT-15', 'ADOPT-30'],
       liveBySku,
-      evidenceBySku: new Map(products.map((p) => [p.sku, { reviewedTypeHash: 'reviewed-type-v1', evidenceHash: `evidence-${p.sku}` }])),
+      evidenceBySku: new Map(products.map((p) => [p.sku, {
+        reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
+        evidenceHash: catalogOrigins[p.sku]!.productHash,
+      }])),
       axisOf: (p) => axisFor(p),
     });
     expect(preview.blockers).toEqual([]);
@@ -174,6 +215,14 @@ describe('native family adoption (issue #369)', () => {
       draftsBySku: new Map(products.map((p) => [p.sku, structuredClone(p)])),
       actor: 'reviewer-2',
     });
+    expect(applied.plan.status).toBe('accepted');
+    const repeatedApply = applyAdoptedFamilyPlan({
+      planId: accepted.plan.id,
+      workspaceId, workspacePath,
+      draftsBySku: new Map(products.map((p) => [p.sku, structuredClone(p)])),
+      actor: 'reviewer-2',
+    });
+    expect(repeatedApply.changeSetId).toBe(applied.changeSetId);
     const approved = approveChangeSet(applied.changeSetId, workspacePath);
     expect(approved.success).toBe(true);
     const linked = loadApprovedLinkedExport(applied.changeSetId, workspacePath);
@@ -203,11 +252,52 @@ describe('native family adoption (issue #369)', () => {
     const familyRow = findStorefrontFamilyPlanById(accepted.plan.id)!;
     expect(parseStorefrontFamilyPlan(familyRow.planJson).linkedChangeSetId).toBe(applied.changeSetId);
   });
+  it('recovers an adopted family approval idempotently against the committed group', () => {
+    const { workspacePath, workspaceId, products } = setupNative();
+    const staged = stageNativeAdoption({
+      workspaceId, workspacePath,
+      memberSkus: ['ADOPT-5', 'ADOPT-15', 'ADOPT-30'],
+      actor: 'operator-1',
+      evidenceBySku: evidenceFor(products),
+    });
+    const accepted = decidePlan({ planId: staged.plan.id, actor: 'reviewer-2', action: 'accept' });
+    expect(accepted.plan.status).toBe('accepted');
+    const applied = applyAdoptedFamilyPlan({
+      planId: accepted.plan.id,
+      workspaceId, workspacePath,
+      draftsBySku: new Map(products.map((p) => [p.sku, structuredClone(p)])),
+      actor: 'reviewer-2',
+    });
+    expect(applied.plan.status).toBe('accepted');
+    const interrupted = approveChangeSet(applied.changeSetId, workspacePath, { afterCommitBeforeCompletion: true });
+    expect(interrupted.success).toBe(false);
+    const git = new GitClient(workspacePath);
+    const committedHead = git.getHeadHash();
+    const recovered = recoverLinkedApproval(applied.changeSetId, workspacePath);
+    expect(recovered.success).toBe(true);
+    expect(recovered.commitHash).toBe(committedHead);
+    expect(git.getHeadHash()).toBe(committedHead);
+    expect(findLinkedManifest(applied.changeSetId)!.status).toBe('recovered');
+    const repeatedRecovery = recoverLinkedApproval(applied.changeSetId, workspacePath);
+    expect(repeatedRecovery.success).toBe(true);
+    expect(repeatedRecovery.commitHash).toBe(committedHead);
+    expect(git.getHeadHash()).toBe(committedHead);
+    expect(parseStorefrontFamilyPlan(findStorefrontFamilyPlanById(applied.plan.id)!.planJson).status).toBe('applied');
+    const linked = loadApprovedLinkedExport(applied.changeSetId, workspacePath);
+    expect(linked.ok).toBe(true);
+    if (!linked.ok) return;
+    expect(linked.load.commitHash).toBe(committedHead);
+    expect(linked.load.products.map((product) => product.sku).sort())
+      .toEqual(['ADOPT-15', 'ADOPT-30', 'ADOPT-5']);
+  });
 
   it('refuses accessory, incomplete, ambiguous, malformed, and unsupported natives with preservation', () => {
     const { workspacePath, workspaceId, products } = setupNative();
     const live = new Map(products.map((p) => [p.sku, structuredClone(p) as Product | null]));
-    const ev = new Map(products.map((p) => [p.sku, { reviewedTypeHash: 'reviewed-type-v1', evidenceHash: `evidence-${p.sku}` }]));
+    const ev = new Map(products.map((p) => [p.sku, {
+      reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
+      evidenceHash: catalogOrigins[p.sku]!.productHash,
+    }]));
     const axisOf = (p: Product) => axisFor(p);
 
     // Accessory: host lists only children, never itself — never reinterpreted.
@@ -246,6 +336,52 @@ describe('native family adoption (issue #369)', () => {
       actor: 'operator-1', evidenceBySku: evidenceFor(products),
     })).toThrow(/family_native_/);
     expect(products.find((p) => p.sku === 'ADOPT-5')!.shopsite.preserved.advancedBlocks['Subproducts']).toBe(rawBefore);
+  });
+  it('rejects adoption when catalog authority is rebound to another classification run', () => {
+    const { workspacePath, workspaceId, products } = setupNative();
+    const evidence = evidenceFor(products);
+    const original = evidence.get('ADOPT-15')!.origin;
+    expect(validateFamilyMemberOrigin({
+      workspaceId, workspacePath, sku: 'ADOPT-15', origin: original,
+    }).ok).toBe(true);
+    const forgedOrigin = structuredClone(original);
+    forgedOrigin.classificationRunId = 'unrelated-classification-run';
+    evidence.get('ADOPT-15')!.origin = forgedOrigin;
+    expect(() => stageNativeAdoption({
+      workspaceId, workspacePath,
+      memberSkus: ['ADOPT-5', 'ADOPT-15', 'ADOPT-30'],
+      actor: 'operator-1',
+      evidenceBySku: evidence,
+    })).toThrow(/family_origin_invalid|family_origin_projection_mismatch/);
+  });
+  it('blocks an adopted change set whose catalog classification run binding is altered', () => {
+    const { workspacePath, workspaceId, products } = setupNative();
+    const staged = stageNativeAdoption({
+      workspaceId, workspacePath,
+      memberSkus: ['ADOPT-5', 'ADOPT-15', 'ADOPT-30'],
+      actor: 'operator-1',
+      evidenceBySku: evidenceFor(products),
+    });
+    const accepted = decidePlan({ planId: staged.plan.id, actor: 'reviewer-2', action: 'accept' });
+    const applied = applyAdoptedFamilyPlan({
+      planId: accepted.plan.id, workspaceId, workspacePath,
+      draftsBySku: new Map(products.map((p) => [p.sku, structuredClone(p)])),
+      actor: 'reviewer-2',
+    });
+    const item = listChangeSetItems(applied.changeSetId).find((candidate) => candidate.sku === 'ADOPT-15')!;
+    expect(item.classificationRunId).toBe(catalogOrigins['ADOPT-15']!.classificationRunId);
+    upsertChangeSetItem({
+      changeSetId: applied.changeSetId,
+      sku: item.sku,
+      operation: item.operation,
+      draftJson: item.draftJson,
+      baseJson: item.baseJson,
+      draftHash: item.draftHash,
+      classificationRunId: 'unrelated-classification-run',
+    });
+    expect(validateAdoptedFamilyChangeSet(applied.changeSetId, listChangeSetItems(applied.changeSetId)
+      .map(({ sku, draftJson, baseJson }) => ({ sku, draftJson, baseJson })))
+      .some((issue) => issue.code === 'FAMILY_ORIGIN_MISMATCH')).toBe(true);
   });
 
   it('removes a member and dissolves as reviewed revisions with explicit clear semantics', () => {
@@ -289,6 +425,14 @@ describe('native family adoption (issue #369)', () => {
     });
     expect(removal.plan.status).toBe('revised');
     expect(removal.plan.revision).toBe(1);
+    expect(removal.plan.members.map((member) => member.sku).sort())
+      .toEqual(['ADOPT-15', 'ADOPT-30', 'ADOPT-5']);
+    for (const sku of ['ADOPT-5', 'ADOPT-15']) {
+      expect(removal.plan.members.find((member) => member.sku === sku)!.origin)
+        .toEqual(staged.plan.members.find((member) => member.sku === sku)!.origin);
+    }
+    expect(removal.plan.members.find((member) => member.sku === 'ADOPT-30')!.origin)
+      .toEqual(staged.plan.members.find((member) => member.sku === 'ADOPT-30')!.origin);
     const acceptedRemoval = decidePlan({ planId: removal.plan.id, actor: 'reviewer-2', action: 'accept' });
     expect(acceptedRemoval.plan.status).toBe('accepted');
     const appliedRemoval = applyAdoptedFamilyPlan({
@@ -459,10 +603,11 @@ describe('native family adoption (issue #369)', () => {
       workspaceId, workspacePath,
       memberSkus: ['ADOPT-15', 'ADOPT-30'],
       actor: 'operator-1',
-      evidenceBySku: new Map([
-        ['ADOPT-15', { base: structuredClone(products[1]!), draftBase: weird, reviewedTypeHash: 'reviewed-type-v1', evidenceHash: 'evidence-ADOPT-15', axis: axisFor(products[1]!) }],
-        ['ADOPT-30', { base: structuredClone(products[2]!), draftBase: structuredClone(products[2]!), reviewedTypeHash: 'reviewed-type-v1', evidenceHash: 'evidence-ADOPT-30', axis: axisFor(products[2]!) }],
-      ]),
+      evidenceBySku: (() => {
+        const evidence = evidenceFor(products);
+        evidence.get('ADOPT-15')!.draftBase = weird;
+        return evidence;
+      })(),
     })).toThrow(/family_native_/);
   });
 

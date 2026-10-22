@@ -29,6 +29,7 @@ import { canonicalJoinVariantTuple } from '../../classification/family-variant-r
 import { findStorefrontFamilyPlanById, parseStorefrontFamilyPlan } from '../../db/repositories/storefront-family-plan-repo';
 import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
 import { approveFamilyCatalogProduct } from './family-authority';
+import { projectBoundCatalogFamilyOrigin, type ApprovedCatalogFamilyProjection } from '../../classification/storefront-family-origin';
 import { computeReviewedAuthorityHash } from '../../classification/promotion-gate';
 import type { Product } from '../../shared/types';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
@@ -70,6 +71,7 @@ const EARLIER_XML = `<?xml version="1.0" encoding="UTF-8"?>
 
 let activeFamilyOrigins: Map<string, FamilyMemberOrigin> = new Map();
 let activeFamilyTypeHashes: Record<string, string> = {};
+let activeFamilyProjections = new Map<string, ApprovedCatalogFamilyProjection>();
 let activeImportedOrigins: Record<string, Extract<FamilyMemberOrigin, { kind: 'onboarding' }>> = {};
 function axisFor(p: Product) {
   const ounces: Record<string, number> = { 'FAM-5': 80, 'FAM-15': 240, 'FAM-30': 480 };
@@ -104,6 +106,13 @@ function setupEarlier() {
     workspaceId, workspacePath, product, productTypeId: 'dog-food-dry',
   }));
   activeFamilyOrigins = new Map(authorized.map((item) => [item.product.sku, item.origin] as const));
+  activeFamilyProjections = new Map(authorized.map((item) => {
+    const projection = projectBoundCatalogFamilyOrigin({
+      workspaceId, workspacePath, sku: item.product.sku, origin: item.origin,
+    });
+    if (!projection) throw new Error(`Approved family projection unavailable for ${item.product.sku}`);
+    return [item.product.sku, projection] as const;
+  }));
   activeFamilyTypeHashes = Object.fromEntries(authorized.map((item) => [
     item.product.sku, item.product.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
   ]));
@@ -136,13 +145,33 @@ async function seedImportedOrigin(input: { workspaceId: string; workspacePath: s
 }
 
 function adoptionEvidence(products: Product[]): Map<string, AdoptionEvidence> {
-  return new Map(products.map((p) => [p.sku, {
-    base: structuredClone(p),
-    draftBase: structuredClone(p),
-    reviewedTypeHash: p.shopsite.preserved.rawAttributes.reviewedTypeHash as string,
-    evidenceHash: `evidence-${p.sku}`,
-    axis: axisFor(p),
-  }]));
+  return new Map(products.map((p) => {
+    const projection = activeFamilyProjections.get(p.sku);
+    if (!projection) throw new Error(`Approved family projection unavailable for ${p.sku}`);
+    return [p.sku, {
+      base: structuredClone(projection.product),
+      draftBase: structuredClone(projection.product),
+      origin: projection.origin,
+      reviewedProductTypeId: projection.reviewedProductTypeId,
+      reviewedTypeHash: projection.reviewedTypeHash,
+      evidenceHash: projection.evidenceHash,
+      axis: {
+        brand: projection.brand, recipe: projection.recipe, flavor: projection.flavor,
+        species: projection.species, lifeStage: projection.lifeStage, form: projection.form,
+        sizeRaw: projection.sizeRaw ?? p.core.weight ?? '',
+        ounces: projection.ounces, retailUnit: projection.retailUnit,
+        packCountDeclared: projection.packCountDeclared, packCount: projection.packCount,
+        purchasable: projection.purchasable,
+      },
+      nonFoodAxis: {
+        model: projection.model, material: projection.material, function: projection.function,
+        safetyDose: projection.safetyDose, strength: projection.strength, fit: projection.fit,
+        sizeRaw: projection.sizeRaw, colorRaw: projection.colorRaw, countRaw: projection.countRaw,
+        countQuantity: projection.countQuantity,
+        reviewedProductTypeId: projection.reviewedProductTypeId,
+      },
+    }];
+  }));
 }
 
 /** Import-side evidence for the new third size (no approved base → create). */

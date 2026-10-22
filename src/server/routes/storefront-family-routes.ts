@@ -15,6 +15,7 @@ import {
   stageNativeAdoption,
   stageMembershipChange,
   applyAdoptedFamilyPlan,
+  type AdoptionEvidence,
 } from '../../classification/storefront-family-adoption';
 import {
   buildImportedJoinQuery,
@@ -47,7 +48,7 @@ import { computeReviewedAuthorityHash } from '../../classification/promotion-gat
 import { currentListingEvidenceHashes } from '../../classification/listing-evidence-currentness';
 import { buildJoinCatalogAnchors } from '../storefront-family-join-anchors';
 import { findFamilyOnboardingOrigin, listFamilyOnboardingOrigins } from '../../db/repositories/storefront-family-origin-repo';
-import { resolveApprovedCatalogFamilyOrigin, validateFamilyMemberOrigin } from '../../classification/storefront-family-origin';
+import { projectApprovedCatalogFamilyOrigin, projectBoundCatalogFamilyOrigin, validateFamilyMemberOrigin } from '../../classification/storefront-family-origin';
 import type { FamilyMemberOrigin } from '../../shared/schemas/storefront-family';
 import { FOOD_FAMILY_VARIANT_RULE_VERSION, resolveFamilyVariantRule, canonicalJoinVariantTuple, type FamilyVariantRuleVersion } from '../../classification/family-variant-rule';
 import { comparisonHashForProduct } from '../../shopsite/catalog-comparison';
@@ -229,7 +230,7 @@ route.get('/storefront-families/:id', (c) => {
       const currentEvidenceBySku = new Map<string, JoinMemberEvidence>();
       const missingEvidence: string[] = [];
       for (const sku of plan.memberSkus) {
-        const record = readMemberRecord(workspace.workspacePath, sku);
+        const record = readPlanMemberRecord(workspace.workspacePath, workspace.id, sku, plan.members);
         if (!record) {
           missingEvidence.push(sku);
           continue;
@@ -517,7 +518,7 @@ route.post('/storefront-families/:id/decide', async (c) => {
         const typeIdBySku = new Map<string, string | null>();
         const labelBySku = new Map<string, string | null>();
         for (const sku of joinDecidePlan.plan.memberSkus) {
-          const record = readMemberRecord(workspace.workspacePath, sku);
+          const record = readPlanMemberRecord(workspace.workspacePath, workspace.id, sku, joinDecidePlan.plan.members);
           liveBySku.set(sku, record?.base ?? null);
           typeBySku.set(sku, record?.reviewedTypeHash ?? null);
           evidenceBySku.set(sku, record?.evidenceHash ?? null);
@@ -629,7 +630,7 @@ route.post('/storefront-families/:id/decide', async (c) => {
       const typeIdBySku = new Map<string, string | null>();
       const ruleBySku = new Map<string, string | null>();
       for (const sku of decideSkus) {
-        const record = readMemberRecord(workspace.workspacePath, sku, workspace.id);
+        const record = readPlanMemberRecord(workspace.workspacePath, workspace.id, sku, decidePlan.plan.members);
         liveBySku.set(sku, record?.base ?? null);
         typeBySku.set(sku, record?.reviewedTypeHash ?? null);
         evidenceBySku.set(sku, record?.evidenceHash ?? null);
@@ -720,7 +721,7 @@ route.post('/storefront-families/:id/apply', async (c) => {
   const currentProductTypeIdBySku = new Map<string, string | null>();
   const currentLabelBySku = new Map<string, string | null>();
   for (const sku of [...plan.memberSkus, ...removedSkus]) {
-    const record = readMemberRecord(workspace.workspacePath, sku);
+    const record = readPlanMemberRecord(workspace.workspacePath, workspace.id, sku, plan.members);
     if (!record) return c.json({ error: `No current eligible evidence for SKU "${sku}"; the whole family blocks.` }, 400);
     draftsBySku.set(sku, record.draftBase);
     // Positive-only authority (#368): unknown curation authority never
@@ -781,9 +782,10 @@ route.post('/storefront-families/:id/apply', async (c) => {
         if (currentEvidence !== member.evidenceHash) {
           return c.json({ error: `family_apply_stale: SKU "${member.sku}" listing evidence changed after staging; re-stage before applying.` }, 400);
         }
-        if (member.productTypeId != null) {
+        const stagedTypeId = member.reviewedProductTypeId ?? member.productTypeId;
+        if (stagedTypeId != null) {
           const currentTypeId = currentProductTypeIdBySku.get(member.sku) ?? null;
-          if (currentTypeId !== member.productTypeId) {
+          if (currentTypeId !== stagedTypeId) {
             return c.json({ error: `family_apply_stale: SKU "${member.sku}" product type changed after staging; re-stage before applying.` }, 400);
           }
         }
@@ -1553,7 +1555,7 @@ function baseDerivedEvidence(workspacePath: string, sku: string): MemberRecord |
   const cf = base.customFields ?? {};
   const weight = (base.core.weight ?? '').trim() || null;
   const origin = getCurrentWorkspace()?.id
-    ? resolveApprovedCatalogFamilyOrigin({ workspaceId: getCurrentWorkspace()!.id, workspacePath, sku })?.origin
+    ? projectApprovedCatalogFamilyOrigin({ workspaceId: getCurrentWorkspace()!.id, workspacePath, sku })?.origin
     : undefined;
   if (!origin) return null;
   return {
@@ -1672,10 +1674,11 @@ route.post('/storefront-families/adopt-preview', async (c) => {
   const evidenceBySku = new Map<string, { reviewedTypeHash: string; evidenceHash: string }>();
   const axisBySku = new Map<string, MemberRecord>();
   for (const sku of skus) {
-    const record = readMemberRecord(workspace.workspacePath, sku);
+    const record = readMemberRecord(workspace.workspacePath, sku, workspace.id, undefined, 'catalog');
     if (!record) return c.json({ error: `No current eligible SKU-local evidence for SKU "${sku}".` }, 400);
     if (!record.base) return c.json({ error: `No approved catalog entry for SKU "${sku}"; adoption preserves existing natives only.` }, 400);
-    const sizeRaw = (record.sizeRaw ?? record.base.core.weight?.trim()) || null;
+    if (record.origin.kind !== 'catalog' || !record.reviewedProductTypeId) return c.json({ error: `No reviewed catalog type authority for SKU "${sku}".` }, 400);
+    const sizeRaw = record.sizeRaw;
     if (!sizeRaw) return c.json({ error: `No size evidence for SKU "${sku}"; adoption requires verified sizes.` }, 400);
     liveBySku.set(sku, record.base);
     evidenceBySku.set(sku, { reviewedTypeHash: record.reviewedTypeHash, evidenceHash: record.evidenceHash });
@@ -1740,30 +1743,19 @@ route.post('/storefront-families/adopt', async (c) => {
     return c.json({ error: `Invalid adoption input: ${parsedBody.error.issues.map((i) => i.message).join('; ')}` }, 400);
   }
   const skus = parsedBody.data.members.map((m) => m.sku);
-  const evidenceBySku = new Map<string, {
-    base: Product | null; draftBase: Product; reviewedTypeHash: string; evidenceHash: string;
-    axis: {
-      brand: string | null; recipe: string | null; flavor: string | null;
-      species: string | null; lifeStage: string | null; form: string | null;
-      sizeRaw: string; ounces: number | null; retailUnit: string | null;
-      packCountDeclared: boolean; packCount: number | null; purchasable: boolean;
-    };
-    nonFoodAxis?: {
-      model: string | null; material: string | null; function: string | null;
-      safetyDose: string | null; strength: string | null; fit: string | null;
-      sizeRaw: string | null; colorRaw: string | null; countRaw: string | null;
-      countQuantity: number | null; reviewedProductTypeId: string | null;
-    } | null;
-  }>();
+  const evidenceBySku = new Map<string, AdoptionEvidence>();
   for (const sku of skus) {
-    const record = readMemberRecord(workspace.workspacePath, sku);
+    const record = readMemberRecord(workspace.workspacePath, sku, workspace.id, undefined, 'catalog');
     if (!record) return c.json({ error: `No current eligible SKU-local evidence for SKU "${sku}".` }, 400);
     if (!record.base) return c.json({ error: `No approved catalog entry for SKU "${sku}"; adoption preserves existing natives only.` }, 400);
-    const sizeRaw = (record.sizeRaw ?? record.base.core.weight?.trim()) || null;
+    if (record.origin.kind !== 'catalog' || !record.reviewedProductTypeId) return c.json({ error: `No reviewed catalog type authority for SKU "${sku}".` }, 400);
+    const sizeRaw = record.sizeRaw;
     if (!sizeRaw) return c.json({ error: `No size evidence for SKU "${sku}"; adoption requires verified sizes.` }, 400);
     evidenceBySku.set(sku, {
       base: record.base,
+      origin: record.origin,
       draftBase: record.base,
+      reviewedProductTypeId: record.reviewedProductTypeId,
       reviewedTypeHash: record.reviewedTypeHash,
       evidenceHash: record.evidenceHash,
       axis: {
@@ -1831,7 +1823,7 @@ route.post('/storefront-families/:id/member-change', async (c) => {
   const touched = parsedBody.data.dissolve ? safe.plan.memberSkus : [...safe.plan.memberSkus, ...parsedBody.data.removeSkus];
   const liveBySku = new Map<string, Product | null>();
   for (const sku of touched) {
-    const record = readMemberRecord(workspace.workspacePath, sku);
+    const record = readPlanMemberRecord(workspace.workspacePath, workspace.id, sku, safe.plan.members);
     liveBySku.set(sku, record?.base ?? null);
   }
   try {
@@ -1871,8 +1863,8 @@ route.post('/storefront-families/:id/freshness', (c) => {
   const labelBySku = new Map<string, string | null>();
   const ruleBySku = new Map<string, string | null>();
   const typeIdBySku = new Map<string, string | null>();
-  for (const sku of plan.memberSkus) {
-    const record = readMemberRecord(workspace.workspacePath, sku);
+  for (const sku of [...new Set([...plan.memberSkus, ...(plan.membershipChange?.removedSkus ?? [])])]) {
+    const record = readPlanMemberRecord(workspace.workspacePath, workspace.id, sku, plan.members);
     liveBySku.set(sku, record?.base ?? null);
     typeBySku.set(sku, record?.reviewedTypeHash ?? null);
     evidenceBySku.set(sku, record?.evidenceHash ?? null);
@@ -2038,7 +2030,18 @@ function reviewedTypeAuthorityForSku(sku: string, runId: string | null): { typeI
  * eligible bundle). Flat curation hash fields are legacy fallbacks only —
  * they never mint authority when the real authorities are unavailable.
  */
-function readMemberRecord(workspacePath: string, sku: string, workspaceId?: string, sourceItemId?: string, sourceKind?: 'onboarding' | 'catalog'): MemberRecord | null {
+function readMemberRecord(
+  workspacePath: string,
+  sku: string,
+  workspaceId?: string,
+  sourceItemId?: string,
+  sourceKind?: 'onboarding' | 'catalog',
+  boundOrigin?: FamilyMemberOrigin,
+): MemberRecord | null {
+  if (boundOrigin?.kind === 'onboarding') {
+    sourceItemId = boundOrigin.itemId;
+    sourceKind = 'onboarding';
+  }
   let resolvedWorkspaceId: string | null = workspaceId ?? null;
   if (!resolvedWorkspaceId) {
     try {
@@ -2048,44 +2051,40 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
     }
   }
   const candidates = resolvedWorkspaceId && sourceKind !== 'catalog' ? listFamilyOnboardingOrigins(resolvedWorkspaceId, sku) : [];
-  if ((sourceKind === 'catalog' || (candidates.length === 0 && !sourceItemId)) && resolvedWorkspaceId) {
-    const catalog = resolveApprovedCatalogFamilyOrigin({ workspaceId: resolvedWorkspaceId, workspacePath, sku });
+  if ((boundOrigin?.kind === 'catalog' || sourceKind === 'catalog' || (candidates.length === 0 && !sourceItemId)) && resolvedWorkspaceId) {
+    const catalog = boundOrigin?.kind === 'catalog'
+      ? projectBoundCatalogFamilyOrigin({ workspaceId: resolvedWorkspaceId, workspacePath, sku, origin: boundOrigin })
+      : projectApprovedCatalogFamilyOrigin({ workspaceId: resolvedWorkspaceId, workspacePath, sku });
     if (!catalog) return null;
-    const validation = validateFamilyMemberOrigin({ workspaceId: resolvedWorkspaceId, workspacePath, sku, origin: catalog.origin });
-    if (!validation.ok) return null;
-    const textOf = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value.trim() : null;
-    const attrs = catalog.product.shopsite.preserved.rawAttributes;
-    const custom = catalog.product.customFields;
-    const weight = textOf(catalog.product.core.weight);
     return {
       base: catalog.product,
       draftBase: catalog.product,
       origin: catalog.origin,
-      purchasable: validation.purchasable,
+      purchasable: catalog.purchasable,
       purchasableKnown: true,
-      brand: textOf(custom.ProductField16),
-      recipe: textOf(custom.ProductField24),
-      flavor: textOf(custom.ProductField23),
-      species: textOf(custom.ProductField17),
-      lifeStage: textOf(custom.ProductField18),
-      form: textOf(custom.ProductField22),
-      sizeRaw: weight,
-      ounces: weight ? parseOuncesLocal(weight) : null,
-      retailUnit: textOf(attrs.retailUnit),
-      packCountDeclared: attrs.packCountDeclared === 'true',
-      packCount: typeof attrs.packCount === 'string' && /^\d+$/.test(attrs.packCount) ? Number(attrs.packCount) : null,
-      reviewedTypeHash: attrs.reviewedTypeHash,
-      reviewedProductTypeId: textOf(attrs.nonFoodProductTypeId),
-      evidenceHash: catalog.origin.productHash,
-      model: textOf(attrs.nonFoodModel),
-      material: textOf(attrs.nonFoodMaterial),
-      function: textOf(attrs.nonFoodFunction),
-      safetyDose: textOf(attrs.nonFoodSafetyDose),
-      strength: textOf(attrs.nonFoodStrength),
-      fit: textOf(attrs.nonFoodFit),
-      colorRaw: textOf(attrs.nonFoodColorRaw),
-      countRaw: textOf(attrs.nonFoodCountRaw),
-      countQuantity: typeof attrs.nonFoodCountQuantity === 'string' && /^\d+$/.test(attrs.nonFoodCountQuantity) ? Number(attrs.nonFoodCountQuantity) : null,
+      brand: catalog.brand,
+      recipe: catalog.recipe,
+      flavor: catalog.flavor,
+      species: catalog.species,
+      lifeStage: catalog.lifeStage,
+      form: catalog.form,
+      sizeRaw: catalog.sizeRaw,
+      ounces: catalog.ounces,
+      retailUnit: catalog.retailUnit,
+      packCountDeclared: catalog.packCountDeclared,
+      packCount: catalog.packCount,
+      reviewedTypeHash: catalog.reviewedTypeHash,
+      reviewedProductTypeId: catalog.reviewedProductTypeId,
+      evidenceHash: catalog.evidenceHash,
+      model: catalog.model,
+      material: catalog.material,
+      function: catalog.function,
+      safetyDose: catalog.safetyDose,
+      strength: catalog.strength,
+      fit: catalog.fit,
+      colorRaw: catalog.colorRaw,
+      countRaw: catalog.countRaw,
+      countQuantity: catalog.countQuantity,
     };
   }
   const source = sourceItemId && resolvedWorkspaceId
@@ -2104,6 +2103,10 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
   };
   const originValidation = validateFamilyMemberOrigin({ workspaceId: resolvedWorkspaceId!, workspacePath, sku, origin });
   if (!originValidation.ok) return null;
+  if (boundOrigin?.kind === 'onboarding' &&
+    (boundOrigin.itemId !== origin.itemId || boundOrigin.runId !== origin.runId ||
+      boundOrigin.runCurrentnessHash !== origin.runCurrentnessHash ||
+      boundOrigin.evidenceId !== origin.evidenceId || boundOrigin.evidenceHash !== origin.evidenceHash)) return null;
   if (!curationJson) return null;
   let parsedCuration: unknown;
   try {
@@ -2221,6 +2224,16 @@ function readMemberRecord(workspacePath: string, sku: string, workspaceId?: stri
     countRaw: nonEmpty(fields.countRaw ?? null) ?? nonEmpty(fields.count ?? null),
     countQuantity,
   };
+}
+function readPlanMemberRecord(
+  workspacePath: string,
+  workspaceId: string,
+  sku: string,
+  members: ReadonlyArray<{ sku: string; origin?: FamilyMemberOrigin }>,
+): MemberRecord | null {
+  const member = members.find((candidate) => candidate.sku === sku);
+  if (!member?.origin) return null;
+  return readMemberRecord(workspacePath, sku, workspaceId, undefined, undefined, member.origin);
 }
 
 /**
@@ -2364,8 +2377,8 @@ function stagedFactorProjectionOf(member: {
   sizeRaw?: string | null; colorRaw?: string | null; countRaw?: string | null; countQuantity?: number | null;
   comparableOunces?: number | null; retailUnit?: string | null;
   packCountDeclared?: boolean; packCount?: number | null;
-  reviewedTypeHash: string; productTypeId?: string | null; evidenceHash: string;
-  sku: string; purchasable?: boolean; purchasableKnown?: boolean;
+  reviewedTypeHash: string; productTypeId?: string | null; reviewedProductTypeId?: string | null; evidenceHash: string;
+  sku: string; purchasable?: boolean; purchasableKnown?: boolean; origin?: FamilyMemberOrigin;
 }): string {
   return JSON.stringify({
     brand: member.brand, model: member.model ?? null, material: member.material ?? null,
@@ -2376,7 +2389,7 @@ function stagedFactorProjectionOf(member: {
     size: member.sizeRaw, color: member.colorRaw ?? null, count: member.countRaw ?? null,
     countQty: member.countQuantity ?? null, ounces: member.comparableOunces,
     retail: member.retailUnit, packDeclared: member.packCountDeclared, pack: member.packCount,
-    typeHash: member.reviewedTypeHash, typeId: member.productTypeId ?? null,
+    typeHash: member.reviewedTypeHash, typeId: member.reviewedProductTypeId ?? member.productTypeId ?? null,
     evidence: member.evidenceHash,
   });
 }
@@ -2393,7 +2406,8 @@ function currentStagedFactorProjection(
   member: Parameters<typeof stagedFactorProjectionOf>[0], ruleVersion: string,
 ): { ok: true; projection: string } | { ok: false; error: string } {
   if (!member.sku) return { ok: false, error: 'no current eligible evidence' };
-  const record = readMemberRecord(workspacePath, member.sku, workspaceId);
+  if (!member.origin) return { ok: false, error: 'no frozen source origin' };
+  const record = readMemberRecord(workspacePath, member.sku, workspaceId, undefined, undefined, member.origin);
   if (!record) return { ok: false, error: 'no current eligible evidence' };
   void ruleVersion;
   return {

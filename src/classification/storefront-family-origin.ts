@@ -17,7 +17,7 @@ function approvedCatalogProduct(input: {
   workspacePath: string;
   sku: string;
   origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>;
-}): { product: Product; classificationRunId: string; classificationHash: string } | null {
+}): { product: Product; classificationRunId: string; classificationHash: string; reviewedProductTypeId: string } | null {
   const receipt = listApprovedFamilyCatalogReceipts(input.workspaceId, input.sku).find((candidate) =>
     candidate.approvedCommit === input.origin.approvedCommit &&
     candidate.classificationRunId === input.origin.classificationRunId);
@@ -57,7 +57,7 @@ function approvedCatalogProduct(input: {
   const run = getRun(receipt.classificationRunId);
   if (!run || run.workspaceId !== input.workspaceId || run.productSku !== input.sku ||
     (run.status !== 'completed' && run.status !== 'completed_with_abstentions')) return null;
-  return { product: current, classificationRunId: receipt.classificationRunId, classificationHash };
+  return { product: current, classificationRunId: receipt.classificationRunId, classificationHash, reviewedProductTypeId: productTypeId };
 }
 export type FamilyMemberOriginValidation =
   | { ok: true; classificationRunId: string | null; purchasable: boolean }
@@ -68,7 +68,11 @@ export function resolveApprovedCatalogFamilyOrigin(input: {
   workspaceId: string;
   workspacePath: string;
   sku: string;
-}): { origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>; product: Product } | null {
+}): {
+  origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>;
+  product: Product;
+  reviewedProductTypeId: string;
+} | null {
   for (const receipt of listApprovedFamilyCatalogReceipts(input.workspaceId, input.sku)) {
     if (!receipt.classificationRunId) continue;
     const filePath = skuToProductFilePath(input.sku);
@@ -104,9 +108,121 @@ export function resolveApprovedCatalogFamilyOrigin(input: {
       classificationRunId: receipt.classificationRunId, classificationHash,
     };
     const verified = approvedCatalogProduct({ ...input, origin });
-    if (verified) return { origin, product: verified.product };
+    if (verified) return { origin, product: verified.product, reviewedProductTypeId: verified.reviewedProductTypeId };
   }
   return null;
+}
+export interface ApprovedCatalogFamilyProjection {
+  origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>;
+  product: Product;
+  classificationRunId: string;
+  reviewedProductTypeId: string;
+  reviewedTypeHash: string;
+  evidenceHash: string;
+  purchasable: boolean;
+  brand: string | null;
+  recipe: string | null;
+  flavor: string | null;
+  species: string | null;
+  lifeStage: string | null;
+  form: string | null;
+  sizeRaw: string | null;
+  ounces: number | null;
+  retailUnit: string | null;
+  packCountDeclared: boolean;
+  packCount: number | null;
+  model: string | null;
+  material: string | null;
+  function: string | null;
+  safetyDose: string | null;
+  strength: string | null;
+  fit: string | null;
+  colorRaw: string | null;
+  countRaw: string | null;
+  countQuantity: number | null;
+}
+
+function textOf(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function ouncesFromRaw(value: string | null): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/^([\d.,]+)\s*(oz|ounces?|lb|lbs|pounds?|g|grams?|kg|kilograms?)\.?$/i);
+  if (!match) return null;
+  const quantity = Number(match[1]!.replace(',', '.'));
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  const unit = match[2]!.toLowerCase();
+  if (unit === 'lb' || unit === 'lbs' || unit.startsWith('pound')) return quantity * 16;
+  if (unit === 'g' || unit.startsWith('gram')) return quantity / 28.349523125;
+  if (unit === 'kg' || unit.startsWith('kilogram')) return quantity * 35.27396195;
+  return quantity;
+}
+
+function projectCatalogProduct(
+  source: { origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>; product: Product; reviewedProductTypeId: string },
+): ApprovedCatalogFamilyProjection | null {
+  const attrs = source.product.shopsite.preserved.rawAttributes;
+  const reviewedTypeHash = attrs.reviewedTypeHash;
+  if (typeof reviewedTypeHash !== 'string' || !reviewedTypeHash) return null;
+  const sizeRaw = textOf(source.product.core.weight);
+  const intAttr = (key: string): number | null => {
+    const value = attrs[key];
+    return typeof value === 'string' && /^\d+$/.test(value) && Number(value) > 0 ? Number(value) : null;
+  };
+  return {
+    ...source,
+    classificationRunId: source.origin.classificationRunId!,
+    reviewedTypeHash,
+    evidenceHash: source.origin.productHash,
+    purchasable: source.product.status === 'active',
+    brand: textOf(source.product.customFields.ProductField16),
+    recipe: textOf(source.product.customFields.ProductField24),
+    flavor: textOf(source.product.customFields.ProductField23),
+    species: textOf(source.product.customFields.ProductField17),
+    lifeStage: textOf(source.product.customFields.ProductField18),
+    form: textOf(source.product.customFields.ProductField22),
+    sizeRaw,
+    ounces: ouncesFromRaw(sizeRaw),
+    retailUnit: textOf(attrs.retailUnit),
+    packCountDeclared: attrs.packCountDeclared === 'true',
+    packCount: intAttr('packCount'),
+    model: textOf(attrs.nonFoodModel),
+    material: textOf(attrs.nonFoodMaterial),
+    function: textOf(attrs.nonFoodFunction),
+    safetyDose: textOf(attrs.nonFoodSafetyDose),
+    strength: textOf(attrs.nonFoodStrength),
+    fit: textOf(attrs.nonFoodFit),
+    colorRaw: textOf(attrs.nonFoodColorRaw),
+    countRaw: textOf(attrs.nonFoodCountRaw),
+    countQuantity: intAttr('nonFoodCountQuantity'),
+  };
+}
+
+/** Resolve the latest currently approved catalog origin and its shared factor projection. */
+export function projectApprovedCatalogFamilyOrigin(input: {
+  workspaceId: string;
+  workspacePath: string;
+  sku: string;
+}): ApprovedCatalogFamilyProjection | null {
+  const source = resolveApprovedCatalogFamilyOrigin(input);
+  return source ? projectCatalogProduct(source) : null;
+}
+
+/** Resolve exactly the stored catalog binding; never fall back to another receipt for the SKU. */
+export function projectBoundCatalogFamilyOrigin(input: {
+  workspaceId: string;
+  workspacePath: string;
+  sku: string;
+  origin: Extract<FamilyMemberOrigin, { kind: 'catalog' }>;
+}): ApprovedCatalogFamilyProjection | null {
+  const verified = approvedCatalogProduct(input);
+  if (!verified) return null;
+  return projectCatalogProduct({
+    origin: input.origin,
+    product: verified.product,
+    reviewedProductTypeId: verified.reviewedProductTypeId,
+  });
 }
 
 export function validateFamilyMemberOrigin(input: {
