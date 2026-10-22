@@ -67,7 +67,7 @@
  },
  {
   "path": "storage/catalog/store/classification/state.json",
-  "sha256": "caa51b6ea277b567b245623e1034460239d68635d42b2710ecf53bbb6306eec4",
+  "sha256": "51a67395d4fb0ccc6f5d3322088aba79b3b780acc4c78459a6f40a1b8d3d72dd",
   "role": "config",
   "bytes": 90
  },
