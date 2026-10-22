@@ -5,10 +5,11 @@
  * A missing/zero cap is a dry-run budget abort; --mode mechanism-check always requires a zero cap and accounts three source rows without live provider calls.
  */
 import { randomUUID } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import os from 'node:os';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+
 import {
   DEFAULT_MANIFEST,
   PRIVATE_ROOT,
@@ -22,17 +23,8 @@ import {
   type Manifest,
   type Row,
 } from './onboarding-outcome';
-import { closeDb, initDb } from '../src/db/connection';
-import { runMigrations } from '../src/db/migrations';
-import { insertWorkspace } from '../src/db/repositories/workspace-repo';
-import { createBatch } from '../src/db/repositories/onboarding-batch-repo';
-import { insertItems, type InsertItemData } from '../src/db/repositories/onboarding-item-repo';
-import { findProductBySku } from '../src/db/repositories/product-index-repo';
-import { deriveSourcingEntryStage, SOURCING_ENTRY_POLICY_VERSION } from '../src/onboarding/sourcing/entry-policy';
-import { getSourcingFlags } from '../src/onboarding/flags';
-import { OnboardingWorker } from '../src/onboarding/job-queue';
-import { listItemsByBatch } from '../src/db/repositories/onboarding-item-repo';
 import type { Workspace } from '../src/shared/types';
+import type { InsertItemData } from '../src/db/repositories/onboarding-item-repo';
 
 type Options = { split: 'development' | 'holdout'; arm: 'baseline' | 'candidate' | 'both'; mode: 'comparison' | 'mechanism-check'; cap: number; manifest: string };
 type Arm = 'baseline' | 'candidate';
@@ -70,24 +62,30 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
   const dbPath = path.join(armDir, 'db', 'evaluation.sqlite');
   const workspacePath = path.join(armDir, 'workspace');
   const catalogPath = path.join(armDir, 'catalog-copy');
-  for (const [candidate, label] of [[armDir, 'arm directory'], [dbPath, 'database'], [workspacePath, 'workspace'], [catalogPath, 'catalog']] as const) rejectProductionPath(candidate, label);
+  const sourceRoot = arm === 'baseline' ? path.join(armDir, 'baseline-src') : process.cwd();
+  for (const [candidate, label] of [[armDir, 'arm directory'], [dbPath, 'database'], [workspacePath, 'workspace'], [catalogPath, 'catalog'], ...(arm === 'baseline' ? [[sourceRoot, 'baseline worktree'] as const] : [])] as const) rejectProductionPath(candidate, label);
   mkdirSync(armDir, { recursive: true });
   if (arm === 'baseline') {
-    const temp = mkdtempSync(path.join(os.tmpdir(), 'onboarding-baseline-'));
-    try {
-      execFileSync('git', ['worktree', 'add', '--detach', temp, manifest.baseline.sha], { cwd: process.cwd(), stdio: 'pipe' });
-      if (existsSync(path.join(temp, 'catalog'))) cpSync(path.join(temp, 'catalog'), catalogPath, { recursive: true, force: true });
-    } finally {
-      try { execFileSync('git', ['worktree', 'remove', '--force', temp], { cwd: process.cwd(), stdio: 'pipe' }); } catch { rmSync(temp, { recursive: true, force: true }); }
-    }
-  } else if (existsSync(path.join(process.cwd(), 'catalog'))) cpSync(path.join(process.cwd(), 'catalog'), catalogPath, { recursive: true, force: true });
+    execFileSync('git', ['worktree', 'add', '--detach', sourceRoot, manifest.baseline.sha], { cwd: process.cwd(), stdio: 'pipe' });
+    const actualSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: sourceRoot, encoding: 'utf8' }).trim();
+    console.log(`baseline_source sha=${actualSha} file=${path.join(sourceRoot, 'src/onboarding/job-queue.ts')}`);
+    if (existsSync(path.join(sourceRoot, 'catalog'))) cpSync(path.join(sourceRoot, 'catalog'), catalogPath, { recursive: true, force: true });
+  } else if (existsSync(path.join(sourceRoot, 'catalog'))) cpSync(path.join(sourceRoot, 'catalog'), catalogPath, { recursive: true, force: true });
   mkdirSync(workspacePath, { recursive: true });
-  initDb(dbPath);
+  const load = async (file: string) => import(pathToFileURL(path.join(sourceRoot, file)).href);
+  const [connection, migrations, workspaceRepo, batchRepo, itemRepo, productRepo, entryPolicy, flags, workerModule] = await Promise.all([
+    load('src/db/connection.ts'), load('src/db/migrations.ts'), load('src/db/repositories/workspace-repo.ts'),
+    load('src/db/repositories/onboarding-batch-repo.ts'), load('src/db/repositories/onboarding-item-repo.ts'),
+    load('src/db/repositories/product-index-repo.ts'), load('src/onboarding/sourcing/entry-policy.ts'),
+    load('src/onboarding/flags.ts'), load('src/onboarding/job-queue.ts'),
+  ]);
+  const { closeDb, initDb } = connection;
   try {
-    runMigrations();
+    initDb(dbPath);
+    migrations.runMigrations();
     const now = new Date().toISOString();
-    const workspace: Workspace = { id: randomUUID(), name: `evaluation-${arm}`, workspacePath, gitPath: catalogPath, createdAt: now, updatedAt: now, bootstrapStatus: 'ready', baselineCommit: null };
-    insertWorkspace(workspace);
+    const workspace: Workspace = { id: randomUUID(), name: `evaluation-${arm}`, workspacePath, gitPath: catalogPath, createdAt: now, updatedAt: now, bootstrapStatus: 'complete', baselineCommit: null };
+    workspaceRepo.insertWorkspace(workspace);
     const importStarted = Date.now();
     const valid: InsertItemData[] = [];
     const skipped: Array<Record<string, unknown>> = [];
@@ -95,20 +93,17 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
     const seen = new Set<string>();
     for (const row of rows) {
       const upc = String(row.upc);
-      if (findProductBySku(upc)) skipped.push({ row_id: row.row_id, reason: 'catalog_duplicate' });
+      if (productRepo.findProductBySku(upc)) skipped.push({ row_id: row.row_id, reason: 'catalog_duplicate' });
       else if (seen.has(upc)) duplicates.push({ row_id: row.row_id, reason: 'duplicate_in_batch' });
-      else {
-        seen.add(upc);
-        valid.push({ upc, name: String(row.register_name), price: Number(row.price), rowNumber: valid.length + 1, isDuplicate: false, existingSku: null });
-      }
+      else { seen.add(upc); valid.push({ upc, name: String(row.register_name), price: String(row.price), rowNumber: valid.length + 1, isDuplicate: false, existingSku: null }); }
     }
-    const batch = createBatch({ workspaceId: workspace.id, name: `Evaluation ${arm}`, fileName: 'manifest-rows', totalItems: valid.length, executionState: 'running', columnMappingJson: JSON.stringify({ upc: 'upc', name: 'register_name', price: 'price' }) });
-    insertItems(batch.id, valid, deriveSourcingEntryStage(getSourcingFlags()), SOURCING_ENTRY_POLICY_VERSION);
-    const imported = listItemsByBatch(batch.id);
+    const batch = batchRepo.createBatch({ workspaceId: workspace.id, name: `Evaluation ${arm}`, fileName: 'manifest-rows', totalItems: valid.length, executionState: 'running', columnMappingJson: JSON.stringify({ upc: 'upc', name: 'register_name', price: 'price' }) });
+    itemRepo.insertItems(batch.id, valid, entryPolicy.deriveSourcingEntryStage(flags.getSourcingFlags()), entryPolicy.SOURCING_ENTRY_POLICY_VERSION);
+    const imported = itemRepo.listItemsByBatch(batch.id);
     if (imported.length !== valid.length) throw new Error(`Importer reconciliation failed: expected ${valid.length}, got ${imported.length}`);
     const importMs = Date.now() - importStarted;
     const resultRows = rows.map(row => {
-      const item = imported.find(candidate => candidate.upc === row.upc);
+      const item = imported.find(candidate => candidate.upc === String(row.upc));
       const blocked = options.cap === 0;
       return {
         row_id: row.row_id, input: sourceInput(row),
@@ -123,7 +118,7 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
     });
     if (options.mode === 'mechanism-check') {
       if (options.cap !== 0) throw new Error('Mechanism check requires a zero cap.');
-      const worker = new OnboardingWorker(workspace.id, workspacePath);
+      const worker = new workerModule.OnboardingWorker(workspace.id, workspacePath);
       await worker.poll();
       await worker.drain();
       for (const row of resultRows) if (row.disposition === 'BLOCKED_BUDGET') row.gate_blocks = ['BLOCKED_BUDGET', 'worker_poll_exercised'];
@@ -143,7 +138,13 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
       blockers: ['BLOCKED_BUDGET', 'BLOCKED_METRIC_CAPTURE'],
       limitation: 'Budget guard is before worker dispatch; detailed pipeline evidence and review-ready progression are not captured.',
     };
-  } finally { closeDb(); }
+  } finally {
+    try { closeDb(); } catch { /* already closed */ }
+    if (arm === 'baseline') {
+      try { execFileSync('git', ['worktree', 'remove', '--force', sourceRoot], { cwd: process.cwd(), stdio: 'pipe' }); }
+      catch { try { rmSync(sourceRoot, { recursive: true, force: true }); } catch { /* best effort */ } }
+    }
+  }
 }
 
 async function main(): Promise<void> {
