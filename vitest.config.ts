@@ -582,6 +582,17 @@ export default defineConfig({
       'src/tests/unit/backfill-reconcile.test.ts',
       // Change-set item/run binding — transitive bun:sqlite via repositories; run under bun test (test:db)
       'src/tests/unit/change-set-item-run-binding.test.ts',
+      // Onboarding expansion suites use bun:test / bun:sqlite; isolated invocations in test:db.
+      'src/tests/unit/accepted-item-evidence-db.test.ts',
+      'src/tests/unit/grounded-copy.test.ts',
+      'src/tests/unit/item-acquisition-budget.test.ts',
+      'src/tests/unit/item-acquisition-serper-migration.test.ts',
+      'src/tests/unit/item-acquisition-serper-search.test.ts',
+      'src/tests/unit/item-checklist.test.ts',
+      'src/tests/unit/listing-completeness-exception-repo.test.ts',
+      'src/tests/unit/security-settings-repo.test.ts',
+      'src/tests/unit/security-settings-routes.test.ts',
+      'src/tests/unit/storefront-family-origin.test.ts',
     ],
   },
 });

@@ -202,8 +202,7 @@ export function validateExtraction(
     variants: [],
     observedGtins: expected.barcode ? [expected.barcode] : [],
   });
-  if (expected.selectedVariantKey && expected.extractedVariantKey
-    && expected.selectedVariantKey !== expected.extractedVariantKey) {
+  if (expected.selectedVariantKey && expected.selectedVariantKey !== expected.extractedVariantKey) {
     return {
       valid: false,
       status: 'mismatch',

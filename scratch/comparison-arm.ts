@@ -1,0 +1,156 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { materializeQualificationRuntime, readQualificationFreeze, validateQualificationRuntime, type QualificationRuntimeValidation } from './comparison-runtime';
+import { importQualificationRuntimeRecords } from '../src/db/repositories/qualification-runtime-repo';
+import { closeDb, initDb } from '../src/db/connection';
+import { runMigrations } from '../src/db/migrations';
+import { OnboardingWorker } from '../src/onboarding/job-queue';
+import { createBatch, findBatchById, updateBatchExecutionState } from '../src/db/repositories/onboarding-batch-repo';
+import { holdBatchItems, insertItems, listItemsByBatch, releaseBatchItems, type InsertItemData } from '../src/db/repositories/onboarding-item-repo';
+import { deriveSourcingEntryStage, SOURCING_ENTRY_POLICY_VERSION } from '../src/onboarding/sourcing/entry-policy';
+import { getSourcingFlags } from '../src/onboarding/flags';
+import type { Database } from 'bun:sqlite';
+import type { OnboardingItem } from '../src/shared/schemas/onboarding';
+
+export type ArmStop = 'preflight_denied' | 'review_ready' | 'needs_input' | 'denied' | 'failed' | 'deadline' | 'no-progress';
+export interface ArmResult { arm: 'baseline' | 'candidate'; stop: ArmStop; imported: number; polls: number; state: unknown; denial?: string }
+export interface ArmBootstrapOptions { arm: 'baseline' | 'candidate'; freezePath: string; privateRoot: string; workspacePath: string; destinationRoot: string; dbPath: string; credentialFd?: number }
+export interface PopulationRow { upc: string; register_name: string; price: number }
+export interface PreparedArm { arm: ArmBootstrapOptions['arm']; imported: number; batchId: string; itemIds: string[]; workspacePath: string }
+export interface ArmPreflightResult { arm: ArmBootstrapOptions['arm']; prepared?: PreparedArm; imported: number; denial?: string }
+
+function redacted(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).replace(/(?:sk-[A-Za-z0-9_-]{16,}|Bearer\s+\S+|[A-Za-z0-9_]*(?:TOKEN|SECRET|KEY)=[^\s,;]+|[A-Za-z0-9_-]{32,})/gi, '[REDACTED]').slice(0, 1000);
+}
+async function credentials(fd: number | undefined, run: QualificationRuntimeValidation): Promise<Record<string,string>> {
+  const expected = run.run.credentialReferences;
+  if (!expected.length) return {};
+  if (!Number.isInteger(fd) || fd! < 3) throw new Error('Declared credentials require a private credential FD');
+  const input = await readFile(`/dev/fd/${fd}`, 'utf8');
+  const supplied = JSON.parse(input) as Record<string, unknown>;
+  const allowed = new Set(expected.map(item => item.environmentKey));
+  if (Object.keys(supplied).some(key => !allowed.has(key)) || expected.some(item => typeof supplied[item.environmentKey] !== 'string' || !supplied[item.environmentKey])) throw new Error('Credential FD does not exactly match declared bindings');
+  return Object.fromEntries(expected.map(item => [item.environmentKey, supplied[item.environmentKey] as string]));
+}
+
+/** Prepare an arm's isolated runtime and import only the caller-selected split rows, held in a paused batch. */
+export async function preflightComparisonArm(options: ArmBootstrapOptions, rows: readonly PopulationRow[]): Promise<ArmPreflightResult> {
+  let initialized = false;
+  try {
+    const run = await readQualificationFreeze(options.freezePath);
+    if (!run.authorizedArms.includes(options.arm)) throw new Error(`Arm not authorized: ${options.arm}`);
+    if (rows.length === 0) throw new Error('Selected split population is empty');
+    if (rows.length > run.limits.maxItems) throw new Error('Population exceeds frozen item limit');
+    const validation = await materializeQualificationRuntime(options.freezePath, options.privateRoot, options.workspacePath, options.destinationRoot);
+    const db: Database = initDb(options.dbPath);
+    initialized = true;
+    runMigrations();
+    importQualificationRuntimeRecords(db, validation.run.runtimeRecords, validation.run.workspaceId);
+    const items: InsertItemData[] = rows.map((row, index) => ({
+      upc: row.upc, name: row.register_name, price: String(row.price), rowNumber: index + 1,
+      isHeld: true, stageStatus: 'pending',
+    }));
+    const batch = createBatch({
+      workspaceId: validation.run.workspaceId, name: `Qualification ${options.arm}`, fileName: 'selected-split-rows',
+      totalItems: items.length, executionState: 'paused',
+      columnMappingJson: JSON.stringify({ upc: 'upc', name: 'register_name', price: 'price' }),
+    });
+    const inserted = insertItems(batch.id, items, deriveSourcingEntryStage(getSourcingFlags()), SOURCING_ENTRY_POLICY_VERSION);
+    holdBatchItems(batch.id, inserted.map(item => item.id), 'Qualification preflight: awaiting both-arm release.');
+    const persisted = listItemsByBatch(batch.id);
+    if (persisted.length !== rows.length || persisted.some(item => !item.isHeld || item.stageStatus !== 'pending')) throw new Error('Held population reconciliation failed');
+    return { arm: options.arm, imported: persisted.length, prepared: { arm: options.arm, imported: persisted.length, batchId: batch.id, itemIds: persisted.map(item => item.id), workspacePath: validation.workspacePath } };
+  } catch (error) {
+    return { arm: options.arm, imported: 0, denial: redacted(error) };
+  } finally {
+    if (initialized) closeDb();
+  }
+}
+
+/** Release a previously prepared arm only after the coordinator has preflighted every requested arm. */
+export async function releaseComparisonArm(options: ArmBootstrapOptions, prepared: PreparedArm): Promise<ArmResult> {
+  let bindings: Record<string, string> = {};
+  let initialized = false;
+  try {
+    const validation = await validateQualificationRuntime(options.freezePath, options.privateRoot, prepared.workspacePath);
+    if (!validation.run.authorizedArms.includes(options.arm) || prepared.arm !== options.arm || !prepared.batchId) throw new Error('Arm release does not match a successful preflight');
+    if (prepared.imported !== prepared.itemIds.length) throw new Error('Prepared population is inconsistent');
+    bindings = await credentials(options.credentialFd, validation);
+    const db: Database = initDb(options.dbPath);
+    initialized = true;
+    runMigrations();
+    for (const [key, value] of Object.entries(bindings)) process.env[key] = value;
+    const batch = findBatchById(prepared.batchId);
+    if (!batch || batch.workspaceId !== validation.run.workspaceId || batch.executionState !== 'paused') throw new Error('Prepared batch is missing, foreign, or no longer paused');
+    const items = listItemsByBatch(prepared.batchId);
+    if (items.length !== prepared.imported || items.some(item => !prepared.itemIds.includes(item.id) || !item.isHeld)) throw new Error('Prepared held batch changed before release');
+    const released = releaseBatchItems(prepared.batchId, prepared.itemIds);
+    if (released !== prepared.imported) throw new Error('Population release reconciliation failed');
+    updateBatchExecutionState(prepared.batchId, 'running');
+    return await runBoundedWorker(options, validation, prepared, items.length);
+  } catch (error) {
+    return { arm: options.arm, stop: 'denied', imported: prepared.imported, polls: 0, state: null, denial: redacted(error) };
+  } finally {
+    if (initialized) closeDb();
+    for (const key of Object.keys(bindings)) delete process.env[key];
+  }
+}
+
+/** Single-arm convenience; paired execution must use the coordinator's dual-preflight barrier. */
+export async function runComparisonArm(options: ArmBootstrapOptions, rows?: readonly PopulationRow[]): Promise<ArmResult> {
+  if (!rows) return { arm: options.arm, stop: 'preflight_denied', imported: 0, polls: 0, state: null, denial: 'Population rows are required for comparison-arm execution.' };
+  const preflight = await preflightComparisonArm(options, rows);
+  if (!preflight.prepared) return { arm: options.arm, stop: 'preflight_denied', imported: preflight.imported, polls: 0, state: null, denial: preflight.denial };
+  return releaseComparisonArm(options, preflight.prepared);
+}
+
+async function runBoundedWorker(options: ArmBootstrapOptions, runtime: QualificationRuntimeValidation, prepared: PreparedArm, imported: number): Promise<ArmResult> {
+  const deadline = Date.now() + runtime.run.limits.maxRuntimeMs;
+  const worker = new OnboardingWorker(runtime.run.workspaceId, runtime.workspacePath);
+  let polls = 0;
+  let previous = '';
+  try {
+    while (Date.now() < deadline && polls < runtime.run.limits.maxItems) {
+      await worker.poll();
+      polls++;
+      await worker.drain();
+      const state = summarizeItems(listItemsByBatch(prepared.batchId));
+      if (state.failed > 0) return { arm: options.arm, stop: 'failed', imported, polls, state };
+      if (state.needsInput > 0) return { arm: options.arm, stop: 'needs_input', imported, polls, state };
+      if (state.reviewReady === imported) return { arm: options.arm, stop: 'review_ready', imported, polls, state };
+      const fingerprint = JSON.stringify(state);
+      if (fingerprint === previous) return { arm: options.arm, stop: 'no-progress', imported, polls, state };
+      previous = fingerprint;
+    }
+    return {
+      arm: options.arm, stop: Date.now() >= deadline ? 'deadline' : 'no-progress', imported, polls,
+      state: summarizeItems(listItemsByBatch(prepared.batchId)),
+    };
+  } catch (error) {
+    return { arm: options.arm, stop: 'denied', imported, polls, state: null, denial: redacted(error) };
+  }
+}
+
+function summarizeItems(items: OnboardingItem[]): { total: number; held: number; failed: number; needsInput: number; reviewReady: number; stageCounts: Record<string, number> } {
+  const stageCounts: Record<string, number> = {};
+  for (const item of items) stageCounts[`${item.stage}:${item.stageStatus}`] = (stageCounts[`${item.stage}:${item.stageStatus}`] ?? 0) + 1;
+  return {
+    total: items.length, held: items.filter(item => item.isHeld).length,
+    failed: items.filter(item => item.stageStatus === 'failed').length,
+    needsInput: items.filter(item => item.stageStatus === 'needs_input').length,
+    reviewReady: items.filter(item => item.stage === 'review_listings' && item.stageStatus === 'pending').length,
+    stageCounts,
+  };
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2); const values: Record<string,string> = {};
+  for (let i=0;i<args.length;i++) { if (!args[i].startsWith('--') || !args[i+1] || args[i+1].startsWith('--')) throw new Error('Invalid arm bootstrap arguments'); values[args[i].slice(2)] = args[++i]; }
+  const required = ['arm','freeze','private-root','workspace','destination','db','population'];
+  if (required.some(key => !values[key]) || !['baseline','candidate'].includes(values.arm)) throw new Error('Usage: bun scratch/comparison-arm.ts --arm baseline|candidate --freeze path --private-root path --workspace path --destination path --db path --population selected-rows.json [--credential-fd N]');
+  const rows = JSON.parse(await readFile(values.population!, 'utf8')) as PopulationRow[];
+  if (!Array.isArray(rows) || rows.some(row => !row || typeof row.upc !== 'string' || typeof row.register_name !== 'string' || typeof row.price !== 'number')) throw new Error('Population file must contain selected rows with UPC, register_name, and numeric price.');
+  const result = await runComparisonArm({ arm: values.arm as ArmBootstrapOptions['arm'], freezePath: values.freeze, privateRoot: values['private-root'], workspacePath: values.workspace, destinationRoot: values.destination, dbPath: values.db, credentialFd: values['credential-fd'] === undefined ? undefined : Number(values['credential-fd']) }, rows);
+  console.log(JSON.stringify(result)); if (result.stop === 'preflight_denied' || result.stop === 'denied' || result.stop === 'failed') process.exitCode = 2;
+}
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) main().catch(error => { console.error(`comparison-arm: ${redacted(error)}`); process.exitCode = 1; });

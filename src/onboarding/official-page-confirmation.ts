@@ -2,13 +2,13 @@ import type { OnboardingItem, OnboardingSource } from '../shared/schemas/onboard
 import { getDb } from '../db/connection';
 import { insertSources, listSourcesByItem, stampSourceWithDiscoveryRun } from '../db/repositories/onboarding-source-repo';
 import { proposePageCandidate, recordOfficialPageDecision, type OfficialPageDecision } from '../db/repositories/official-page-decision-repo';
-import { createVariantResolutionRepo } from '../db/repositories/onboarding-variant-resolution-repo';
+import { createVariantResolutionRepo, type VariantResolutionRow } from '../db/repositories/onboarding-variant-resolution-repo';
 import { findItemById } from '../db/repositories/onboarding-item-repo';
 import { getEffectiveVariantResolutionMode } from './variant-flags';
 import { verifyCandidate } from './page-verifier';
 import { createDiscoveryFetch } from './job-queue';
 import { getAllowedOfficialPageDomains, isAuthorizedOfficialPageUrl } from './official-page-authority';
-import { matchOfficialPageIdentity } from './official-page-identity';
+import { findContradictoryProductAxes, matchOfficialPageIdentity } from './official-page-identity';
 import { enrichUrlMetadata } from '../db/repositories/brand-url-index-repo';
 
 export class OfficialPageConfirmationError extends Error {
@@ -79,9 +79,10 @@ export async function confirmOfficialPageCandidate(input: {
   if (domains.length === 0 || !isAuthorizedOfficialPageUrl(source.url, domains)) {
     throw new OfficialPageConfirmationError('strategy_source_not_approved', 'Choose a product page on the brand’s approved official site. Retailer pages cannot be confirmed.');
   }
+  let variantResolution: VariantResolutionRow | null = null;
   if (getEffectiveVariantResolutionMode() === 'active') {
-    const resolution = createVariantResolutionRepo(getDb()).getCurrentForItem(item.id);
-    if (resolution && ['ambiguous', 'no_match', 'stale', 'too_many_variants', 'unsupported'].includes(resolution.status)) {
+    variantResolution = createVariantResolutionRepo(getDb()).getCurrentForItem(item.id);
+    if (variantResolution && ['ambiguous', 'no_match', 'stale', 'too_many_variants', 'unsupported'].includes(variantResolution.status)) {
       throw new OfficialPageConfirmationError('variant_unresolved', 'Choose the exact size or flavor before confirming this page.');
     }
   }
@@ -94,7 +95,7 @@ export async function confirmOfficialPageCandidate(input: {
     title: source.title, metadataJson: source.metadataJson,
   }, {
     upc: item.upc, expectedName: item.name, brandHint: item.brandHint,
-    price: item.price ? Number(item.price) : null, officialDomains: domains,
+    officialDomains: domains,
   }, async (url, init) => {
     const response = await safeFetch(url, init);
     finalUrl = response.url || source.url;
@@ -104,42 +105,51 @@ export async function confirmOfficialPageCandidate(input: {
     return response;
   });
   if (!result) throw new OfficialPageConfirmationError('page_unavailable', 'Could not load the official product page. Retry or choose another page.');
-  const signals = result.signals;
-  const pageName = signals.pageTitle ?? '';
-  const observedGtins = result.extractedGtins
-    .filter(g => g.type === 'single')
-    .map(g => g.gtin);
+  const observedIdentity = result.observedIdentity;
   const identity = matchOfficialPageIdentity({
     registerName: item.name,
     registerUpc: item.upc,
     brandHint: item.brandHint ?? null,
-    pageName,
-    pageBrand: null,
-    pageKind: signals.isProductDetailPage ? 'product'
-      : signals.isListingOrSearchPage ? 'listing' : 'blog',
-    variants: [],
-    observedGtins,
+    pageName: observedIdentity.pageName ?? '',
+    pageBrand: observedIdentity.pageBrand,
+    pageKind: observedIdentity.pageKind,
+    variants: observedIdentity.variants,
+    observedGtins: observedIdentity.observedGtins,
   });
-  // Taxonomy Category Page guard: a listing/collection/category page can
-  // never satisfy manufacturer-URL authority — only a readable single
-  // product-detail page may confirm. The verifier's listing/blog signals
-  // are the authority here (category-import IDs never reach this path as
-  // product candidates; this reject is defense-in-depth).
-  if (signals.isListingOrSearchPage || signals.isBlogOrCmsPage || !signals.isProductDetailPage || !identity.pageName) {
+  const axisObservations = [
+    { field: 'heading', value: observedIdentity.pageName ?? '' },
+    ...observedIdentity.variants.map((variant) => ({ field: 'variant', value: variant.label })),
+  ];
+  const selectedKey = variantResolution?.selected_variant_key;
+  const selectedVariant = selectedKey
+    ? observedIdentity.variants.find((variant) => variant.key === selectedKey)
+    : undefined;
+  if (selectedVariant) axisObservations.push({ field: 'variant', value: selectedVariant.label });
+  const axisConflicts = findContradictoryProductAxes(item.name, axisObservations);
+  if (axisConflicts.length) {
+    throw new OfficialPageConfirmationError('identity_conflict', `The visible product page conflicts with the register item: ${axisConflicts.join(', ')}.`);
+  }
+  if (observedIdentity.pageKind !== 'product' || !observedIdentity.pageName?.trim()) {
     throw new OfficialPageConfirmationError('wrong_page', 'This is not a readable product-detail page. Choose the product itself, not a listing.');
   }
   if (identity.outcome === 'reject_conflict') {
     throw new OfficialPageConfirmationError('identity_conflict', `The visible product page conflicts with the register item: ${identity.reasons.join(', ')}.`);
   }
-  if (identity.reasons.some((reason: string) => ['ambiguous_variant', 'unresolved_variant', 'missing_variant_details'].includes(reason))) {
-    throw new OfficialPageConfirmationError('variant_unresolved', 'The exact size or flavor is not identifiable on this page.');
+  const selectedVariantConflict = selectedVariant?.gtin && item.upc &&
+    selectedVariant.gtin.replace(/\D/g, '').replace(/^0+/, '') !== item.upc.replace(/\D/g, '').replace(/^0+/, '');
+  if (selectedVariantConflict) {
+    throw new OfficialPageConfirmationError('identity_conflict', 'The selected page variant has a conflicting product identifier.');
   }
-  // Name-first (ADR 0040): without structured GTIN proof, confirmation
-  // always requires the operator's explicit attestation — whether identity
-  // resolved uniquely or parks as needs_operator. Strong proof carries its
-  // own authority; attestation is not required on top of it.
-  if (!result.hasStrongProof && !input.attestedProductAndVariant) {
+  if (identity.outcome === 'needs_operator' &&
+    !(input.attestedProductAndVariant && observedIdentity.pageKind === 'product' &&
+      Boolean(observedIdentity.pageName?.trim()) && axisConflicts.length === 0 &&
+      !selectedVariantConflict && observedIdentity.coverageComplete)) {
     throw new OfficialPageConfirmationError('identity_needs_review', 'Check the visible product name and exact size/flavor, then explicitly confirm the match.');
+  }
+  const observedGtinMatched = identity.outcome === 'unique_name_variant_match' &&
+    observedIdentity.observedGtins.some((gtin) => result.extractedGtins.some((entry) => entry.gtin === gtin && entry.isValidChecksum));
+  if (!observedIdentity.coverageComplete) {
+    throw new OfficialPageConfirmationError('identity_needs_review', 'Page evidence is incomplete. Retry discovery before confirming.');
   }
   // A redirect-final URL inherits the confirmed run binding (same run that
   // produced the candidate), so the decision row stays bound. The guarded
@@ -159,9 +169,9 @@ export async function confirmOfficialPageCandidate(input: {
     : insertSources(item.id, [{ url: finalUrl, domain: new URL(finalUrl).hostname, confidence: source.confidence, sourceMethod: source.sourceMethod, discoveryRunId: input.expectedDiscoveryRunId }])[0];
   const decision = recordOfficialPageDecision({
     workspaceId: input.workspaceId, itemId: item.id, sourceId: finalSource.id,
-    evidenceKind: result.proofClass !== 'none' ? 'observed_gtin' : 'operator_name',
+    evidenceKind: identity.outcome === 'needs_operator' ? 'operator_name' : observedGtinMatched ? 'observed_gtin' : 'automatic_name',
     pageTitle: identity.pageName, variantKey: identity.variantKey,
-    signals: { ...signals, identity, observedGtins: result.extractedGtins, originalUrl: source.url, finalUrl },
+    signals: { ...result.signals, identity, observedGtins: result.extractedGtins, observedIdentity, originalUrl: source.url, finalUrl },
     sourceRunId: input.expectedDiscoveryRunId,
     expectedUpdatedAt: input.expectedUpdatedAt,
   });
@@ -169,8 +179,8 @@ export async function confirmOfficialPageCandidate(input: {
   try {
     enrichUrlMetadata(decision.url, {
       title: identity.pageName,
-      brand: item.brandHint ?? null,
-      upc: observed?.gtin ?? item.upc ?? null,
+      brand: null,
+      upc: observed?.gtin ?? null,
       lastFetchedAt: decision.decidedAt,
     });
   } catch (error) {

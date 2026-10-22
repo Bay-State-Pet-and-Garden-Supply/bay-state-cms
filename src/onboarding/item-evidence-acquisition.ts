@@ -1,3 +1,6 @@
+import { createPaidEffectIdempotencyKey, withQualificationPaidEffectScope, type PaidEffectBudgetClient } from '../ai/paid-effect-budget';
+import { hashCanonicalJson } from '../shared/stable-id';
+import type { PaidEffectAttemptDescriptor, VerifiedPaidEffectBillingContract, QualificationPaidEffectScope } from '../shared/schemas/paid-effect';
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { AcceptedItemEvidence, ItemChecklistEvaluation, ListingRequirement } from '../shared/schemas/item-evidence';
@@ -63,8 +66,32 @@ export interface RunItemEvidenceAcquisitionInput {
   signal?: AbortSignal;
   assertHeld?: () => void;
   modelPolicy?: ModelPolicyView | null;
+  paidEffect?: {
+    scope: QualificationPaidEffectScope;
+    client: PaidEffectBudgetClient;
+    serperSearchContract?: VerifiedPaidEffectBillingContract;
+    browserSessionContract?: VerifiedPaidEffectBillingContract;
+  };
 }
 
+function acquisitionPaidEffectDescriptor(
+  contract: VerifiedPaidEffectBillingContract | undefined,
+  provider: string,
+  model: string,
+  effect: string,
+  logicalEffectId: string,
+): PaidEffectAttemptDescriptor {
+  return {
+    idempotencyKey: createPaidEffectIdempotencyKey(),
+    logicalEffectId,
+    provider: contract?.provider ?? provider,
+    model: contract?.model ?? model,
+    effect,
+    billingContractId: contract?.contractId ?? `missing-${effect}-contract`,
+    billingContractHash: contract ? hashCanonicalJson(contract) : hashCanonicalJson({ missing: effect }),
+    requestedUnits: contract ? Object.fromEntries(contract.dimensions.map(dimension => [dimension.name, dimension.maxUnits])) : {},
+  };
+}
 const FIELD_LABELS: Readonly<Record<string, readonly string[]>> = {
   title: ['Product Name', 'Product Title', 'Name'],
   brand: ['Brand', 'Manufacturer'],
@@ -569,7 +596,7 @@ async function runIdentityBootstrapWithinBudget(
   }
 }
 async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: ItemEvidenceAcquisitionUsage): Promise<ItemEvidenceAcquisitionResult> {
-  return withItemAcquisitionBudget({
+  const execute = (): Promise<ItemEvidenceAcquisitionResult> => withItemAcquisitionBudget({
     workspaceId: input.workspaceId, itemId: input.itemId, runId: input.runId,
     signal: input.signal, assertHeld: input.assertHeld,
   }, async scope => {
@@ -642,6 +669,10 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
         const results = await searchSerperWeb(`${item.upc} ${item.name}`, {
           count: 20, maxResponseBytes: reservedBytes, signal: scope.signal,
           onDispatch: () => { scope.assertHeld(); markItemAcquisitionDispatched(reservation.id); dispatched = true; },
+          paidEffectDescriptor: acquisitionPaidEffectDescriptor(
+            input.paidEffect?.serperSearchContract, 'serper_search', 'web', 'serper-search-post',
+            `serper-search:${input.itemId}:${input.runId}`,
+          ),
         });
         const actualResources = { attempts: 1, pages: 0, actions: 0, redirects: 0, bytes: results.responseBytes, artifacts: 0, durationMs: Date.now() - startedAt, inputTokens: 0, outputTokens: 0 };
         settleItemAcquisitionAttempt(reservation.id, { actualResources, billing: reservation.costMicros === null ? 'unknown' : 'known', actualCostMicros: reservation.costMicros });
@@ -727,12 +758,21 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
     const browserResources = { pages: 0, actions: 0, bytes: 0, requestAttempts: 0, redirects: 0, responseBytesTransferred: 0 };
     let browserReservationSettled = false;
     let browserUsageRecorded = false;
+    let browserDispatched = false;
     try {
       scope.assertHeld();
-      markItemAcquisitionDispatched(browserReservation.id);
       const observed = await collectItemEvidenceBrowser({
         investigationId: `item-acquisition-${input.runId}`, workspaceId: input.workspaceId,
         candidates: [selectedCandidate], actions: [selectedAction], budget, ledger, resources: browserResources, signal: scope.signal,
+        paidEffectDescriptor: acquisitionPaidEffectDescriptor(
+          input.paidEffect?.browserSessionContract, 'browser', 'local-render-session', 'browser-session-start',
+          `browser-session:${input.itemId}:${input.runId}:${selectedAction.id}`,
+        ),
+        onDispatch: () => {
+          scope.assertHeld();
+          markItemAcquisitionDispatched(browserReservation.id);
+          browserDispatched = true;
+        },
       });
       const transferBytes = observed.usage.responseBytesTransferred;
       const redirects = observed.usage.redirects;
@@ -782,9 +822,11 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
       return { status, evidence: finalState.evidence, checklist: finalState.readiness.evaluation, modelCallIds: decision.modelCallIds, usage,
         reason: status === 'completed' ? 'The current-run listing checklist is satisfied by newly admitted complete source evidence.' : 'Complete authorized evidence was admitted; remaining checklist gaps need attention.' };
     } catch (error) {
-      if (!browserReservationSettled) {
+      if (!browserReservationSettled && browserDispatched) {
         settleItemAcquisitionAttempt(browserReservation.id, { actualResources: browserReservation.resources, billing: 'unknown' });
         usage.unknownBytes += browserReservation.resources.bytes;
+      } else if (!browserDispatched) {
+        try { releaseItemAcquisitionReservation(browserReservation.id, 'browser_session_not_dispatched'); } catch { /* A failed release retains the safe reservation. */ }
       }
       if (!browserUsageRecorded) {
         usage.attempts += browserResources.requestAttempts;
@@ -808,6 +850,13 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
       const failure = classifyBrowserError(error);
       return { ...failure, evidence: latest.evidence, checklist: latest.readiness.evaluation, modelCallIds: decision.modelCallIds, usage, reason: failure.reason };
     }
+  });
+  if (!input.paidEffect) return execute();
+  return withQualificationPaidEffectScope({
+    scope: input.paidEffect.scope,
+    client: input.paidEffect.client,
+    signal: input.signal,
+    body: execute,
   });
 }
 

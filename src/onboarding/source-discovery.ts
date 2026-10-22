@@ -57,7 +57,6 @@ export async function discoverSources(
   name: string,
   brandHint?: string | null,
   options?: {
-    price?: number | null;
     /**
      * P0-1 (round 3): injected transports so Product Intelligence can bind
      * every HTTP call in the discovery chain to the policy gateway.
@@ -145,7 +144,6 @@ export async function discoverSources(
           upc,
           name,
           brandHint: activeBrandHint,
-          price: options?.price,
         },
         { modelPolicy: options?.modelPolicy }
       );
@@ -154,45 +152,8 @@ export async function discoverSources(
       continue;
     }
 
-    const topLocal = localMatches[0];
-    if (!topLocal || topLocal.confidence < 0.85) continue;
-
-    console.log(`[SourceDiscovery] \u2713 High-confidence local sitemap match for UPC ${upc} on ${brandDomain} (${topLocal.url}, confidence: ${topLocal.confidence.toFixed(2)}). Validating URL...`);
-
-    let isValid = true;
-    const fetchFn = options?.networkFetch;
-    if (!fetchFn) {
-      // No policy-gateway transport for local short-circuit validation — fail closed without global fetch
-      isValid = topLocal.matchType === 'upc_exact';
-    } else {
-    try {
-      const checkRes = await fetchFn(topLocal.url, {
-        method: 'HEAD',
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!checkRes.ok && checkRes.status !== 405) {
-        const getRes = await fetchFn(topLocal.url, {
-          method: 'GET',
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-          signal: AbortSignal.timeout(6000),
-        });
-        if (!getRes.ok) isValid = false;
-      }
-    } catch {
-        if (topLocal.matchType !== 'upc_exact') {
-          isValid = false;
-        }
-      }
-    }
-
-    if (!isValid) {
-      console.log(`[SourceDiscovery] Local candidate ${topLocal.url} failed validation. Falling through to sitemap matching.`);
-      continue;
-    }
-
-    console.log(`[SourceDiscovery] \u2713 Local match validated for ${topLocal.url}. Short-circuiting sitemap matching.`);
-
+    // Keep every bounded local-index result; confidence is ranking metadata,
+    // not a retrieval or identity gate.
     const localCandidates: InsertSourceData[] = localMatches.map((m) => {
       const rankSignals = buildRankSignals(activeBrandHint, brandDomain);
       return {
@@ -211,9 +172,9 @@ export async function discoverSources(
         upc,
         domain: brandDomain,
         satisfied_locally: 1,
-        candidate_url: topLocal.url,
-        confidence: topLocal.confidence,
-        source_method: topLocal.sourceMethod,
+        candidate_url: localCandidates[0]?.url ?? null,
+        confidence: localCandidates[0]?.confidence ?? 0,
+        source_method: localMatches[0]?.sourceMethod ?? 'local_token_match',
       });
     } catch { /* best effort */ }
 
@@ -232,7 +193,6 @@ export async function discoverSources(
         expectedName: name,
         brandHint: activeBrandHint ?? null,
         brandDomains: activeBrandDomains,
-        price: options?.price,
         fetchFn: options?.variantNetworkFetch ?? options?.networkFetch,
         variantTokens: variantTokensForLocal.length > 0 ? variantTokensForLocal : undefined,
       });
@@ -259,13 +219,7 @@ export async function discoverSources(
       console.warn(`[SourceDiscovery] Local variant resolution failed for ${brandDomain}:`, e);
     }
 
-    return {
-      candidates: resolvedLocalCandidates,
-      // Expected name comes from the imported spreadsheet row only;
-      // discovery never synthesizes or persists an expected name.
-      consolidatedName: null,
-      variantResolution: localVariantResolution,
-    };
+    candidates.push(...resolvedLocalCandidates);
   }
 
   // ── Sitemap pass ──────────────────────────────────────────────────────
@@ -325,7 +279,6 @@ export async function discoverSources(
     expectedName: consolidatedName || name,
     brandHint: activeBrandHint ?? null,
     brandDomains: activeBrandDomains,
-    price: options?.price,
     fetchFn: options?.variantNetworkFetch ?? options?.networkFetch,
     variantTokens: variantTokensForDiscovery.length > 0 ? variantTokensForDiscovery : undefined,
   });
@@ -340,8 +293,8 @@ export async function discoverSources(
     matrixCandidates: (variantResult.resolution as any).matrixCandidates,
   } : null;
 
-  // Sort by confidence descending and cap to the top 10.
-  const topCandidates = selectTopCandidates(variantResolved, 10).map(c => ({
+  // Preserve the declared finite candidate envelope; ranking only orders it.
+  const topCandidates = selectTopCandidates(variantResolved, 500).map(c => ({
     ...c,
     confidence: Math.max(0, Math.min(1, c.confidence))
   }));

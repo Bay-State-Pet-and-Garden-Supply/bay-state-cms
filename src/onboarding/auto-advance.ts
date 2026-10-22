@@ -12,6 +12,9 @@ import {
   advanceExtractionToCuration,
   advanceCurationToReview,
 } from '../db/repositories/onboarding-item-repo';
+import { listOfficialPageDecisions } from '../db/repositories/official-page-decision-repo';
+import { listSourcesByItem } from '../db/repositories/onboarding-source-repo';
+import { findBatchById } from '../db/repositories/onboarding-batch-repo';
 import { onboardingEvents } from './sse-emitter';
 import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
 
@@ -86,8 +89,27 @@ export function advanceDiscoveryItemToExtraction(itemId: string): AutoAdvanceRes
   if (!isCanonicalStage(item.stage, 'find_product_page') || item.stageStatus !== 'completed') {
     return { advanced: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
   }
-  if (!item.sourceUrl) {
-    return { advanced: false, reason: 'no_source_url' };
+  const batch = findBatchById(item.batchId);
+  if (!batch) return { advanced: false, reason: 'batch_not_found' };
+  if (item.sourceType === 'distributor_record') {
+    if (!item.sourcingDecision || item.acceptedEvidenceAttemptIds.length === 0) {
+      return { advanced: false, reason: 'distributor_binding_missing' };
+    }
+  } else {
+    const decision = listOfficialPageDecisions(item.id).find((entry) =>
+      entry.workspaceId === batch.workspaceId &&
+      entry.itemId === item.id &&
+      entry.url === item.sourceUrl &&
+      Boolean(entry.sourceRunId),
+    );
+    const selectedSource = listSourcesByItem(item.id).find((entry) =>
+      entry.url === item.sourceUrl &&
+      entry.isSelected &&
+      entry.discoveryRunId === decision?.sourceRunId,
+    );
+    if (!decision || !selectedSource) {
+      return { advanced: false, reason: 'official_decision_binding_missing' };
+    }
   }
   if (advanceDiscoveryToExtraction(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {

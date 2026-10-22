@@ -1,4 +1,8 @@
 import { getApiKey } from '../db/repositories/api-key-repo';
+import { createPaidEffectIdempotencyKey, PaidEffectBudgetError, runPaidEffect } from '../ai/paid-effect-budget';
+import type { PaidEffectAttemptDescriptor } from '../shared/schemas/paid-effect';
+import { hashCanonicalJson } from '../shared/stable-id';
+import { randomUUID } from 'node:crypto';
 
 const SERPER_SEARCH_URL = 'https://google.serper.dev/search';
 export const SERPER_SEARCH_TIMEOUT_MS = 15_000;
@@ -39,6 +43,7 @@ export async function searchSerperWeb(query: string, options: {
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
   onDispatch?: () => void;
+  paidEffectDescriptor?: PaidEffectAttemptDescriptor;
   maxResponseBytes?: number;
 } = {}): Promise<SerperSearchResponse> {
   const maxResponseBytes = options.maxResponseBytes ?? SERPER_SEARCH_MAX_RESPONSE_BYTES;
@@ -60,13 +65,31 @@ export async function searchSerperWeb(query: string, options: {
   const timeout = setTimeout(() => controller.abort(), SERPER_SEARCH_TIMEOUT_MS);
   try {
     if (options.signal?.aborted) throw new SerperSearchError('cancelled', 'Search was cancelled before dispatch.');
-    options.onDispatch?.();
-    const response = await (options.fetchImpl ?? fetch)(SERPER_SEARCH_URL, {
-      method: 'POST',
-      headers: { 'X-API-KEY': credential, 'Content-Type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ q, num: count }),
+    const descriptor = options.paidEffectDescriptor ?? {
+      idempotencyKey: createPaidEffectIdempotencyKey(),
+      logicalEffectId: `serper-search:${randomUUID()}`,
+      provider: 'serper_search',
+      model: 'web',
+      effect: 'serper-search-post',
+      billingContractId: 'missing-serper-search-contract',
+      billingContractHash: hashCanonicalJson({ missing: 'serper-search-contract' }),
+      requestedUnits: {},
+    };
+    const response = await runPaidEffect({
+      descriptor,
       signal: controller.signal,
-      redirect: 'error',
+      execute: async paidSignal => {
+        if (paidSignal.aborted) throw new SerperSearchError('cancelled', 'Search was cancelled before dispatch.');
+        options.onDispatch?.();
+        const dispatchedResponse = await (options.fetchImpl ?? fetch)(SERPER_SEARCH_URL, {
+          method: 'POST',
+          headers: { 'X-API-KEY': credential, 'Content-Type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ q, num: count }),
+          signal: paidSignal,
+          redirect: 'error',
+        });
+        return { value: dispatchedResponse };
+      },
     });
     if (!response.ok) throw new SerperSearchError('unavailable', `Serper Search returned HTTP ${response.status}. Check the configured subscription and service availability.`);
     const declaredLength = Number(response.headers.get('content-length'));
@@ -115,7 +138,7 @@ export async function searchSerperWeb(query: string, options: {
     }
     return { results, responseBytes: receivedBytes, complete: true };
   } catch (error) {
-    if (error instanceof SerperSearchError) throw error;
+    if (error instanceof SerperSearchError || error instanceof PaidEffectBudgetError) throw error;
     if (options.signal?.aborted) throw new SerperSearchError('cancelled', 'Search was cancelled.');
     if (controller.signal.aborted) throw new SerperSearchError('unavailable', 'Serper Search timed out or was interrupted.');
     throw new SerperSearchError('unavailable', 'Serper Search could not be reached.');

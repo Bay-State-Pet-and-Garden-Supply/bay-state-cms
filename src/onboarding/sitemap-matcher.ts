@@ -135,24 +135,11 @@ export async function matchSitemapUrls(
   // through the shared ranker — the same implementation the v2 live
   // evaluation crawls with, so qualification measures production ranking.
   const ranked = rankSitemapCandidates(sitemapUrls, itemName, consolidatedName, upc, domain, productUrlPattern ?? null);
-  const upcHit = ranked.find(r => r.upcExact)?.url ?? null;
-  if (upcHit) {
-    console.log(`[SitemapMatcher] UPC exact match for ${upc}: ${upcHit} — bypassing selection (verified_unique_identity).`);
-    return [{
-      url: upcHit,
-      confidence: 0.95,
-      sourceMethod: 'sitemap_upc',
-      matchType: 'upc_exact',
-      selectionModelCallIds: [],
-      selectionAuditRunId: retrieval?.runId ?? null,
-    }];
-  }
-  console.log(`[SitemapMatcher] No UPC exact match for ${upc} in ${sitemapUrls.length} URLs.`);
   if (ranked.length === 0) {
     console.log(`[SitemapMatcher] No ranked candidates for UPC ${upc} (empty filter or no positive token overlap); returning early.`);
     return results;
   }
-  const scored = ranked.map(c => ({ url: c.url, overlap: { ratio: c.overlapRatio, matches: c.overlapMatches } }));
+  const scored = ranked.map(c => ({ url: c.url, overlap: { ratio: c.overlapRatio, matches: c.overlapMatches }, upcExact: c.upcExact }));
   const matchName = consolidatedName || itemName;
   console.log(
     `[SitemapMatcher] Top ${scored.length} candidates by token overlap for UPC ${upc}:` +
@@ -166,59 +153,15 @@ export async function matchSitemapUrls(
   // deterministic bypass when the set is already unambiguous). Rich context
   // (register name, UPC, overlaps, variant tokens) rides as judgment state —
   // never as invented URLs, never as an expected name.
-  const effectiveVariantTokens = (variantTokens && variantTokens.length > 0) ? variantTokens : deriveVariantTokensForMatcher(matchName, domain);
-  const selectionContext: SitemapLlmContext = {
-    itemName,
-    brandHint: retrieval?.brandHint ?? undefined,
-    upc,
-    candidateOverlaps: new Map(scored.map(c => [c.url, c.overlap.ratio])),
-    variantTokens: effectiveVariantTokens,
-  };
-  const frozenDomains = retrieval?.approvedDomains && retrieval.approvedDomains.length > 0
-    ? retrieval.approvedDomains
-    : [domain];
-  const selection = await selectClosedSetId(scored, matchName, selectionContext, modelPolicy, frozenDomains, upc, itemName, retrieval?.sku ?? null, retrieval?.runId ?? null, retrieval?.itemId ?? null, retrieval?.snapshotHash ?? null, retrieval?.assertHeld);
-  const selectedUrl = selection.url;
-
-  if (selectedUrl) {
-    const picked = scored.find(c => c.url === selectedUrl);
-    if (picked) {
-      console.log(`[SitemapMatcher] TypeSafe selected ${picked.url} for UPC ${upc}.`);
-      // Retrieval rank only: 0.7 + 0.25 * overlap. The legacy +0.15 model
-      // boost is removed — a Choice probability never inflates confidence.
-      const confidence = clamp01(0.7 + 0.25 * picked.overlap.ratio);
-      results.push({
-        url: picked.url,
-        confidence,
-        sourceMethod: 'sitemap_name',
-        matchType: 'llm_selected',
-        selectionModelCallIds: selection.modelCallIds,
-        selectionAuditRunId: selection.auditRunId,
-      });
-      return results;
-    }
-    // Defensive: the selector maps IDs to exact supplied URLs, so an
-    // unmapped selection can never occur — but it must never persist an
-    // unknown URL. Fall through to ranked retrieval candidates below.
-    console.warn(`[SitemapMatcher] TypeSafe selection is outside the supplied set for UPC ${upc} — retaining ranked candidates.`);
-  }
-
-  // Ranked retrieval fallback: emit the top-3 token-overlap candidates so
-  // downstream consumers (verification, operator inspection) still see the
-  // safe ranked options when the judgment abstains, fails, or is bypassed.
-  const fallbackCount = Math.min(scored.length, 3);
-  console.log(
-    `[SitemapMatcher] TypeSafe selection unresolved; using top ${fallbackCount} token-overlap ` +
-      `candidate(s) for UPC ${upc}.`,
-  );
-  for (const candidate of scored.slice(0, fallbackCount)) {
+  // Ranking may prioritize likely URLs, but must not discard alternatives.
+  for (const candidate of scored) {
     results.push({
       url: candidate.url,
       confidence: clamp01(0.7 + 0.25 * candidate.overlap.ratio),
-      sourceMethod: 'sitemap_name',
-      matchType: 'token_overlap',
-      selectionModelCallIds: selection.modelCallIds,
-      selectionAuditRunId: selection.auditRunId,
+      sourceMethod: candidate.upcExact ? 'sitemap_upc' : 'sitemap_name',
+      matchType: candidate.upcExact ? 'upc_exact' : 'token_overlap',
+      selectionModelCallIds: [],
+      selectionAuditRunId: retrieval?.runId ?? null,
     });
   }
   return results;
@@ -456,21 +399,19 @@ export function rankSitemapCandidates(
   domain: string,
   productUrlPattern?: string | null,
 ): RankedSitemapCandidate[] {
-  const upcHit = findUpcExactHit(sitemapUrls, upc);
-  if (upcHit) return [{ url: upcHit, overlapRatio: 1, overlapMatches: 1, upcExact: true }];
+  const upcHits = new Set(sitemapUrls.filter(url => findUpcExactHit([url], upc) !== null));
   const productUrls = filterProductUrls(sitemapUrls, productUrlPattern);
   if (productUrls.length === 0) return [];
   const matchName = consolidatedName || itemName;
   const domainBaseName = extractDomainBaseName(domain);
   const tokens = tokenizeName(matchName, domainBaseName);
-  if (tokens.length === 0) return [];
   return productUrls
     .map(url => {
       const overlap = computeTokenOverlap(url, tokens);
-      return { url, overlapRatio: overlap.ratio, overlapMatches: overlap.matches, upcExact: false };
+      return { url, overlapRatio: overlap.ratio, overlapMatches: overlap.matches, upcExact: upcHits.has(url) };
     })
-    .filter(c => c.overlapRatio > 0)
-    .sort((a, b) => b.overlapRatio - a.overlapRatio)
+    .filter(c => c.overlapRatio > 0 || c.upcExact)
+    .sort((a, b) => Number(b.upcExact) - Number(a.upcExact) || b.overlapRatio - a.overlapRatio)
     .slice(0, 10);
 }
 

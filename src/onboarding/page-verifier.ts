@@ -43,6 +43,22 @@ export interface VerificationContext {
   officialDomains: string[];
 }
 
+export interface ObservedIdentityVariant {
+  key: string;
+  label: string;
+  gtin?: string | null;
+}
+
+export interface ObservedIdentity {
+  pageName: string | null;
+  pageBrand: string | null;
+  pageKind: 'product' | 'listing' | 'blog';
+  variants: ObservedIdentityVariant[];
+  observedGtins: string[];
+  artifactRef: string | null;
+  coverageComplete: boolean;
+}
+
 export interface VerificationResult {
   /** The original candidate, enriched with verification signals. */
   candidate: InsertSourceData;
@@ -56,6 +72,7 @@ export interface VerificationResult {
   hasStrongProof: boolean;
   /** Extracted structured GTINs. */
   extractedGtins: ExtractedPageGtin[];
+  observedIdentity: ObservedIdentity;
   /** Human-readable reason for the auto-select / skip decision. */
   decisionReason: string;
 }
@@ -75,6 +92,8 @@ export interface VerificationSignals {
   canonicalMatchesCandidate: boolean;
   /** Page title as extracted from <title> tag (raw, for diagnostics). */
   pageTitle: string | null;
+  /** First visible product heading, extracted from page content. */
+  pageHeading: string | null;
   /** Word-level overlap score between expected name and page title. */
   titleNameOverlap: number;
 }
@@ -135,8 +154,9 @@ export async function verifyCandidate(
   const score = computeVerificationScore(signals);
   const extractedGtins = extractStructuredGtinsFromHtml(html);
   const { proofClass, decisionReason } = qualifyIdentityProof(extractedGtins, context.upc, signals);
-
   const hasStrongProof = proofClass === 'exact_structured_gtin' || proofClass === 'exact_variant_gtin';
+  const productJson = extractProductJsonFromHtml(html);
+  const observedIdentity = extractObservedIdentity(html, signals, extractedGtins, productJson);
 
   return {
     candidate,
@@ -145,8 +165,106 @@ export async function verifyCandidate(
     proofClass,
     hasStrongProof,
     extractedGtins,
+    observedIdentity,
     decisionReason: `[${hasStrongProof ? 'verified' : 'needs_review'}] proof=${proofClass} | ${decisionReason} | score=${score.toFixed(0)}`,
   };
+}
+
+function extractObservedIdentity(
+  html: string,
+  signals: VerificationSignals,
+  extractedGtins: ExtractedPageGtin[],
+  productJson: Record<string, unknown> | null,
+): ObservedIdentity {
+  const variants: ObservedIdentityVariant[] = [];
+  if (productJson && Array.isArray(productJson.variants)) {
+    productJson.variants.forEach((variant: unknown, index: number) => {
+      if (!variant || typeof variant !== 'object') return;
+      const variantRecord = variant as Record<string, unknown>;
+      const options = [variantRecord.option1, variantRecord.option2, variantRecord.option3]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map(value => value.trim());
+      const title = variantRecord.title;
+      const label = [typeof title === 'string' ? title : null, ...options]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .map(value => value.trim())
+        .join(' / ');
+      const id = variantRecord.id;
+      const barcode = variantRecord.barcode;
+      variants.push({
+        key: typeof id === 'string' || typeof id === 'number' ? String(id) : String(index),
+        label,
+        gtin: (typeof barcode === 'string' || typeof barcode === 'number') && barcode ? String(barcode) : null,
+      });
+    });
+  }
+
+  const jsonLdRegex = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = jsonLdRegex.exec(html)) !== null) {
+    try {
+      collectProductGroupVariants(JSON.parse(match[1]), variants);
+    } catch { /* Ignore malformed JSON-LD. */ }
+  }
+
+  return {
+    pageName: signals.pageHeading,
+    pageBrand: extractObservedBrand(html),
+    pageKind: signals.isListingOrSearchPage ? 'listing' : signals.isBlogOrCmsPage ? 'blog' : 'product',
+    variants,
+    observedGtins: extractedGtins.filter(gtin => gtin.type === 'single').map(gtin => gtin.gtin),
+    artifactRef: null,
+    coverageComplete: true,
+  };
+}
+
+function collectProductGroupVariants(value: unknown, variants: ObservedIdentityVariant[]): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach(item => collectProductGroupVariants(item, variants));
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record['@graph'])) record['@graph'].forEach((item: unknown) => collectProductGroupVariants(item, variants));
+  if (record['@type'] === 'ProductGroup' && Array.isArray(record.hasVariant)) {
+    record.hasVariant.forEach((variant: unknown, index: number) => {
+      if (variant && typeof variant === 'object') {
+        const variantRecord = variant as Record<string, unknown>;
+        const name = variantRecord.name;
+        const gtin = variantRecord.gtin ?? variantRecord.gtin12 ?? variantRecord.gtin13 ?? variantRecord.gtin14 ?? variantRecord.gtin8;
+        variants.push({
+          key: String(index),
+          label: typeof name === 'string' ? name : '',
+          gtin: typeof gtin === 'string' || typeof gtin === 'number' ? String(gtin) : null,
+        });
+      }
+    });
+  }
+}
+
+function extractObservedBrand(html: string): string | null {
+  const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  const brandInJson = (value: unknown): string | null => {
+    if (!value || typeof value !== 'object') return null;
+    if (Array.isArray(value)) {
+      for (const item of value) { const found = brandInJson(item); if (found) return found; }
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record['@graph'])) for (const item of record['@graph']) { const found = brandInJson(item); if (found) return found; }
+    const brand = record.brand;
+    if (typeof brand === 'string') return brand.trim() || null;
+    if (brand && typeof brand === 'object' && 'name' in brand && typeof brand.name === 'string') return brand.name.trim() || null;
+    return null;
+  };
+  for (const script of scripts) {
+    try { const found = brandInJson(JSON.parse(script[1])); if (found) return found; } catch { /* Ignore malformed JSON-LD. */ }
+  }
+  const meta = html.match(/<meta\b(?=[^>]*(?:property|name)=["'](?:product:brand|og:brand|brand)["'])(?=[^>]*content=["']([^"']+)["'])[^>]*>/i)
+    ?? html.match(/<meta\b(?=[^>]*content=["']([^"']+)["'])(?=[^>]*(?:property|name)=["'](?:product:brand|og:brand|brand)["'])[^>]*>/i);
+  if (meta?.[1]?.trim()) return meta[1].trim();
+  const micro = html.match(/<[^>]*\bitemprop=["']brand["'][^>]*>([^<]+)</i);
+  return micro?.[1]?.trim() || null;
 }
 
 /**
@@ -506,6 +624,10 @@ export function extractVerificationSignals(
   const lowerName = context.expectedName.toLowerCase();
   const candidateDomain = extractHostname(url);
 
+  const pageHeadingMatch = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  const pageHeading = pageHeadingMatch
+    ? pageHeadingMatch[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    : null;
   // ── Page title ────────────────────────────────────────────────────────
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const pageTitle = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : null;
@@ -649,6 +771,7 @@ export function extractVerificationSignals(
     variantResolved,
     canonicalMatchesCandidate,
     pageTitle,
+    pageHeading,
     titleNameOverlap,
   };
 }

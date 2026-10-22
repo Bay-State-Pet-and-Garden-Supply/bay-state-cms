@@ -31,6 +31,14 @@
       ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json",
       ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"
     ],
+    "split_payload_paths": {
+      "development": [
+        ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json"
+      ],
+      "holdout": [
+        ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"
+      ]
+    },
     "sha256_commitments": {
       ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json": "47df1ba1e8e5bbb4e028a222c4ae4d9564b8eb1cab755df4717d29974312f022",
       ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json": "8669d2b6d4cdcdaaa2fb69cb87deae36868de010ba31da02057288ff6974b50d",

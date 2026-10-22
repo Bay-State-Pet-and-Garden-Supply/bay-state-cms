@@ -144,10 +144,11 @@ export async function findLocalBrandCandidates(
         },
       });
 
-      // If exact UPC is matched at high confidence, return immediately
-      return results;
+      // Keep exact identifier hits in the same bounded candidate set as lexical
+      // alternatives; an identifier rank is not an identity decision.
     }
   }
+
 
   // ── Tier 2: Exact SKU / MPN Match ─────────────────────────────────────────
   if (target.sku && target.sku.trim()) {
@@ -172,7 +173,6 @@ export async function findLocalBrandCandidates(
         },
       });
 
-      return results;
     }
   }
 

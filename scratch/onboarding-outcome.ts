@@ -4,15 +4,21 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+export type PayloadSplit = 'development' | 'holdout';
 export type Manifest = {
   schema_version: number; protocol: string; status: string;
   baseline: { ref: string; sha: string };
   candidate: { comparison_freeze_sha: string | null };
-  population: { real_import_required: boolean; private_payload_paths: string[] | null; sha256_commitments: Record<string, string> | null };
+  population: {
+    real_import_required: boolean;
+    private_payload_paths?: string[] | null;
+    split_payload_paths?: { development: string[]; holdout: string[] } | null;
+    sha256_commitments: Record<string, string> | null;
+  };
   freeze: { holdout_labels_available_to_fit: boolean };
   blockers: string[];
 };
-export type Row = { row_id?: string; split?: 'development' | 'holdout'; disposition?: string; [key: string]: unknown };
+export type Row = { row_id?: string; split?: PayloadSplit; disposition?: string; [key: string]: unknown };
 export const ROOT = process.cwd();
 export const DEFAULT_MANIFEST = 'docs/audits/onboarding-outcome-v1/manifest.public.json';
 export const PRIVATE_ROOT = '.baystate-cms/qualification/onboarding-outcome-v1';
@@ -51,6 +57,7 @@ export function readManifest(file: string): Manifest {
   return manifest;
 }
 export function rootPath(relative: string): string { return path.resolve(ROOT, relative); }
+export function writeJson(file: string, data: unknown): void { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, { flag: 'wx' }); }
 export function outputPath(relative: string): string {
   const file = rootPath(relative);
   rejectProductionPath(file, 'output');
@@ -59,33 +66,65 @@ export function outputPath(relative: string): string {
   if (existsSync(parent) && !within(rootPath(PRIVATE_ROOT), realpathSync(parent))) throw new Error(`Output parent escapes private evaluation root: ${parent}`);
   return file;
 }
-export function writeJson(file: string, data: unknown): void { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, { flag: 'wx' }); }
-export function loadRows(manifest: Manifest, split: 'development' | 'holdout'): Row[] {
+export function selectedPaths(manifest: Manifest, split: PayloadSplit = 'development'): string[] {
+  const declared = manifest.population.split_payload_paths;
+  if (!declared || !Array.isArray(declared.development) || !Array.isArray(declared.holdout)) {
+    throw new Error('Manifest is incomplete: split_payload_paths is required for input access.');
+  }
+  const all = [...declared.development, ...declared.holdout];
+  if (declared.development.length === 0 || declared.holdout.length === 0) {
+    throw new Error('Manifest is incomplete: both split payloads must be declared.');
+  }
+  if (all.some(item => typeof item !== 'string' || !item.trim())) throw new Error('Manifest contains an invalid split payload path.');
+  const normalized = all.map(item => path.resolve(ROOT, item));
+  if (new Set(normalized).size !== normalized.length) throw new Error('Manifest has overlapping or ambiguous split payload paths.');
+  for (const [owner, paths] of Object.entries(declared) as Array<[PayloadSplit, string[]]>) {
+    for (const relative of paths) {
+      const basename = path.basename(relative).toLowerCase();
+      const splitHint = basename.match(/(?:^|[-_.])(development|holdout)(?:[-_.]|$)/)?.[1];
+      if (splitHint && splitHint !== owner) throw new Error(`Payload path is declared under the wrong split: ${relative}`);
+    }
+  }
+  const legacy = manifest.population.private_payload_paths;
+  if (legacy && (legacy.length !== all.length || legacy.some(item => !all.includes(item)))) {
+    throw new Error('Manifest split payload declarations do not match private_payload_paths.');
+  }
+  return [...declared[split]];
+}
+function safeInputPath(relative: string): string {
+  const file = rootPath(relative);
+  if (!within(ROOT, file)) throw new Error(`Input path escapes evaluation root: ${relative}`);
+  rejectProductionPath(file, 'input');
+  if (!existsSync(file)) throw new Error(`Declared private payload is unavailable: ${relative}`);
+  const canonical = realpathSync(file);
+  if (!within(realpathSync(ROOT), canonical)) throw new Error(`Input symlink escapes evaluation root: ${relative}`);
+  rejectProductionPath(canonical, 'input');
+  return canonical;
+}
+export function loadRows(manifest: Manifest, split: PayloadSplit = 'development'): Row[] {
   const rows: Row[] = [];
-  for (const relative of manifest.population.private_payload_paths ?? []) {
-    const file = rootPath(relative);
-    rejectProductionPath(file, 'input');
-    if (!existsSync(file)) throw new Error(`Declared private payload is unavailable: ${relative}`);
+  for (const relative of selectedPaths(manifest, split)) {
+    const file = safeInputPath(relative);
     const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
     let inputRows: unknown;
     if (Array.isArray(parsed)) inputRows = parsed;
     else if (parsed && typeof parsed === 'object' && 'rows' in parsed) inputRows = parsed.rows;
     if (!Array.isArray(inputRows)) throw new Error(`Payload must be a row array or contain rows[]: ${relative}`);
-    const pathSplit = path.basename(relative).startsWith(`${split}-input.`);
     inputRows.forEach((entry: unknown, index: number) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(`Invalid source row ${relative}#${index + 1}`);
       const row = entry as Row;
-      if ((row.split === split || pathSplit) && (row.split === undefined || row.split === split)) rows.push({ ...row, row_id: row.row_id ?? `${path.basename(relative)}:${index + 1}` });
+      if (row.split !== undefined && row.split !== split) throw new Error(`Payload row belongs to the opposite split: ${relative}#${index + 1}`);
+      if (Object.keys(row).some(key => /gold|label|truth|expected/i.test(key))) throw new Error(`Source payload contains label-like input fields: ${relative}#${index + 1}`);
+      rows.push({ ...row, row_id: row.row_id ?? `${path.basename(relative)}:${index + 1}` });
     });
   }
   return rows;
 }
-export function verifyHashes(manifest: Manifest): void {
-  for (const relative of manifest.population.private_payload_paths ?? []) {
+export function verifyHashes(manifest: Manifest, split: PayloadSplit = 'development'): void {
+  for (const relative of selectedPaths(manifest, split)) {
     const expected = manifest.population.sha256_commitments?.[relative];
-    if (!expected) continue;
-    const file = rootPath(relative);
-    if (!existsSync(file)) throw new Error(`Committed payload unavailable: ${relative}`);
+    if (!expected) throw new Error(`Missing selected payload SHA-256 commitment: ${relative}`);
+    const file = safeInputPath(relative);
     if (hashFile(file) !== expected) throw new Error(`SHA-256 mismatch: ${relative}`);
   }
 }
@@ -96,11 +135,11 @@ async function main(): Promise<void> {
   const manifestFile = rootPath(option(options, '--manifest', DEFAULT_MANIFEST)!);
   if (!existsSync(manifestFile)) throw new Error(`Manifest not found: ${manifestFile}`);
   const manifest = readManifest(manifestFile);
-  verifyHashes(manifest);
   if (command === 'prepare') {
     const modes = ['--preflight','--construct','--seal'].filter(key => options[key] === true);
     if (modes.length !== 1) throw new Error(`prepare requires exactly one mode\n${USAGE}`);
     if (modes[0] === '--preflight') {
+      verifyHashes(manifest, 'development');
       const rows = loadRows(manifest, 'development');
       const failed = rows.filter(row => row.disposition === 'failed').length;
       const out = rootPath(`${PRIVATE_ROOT}/preflight.json`);
@@ -116,12 +155,15 @@ async function main(): Promise<void> {
       return;
     }
     if (modes[0] === '--construct') {
+      verifyHashes(manifest, 'development');
+      verifyHashes(manifest, 'holdout');
       const file = outputPath(`${PRIVATE_ROOT}/construction.json`);
       const rows = [...loadRows(manifest, 'development'), ...loadRows(manifest, 'holdout')];
       writeJson(file, { protocol: manifest.protocol, status: 'BLOCKED', original_row_count: rows.length, rows, blockers: BLOCKERS, limitation: 'No real private import payload or provenance supplied; no sample rows synthesized.' });
       console.log(file); return;
     }
     const file = outputPath(`${PRIVATE_ROOT}/sealed/seal.json`);
+    verifyHashes(manifest, 'holdout');
     const rows = loadRows(manifest, 'holdout');
     if (!rows.length) throw new Error('Cannot seal: no held rows are present in the declared private payload.');
     writeJson(file, { protocol: manifest.protocol, status: 'BLOCKED', holdout_count: rows.length, sealed_at: new Date().toISOString(), commitments: manifest.population.sha256_commitments, blockers: ['BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE'] });
@@ -138,6 +180,7 @@ async function main(): Promise<void> {
       const receipt = JSON.parse(readFileSync(rootPath(authorization), 'utf8')) as Record<string, unknown>;
       if (receipt.status !== 'approved' || receipt.protocol !== manifest.protocol) throw new Error('Authorization must be approved and bound to this protocol.');
     }
+    verifyHashes(manifest, split as PayloadSplit);
     const rows = loadRows(manifest, split as 'development' | 'holdout');
     const runId = `${new Date().toISOString().replace(/[:.]/g,'-')}-${randomUUID()}`;
     const arms = arm === 'both' ? ['baseline','candidate'] : [arm!];
@@ -154,7 +197,7 @@ async function main(): Promise<void> {
   }
   if (command === 'fit') {
     if (option(options,'--split','development') !== 'development' || manifest.freeze.holdout_labels_available_to_fit) throw new Error('Fitting is development-only and refuses manifests exposing holdout labels.');
-    for (const relative of manifest.population.private_payload_paths ?? []) {
+    for (const relative of selectedPaths(manifest, 'development')) {
       const file = rootPath(relative);
       if (/sealed|holdout/i.test(relative)) throw new Error(`Fitting refuses sealed path: ${relative}`);
       if (existsSync(file)) { const real = realpathSync(file); if (/sealed|holdout/i.test(real) || real !== file) throw new Error(`Fitting refuses symlink alias or sealed target: ${relative} -> ${real}`); }

@@ -134,12 +134,15 @@ export function recordOfficialPageDecision(input: {
       throw new Error('Official page candidate is not selectable for this item and workspace');
     }
     // Atomic in-progress guard: a decision landing while Discovery is running
-    // for this item (stage_status in_progress — the worker owns the claim) is
-    // stale by definition: the run that produced the candidate no longer
-    // owns the item. Refused inside the same transaction as the write, so no
-    // interleaving discovery completion can slip between a route pre-check
-    // and this decision commit.
-    if (row.stage_status === 'in_progress') {
+    // for this item (stage_status in_progress) is stale by definition — UNLESS
+    // the committer proves it holds the live claim. The worker's automatic
+    // path commits while holding its own claim (expectedClaimedBy matches the
+    // row owner); a reclaimed/superseded item, or any caller that cannot prove
+    // ownership, fails here instead of confirming over the new owner's run.
+    // Refused inside the same transaction as the write, so no interleaving
+    // discovery completion can slip between a route pre-check and this commit.
+    if (row.stage_status === 'in_progress' &&
+        (input.expectedClaimedBy == null || row.claimed_by !== input.expectedClaimedBy)) {
       throw new Error('Official page candidate is stale: discovery is still running for this product');
     }
     // Atomic revision guard: when the caller binds the expected live

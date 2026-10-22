@@ -1,3 +1,6 @@
+import { createPaidEffectIdempotencyKey, runPaidEffect } from '../ai/paid-effect-budget';
+import type { PaidEffectAttemptDescriptor } from '../shared/schemas/paid-effect';
+import { hashCanonicalJson } from '../shared/stable-id';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -56,6 +59,8 @@ export interface ItemEvidenceBrowserInput {
   ledger: BudgetLedger;
   resources: ItemEvidenceBrowserResources;
   signal?: AbortSignal;
+  paidEffectDescriptor?: PaidEffectAttemptDescriptor;
+  onDispatch?: () => void;
 }
 
 export interface ItemEvidenceBrowserObservation {
@@ -225,7 +230,26 @@ export async function collectItemEvidenceBrowser(input: ItemEvidenceBrowserInput
     if (!proxy.mitmAvailable) throw new ItemEvidenceBrowserError('isolation_unavailable', 'validating HTTPS interception credential unavailable');
     await ensureIsolatedRenderNetwork();
     const spec = buildRenderContainerSpec(runId, proxy.url);
-    await runner.start(spec);
+    const paidEffectDescriptor = input.paidEffectDescriptor ?? {
+      idempotencyKey: createPaidEffectIdempotencyKey(),
+      logicalEffectId: `item-evidence-browser:${input.investigationId}:${randomUUID()}`,
+      provider: 'browser',
+      model: 'local-render-session',
+      effect: 'browser-session-start',
+      billingContractId: 'missing-browser-session-contract',
+      billingContractHash: hashCanonicalJson({ missing: 'browser-session-contract' }),
+      requestedUnits: {},
+    };
+    await runPaidEffect({
+      descriptor: paidEffectDescriptor,
+      signal: input.signal,
+      execute: async signal => {
+        if (signal.aborted) throw new ItemEvidenceBrowserError('cancelled', 'cancelled before isolated browser start');
+        input.onDispatch?.();
+        await runner.start(spec);
+        return { value: undefined };
+      },
+    });
     started = true;
     if (input.signal?.aborted) throw new ItemEvidenceBrowserError('cancelled', 'cancelled before isolated browser start');
     const actionsByCandidate = new Map<string, ItemEvidenceBrowserAction[]>();

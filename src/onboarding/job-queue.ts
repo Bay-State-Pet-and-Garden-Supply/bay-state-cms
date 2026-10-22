@@ -30,17 +30,19 @@ import {
   completeDiscoveryRun,
   failDiscoveryRun,
   stampSourcesWithDiscoveryRun,
+  listSourcesByItem,
   type InsertSourceData,
 } from '../db/repositories/onboarding-source-repo';
 import { verifyTopCandidates, type VerificationResult } from './page-verifier';
 import { findBrandSites } from '../db/repositories/brand-site-repo';
-import { extractProductData, VariantExtractionError } from './page-extractor';
+import { extractProductData, extractConfirmedPageStatic, VariantExtractionError } from './page-extractor';
 import { validateExtraction } from './extraction-validator';
 import { listOfficialPageDecisions, recordOfficialPageDecision } from '../db/repositories/official-page-decision-repo';
 import { createVariantResolutionRepo } from '../db/repositories/onboarding-variant-resolution-repo';
 import { getEffectiveVariantResolutionMode } from './variant-flags';
 import { assertSafeVariantDestination } from '../shared/ssrf';
 
+import { findContradictoryProductAxes, matchOfficialPageIdentity } from './official-page-identity';
 /** P0: policy-gateway variant discovery fetch — single-hop, shared destination assertion, manual redirect. General sitemap discovery remains redirect-aware (see sitemap-fetcher), variant resolution owns redirect loop per-hop with 500ms accounting. */
 export function createVariantDiscoveryFetch(officialDomains: string[]): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
   return async (input, init) => {
@@ -1352,15 +1354,15 @@ export class OnboardingWorker {
         name: item.name ?? '',
         brandHint: item.brandHint ?? null,
       });
+      const domains = getAllowedOfficialPageDomains({ workspaceId: this.workspaceId, itemId: item.id, brandHint: item.brandHint ?? null });
       const discover = this.deps?.discoverSources ?? discoverSources;
-      const earlyOfficialDomains = getOfficialDomainsForBrand(item.brandHint ?? null);
-      const variantNetworkFetch = createVariantDiscoveryFetch(earlyOfficialDomains);
-      const discoveryFetch = createDiscoveryFetch(earlyOfficialDomains);
+      const variantNetworkFetch = createVariantDiscoveryFetch(domains);
+      const discoveryFetch = createDiscoveryFetch(domains);
       const discovery = await discover(item.upc, item.name, item.brandHint, {
-        price: item.price ? parseFloat(item.price) : null,
         modelPolicy: policySnapshot.state === 'configured' ? policySnapshot.view : null,
         networkFetch: discoveryFetch,
-        variantNetworkFetch: variantNetworkFetch,
+        variantNetworkFetch,
+        frozenDomains: domains,
       });
       const sources = discovery.candidates;
       const consolidatedName = discovery.consolidatedName;
@@ -1372,7 +1374,7 @@ export class OnboardingWorker {
       // ── Authority snapshot ──────────────────────────────────────────────
       // The official-domain set that may authorize auto-accept THIS run,
       // paired against the item's configured brand hint.
-      const officialDomains = getOfficialDomainsForBrand(activeBrandHint);
+      const officialDomains = domains;
 
       // ── Hold on discovery if brand has no domain ───────────────────────
       if (discovery.noDomainMapped) {
@@ -1428,7 +1430,7 @@ export class OnboardingWorker {
                 identifiers: c.identifiers,
                 options: c.options,
                 available: c.available,
-                price: c.price,
+                price: null,
                 currency: c.currency,
                 weight: c.weight,
                 dimensions: c.dimensions,
@@ -1538,11 +1540,11 @@ export class OnboardingWorker {
               upc: item.upc,
               // Expected identity is the imported spreadsheet name only —
               // legacy SERP-era expected_name values never steer verification.
+              // (ADR 0043: no input price — matching uses identity only.)
               expectedName: item.name,
               brandHint: activeBrandHint,
-              price: item.price ? parseFloat(item.price) : null,
               officialDomains,
-            })
+            }, sources.length)
           : [];
         updateDiscoveryRunStep(discoveryRunId, 'ranking');
 
@@ -1591,9 +1593,35 @@ export class OnboardingWorker {
 
         const autoSelectedResult = isOfficialAutoSelectDisabled
           ? null
-          : verifiedStrong.find((v) => hasAuthority(v.candidate)) ?? null;
+          : verifiedStrong.find((v) => hasAuthority(v.candidate) && v.observedIdentity.coverageComplete &&
+            matchOfficialPageIdentity({
+              registerName: item.name,
+              registerUpc: item.upc,
+              brandHint: activeBrandHint,
+              pageName: v.observedIdentity.pageName ?? '',
+              pageBrand: v.observedIdentity.pageBrand,
+              pageKind: v.observedIdentity.pageKind,
+              variants: v.observedIdentity.variants,
+              observedGtins: v.observedIdentity.observedGtins,
+            }).outcome === 'unique_name_variant_match' &&
+            findContradictoryProductAxes(item.name, [
+              { field: 'heading', value: v.observedIdentity.pageName ?? '' },
+              ...v.observedIdentity.variants.map((variant) => ({ field: 'variant', value: variant.label })),
+            ]).length === 0) ?? null;
         const autoSelectedSource = autoSelectedResult?.candidate ?? null;
         const shouldAutoSelect = autoSelectedSource !== null;
+        const selectedIdentity = autoSelectedResult
+          ? matchOfficialPageIdentity({
+              registerName: item.name,
+              registerUpc: item.upc,
+              brandHint: activeBrandHint,
+              pageName: autoSelectedResult.observedIdentity.pageName ?? '',
+              pageBrand: autoSelectedResult.observedIdentity.pageBrand,
+              pageKind: autoSelectedResult.observedIdentity.pageKind,
+              variants: autoSelectedResult.observedIdentity.variants,
+              observedGtins: autoSelectedResult.observedIdentity.observedGtins,
+            })
+          : null;
 
         const killSwitchActive = isOfficialAutoSelectDisabled && verifiedStrong.some(v => hasAuthority(v.candidate));
         const deniedByAuthority =
@@ -1616,52 +1644,51 @@ export class OnboardingWorker {
 
         updateDiscoveryRunStep(discoveryRunId, 'applying_outcome');
 
-        if (shouldAutoSelect && autoSelectedSource) {
+        if (shouldAutoSelect && autoSelectedSource && autoSelectedResult && selectedIdentity) {
           const resolvedUrl = autoSelectedSource.url;
-          setDiscoverySourceUrl(item.id, resolvedUrl);
-          completeDiscoveryRun(
-            discoveryRunId,
-            'auto_selected',
-            `Auto-selected verified source: ${resolvedUrl} (${autoSelectedResult?.decisionReason ?? 'verified'})`,
-          );
-
-          // Find the inserted counterpart of the auto-selected source
-          // by URL.
-          const autoSelectedInserted = insertedSources.find(
-            s => s.url === resolvedUrl,
-          );
-          if (autoSelectedInserted) {
-            selectSource(autoSelectedInserted.id);
-          }
-          // ADR 0040: automatic selection records the same durable
-          // decision the manual path records — extraction revalidation
-          // requires it. Strong structured-GTIN proof only (verifiedStrong
-          // conjunct above); failure parks visibly, never silently.
+          const autoSelectedInserted = insertedSources.find((s) => s.url === resolvedUrl);
+          let committed = false;
           if (autoSelectedInserted) {
             try {
               recordOfficialPageDecision({
                 workspaceId: this.workspaceId,
                 itemId: item.id,
                 sourceId: autoSelectedInserted.id,
-                evidenceKind: 'observed_gtin',
-                pageTitle: autoSelectedResult?.signals?.pageTitle ?? autoSelectedSource.title ?? resolvedUrl,
-                variantKey: null,
+                evidenceKind: autoSelectedResult.proofClass !== 'none' ? 'observed_gtin' : 'automatic_name',
+                pageTitle: selectedIdentity.pageName,
+                variantKey: selectedIdentity.variantKey,
                 signals: {
-                  decisionReason: autoSelectedResult?.decisionReason ?? 'verified',
-                  proofClass: autoSelectedResult?.proofClass ?? 'exact_structured_gtin',
+                  identity: selectedIdentity,
+                  observedIdentity: autoSelectedResult.observedIdentity,
+                  proofClass: autoSelectedResult.proofClass,
+                  decisionReason: autoSelectedResult.decisionReason,
                 },
                 sourceRunId: discoveryRunId,
+                expectedUpdatedAt: item.updatedAt,
+                expectedClaimedBy: this.workerId,
               });
+              committed = true;
             } catch (err) {
-              console.warn(`[OnboardingWorker] Auto-select decision record failed for ${item.id} (extraction will park):`, err);
+              console.warn(`[OnboardingWorker] Auto-select decision record failed for ${item.id}; parking for manual review:`, err);
             }
           }
-
-          console.log(
-            `[OnboardingWorker] ✓ Auto-selected verified source for "${item.name}" (${item.upc}): ` +
-            `${resolvedUrl} (${autoSelectedResult?.decisionReason})`
-          );
-        } else {
+          if (committed) {
+            completeDiscoveryRun(
+              discoveryRunId,
+              'auto_selected',
+              `Auto-selected verified source: ${resolvedUrl} (${autoSelectedResult.decisionReason})`,
+            );
+            console.log(
+              `[OnboardingWorker] ✓ Auto-selected verified source for "${item.name}" (${item.upc}): ` +
+              `${resolvedUrl} (${autoSelectedResult.decisionReason})`
+            );
+          } else {
+            const reason = 'needs_review: automatic confirmation could not be committed';
+            completeDiscoveryRun(discoveryRunId, 'needs_input_candidates', reason);
+            updateItemStageStatus(item.id, 'completed', reason);
+            console.log(`[OnboardingWorker] ⚠ Discovery needs manual review for "${item.name}" (${item.upc}): ${reason}`);
+          }
+        } else if (!shouldAutoSelect) {
           // Build a detailed reason that includes verification signals
           // so the reviewer knows WHY auto-selection was skipped.
           const topVerification = verificationResults[0];
@@ -1884,6 +1911,118 @@ export class OnboardingWorker {
       needsInput(message);
     }
   }
+  private async processConfirmedPageStaticExtraction(
+    item: any,
+    claim: ClaimedItemExtractionLease,
+    assertHeld: () => void,
+  ): Promise<void> {
+    const needsInput = (reason: string): void => {
+      if (requireClaimedItemExtractionInput(item.id, claim, reason.slice(0, 500))) {
+        onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', { stage: 'collect_details', error: reason.slice(0, 500) });
+      }
+    };
+    try {
+      assertHeld();
+      const decision = listOfficialPageDecisions(item.id).find((entry) =>
+        entry.workspaceId === this.workspaceId &&
+        entry.itemId === item.id &&
+        entry.url === item.sourceUrl &&
+        Boolean(entry.sourceRunId),
+      );
+      const selectedSource = decision && listSourcesByItem(item.id).find((entry) =>
+        entry.url === decision.url &&
+        entry.isSelected &&
+        entry.discoveryRunId === decision.sourceRunId,
+      );
+      const domains = getAllowedOfficialPageDomains({
+        workspaceId: this.workspaceId,
+        itemId: item.id,
+        brandHint: item.brandHint ?? null,
+      });
+      if (!item.sourceUrl || !decision || !selectedSource || !isAuthorizedOfficialPageUrl(item.sourceUrl, domains)) {
+        needsInput('A current confirmed page, selected source, discovery run, and approved manufacturer authority are required.');
+        return;
+      }
+      const detailed = await extractConfirmedPageStatic(item.sourceUrl, {
+        name: item.expectedName || item.name,
+        brandHint: item.brandHint ?? null,
+        gtin: item.upc ?? undefined,
+      }, createDiscoveryFetch(domains));
+      assertHeld();
+      const currentDomains = getAllowedOfficialPageDomains({
+        workspaceId: this.workspaceId,
+        itemId: item.id,
+        brandHint: item.brandHint ?? null,
+      });
+      const decisionStillCurrent = listOfficialPageDecisions(item.id).some((entry) =>
+        entry.id === decision.id &&
+        entry.workspaceId === this.workspaceId &&
+        entry.url === item.sourceUrl &&
+        entry.sourceRunId === decision.sourceRunId,
+      );
+      const sourceStillCurrent = listSourcesByItem(item.id).some((entry) =>
+        entry.id === selectedSource.id &&
+        entry.url === item.sourceUrl &&
+        entry.isSelected &&
+        entry.discoveryRunId === decision.sourceRunId,
+      );
+      if (!decisionStillCurrent || !sourceStillCurrent || !isAuthorizedOfficialPageUrl(item.sourceUrl, currentDomains)) {
+        needsInput('The confirmed page or approved manufacturer authority changed during static extraction.');
+        return;
+      }
+      const data = detailed.data;
+      const extractedVariantKey = data.selectedVariant?.selectedVariantKey ?? null;
+      if (decision.variantKey && extractedVariantKey !== decision.variantKey) {
+        needsInput('The static page does not provide the exact confirmed variant receipt.');
+        return;
+      }
+      const validation = validateExtraction(data, {
+        name: item.expectedName || item.name,
+        brandHint: item.brandHint ?? null,
+        upc: item.upc ?? null,
+        selectedVariantKey: decision.variantKey,
+        extractedVariantKey,
+      });
+      if (!validation.valid || !data.title) {
+        needsInput(validation.reason ?? 'Static page extraction did not establish the confirmed product identity.');
+        return;
+      }
+      data.price = null;
+      const dataJson = JSON.stringify(data);
+      getDb().transaction(() => {
+        insertExtraction({
+          itemId: item.id,
+          sourceUrl: item.sourceUrl,
+          extractionDataJson: dataJson,
+          extractionMethod: 'confirmed_page_static',
+          confidence: data.confidence,
+          imagesJson: null,
+          rawStructuredDataJson: JSON.stringify(data.fieldProvenance),
+        });
+        getDb().query('UPDATE onboarding_items SET extraction_data_json = ?, updated_at = ? WHERE id = ?')
+          .run(dataJson, new Date().toISOString(), item.id);
+      })();
+      const admitted = refreshItemEvidence(this.workspaceId, item.id);
+      if (admitted.status !== 'accepted' || !admitted.evidence?.facts.some((fact) => fact.field === 'title')) {
+        needsInput(admitted.findings.map((entry) => entry.reason).join('; ') || 'Static source observations were not admitted as current item evidence.');
+        return;
+      }
+      if (!commitClaimedItemExtraction(item.id, claim, dataJson)) {
+        releaseClaimedItemExtraction(item.id, claim);
+        return;
+      }
+      onboardingEvents.emitItemStatus(item.batchId, item.id, 'completed', {
+        stage: 'collect_details',
+        extractedData: data,
+        evidenceSnapshotId: admitted.evidence.id,
+        evidenceRevision: admitted.evidence.revision,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? redactTransportText(error.message) : 'Confirmed-page static extraction failed.';
+      needsInput(reason);
+    }
+  }
+
 
 
   private async processExtraction(item: any): Promise<void> {
@@ -1932,7 +2071,31 @@ export class OnboardingWorker {
         return;
       }
 
-      console.log(`[OnboardingWorker] Extraction for ${item.name} from ${item.sourceUrl}`);
+      const currentDecision = listOfficialPageDecisions(item.id).find((decision) =>
+        decision.workspaceId === this.workspaceId &&
+        decision.itemId === item.id &&
+        decision.url === item.sourceUrl &&
+        Boolean(decision.sourceRunId),
+      );
+      const currentSource = currentDecision && listSourcesByItem(item.id).find((source) =>
+        source.url === currentDecision.url &&
+        source.isSelected &&
+        source.discoveryRunId === currentDecision.sourceRunId,
+      );
+      let approvedPage = false;
+      try {
+        approvedPage = Boolean(currentDecision && currentSource && isAuthorizedOfficialPageUrl(
+          item.sourceUrl,
+          getAllowedOfficialPageDomains({ workspaceId: this.workspaceId, itemId: item.id, brandHint: item.brandHint ?? null }),
+        ));
+      } catch { /* unavailable authority fails closed below */ }
+      if (!approvedPage) {
+        const message = 'Source URL is not bound to a current official decision, selected source, discovery run, and approved manufacturer authority.';
+        if (requireClaimedItemExtractionInput(item.id, claim, message)) {
+          onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', { stage: 'collect_details', error: message });
+        }
+        return;
+      }
 
       let domain = '';
       try {
@@ -1944,7 +2107,7 @@ export class OnboardingWorker {
         resolveExecutableProfile(domain);
       } catch (error) {
         if (error instanceof Error && /^No extractor profile for .+ — profile required/.test(error.message)) {
-          await this.processOfficialIdentityBootstrap(item, claim, assertHeld);
+          await this.processConfirmedPageStaticExtraction(item, claim, assertHeld);
         } else {
           if (failClaimedItemExtraction(item.id, claim, 'The approved extraction profile could not be resolved.')) {
             onboardingEvents.emitItemStatus(item.batchId, item.id, 'failed', { stage: 'collect_details', error: 'The approved extraction profile could not be resolved.' });
@@ -1975,14 +2138,18 @@ export class OnboardingWorker {
         const extractedData = await extract(item.sourceUrl, {
           name: item.expectedName || item.name,
           brandHint: item.brandHint,
-          price: item.price,
           // ADR-0031: enables real identity classification in ladder enrichment.
+          // (ADR 0043: no input price is forwarded — matching uses identity
+          // evidence only, and extraction never carries prices.)
           gtin: item.upc || undefined,
           variantSelection,
         });
 
         if (item.brandHint && !extractedData.brand) extractedData.brand = item.brandHint;
-        if (item.price && !extractedData.price) extractedData.price = item.price;
+        // Input Price Authority (ADR 0043): extraction NEVER carries an
+        // input price and NEVER backfills from one. The item price flows
+        // straight from input to draft; page prices stay observations, not
+        // authorities.
 
         // ADR 0040 extraction revalidation: a confirmed source URL is only
         // as fresh as the page behind it. Changed/conflicting pages and
@@ -1996,12 +2163,43 @@ export class OnboardingWorker {
             return [];
           }
         })();
-        const confirmed = decisions.find(d => d.url === item.sourceUrl) ?? decisions[0] ?? null;
-        if (!confirmed || confirmed.url !== item.sourceUrl) {
-          updateItemStageStatus(item.id, 'needs_input', 'Source URL is not a confirmed official page');
+        const confirmed = decisions.find((decision) => {
+          if (
+            decision.workspaceId !== this.workspaceId ||
+            decision.itemId !== item.id ||
+            decision.url !== item.sourceUrl ||
+            !decision.sourceRunId
+          ) return false;
+          return listSourcesByItem(item.id).some((source) =>
+            source.url === decision.url &&
+            source.isSelected &&
+            source.discoveryRunId === decision.sourceRunId,
+          );
+        }) ?? null;
+        if (!confirmed) {
+          updateItemStageStatus(item.id, 'needs_input', 'Source URL is not bound to a current confirmed official page, selected source, and discovery run');
           onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', {
             stage: 'collect_details',
-            error: 'Source URL is not a confirmed official page',
+            error: 'Source URL is not bound to a current confirmed official page, selected source, and discovery run',
+          });
+          return;
+        }
+        let currentAuthority = false;
+        try {
+          currentAuthority = isAuthorizedOfficialPageUrl(
+            item.sourceUrl,
+            getAllowedOfficialPageDomains({
+              workspaceId: this.workspaceId,
+              itemId: item.id,
+              brandHint: item.brandHint ?? null,
+            }),
+          );
+        } catch { /* authority failure is a closed progression below */ }
+        if (!currentAuthority) {
+          updateItemStageStatus(item.id, 'needs_input', 'Approved manufacturer authority changed during page extraction');
+          onboardingEvents.emitItemStatus(item.batchId, item.id, 'needs_input', {
+            stage: 'collect_details',
+            error: 'Approved manufacturer authority changed during page extraction',
           });
           return;
         }
@@ -2099,7 +2297,7 @@ export class OnboardingWorker {
         console.log(
           `[OnboardingWorker] ✓ Extraction complete for "${item.name}" (${item.upc}): ` +
           `title="${extractedData.title || 'N/A'}", brand="${extractedData.brand || 'N/A'}", ` +
-          `price="${extractedData.price || 'N/A'}", confidence=${(extractedData.confidence * 100).toFixed(0)}%, ` +
+          `confidence=${(extractedData.confidence * 100).toFixed(0)}%, ` +
           `images=${extractedData.additionalImages ? extractedData.additionalImages.length : 0}`
         );
 
