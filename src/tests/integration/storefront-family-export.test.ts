@@ -8,8 +8,9 @@ import { createWorkspaceDirs, writeProductFile } from '../../git/workspace-files
 import { GitClient } from '../../git/git-client';
 import { initDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
-import { createChangeSet, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
-import { approveChangeSet, loadApprovedLinkedExport } from '../../server/services/change-set-service';
+import { approveChangeSet, loadApprovedLinkedExport, recoverLinkedApproval } from '../../server/services/change-set-service';
+import { createChangeSet, upsertChangeSetItem, findLinkedManifest } from '../../db/repositories/change-set-repo';
+import { getChangeSetDetail } from '../../server/services/change-set-service';
 import {
   stageStorefrontFamilyPlan,
   stageNonFoodStorefrontFamilyPlan,
@@ -132,24 +133,44 @@ describe('storefront family smoke: review → revise/accept → approval → exp
       draftsBySku: new Map(products.map((p) => [p.sku, structuredClone(p)])),
       actor: 'reviewer-2',
     });
-    const approved = approveChangeSet(applied.changeSetId, workspacePath);
-    expect(approved.success).toBe(true);
+    const git = new GitClient(workspacePath);
+    const headBefore = git.getHeadHash();
+    const failedBeforeCommit = approveChangeSet(applied.changeSetId, workspacePath, { beforeCommit: true });
+    expect(failedBeforeCommit.success).toBe(false);
+    expect(git.getHeadHash()).toBe(headBefore);
+    expect(getChangeSetDetail(applied.changeSetId).changeSet!.status).toBe('draft');
+    expect(findLinkedManifest(applied.changeSetId)!.status).toBe('pending');
+    const interrupted = approveChangeSet(applied.changeSetId, workspacePath, { afterCommitBeforeCompletion: true });
+    expect(interrupted.success).toBe(false);
+    const manifest = findLinkedManifest(applied.changeSetId)!;
+    expect(manifest.status).toBe('committed');
+    expect(manifest.commitHash).toMatch(/^[0-9a-f]{40}$/);
+    const interruptedHash = manifest.commitHash!;
+    expect(git.getHeadHash()).toBe(interruptedHash);
+    const recovered = recoverLinkedApproval(applied.changeSetId, workspacePath);
+    expect(recovered.success).toBe(true);
+    expect(recovered.commitHash).toBe(interruptedHash);
+    expect(git.getHeadHash()).toBe(interruptedHash);
     const linked = loadApprovedLinkedExport(applied.changeSetId, workspacePath);
     expect(linked.ok).toBe(true);
     if (!linked.ok) return;
+    expect(linked.load.commitHash).toBe(interruptedHash);
     expect(linked.load.products.map((p) => p.sku).sort()).toEqual(['FAM-15', 'FAM-30', 'FAM-5']);
     // Block-on-main-only emission (#368 criterion 4): the main (FAM-15
     // after the pre-acceptance override) carries the single managed block
     // with the full member set self-included exactly once; non-main members
     // carry no managed block of their own.
     for (const product of linked.load.products) {
+      const atCommit = git.readFileAtCommit(interruptedHash, `products/${product.sku}.json`);
+      expect(atCommit).not.toBeNull();
+      expect(hashJson(JSON.parse(atCommit!))).toBe(hashJson(product));
       expect((product.customFields['ProductField7'] ?? '').length).toBeGreaterThan(0);
       expect(product.sku).toMatch(/^FAM-/);
       expect(product.status).toBe('draft');
       expect(product.core.media.primary).toMatch(/^media\/fam-/);
       const block = product.shopsite.preserved.advancedBlocks['Subproducts'];
       if (product.sku === 'FAM-15') {
-        const refs = [...block.matchAll(/<SKU\s*>([^<]*)<\/SKU\s*>/gi)]
+        const refs = [...(block ?? '').matchAll(/<SKU\s*>([^<]*)<\/SKU\s*>/gi)]
           .map((m) => m[1]!.trim())
           .sort();
         expect(refs).toEqual(['FAM-15', 'FAM-30', 'FAM-5']);
@@ -161,6 +182,8 @@ describe('storefront family smoke: review → revise/accept → approval → exp
     const pkg = ShopSiteProductCodec.encodeMany(linked.load.products);
     expect((pkg.xml.match(/<Subproducts>/g) ?? []).length).toBe(1);
     expect((pkg.xml.match(/<Subproduct>/g) ?? []).length).toBe(3);
+    expect(pkg.xml).toContain('<ProductDisabled>checked</ProductDisabled>');
+    expect(pkg.xml).toContain('<MoreInformationText>');
     const familyRow = findStorefrontFamilyPlanById(accepted.plan.id)!;
     expect(parseStorefrontFamilyPlan(familyRow.planJson).linkedChangeSetId).toBe(applied.changeSetId);
   });

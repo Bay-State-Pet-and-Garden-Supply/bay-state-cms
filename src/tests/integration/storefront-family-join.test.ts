@@ -994,8 +994,29 @@ describe('imported size joins reviewed existing family (issue #370)', () => {
     const linked = loadApprovedLinkedExport(applied.changeSetId, workspacePath);
     expect(linked.ok).toBe(true);
     if (!linked.ok) return;
+    const commitHash = linked.load.commitHash;
+    expect(commitHash).toMatch(/^[0-9a-f]{40}$/);
     expect(linked.load.products.map((p) => p.sku).sort()).toEqual(['FAM-30', 'FAM-5']);
     expect(linked.load.manifest.reads.map((r) => r.sku)).toContain('FAM-15');
+    const git = new GitClient(workspacePath);
+    expect(git.getHeadHash()).toBe(commitHash);
+    for (const sku of ['FAM-5', 'FAM-30']) {
+      const committed = git.readFileAtCommit(commitHash, `products/${sku}.json`);
+      expect(committed).not.toBeNull();
+      const product = JSON.parse(committed!) as Product;
+      expect(product.sku).toBe(sku);
+      expect(product.customFields['ProductField7']).toBeTruthy();
+      expect(product.customFields['ProductField16']).toBe('Acme');
+      expect(product.customFields['ProductField17']).toBe('Dog');
+      expect(product.customFields['ProductField18']).toBe('Adult');
+      expect(product.customFields['ProductField22']).toBe('Dry Kibble');
+      expect(product.customFields['ProductField23']).toBe('Chicken');
+      expect(product.customFields['ProductField24']).toBe('Chicken Dinner');
+    }
+    const main = JSON.parse(git.readFileAtCommit(commitHash, 'products/FAM-5.json')!) as Product;
+    const refs = [...(main.shopsite.preserved.advancedBlocks['Subproducts'] ?? '').matchAll(/<SKU\s*>([^<]*)<\/SKU\s*>/gi)].map((m) => m[1]!.trim()).sort();
+    expect(refs).toEqual(['FAM-30', 'FAM-5']);
+    expect(ShopSiteProductCodec.encodeMany(linked.load.products).xml).toContain('<ProductDisabled>checked</ProductDisabled>');
   });
 
   it('reviews a complete non-food join: member/model invariants, varying size/color axes, and exact write set', () => {
