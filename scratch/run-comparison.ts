@@ -1,11 +1,11 @@
-#!/usr/bin/env bun
 /**
  * Evaluation-only comparison executor.
  * Usage: bun scratch/run-comparison.ts --split development --arm both --mode comparison --max-spend-usd 0.25
  * A missing/zero cap is a dry-run budget abort; --mode mechanism-check always requires a zero cap and accounts three source rows without live provider calls.
+ * Positive-cap comparison runs dispatch real providers using operator credentials provisioned per disposable arm; missing credentials block affected items without ending the run.
  */
 import { randomUUID } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, cpSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -72,20 +72,41 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
     if (existsSync(path.join(sourceRoot, 'catalog'))) cpSync(path.join(sourceRoot, 'catalog'), catalogPath, { recursive: true, force: true });
   } else if (existsSync(path.join(sourceRoot, 'catalog'))) cpSync(path.join(sourceRoot, 'catalog'), catalogPath, { recursive: true, force: true });
   mkdirSync(workspacePath, { recursive: true });
+  const brandDomainsPath = path.join(runDir, 'brand_domains.json');
+  if (!existsSync(brandDomainsPath)) copyFileSync('/tmp/brand_domains.json', brandDomainsPath);
   const load = async (file: string) => import(pathToFileURL(path.join(sourceRoot, file)).href);
-  const [connection, migrations, workspaceRepo, batchRepo, itemRepo, productRepo, entryPolicy, flags, workerModule] = await Promise.all([
+  const [connection, migrations, workspaceRepo, batchRepo, itemRepo, productRepo, entryPolicy, flags, workerModule, brandSiteRepo] = await Promise.all([
     load('src/db/connection.ts'), load('src/db/migrations.ts'), load('src/db/repositories/workspace-repo.ts'),
     load('src/db/repositories/onboarding-batch-repo.ts'), load('src/db/repositories/onboarding-item-repo.ts'),
     load('src/db/repositories/product-index-repo.ts'), load('src/onboarding/sourcing/entry-policy.ts'),
-    load('src/onboarding/flags.ts'), load('src/onboarding/job-queue.ts'),
+    load('src/onboarding/flags.ts'), load('src/onboarding/job-queue.ts'), load('src/db/repositories/brand-site-repo.ts'),
   ]);
   const { closeDb, initDb } = connection;
   try {
     initDb(dbPath);
     migrations.runMigrations();
+    if (options.mode === 'comparison' && options.cap > 0) {
+      // Run-scoped credential provisioning (operator-approved): copy the
+      // Serper key into the DISPOSABLE arm DB only. Never logged or committed.
+      const prodDb = path.join(process.cwd(), 'storage/catalog/.shopsite-cms/app.db');
+      let serperKey = '';
+      try {
+        serperKey = execFileSync('sqlite3', ['-readonly', prodDb, "SELECT api_key FROM api_keys WHERE service = 'serper_search' LIMIT 1;"], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      } catch { /* missing key blocks items below, never throws here */ }
+      if (serperKey) {
+        const apiKeyRepo = await load('src/db/repositories/api-key-repo.ts');
+        apiKeyRepo.upsertApiKey('serper_search', serperKey);
+      }
+    }
     const now = new Date().toISOString();
     const workspace: Workspace = { id: randomUUID(), name: `evaluation-${arm}`, workspacePath, gitPath: catalogPath, createdAt: now, updatedAt: now, bootstrapStatus: 'complete', baselineCommit: null };
     workspaceRepo.insertWorkspace(workspace);
+    const brandDomains = JSON.parse(await Bun.file(brandDomainsPath).text()) as Record<string, string>;
+    const brandTokens = [...new Set(rows.map(row => String(row.register_name).trim().split(/\s+/)[0]!.toUpperCase()))];
+    const brandsRegistered = brandTokens.filter(token => brandDomains[token]).map(token => {
+      brandSiteRepo.upsertBrandSite(token, brandDomains[token]!);
+      return { brand: token, domain: brandDomains[token] };
+    });
     const importStarted = Date.now();
     const valid: InsertItemData[] = [];
     const skipped: Array<Record<string, unknown>> = [];
@@ -95,7 +116,7 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
       const upc = String(row.upc);
       if (productRepo.findProductBySku(upc)) skipped.push({ row_id: row.row_id, reason: 'catalog_duplicate' });
       else if (seen.has(upc)) duplicates.push({ row_id: row.row_id, reason: 'duplicate_in_batch' });
-      else { seen.add(upc); valid.push({ upc, name: String(row.register_name), price: String(row.price), rowNumber: valid.length + 1, isDuplicate: false, existingSku: null }); }
+      else { seen.add(upc); valid.push({ upc, name: String(row.register_name), price: String(row.price), brandHint: String(row.register_name).trim().split(/\s+/)[0]!.toUpperCase(), rowNumber: valid.length + 1, isDuplicate: false, existingSku: null }); }
     }
     const batch = batchRepo.createBatch({ workspaceId: workspace.id, name: `Evaluation ${arm}`, fileName: 'manifest-rows', totalItems: valid.length, executionState: 'running', columnMappingJson: JSON.stringify({ upc: 'upc', name: 'register_name', price: 'price' }) });
     itemRepo.insertItems(batch.id, valid, entryPolicy.deriveSourcingEntryStage(flags.getSourcingFlags()), entryPolicy.SOURCING_ENTRY_POLICY_VERSION);
@@ -172,6 +193,15 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
         output.model_calls = { call_ids: [], input_tokens: 0, output_tokens: 0, status: 'observed' };
         output.search_calls = { requests: 0, bytes: 0, status: 'unavailable', reason: 'No Serper usage repository getter is available.' };
         output.disposition = 'imported_pending_pipeline';
+        if (options.mode === 'comparison' && !process.env.TYPESAFE_API_KEY) {
+          output.disposition = 'blocked';
+          output.error = 'BLOCKED_CREDENTIALS: TYPESAFE_API_KEY is not set in the operator environment.';
+          output.gate_blocks = ['BLOCKED_CREDENTIALS'];
+          outputCost.status = 'blocked';
+          output.model_calls = { call_ids: [], input_tokens: 0, output_tokens: 0, status: 'blocked' };
+          output.search_calls = { requests: 0, bytes: 0, status: 'blocked' };
+          continue;
+        }
         const itemStarted = Date.now();
         outputTimings.start = itemStarted;
         try {
@@ -212,7 +242,7 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
     return {
       schema_version: 1, protocol: manifest.protocol, run_id: path.basename(runDir), split: options.split, arm, mode: options.mode,
       status: options.cap === 0 ? 'BLOCKED_BUDGET' : runStatus, qualification_eligible: false, gold_visible_to_prediction_process: false,
-      original_row_count: rows.length, imported_row_count: imported.length, skipped_rows: skipped, duplicate_rows: duplicates, rows: resultRows,
+      brands_registered: brandsRegistered.length, brand_list: brandsRegistered,
       accounting: { source_rows: rows.length, imported_rows: imported.length, skipped_rows: skipped.length, duplicate_rows: duplicates.length,
         terminal_rows: terminalCount, budget_cap_usd: options.cap,
         projected_spend_usd: projectedSpendUsd, observed_spend_usd: observedSpendUsd, spend_status: 'Projected rates and token counts are ESTIMATED; provider-reported model costs are observed.',
