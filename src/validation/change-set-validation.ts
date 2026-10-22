@@ -400,7 +400,24 @@ export function validateChangeSet(changeSetId: string, options?: ValidationOptio
     }
     setItemValidationStatus(changeSetId, item.sku, 'blocked');
   }
-  if (!isLinkedGroup) {
+  // Family-linked change sets (including reference-free dissolutions) must
+  // reach the adopted-family gate below: the standalone return would skip
+  // origin/run-binding validation for drafts with no Subproducts references.
+  const familyLinked = (() => {
+    try {
+      return listStorefrontFamilyPlans(changeSet?.workspaceId ?? '').some((row) => {
+        try {
+          return parseStorefrontFamilyPlan(row.planJson).linkedChangeSetId === changeSetId ||
+            row.linkedChangeSetId === changeSetId;
+        } catch {
+          return row.linkedChangeSetId === changeSetId;
+        }
+      });
+    } catch {
+      return false;
+    }
+  })();
+  if (!isLinkedGroup && !familyLinked) {
     const standaloneResults = listValidationResults('change_set', changeSetId);
     const standaloneBlockers = standaloneResults.filter(r => r.severity === 'blocker').length;
     const standaloneWarnings = standaloneResults.filter(r => r.severity === 'warning').length;
