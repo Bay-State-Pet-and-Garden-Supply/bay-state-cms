@@ -102,42 +102,129 @@ async function executeArm(arm: Arm, rows: Row[], options: Options, manifest: Man
     const imported = itemRepo.listItemsByBatch(batch.id);
     if (imported.length !== valid.length) throw new Error(`Importer reconciliation failed: expected ${valid.length}, got ${imported.length}`);
     const importMs = Date.now() - importStarted;
-    const resultRows = rows.map(row => {
+    const resultRows: Array<Record<string, unknown>> = rows.map(row => {
       const item = imported.find(candidate => candidate.upc === String(row.upc));
-      const blocked = options.cap === 0;
       return {
         row_id: row.row_id, input: sourceInput(row),
-        disposition: item ? (blocked ? 'BLOCKED_BUDGET' : 'imported_pending_pipeline') : (duplicates.some(entry => entry.row_id === row.row_id) ? 'duplicate' : 'skipped'),
+        disposition: item ? (options.cap === 0 ? 'budget_blocked' : 'imported_pending_pipeline') : (duplicates.some(entry => entry.row_id === row.row_id) ? 'duplicate' : 'skipped'),
         exact_identity_variant: null, candidates: null, authority: null, checklist: null, claim_units: null,
-        gate_blocks: blocked && item ? ['BLOCKED_BUDGET'] : [],
-        model_calls: { call_ids: [], tokens: null, status: 'unavailable', reason: 'No provider call was dispatched; repository pagination does not apply.' },
-        search_calls: { requests: null, bytes: null, status: 'unavailable', reason: 'Pipeline dispatch is budget-blocked.' },
+        gate_blocks: options.cap === 0 && item ? ['BLOCKED_BUDGET'] : [],
+        model_calls: { call_ids: [], input_tokens: 0, output_tokens: 0, status: 'pending' },
+        search_calls: { requests: 0, bytes: 0, status: 'pending' },
         timings_ms: { import: importMs, start: null, first_terminal_outcome: null },
-        cost: { observed_usd: null, rate_usd: null, rate_date: null, status: 'unavailable' },
+        cost: { observed_usd: null, estimated_usd: null, rate_usd: null, rate_date: null, status: 'pending' },
       };
     });
+    let projectedSpendUsd = 0;
+    let observedSpendUsd = 0;
+    let stoppedForBudget = options.cap === 0;
     if (options.mode === 'mechanism-check') {
       if (options.cap !== 0) throw new Error('Mechanism check requires a zero cap.');
       const worker = new workerModule.OnboardingWorker(workspace.id, workspacePath);
       await worker.poll();
       await worker.drain();
-      for (const row of resultRows) if (row.disposition === 'BLOCKED_BUDGET') row.gate_blocks = ['BLOCKED_BUDGET', 'worker_poll_exercised'];
+      for (const row of resultRows) if (row.disposition === 'budget_blocked') row.gate_blocks = ['BLOCKED_BUDGET', 'worker_poll_exercised'];
+    } else {
+      const pricingModule = await load('src/ai/model-pricing.ts');
+      const modelRate = pricingModule.getModelPricing('gpt-4o-mini');
+      const serperRateUsd = 0.001; // PINNED ESTIMATE: $1.00 / 1,000 queries, 2026-10-22.
+      const expectedInputTokens = 4_000;
+      const expectedOutputTokens = 1_000;
+      const modelCost = modelRate
+        ? (expectedInputTokens / 1_000_000) * modelRate.inputPerMillion +
+          (expectedOutputTokens / 1_000_000) * (modelRate.outputPerMillion ?? 0)
+        : null;
+      const marginalEstimate = modelCost === null ? null : modelCost + serperRateUsd;
+      const worker = new workerModule.OnboardingWorker(workspace.id, workspacePath, 1, 1);
+      const modelCallRepo = await load('src/db/repositories/ai-model-call-repo.ts');
+      let previousCalls = modelCallRepo.getAiModelCallsByWorkspace(workspace.id, 100_000);
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex]!;
+        const output = resultRows[rowIndex]!;
+        const item = imported.find(candidate => candidate.upc === String(row.upc));
+        
+        const outputCost = output.cost as { observed_usd: number | null; estimated_usd: number | null; rate_usd: unknown; rate_date: string | null; status: string };
+        const outputTimings = output.timings_ms as { import: number; start: number | null; first_terminal_outcome: number | null };
+        if (!item) continue;
+        if (marginalEstimate === null) {
+          output.disposition = 'failed';
+          output.error = 'BLOCKED_UNKNOWN_COST: no published model price is available for the expected model calls.';
+          output.gate_blocks = ['BLOCKED_UNKNOWN_COST'];
+          output.cost = { observed_usd: null, estimated_usd: null, rate_usd: null, rate_date: null, status: 'unknown' };
+          continue;
+        }
+        if (projectedSpendUsd + marginalEstimate > options.cap) {
+          stoppedForBudget = true;
+          for (let j = rowIndex; j < rows.length; j++) {
+            const pendingItem = imported.find(candidate => candidate.upc === String(rows[j]!.upc));
+            if (pendingItem) {
+              resultRows[j]!.disposition = 'budget_blocked';
+              resultRows[j]!.gate_blocks = ['BLOCKED_BUDGET'];
+            }
+          }
+          break;
+        }
+        projectedSpendUsd += marginalEstimate;
+        outputCost.estimated_usd = marginalEstimate;
+        outputCost.rate_usd = { model_input_per_million: modelRate!.inputPerMillion, model_output_per_million: modelRate!.outputPerMillion, serper_per_query: serperRateUsd };
+        outputCost.rate_date = '2026-10-22 ESTIMATED';
+        outputCost.status = 'estimated';
+        output.model_calls = { call_ids: [], input_tokens: 0, output_tokens: 0, status: 'observed' };
+        output.search_calls = { requests: 0, bytes: 0, status: 'unavailable', reason: 'No Serper usage repository getter is available.' };
+        output.disposition = 'imported_pending_pipeline';
+        const itemStarted = Date.now();
+        outputTimings.start = itemStarted;
+        try {
+          let terminal = false;
+          while (!terminal) {
+            await worker.poll();
+            await worker.drain();
+            const current = itemRepo.listItemsByBatch(batch.id).find((candidate: { id: string }) => candidate.id === item.id);
+            if (!current) throw new Error('Imported item disappeared during worker processing.');
+            terminal = current.stageStatus === 'completed' || current.stageStatus === 'failed' || current.stageStatus === 'needs_input' || current.stageStatus === 'blocked';
+            if (!terminal) await new Promise(resolve => setTimeout(resolve, 25));
+          }
+          output.disposition = 'completed';
+          output.outcome = itemRepo.listItemsByBatch(batch.id).find((candidate: { id: string; stageStatus: string }) => candidate.id === item.id)?.stageStatus ?? null;
+          outputTimings.first_terminal_outcome = Date.now() - itemStarted;
+        } catch (error) {
+          output.disposition = 'failed';
+          output.error = error instanceof Error ? error.message : String(error);
+        }
+        const calls = modelCallRepo.getAiModelCallsByWorkspace(workspace.id, 100_000);
+        const newCalls = calls.filter((call: { id: string }) => !previousCalls.some((previous: { id: string }) => previous.id === call.id));
+        previousCalls = calls;
+        output.model_calls = {
+          call_ids: newCalls.map((call: { id: string }) => call.id),
+          input_tokens: newCalls.reduce((sum: number, call: { prompt_tokens: number | null }) => sum + (call.prompt_tokens ?? 0), 0),
+          output_tokens: newCalls.reduce((sum: number, call: { completion_tokens: number | null }) => sum + (call.completion_tokens ?? 0), 0),
+          status: 'observed',
+        };
+        outputCost.observed_usd = newCalls.every((call: { estimated_cost_usd: number | null }) => typeof call.estimated_cost_usd === 'number')
+          ? newCalls.reduce((sum: number, call: { estimated_cost_usd: number }) => sum + call.estimated_cost_usd, 0)
+          : null;
+        if (outputCost.observed_usd !== null) observedSpendUsd += outputCost.observed_usd;
+      }
+      await worker.drain();
     }
+    const terminalCount = resultRows.filter(row => ['completed', 'failed', 'budget_blocked'].includes(String(row.disposition))).length;
+    const runStatus = stoppedForBudget ? 'BLOCKED_BUDGET' : resultRows.some(row => row.disposition === 'failed') ? 'PARTIAL' : 'COMPLETE';
     return {
       schema_version: 1, protocol: manifest.protocol, run_id: path.basename(runDir), split: options.split, arm, mode: options.mode,
-      status: options.cap === 0 ? 'BLOCKED_BUDGET' : 'BLOCKED', qualification_eligible: false, gold_visible_to_prediction_process: false,
+      status: options.cap === 0 ? 'BLOCKED_BUDGET' : runStatus, qualification_eligible: false, gold_visible_to_prediction_process: false,
       original_row_count: rows.length, imported_row_count: imported.length, skipped_rows: skipped, duplicate_rows: duplicates, rows: resultRows,
       accounting: { source_rows: rows.length, imported_rows: imported.length, skipped_rows: skipped.length, duplicate_rows: duplicates.length,
-        terminal_rows: resultRows.filter(row => row.disposition === 'BLOCKED_BUDGET').length, budget_cap_usd: options.cap,
-        projected_spend_usd: 0, observed_spend_usd: 0, spend_status: 'No provider calls dispatched at zero cap.',
+        terminal_rows: terminalCount, budget_cap_usd: options.cap,
+        projected_spend_usd: projectedSpendUsd, observed_spend_usd: observedSpendUsd, spend_status: 'Projected rates and token counts are ESTIMATED; provider-reported model costs are observed.',
         reconciliation: 'Manifest rows reconciled against imported rows; batch.totalItems not used.' },
       mechanism_check: options.mode === 'mechanism-check' ? {
         passed: rows.length === 3 && imported.length === valid.length,
         asserted: ['three manifest rows accounted', 'real repository importer invoked', 'imported rows exist in arm DB', 'real worker poll invoked', 'zero provider calls at zero cap'],
       } : null,
-      blockers: ['BLOCKED_BUDGET', 'BLOCKED_METRIC_CAPTURE'],
-      limitation: 'Budget guard is before worker dispatch; detailed pipeline evidence and review-ready progression are not captured.',
+      blockers: stoppedForBudget ? ['BLOCKED_BUDGET'] : [],
+      limitation: 'Comparison mode dispatches real worker processing and may incur provider charges; estimated rates are not observed charges.',
     };
+    
   } finally {
     try { closeDb(); } catch { /* already closed */ }
     if (arm === 'baseline') {
