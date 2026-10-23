@@ -113,9 +113,10 @@ export async function materializeQualificationRuntime(
   };
   try {
     await mkdir(stage, { recursive: false });
-    // Seed the stage with the declared workspace tree, then overlay frozen
-    // artifacts (overwriting identical paths instead of colliding with them).
-    await copyTree(workspaceReal, stage);
+    // Seed the stage with the declared workspace tree at its private-root-
+    // relative location, then overlay frozen artifacts (overwriting identical
+    // paths instead of colliding with them).
+    await copyTree(workspaceReal, resolve(stage, workspaceRelative));
     for (const artifact of checked.run.artifacts) {
       const source = await resolvePrivateFile(root, artifact.path);
       const target = resolve(stage, artifact.path);
