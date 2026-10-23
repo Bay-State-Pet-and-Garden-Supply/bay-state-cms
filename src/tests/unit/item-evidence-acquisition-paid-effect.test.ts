@@ -1,14 +1,14 @@
 import { describe, expect, it, mock } from 'bun:test';
 
-const evidence = null;
+const evidence = { id: 'evidence-ready', facts: [], observations: [] };
 const readiness = {
-  evaluation: { status: 'needs_attention', requirements: [], reasons: [] },
+  evaluation: { status: 'needs_attention', requirements: [], reasons: ['gap: title'] },
   classificationReady: false,
-  classificationReason: null,
-  standard: null,
+  classificationReason: 'Human review is required.',
+  standard: { requirements: [] },
   evidence,
   nonWaivableFields: [],
-  classificationSource: 'none',
+  classificationSource: 'reviewed',
 } as const;
 
 mock.module('../../onboarding/item-evidence', () => ({
@@ -54,8 +54,10 @@ describe('item evidence acquisition paid-effect preflight', () => {
     const serperPath = await runItemEvidenceAcquisition({ ...input, paidEffect: { scope, client, browserSessionContract: contract } });
     const browserPath = await runItemEvidenceAcquisition({ ...input, paidEffect: { scope, client, serperSearchContract: contract } });
 
-    expect(serperPath.status).toBe('unavailable');
-    expect(browserPath.status).toBe('unavailable');
+    for (const result of [serperPath, browserPath]) {
+      expect(result.status).toBe('unavailable');
+      expect(result.reason).toBe('Paid-effect scope and verified billing contracts are required before supplemental evidence retrieval.');
+    }
     expect(serperDispatches).toBe(0);
     expect(browserDispatches).toBe(0);
   });
@@ -64,6 +66,7 @@ describe('item evidence acquisition paid-effect preflight', () => {
     const result = await runItemEvidenceAcquisition(input);
 
     expect(result.status).toBe('unavailable');
+    expect(result.reason).toBe('Paid-effect scope and verified billing contracts are required before supplemental evidence retrieval.');
     expect(serperDispatches).toBe(0);
     expect(browserDispatches).toBe(0);
   });

@@ -158,13 +158,21 @@ async function main(): Promise<void> {
         return { prepared: result.prepared, denial: result.denial };
       },
       async (arm, prepared) => {
-        const freeze = await readQualificationFreeze(freezePath);
-        const paidEffect = buildRunPaidEffect(byArm.get(arm)!, prepared, {
-          runId, capUsd: options.cap, authorizationUsdMicros: freeze.authorizationUsdMicros,
-          billingReferences: freeze.billingReferences,
-        }, sharedBudgetCoordinator);
-        sharedBudgetCoordinator = paidEffect.coordinator;
-        return releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap, paidEffect });
+        try {
+          const freeze = await readQualificationFreeze(freezePath);
+          const paidEffect = buildRunPaidEffect(byArm.get(arm)!, prepared, {
+            runId, capUsd: options.cap, authorizationUsdMicros: freeze.authorizationUsdMicros,
+            billingReferences: freeze.billingReferences,
+          }, sharedBudgetCoordinator);
+          sharedBudgetCoordinator = paidEffect.coordinator;
+          return await releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap, paidEffect });
+        } catch (error) {
+          // Frozen-contract/cap rejection is a structured per-arm denial, not a
+          // top-level crash: the prepared population stays held, raw output,
+          // capture, and report rows still generate below.
+          const denial = error instanceof Error ? error.message : String(error);
+          return { arm, stop: 'denied' as const, imported: prepared.imported, polls: 0, state: null, denial } as ArmResult;
+        }
       },
       options.cap > 0 && options.mode === 'comparison',
     );
