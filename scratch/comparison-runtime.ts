@@ -1,3 +1,5 @@
+import type { Database } from 'bun:sqlite';
+
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath, rename, rm, copyFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -44,7 +46,12 @@ export async function readQualificationFreeze(path: string): Promise<Qualificati
   return parsed.data;
 }
 
-export async function validateQualificationRuntime(freezePath: string, privateRoot: string, workspacePath: string): Promise<QualificationRuntimeValidation> {
+export async function validateQualificationRuntime(
+  freezePath: string,
+  privateRoot: string,
+  workspacePath: string,
+  db?: Database,
+): Promise<QualificationRuntimeValidation> {
   const root = await realpath(privateRoot);
   const workspace = await realpath(workspacePath);
   assertContained(root, workspace);
@@ -67,7 +74,7 @@ export async function validateQualificationRuntime(freezePath: string, privateRo
       // Binary and non-JSON source artifacts are bound by their declared digest.
     }
   }
-  const authority = loadRuntimeConfigAuthority(workspace, createRuntimeActivationContext(workspace, run.workspaceId));
+  const authority = loadRuntimeConfigAuthority(workspace, createRuntimeActivationContext(workspace, run.workspaceId, db));
   if (authority.kind !== 'v2') throw new Error('Qualification runtime requires committed v2 authority');
   const policySnapshot = captureModelPolicySnapshot(workspace, undefined, run.workspaceId);
   if (policySnapshot.state !== 'configured') throw new Error(`Model policy unavailable: ${policySnapshot.reason}`);
@@ -79,9 +86,10 @@ export async function materializeQualificationRuntime(
   privateRoot: string,
   workspacePath: string,
   destinationRoot: string,
+  db?: Database,
 ): Promise<QualificationRuntimeValidation> {
-  const checked = await validateQualificationRuntime(freezePath, privateRoot, workspacePath);
   const root = await realpath(privateRoot);
+  const checked = await validateQualificationRuntime(freezePath, privateRoot, workspacePath, db);
   const destination = resolve(destinationRoot);
   assertContained(root, destination);
   const parentReal = await realpath(dirname(destination));
@@ -102,7 +110,7 @@ export async function materializeQualificationRuntime(
     await mkdir(dirname(stagedWorkspace), { recursive: true });
     if ((await lstat(destination).catch(() => null)) !== null) throw new Error('Disposable destination already exists');
     await rename(stage, destination);
-    return await validateQualificationRuntime(freezePath, privateRoot, resolve(destination, workspaceRelative));
+    return await validateQualificationRuntime(freezePath, privateRoot, resolve(destination, workspaceRelative), db);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
     if ((await lstat(destination).catch(() => null)) !== null) await rm(destination, { recursive: true, force: true });

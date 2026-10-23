@@ -1,3 +1,5 @@
+import type { Database } from 'bun:sqlite';
+
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
 
@@ -38,8 +40,8 @@ export function getPageByName(name: string): PageRow | null {
  * currently ACTIVE page import and whose availability is `available`.
  * Name-only and out-of-import rows are review context and never appear here.
  */
-export function listVerifiedPageOptions(workspaceId: string): PageRow[] {
-  const db = getDb();
+export function listVerifiedPageOptions(workspaceId: string, reader?: Database): PageRow[] {
+  const db = reader ?? getDb();
   const rows = db.query(
     `SELECT p.* FROM page_index p
      JOIN page_imports i ON i.id = p.import_id

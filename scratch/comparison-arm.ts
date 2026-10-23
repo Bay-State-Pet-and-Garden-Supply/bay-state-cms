@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { materializeQualificationRuntime, readQualificationFreeze, validateQualificationRuntime, type QualificationRuntimeValidation } from './comparison-runtime';
 import { importQualificationRuntimeRecords } from '../src/db/repositories/qualification-runtime-repo';
-import { closeDb, initDb } from '../src/db/connection';
+import { closeDb, getDb, initDb } from '../src/db/connection';
 import { runMigrations } from '../src/db/migrations';
 import { OnboardingWorker } from '../src/onboarding/job-queue';
 import { createBatch, findBatchById, updateBatchExecutionState } from '../src/db/repositories/onboarding-batch-repo';
@@ -42,10 +42,10 @@ export async function preflightComparisonArm(options: ArmBootstrapOptions, rows:
     if (!run.authorizedArms.includes(options.arm)) throw new Error(`Arm not authorized: ${options.arm}`);
     if (rows.length === 0) throw new Error('Selected split population is empty');
     if (rows.length > run.limits.maxItems) throw new Error('Population exceeds frozen item limit');
-    const validation = await materializeQualificationRuntime(resolveRooted(options.freezePath), options.privateRoot, resolveRooted(options.workspacePath), path.resolve(options.destinationRoot));
     const db: Database = initDb(options.dbPath);
     initialized = true;
     runMigrations();
+    const validation = await materializeQualificationRuntime(resolveRooted(options.freezePath), options.privateRoot, resolveRooted(options.workspacePath), path.resolve(options.destinationRoot), db);
     const items: InsertItemData[] = rows.map((row, index) => ({
       upc: row.upc, name: row.register_name, price: String(row.price), rowNumber: index + 1,
       isHeld: true, stageStatus: 'pending',
@@ -73,13 +73,12 @@ export async function releaseComparisonArm(options: ArmBootstrapOptions, prepare
   let initialized = false;
   try {
     const freezeResolved = options.freezePath;
-    const validation = await validateQualificationRuntime(freezeResolved, options.privateRoot, prepared.workspacePath);
-    if (!validation.run.authorizedArms.includes(options.arm) || prepared.arm !== options.arm || !prepared.batchId) throw new Error('Arm release does not match a successful preflight');
-    if (prepared.imported !== prepared.itemIds.length) throw new Error('Prepared population is inconsistent');
-    bindings = await credentials(options.credentialFd, validation);
     const db: Database = initDb(options.dbPath);
     initialized = true;
     runMigrations();
+    const validation = await validateQualificationRuntime(freezeResolved, options.privateRoot, prepared.workspacePath, db);
+    if (!validation.run.authorizedArms.includes(options.arm) || prepared.arm !== options.arm || !prepared.batchId) throw new Error('Arm release does not match a successful preflight');
+    bindings = await credentials(options.credentialFd, validation);
     for (const [key, value] of Object.entries(bindings)) process.env[key] = value;
     const batch = findBatchById(prepared.batchId);
     if (!batch || batch.workspaceId !== validation.run.workspaceId || batch.executionState !== 'paused') throw new Error('Prepared batch is missing, foreign, or no longer paused');

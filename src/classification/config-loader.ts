@@ -1,3 +1,5 @@
+import type { Database } from 'bun:sqlite';
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -897,11 +899,15 @@ function loadLegacyRuntimeAuthority(
  * Cheap enough for every runtime load; the full tree re-scan gate is added by
  * the activation caller through `verifyCatalogEvidenceTree`.
  */
-export function createRuntimeActivationContext(workspacePath: string, workspaceId: string): VerifiedActivationContext {
+export function createRuntimeActivationContext(
+  workspacePath: string,
+  workspaceId: string,
+  db?: Database,
+): VerifiedActivationContext {
   return {
     catalogFields: readLiveCatalogFields(workspacePath, workspaceId),
     verifyCatalogEvidence: createCatalogEvidenceVerifier(workspacePath, workspaceId),
-    ...(workspaceId ? { verifiedPageIds: listVerifiedPageOptions(workspaceId).map(page => page.id) } : {}),
+    ...(workspaceId ? { verifiedPageIds: listVerifiedPageOptions(workspaceId, db).map(page => page.id) } : {}),
   };
 }
 
