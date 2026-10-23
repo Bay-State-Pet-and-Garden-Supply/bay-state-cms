@@ -1652,11 +1652,15 @@ export class OnboardingWorker {
           : null;
 
         const killSwitchActive = isOfficialAutoSelectDisabled && verifiedStrong.some(v => hasAuthority(v.candidate));
+        // Authority copy only when authority actually failed: at least one
+        // verified-strong candidate exists and NONE of them passes the
+        // official-domain gate. Matcher/contradiction/coverage blocks are named
+        // by gateDiagnostics, never by this suffix (T2).
         const deniedByAuthority =
           !isOfficialAutoSelectDisabled &&
           autoSelectedResult === null &&
-          verifiedStrong.length > 0;
-
+          verifiedStrong.length > 0 &&
+          verifiedStrong.every(v => !hasAuthority(v.candidate));
         const authorityDetail = deniedByAuthority
           ? ` | authority: auto-accept requires the brand's mapped official domain` +
             ` (brand "${activeBrandHint ?? ''}"` +

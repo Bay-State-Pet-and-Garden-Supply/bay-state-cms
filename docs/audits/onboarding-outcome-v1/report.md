@@ -126,3 +126,23 @@ The 1-row DEV-0015 smoke reached the arm DBs but preflight honestly refused both
 Per the build contract this is `BLOCKED_COMPARABILITY`, not a product bug to patch around. Options: (a) rebase the comparison so both arms share the profile schema (e.g. candidate-backported baseline overlay, explicitly disclosed); (b) narrow the live pilot to profile-independent rows (DEV-0001/0002 discontinued pair excluded — they need no profile — but they also need no live work); (c) accept that live comparison requires the candidate's schema and compare candidate-vs-candidate runs for mechanism proof only, with no baseline efficacy claim.
 
 No live provider call has been made; $3 ceiling untouched. The refusal above is the fail-closed system working as designed.
+
+## T1 — DEV-0015 policy disposition (2026-10-23, operator-held retained)
+
+Policy decision D1 resolved per planner recommendation: **retain operator-held behavior**. A barcode match corroborates identity but does not defeat conflicting visible product/variant evidence (ADR 0040 name-first; ADR 0017 authority independent).
+
+DEV-0015 diagnostic closeout (run `2026-10-23T01-33-44-510Z-9b3bd474-6bca-4f44-a06c-c1a9fb572716`, candidate arm, `--row-id DEV-0015`, $0 spend — no Serper/browser dispatched):
+
+| Gate | Result |
+|---|---|
+| Authority `mywoof.com` | PASS (mapped official domain) |
+| Coverage | PASS |
+| Proof | `exact_variant_gtin`, score 237 |
+| Matcher | BLOCKED `reject_conflict(product_line_mismatch)` |
+| Contradiction | BLOCKED page `sm`/`lg` vs register `XL` |
+| Auto-select commit | none — parked `needs_input_candidates` |
+| Gold | `confirm_variant ?variant=42864285057220` (manual) |
+
+Closure: diagnosis complete. The park is correct policy behavior, not an engine bug. A lone `exact_variant_gtin` does not override matcher + contradiction under current policy. No broad `hasStrongProof` bypass; any narrow GTIN-override variant requires separate D1 re-approval + ADR 0040 amendment (planner T6, omitted). Manual-resolution journey still unproven — planner T5 must exercise `confirmOfficialPageCandidate` + `selectVariantService` before claiming operator escape works.
+
+Budget position at T1: operator reports **$3.30 TypeSafe allowance** and **2,499 Serper credits**. Remaining pilot allowance = $3.30 minus any prior TypeSafe liabilities (none recorded — no TypeSafe calls dispatched to date) for TypeSafe-gated paths; Serper paths draw from the 2,499-credit pool, not the dollar cap. Enforceable shared-budget coordination still missing (planner T4) — no paid dispatch until wired.
