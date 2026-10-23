@@ -12,7 +12,7 @@
  "candidate": {
   "branch_at_protocol_publication": "feat/typesafe-onboarding-expansion",
   "observed_head_not_comparison_freeze": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a",
-  "comparison_freeze_sha": "2f161dea48c18aa5c1e1c2d5049ac4e09d3a0e0adb6be203673e1c630341ab2e",
+  "comparison_freeze_sha": "783c3aa9f4933ba8e3c783f917f0449739899be5eaeb5b6bf21d17010eaceea1",
   "freeze_rule": "Record candidate SHA after development fixes at comparison freeze; never treat observed publication HEAD as the eventual candidate pin.",
   "freeze_file": ".baystate-cms/qualification/onboarding-outcome-v1/freeze-r8-smoke1.json",
   "freeze_note": "R8 1-row smoke (DEV-0015), candidate rev 4c3a5aa4, baseline 91b52e9b. Live Serper-only; TypeSafe refused."
