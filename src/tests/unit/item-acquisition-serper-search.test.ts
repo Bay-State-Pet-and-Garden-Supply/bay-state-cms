@@ -26,35 +26,18 @@ describe('Serper Search adapter', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('sends the documented bounded POST to the fixed Serper origin and returns complete results', async () => {
+  it('requires a verified billing contract and never calls the provider without one', async () => {
     upsertApiKey('serper_search', 'disposable-test-token');
-    let requestUrl: URL | null = null;
-    let requestInit: RequestInit | undefined;
-    const captureFetch: typeof fetch = (async (input: URL | RequestInfo, init?: RequestInit) => {
-      requestUrl = input instanceof URL ? input : new URL(String(input));
-      requestInit = init as RequestInit | undefined;
-      return new Response(JSON.stringify({ organic: [{
-        link: 'https://manufacturer.example/products/item', title: 'Item', snippet: 'Discovery clue only',
-      }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    let called = false;
+    const captureFetch: typeof fetch = (async () => {
+      called = true;
+      return new Response('{}');
     }) as unknown as typeof fetch;
-    const result = await searchSerperWeb('Acme exact product', {
+    await expect(searchSerperWeb('Acme exact product', {
       count: 4,
       fetchImpl: captureFetch,
-    });
-    if (!requestUrl) throw new Error('expected request URL');
-    const capturedUrl: URL = requestUrl;
-    expect(capturedUrl.origin).toBe('https://google.serper.dev');
-    expect(capturedUrl.pathname).toBe('/search');
-    expect(requestInit?.method).toBe('POST');
-    expect((requestInit?.headers as Record<string, string>)['X-API-KEY']).toBe('disposable-test-token');
-    expect(JSON.parse(String(requestInit?.body))).toEqual({ q: 'Acme exact product', num: 4 });
-    expect(requestInit?.redirect).toBe('error');
-    expect(result.results).toEqual([{
-      url: 'https://manufacturer.example/products/item', title: 'Item', description: 'Discovery clue only',
-    }]);
-    expect(result.complete).toBe(true);
-    expect(typeof result.responseBytes).toBe('number');
-    expect(result.responseBytes > 0).toBe(true);
+    })).rejects.toMatchObject({ code: 'contract_required' });
+    expect(called).toBe(false);
   });
 
   it('fails without a server credential and never calls the provider', async () => {
@@ -68,15 +51,56 @@ describe('Serper Search adapter', () => {
 
   it('rejects malformed, overfull and non-public result responses without clipping', async () => {
     upsertApiKey('serper_search', 'disposable-test-token');
-    const malformed = async () => searchSerperWeb('product', {
-      fetchImpl: (async () => new Response(JSON.stringify({ organic: [{ link: 'javascript:alert(1)', title: 'x', snippet: 'x' }] }))) as unknown as typeof fetch,
+    const db = new Database(':memory:');
+    const terms = {
+      schemaVersion: 1 as const,
+      contractId: 'test-serper-contract-malformed',
+      provider: 'serper_search',
+      model: 'web',
+      dimensions: [{ name: 'requests', unit: 'request', maxUnits: 1, priceMicros: 1, priceUnits: 1 }],
+      attemptOverheadMicros: 0,
+      maxChargeMicros: 1,
+      authoritativeUsageSource: 'none' as const,
+    };
+    const contract = VerifiedPaidEffectBillingContractSchema.parse({
+      ...terms, verifiedTermsHash: paidEffectBillingTermsHash(terms),
+      verifiedEvidenceHash: 'a'.repeat(64), verifiedEvidenceRef: 'unit-fixture-contract',
+      verifiedBy: 'unit-test', verifiedAt: '2026-10-22T00:00:00.000Z',
     });
+    const authorization = PaidEffectAuthorizationSchema.parse({
+      schemaVersion: 1, authorizationId: 'serper-test-auth-malformed', qualificationRunId: 'serper-test-run-malformed',
+      approvedCeilingMicros: 100, arms: ['candidate'], billingContracts: [contract],
+    });
+    const coordinator = new PaidEffectBudgetCoordinator(db, authorization);
+    const client = createPaidEffectBudgetClient(request => coordinator.handleRequest(request), new AbortController().signal);
+    const paidScope = {
+      qualificationRunId: authorization.qualificationRunId, authorizationId: authorization.authorizationId,
+      arm: 'candidate' as const, outputId: 'serper-test-output', beneficiaries: [{ kind: 'item' as const, id: 'test-item' }],
+    };
+    const descriptor = (): PaidEffectAttemptDescriptor => ({
+      idempotencyKey: createPaidEffectIdempotencyKey(),
+      logicalEffectId: 'serper-search:malformed',
+      provider: contract.provider, model: contract.model, effect: 'serper-search-post',
+      billingContractId: contract.contractId, billingContractHash: hashCanonicalJson(contract),
+      requestedUnits: { requests: 1 },
+    });
+    const withContract = (fetchImpl: typeof fetch, count?: number) =>
+      withRequiredQualificationPaidEffectScope(() => withQualificationPaidEffectScope({
+        scope: paidScope, client, body: () => searchSerperWeb('product', { count, fetchImpl, paidEffectDescriptor: descriptor() }),
+      }));
+    const malformed = () => withContract(
+      (async () => new Response(JSON.stringify({ organic: [{ link: 'javascript:alert(1)', title: 'x', snippet: 'x' }] }))) as unknown as typeof fetch,
+    );
     await expect(malformed()).rejects.toBeInstanceOf(SerperSearchError);
     const overfullFetch = (async () => new Response(JSON.stringify({ organic: [
       { link: 'https://a.example', title: 'a', snippet: 'a' },
       { link: 'https://b.example', title: 'b', snippet: 'b' },
     ] }))) as unknown as typeof fetch;
-    await expect(searchSerperWeb('product', { count: 1, fetchImpl: overfullFetch })).rejects.toMatchObject({ code: 'malformed_response' });
+    try {
+      await expect(withContract(overfullFetch, 1)).rejects.toMatchObject({ code: 'malformed_response' });
+    } finally {
+      db.close();
+    }
   });
 
   it('rejects overlong queries and invalid count before credentials or network', async () => {
@@ -133,7 +157,7 @@ describe('Serper Search adapter', () => {
         scope: paidScope, client, body: async () => {
           await searchSerperWeb('test item', { fetchImpl: countedFetch });
         },
-      })).then(() => { throw new Error('unknown contract must deny'); }, error => expect(error).toMatchObject({ code: 'contract_unverified' }));
+      })).then(() => { throw new Error('missing descriptor must deny'); }, error => expect(error).toMatchObject({ code: 'contract_required' }));
       expect(calls).toBe(0);
 
       await withRequiredQualificationPaidEffectScope(() => withQualificationPaidEffectScope({

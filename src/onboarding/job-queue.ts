@@ -89,7 +89,7 @@ import { withItemAcquisitionBudget } from './item-acquisition-budget';
 import { createItemAcquisitionRun, finishItemAcquisitionRun } from './item-acquisition-run';
 import { getAllowedOfficialPageDomains, isAuthorizedOfficialPageUrl } from './official-page-authority';
 import { getSourcingFlags } from './flags';
-import { runItemEvidenceAcquisition } from './item-evidence-acquisition';
+import { runItemEvidenceAcquisition, type RunItemEvidenceAcquisitionInput } from './item-evidence-acquisition';
 import { redactTransportText } from '../classification/model-policy-gateway';
 import { normalizeGtin } from './sourcing/contracts';
 import { listCurrentGenerationConflictsForItem } from '../db/repositories/onboarding-conflict-repo';
@@ -314,6 +314,12 @@ export class OnboardingWorker {
     verifyTopCandidates?: typeof verifyTopCandidates;
     extractProductData?: typeof extractProductData;
   } | null;
+  /** Qualification embedding seam: supplies the paid-effect scope + contracts for acquisition (default null → contract-free, which now fails closed). */
+  private qualificationPaidEffect: (() => RunItemEvidenceAcquisitionInput['paidEffect']) | null = null;
+  /** Embedding seam setter: qualification runner installs scope + contracts; tests may inject fakes. */
+  setQualificationPaidEffect(supplier: (() => RunItemEvidenceAcquisitionInput['paidEffect']) | null): void {
+    this.qualificationPaidEffect = supplier;
+  }
 
   /**
    * @param maxConcurrency Items processed in parallel per poll. Default 3:
@@ -1898,6 +1904,7 @@ export class OnboardingWorker {
           intent: 'identity_bootstrap',
           assertHeld,
           modelPolicy: run.modelPolicy ?? undefined,
+          paidEffect: this.qualificationPaidEffect?.() ?? undefined,
         }),
       );
       assertHeld();

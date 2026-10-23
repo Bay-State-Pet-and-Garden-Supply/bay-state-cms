@@ -22,6 +22,7 @@ import {
 import { preflightComparisonArm, releaseComparisonArm, type ArmBootstrapOptions, type ArmPreflightResult, type ArmResult, type PopulationRow } from './comparison-arm';
 import { captureComparisonArm, unavailableComparisonCapture, writeComparisonCapture, type ComparisonCaptureBundle } from './comparison-capture';
 import { projectComparisonRows, type ComparisonInput } from './comparison-report';
+import type { PaidEffectBudgetSnapshot } from '../src/db/repositories/qualification-run-budget-repo';
 import { closeDb, initDb } from '../src/db/connection';
 import { readQualificationFreeze } from './comparison-runtime';
 
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
   const privateRoot = rootPath(options.privateRoot ?? PRIVATE_ROOT);
   const workspacePath = rootPath(options.workspace);
   const runDir = rootPath(`${PRIVATE_ROOT}/runs/${runId}`);
-  mkdirSync(runDir, { recursive: true });
+  const budgetDbPath = path.join(runDir, 'budget.sqlite');
   const byArm = new Map<Arm, ArmBootstrapOptions>();
   for (const arm of arms) {
     const armDir = path.join(runDir, arm);
@@ -112,6 +113,7 @@ async function main(): Promise<void> {
     byArm.set(arm, {
       arm, freezePath, privateRoot, workspacePath, destinationRoot: path.join(armDir, 'runtime'),
       dbPath: path.join(armDir, 'db', 'evaluation.sqlite'),
+      budgetDbPath,
     });
   }
   // Operator-attested brand hints for the predeclared pilot (source-reviewed 2026-10-22).
@@ -148,7 +150,7 @@ async function main(): Promise<void> {
       const result = await preflightComparisonArm(byArm.get(arm)!, population);
       return { prepared: result.prepared, denial: result.denial };
     },
-    (arm, prepared) => releaseComparisonArm(byArm.get(arm)!, prepared),
+    (arm, prepared) => releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap }),
     options.cap > 0 && options.mode === 'comparison',
   );
   for (const fd of credentialFdByArm.values()) try { closeSync(fd); } catch { /* already closed */ }
@@ -194,6 +196,7 @@ async function main(): Promise<void> {
         bundle = captureComparisonArm({
           runId, arm: report.arm, mode: freeze.mode, batchId: prepared.batchId,
           workspaceId: freeze.workspaceId, sourceRows: inputs, originalRows: selectedRows,
+          budgetSnapshot: (report as { budgetSnapshot?: PaidEffectBudgetSnapshot }).budgetSnapshot ?? null,
         });
       } catch {
         bundle = unavailableComparisonCapture({ runId, arm: report.arm, mode: freeze.mode, sourceRows: inputs, originalRows: selectedRows, reason: 'repository_reader_failed' });

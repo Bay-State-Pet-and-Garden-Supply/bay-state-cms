@@ -80,4 +80,10 @@ describe('item evidence browser collection preflight', () => {
     const request = input({ resources: { pages: 5, actions: 0, bytes: 0, requestAttempts: 0, redirects: 0, responseBytesTransferred: 0 } });
     await expect(collectItemEvidenceBrowser(request)).rejects.toMatchObject({ code: 'budget_exhausted' });
   });
+
+  it('requires a verified billing contract before starting a browser session', async () => {
+    // Public-URL candidate passes input validation, so the contract gate fires
+    // before any proxy, network, or container work.
+    await expect(collectItemEvidenceBrowser(input())).rejects.toMatchObject({ code: 'contract_required' });
+  });
 });

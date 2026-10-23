@@ -1,6 +1,5 @@
-import { createPaidEffectIdempotencyKey, runPaidEffect } from '../ai/paid-effect-budget';
+import { runPaidEffect } from '../ai/paid-effect-budget';
 import type { PaidEffectAttemptDescriptor } from '../shared/schemas/paid-effect';
-import { hashCanonicalJson } from '../shared/stable-id';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -88,7 +87,7 @@ export interface ItemEvidenceBrowserResult {
 }
 
 export class ItemEvidenceBrowserError extends Error {
-  readonly code: 'invalid_input' | 'budget_exhausted' | 'cancelled' | 'timeout' | 'isolation_unavailable' | 'unsupported_action' | 'provider_error';
+  readonly code: 'invalid_input' | 'budget_exhausted' | 'cancelled' | 'timeout' | 'isolation_unavailable' | 'unsupported_action' | 'provider_error' | 'contract_required';
   constructor(code: ItemEvidenceBrowserError['code'], message: string) {
     super(`${code}: ${message}`);
     this.name = 'ItemEvidenceBrowserError';
@@ -230,16 +229,10 @@ export async function collectItemEvidenceBrowser(input: ItemEvidenceBrowserInput
     if (!proxy.mitmAvailable) throw new ItemEvidenceBrowserError('isolation_unavailable', 'validating HTTPS interception credential unavailable');
     await ensureIsolatedRenderNetwork();
     const spec = buildRenderContainerSpec(runId, proxy.url);
-    const paidEffectDescriptor = input.paidEffectDescriptor ?? {
-      idempotencyKey: createPaidEffectIdempotencyKey(),
-      logicalEffectId: `item-evidence-browser:${input.investigationId}:${randomUUID()}`,
-      provider: 'browser',
-      model: 'local-render-session',
-      effect: 'browser-session-start',
-      billingContractId: 'missing-browser-session-contract',
-      billingContractHash: hashCanonicalJson({ missing: 'browser-session-contract' }),
-      requestedUnits: {},
-    };
+    if (!input.paidEffectDescriptor) {
+      throw new ItemEvidenceBrowserError('contract_required', 'Browser render requires a verified billing contract; no unbounded session was started.');
+    }
+    const paidEffectDescriptor = input.paidEffectDescriptor;
     await runPaidEffect({
       descriptor: paidEffectDescriptor,
       signal: input.signal,

@@ -382,6 +382,7 @@ function classifyBrowserError(error: unknown): { status: ItemEvidenceAcquisition
     if (error.code === 'cancelled') return { status: 'cancelled', reason: 'Guarded page collection was cancelled.' };
     if (error.code === 'budget_exhausted') return { status: 'budget_exhausted', reason: 'Guarded page collection exceeded its approved item resource budget.' };
     if (error.code === 'invalid_input') return { status: 'stale', reason: 'The supplied guarded-browser action or URL became invalid; no arbitrary target was executed.' };
+    if (error.code === 'contract_required') return { status: 'unavailable', reason: 'Browser render has no verified billing contract for this run; no unbounded session was started.' };
     return { status: 'unavailable', reason: error.code === 'isolation_unavailable' ? 'The isolated browser host prerequisite is unavailable; install and enable the approved internal render network and interception proxy.' : 'Guarded browser collection failed; no partial observation was admitted.' };
   }
   return { status: 'unavailable', reason: 'Guarded browser collection could not complete; no partial observation was admitted.' };
@@ -518,6 +519,10 @@ async function runIdentityBootstrapWithinBudget(
     const result = await collectItemEvidenceBrowser({
       investigationId: `item-acquisition-${input.runId}`, workspaceId: input.workspaceId,
       candidates: [candidate], actions: [action], budget, ledger, resources: browserResources, signal: scope.signal,
+      paidEffectDescriptor: acquisitionPaidEffectDescriptor(
+        input.paidEffect?.browserSessionContract, 'browser', 'local-render-session', 'browser-session-start',
+        `browser-session:${input.itemId}:${input.runId}:${action.id}`,
+      ),
     });
     settleItemAcquisitionAttempt(browserReservation.id, {
       actualResources: { attempts: 0, pages: result.usage.pages, actions: result.usage.actions, redirects: 0,
@@ -695,12 +700,12 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
         } else if (!dispatched) {
           try { releaseItemAcquisitionReservation(reservation.id, error instanceof SerperSearchError && error.code === 'credential_missing' ? 'serper_credential_missing' : 'serper_search_not_dispatched'); } catch { /* A failed release retains the safe reservation. */ }
         }
+        if (error instanceof SerperSearchError && error.code === 'contract_required') return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search has no verified billing contract for this run; no unbounded search was dispatched.' };
         if (error instanceof SerperSearchError && error.code === 'cancelled' || scope.signal.aborted) return { status: 'cancelled', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search was cancelled.' };
         if (error instanceof SerperSearchError && error.code === 'credential_missing') return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search credential is missing; configure the server-side serper_search API key.' };
         if (error instanceof ItemAcquisitionBudgetDeniedError) { const failure = mapBudgetFailure(error); return { ...failure, evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: failure.reason }; }
         return { status: 'unavailable', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search did not return a complete usable response; no snippet was treated as evidence.' };
       }
-      if (sourceCandidates.size === 0) return { status: 'needs_attention', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'Serper Search found no URLs inside the currently approved manufacturer domains.' };
       if (sourceCandidates.size > scope.policy.itemLimits.pages) return { status: 'budget_exhausted', evidence: initial.evidence, checklist: initial.readiness.evaluation, modelCallIds: [], usage, reason: 'The complete approved candidate set exceeds the per-item page budget; candidates were not truncated.' };
     }
 

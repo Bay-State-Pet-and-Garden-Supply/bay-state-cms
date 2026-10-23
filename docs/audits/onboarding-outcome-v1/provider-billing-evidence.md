@@ -49,6 +49,13 @@ Nothing found genuinely satisfies the `<$3` combined-live-authorization prerequi
 - **Account-specific fence:** credit balance/current account settings and provider-side behavior are not verified. No documented run-scoped monetary fence or in-flight/concurrency cap was established.
 - **Missing documentary evidence:** authoritative billing unit and treatment of errors/timeouts/retries, account-specific credit/spend status and hard-stop semantics, plus a cap that accounts for simultaneous and already-in-flight requests.
 
+### Operator-reported account position (2026-10-23, unverified by tooling)
+
+- Operator reports **$3.30 TypeSafe allowance** and **2,499 Serper credits** available for the pilot.
+- This is an operator statement, not provider-console evidence: no API/account was contacted, no balance endpoint read, no statement attached.
+- Treatment decision for T4: dollar accounting uses the $3.30 TypeSafe allowance as the USD ceiling input; Serper accounting counts **credits consumed per POST** against the 2,499-credit pool, reported separately — credits are not converted to dollars at an unverified rate.
+- The per-POST worst case assumed for reservation is **1 credit per dispatched POST** (one HTTP POST per `searchSerperWeb` invocation). Provider-side retry/error billing beyond the single POST is uncontracted and stays an unknown liability until Serper documents it or the operator accepts the residual.
+
 ## Combined authorization status
 
 The advertised Jev input rate and Serper package/query price are unit pricing evidence only. Neither establishes approved source/runtime data sharing or price approval, and neither alone bounds cumulative spend. No verified maximum for each physical effect plus all outstanding liabilities and concurrent/in-flight effects is evidenced here. Therefore the complete combined live authorization remains **BLOCKED** under the pilot's `$3 total across both arms, retries, source preparation, and paid checks` interpretation. This document does not authorize any call or substitute for operator-provided approval/source truth.

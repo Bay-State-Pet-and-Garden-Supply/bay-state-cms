@@ -9,12 +9,15 @@ import { createBatch, findBatchById, updateBatchExecutionState } from '../src/db
 import { holdBatchItems, insertItems, listItemsByBatch, releaseBatchItems, type InsertItemData } from '../src/db/repositories/onboarding-item-repo';
 import { deriveSourcingEntryStage, SOURCING_ENTRY_POLICY_VERSION } from '../src/onboarding/sourcing/entry-policy';
 import { getSourcingFlags } from '../src/onboarding/flags';
-import type { Database } from 'bun:sqlite';
 import type { OnboardingItem } from '../src/shared/schemas/onboarding';
+import { Database } from 'bun:sqlite';
+import { createPaidEffectBudgetClient, PaidEffectBudgetCoordinator, type PaidEffectBudgetClient } from '../src/ai/paid-effect-budget';
+import type { PaidEffectAuthorization, QualificationPaidEffectScope, VerifiedPaidEffectBillingContract } from '../src/shared/schemas/paid-effect';
+import { pilotBudgetAuthorization } from './comparison-budget';
 
 export type ArmStop = 'preflight_denied' | 'review_ready' | 'needs_input' | 'denied' | 'failed' | 'deadline' | 'no-progress';
 export interface ArmResult { arm: 'baseline' | 'candidate'; stop: ArmStop; imported: number; polls: number; state: unknown; denial?: string }
-export interface ArmBootstrapOptions { arm: 'baseline' | 'candidate'; freezePath: string; privateRoot: string; workspacePath: string; destinationRoot: string; dbPath: string; credentialFd?: number }
+export interface ArmBootstrapOptions { arm: 'baseline' | 'candidate'; freezePath: string; privateRoot: string; workspacePath: string; destinationRoot: string; dbPath: string; credentialFd?: number; budgetDbPath?: string }
 export interface PopulationRow { upc: string; register_name: string; price: number; brandHint?: string | null }
 export interface PreparedArm { arm: ArmBootstrapOptions['arm']; imported: number; batchId: string; itemIds: string[]; workspacePath: string }
 export interface ArmPreflightResult { arm: ArmBootstrapOptions['arm']; prepared?: PreparedArm; imported: number; denial?: string }
@@ -72,8 +75,10 @@ export async function preflightComparisonArm(options: ArmBootstrapOptions, rows:
   }
 }
 
-/** Release a previously prepared arm only after the coordinator has preflighted every requested arm. */
-export async function releaseComparisonArm(options: ArmBootstrapOptions, prepared: PreparedArm): Promise<ArmResult> {
+/** Release a previously prepared arm only after the coordinator has preflighted every requested arm.
+ * T4: with a budget input, builds a shared paid-effect coordinator and threads scope + Serper
+ * contract into the worker; every Serper POST / browser session reserves against the run ledger. */
+export async function releaseComparisonArm(options: ArmBootstrapOptions, prepared: PreparedArm, budget?: { runId: string; capUsd: number }): Promise<ArmResult> {
   let bindings: Record<string, string> = {};
   let initialized = false;
   try {
@@ -92,7 +97,18 @@ export async function releaseComparisonArm(options: ArmBootstrapOptions, prepare
     const released = releaseBatchItems(prepared.batchId, prepared.itemIds);
     if (released !== prepared.imported) throw new Error('Population release reconciliation failed');
     updateBatchExecutionState(prepared.batchId, 'running');
-    return await runBoundedWorker(options, validation, prepared, items.length);
+    const paidEffect = budget ? buildRunPaidEffect(options, prepared, budget) : undefined;
+    const result = await runBoundedWorker(options, validation, prepared, items.length, paidEffect);
+    if (paidEffect) {
+      try {
+        const snapshot = paidEffect.coordinator.snapshot(paidEffect.scope);
+        (result as { budgetSnapshot?: unknown }).budgetSnapshot = snapshot;
+      } catch {
+        (result as { budgetSnapshot?: unknown }).budgetSnapshot = null;
+      }
+      paidEffect.coordinator.close(`run ${budget!.runId} arm ${options.arm} complete`);
+    }
+    return result;
   } catch (error) {
     return { arm: options.arm, stop: 'denied', imported: prepared.imported, polls: 0, state: null, denial: redacted(error) };
   } finally {
@@ -109,9 +125,51 @@ export async function runComparisonArm(options: ArmBootstrapOptions, rows?: read
   return releaseComparisonArm(options, preflight.prepared);
 }
 
-async function runBoundedWorker(options: ArmBootstrapOptions, runtime: QualificationRuntimeValidation, prepared: PreparedArm, imported: number): Promise<ArmResult> {
+type RunPaidEffect = {
+  coordinator: PaidEffectBudgetCoordinator;
+  client: PaidEffectBudgetClient;
+  scope: QualificationPaidEffectScope;
+  serperSearchContract: VerifiedPaidEffectBillingContract;
+};
+
+function buildRunPaidEffect(
+  options: ArmBootstrapOptions,
+  prepared: PreparedArm,
+  budget: { runId: string; capUsd: number },
+): RunPaidEffect {
+  if (!options.budgetDbPath) throw new Error('Qualification release requires a shared budget ledger path.');
+  if (!Number.isFinite(budget.capUsd) || budget.capUsd <= 0 || budget.capUsd > 3) {
+    throw new Error('Qualification paid release requires a positive approved cap within the $3 CLI/freeze ceiling.');
+  }
+  const ledgerDb = new Database(options.budgetDbPath);
+  const authorization = pilotBudgetAuthorization({ runId: budget.runId, arms: [options.arm] });
+  const expectedCeiling = Math.round(budget.capUsd * 1_000_000);
+  if (authorization.approvedCeilingMicros > expectedCeiling) {
+    throw new Error('Frozen pilot authorization exceeds the approved CLI cap.');
+  }
+  const coordinator = new PaidEffectBudgetCoordinator(ledgerDb, authorization);
+  const client = createPaidEffectBudgetClient(request => coordinator.handleRequest(request), new AbortController().signal);
+  const scope: QualificationPaidEffectScope = {
+    qualificationRunId: budget.runId,
+    authorizationId: authorization.authorizationId,
+    arm: options.arm,
+    outputId: prepared.batchId,
+    beneficiaries: prepared.itemIds.map(id => ({ kind: 'item' as const, id })),
+  };
+  return { coordinator, client, scope, serperSearchContract: authorization.billingContracts[0]! };
+}
+
+async function runBoundedWorker(options: ArmBootstrapOptions, runtime: QualificationRuntimeValidation, prepared: PreparedArm, imported: number, paidEffect?: RunPaidEffect): Promise<ArmResult> {
   const deadline = Date.now() + runtime.run.limits.maxRuntimeMs;
   const worker = new OnboardingWorker(runtime.run.workspaceId, runtime.workspacePath);
+  if (paidEffect) {
+    worker.setQualificationPaidEffect(() => ({
+      scope: paidEffect.scope,
+      client: paidEffect.client,
+      serperSearchContract: paidEffect.serperSearchContract,
+      browserSessionContract: paidEffect.serperSearchContract,
+    }));
+  }
   let polls = 0;
   let previous = '';
   try {

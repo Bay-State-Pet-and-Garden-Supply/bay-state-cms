@@ -1,8 +1,6 @@
 import { getApiKey } from '../db/repositories/api-key-repo';
-import { createPaidEffectIdempotencyKey, PaidEffectBudgetError, runPaidEffect } from '../ai/paid-effect-budget';
+import { PaidEffectBudgetError, runPaidEffect } from '../ai/paid-effect-budget';
 import type { PaidEffectAttemptDescriptor } from '../shared/schemas/paid-effect';
-import { hashCanonicalJson } from '../shared/stable-id';
-import { randomUUID } from 'node:crypto';
 
 const SERPER_SEARCH_URL = 'https://google.serper.dev/search';
 export const SERPER_SEARCH_TIMEOUT_MS = 15_000;
@@ -21,7 +19,7 @@ export interface SerperSearchResponse {
 }
 
 export class SerperSearchError extends Error {
-  readonly code: 'credential_missing' | 'invalid_query' | 'cancelled' | 'unavailable' | 'malformed_response' | 'response_too_large';
+  readonly code: 'credential_missing' | 'invalid_query' | 'cancelled' | 'unavailable' | 'malformed_response' | 'response_too_large' | 'contract_required';
   constructor(code: SerperSearchError['code'], message: string) {
     super(`${code}: ${message}`);
     this.name = 'SerperSearchError';
@@ -64,17 +62,12 @@ export async function searchSerperWeb(query: string, options: {
   options.signal?.addEventListener('abort', abort, { once: true });
   const timeout = setTimeout(() => controller.abort(), SERPER_SEARCH_TIMEOUT_MS);
   try {
-    if (options.signal?.aborted) throw new SerperSearchError('cancelled', 'Search was cancelled before dispatch.');
-    const descriptor = options.paidEffectDescriptor ?? {
-      idempotencyKey: createPaidEffectIdempotencyKey(),
-      logicalEffectId: `serper-search:${randomUUID()}`,
-      provider: 'serper_search',
-      model: 'web',
-      effect: 'serper-search-post',
-      billingContractId: 'missing-serper-search-contract',
-      billingContractHash: hashCanonicalJson({ missing: 'serper-search-contract' }),
-      requestedUnits: {},
-    };
+    // T4: no contract-free Serper POST. Without a verified billing contract the
+    // coordinator cannot reserve a bounded maximum — fail closed instead.
+    const descriptor = options.paidEffectDescriptor;
+    if (!descriptor) {
+      throw new SerperSearchError('contract_required', 'Serper Search requires a verified billing contract; no unbounded search was dispatched.');
+    }
     const response = await runPaidEffect({
       descriptor,
       signal: controller.signal,

@@ -25,6 +25,7 @@ import {
   type PaidEffectAuthorization,
   type PaidEffectAttemptDescriptor,
   type QualificationPaidEffectScope,
+  type VerifiedPaidEffectBillingContract,
 } from '../src/shared/schemas/paid-effect';
 import { hashCanonicalJson } from '../src/shared/stable-id';
 
@@ -199,6 +200,44 @@ export class ComparisonBudgetIpcCoordinator {
   isClosed(): boolean {
     return this.closed || this.coordinator.isClosed();
   }
+}
+
+/** Frozen Serper pilot contract: 1 request unit reserved per POST against the operator-reported 2,499-credit pool.
+ * Zero-dollar (credits are not USD); the dollar ceiling stays TypeSafe-only. Evidence: operator statement
+ * 2026-10-23, docs/audits/onboarding-outcome-v1/provider-billing-evidence.md. Provider-side retry/error
+ * billing beyond the single POST is uncontracted and stays an unknown liability. */
+export function serperPilotContract(): VerifiedPaidEffectBillingContract {
+  const terms = {
+    schemaVersion: 1 as const,
+    contractId: 'serper-pilot-2499-credits',
+    provider: 'serper_search',
+    model: 'web',
+    dimensions: [{ name: 'requests', unit: 'request', maxUnits: 1, priceMicros: 0, priceUnits: 1 }],
+    attemptOverheadMicros: 0,
+    maxChargeMicros: 0,
+    authoritativeUsageSource: 'none' as const,
+    verifiedEvidenceHash: 'f'.repeat(64),
+    verifiedEvidenceRef: 'operator-reported-2499-credits-2026-10-23',
+    verifiedBy: 'operator-statement',
+    verifiedAt: '2026-10-23T00:00:00.000Z',
+  };
+  return VerifiedPaidEffectBillingContractSchema.parse({
+    ...terms,
+    verifiedTermsHash: paidEffectBillingTermsHash(terms),
+  });
+}
+
+/** Frozen pilot authorization: $3.00 schema-max USD ceiling (operator reports $3.30; the extra
+ * $0.30 is recorded as unusable headroom, never authorized) + Serper contract, both arms. */
+export function pilotBudgetAuthorization(input: { runId: string; arms: Array<'baseline' | 'candidate'> }): PaidEffectAuthorization {
+  return PaidEffectAuthorizationSchema.parse({
+    schemaVersion: 1,
+    authorizationId: `pilot-budget-${input.runId}`,
+    qualificationRunId: input.runId,
+    approvedCeilingMicros: 3_000_000,
+    arms: input.arms,
+    billingContracts: [serperPilotContract()],
+  });
 }
 
 function smokeAuthorization(): PaidEffectAuthorization {

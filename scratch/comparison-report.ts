@@ -212,7 +212,7 @@ export function projectComparisonRows(
       else if (stop === 'policy_or_budget_denied' || stop === 'needs_input' || stop === 'source_resolution') {
         disposition = 'blocked';
         gateBlocks = noDomainSetup ? ['BLOCKED_DOMAIN_SETUP'] :
-          stop === 'source_resolution' || item.status === 'needs_review' ? projectGateBlocks(observedReason) :
+          stop === 'source_resolution' || stop === 'needs_input' || item.status === 'needs_review' ? projectGateBlocks(observedReason) :
             stop === 'policy_or_budget_denied' ? ['BLOCKED_POLICY_OR_BUDGET'] : ['BLOCKED_SOURCE_OR_INPUT'];
       } else if (stop === 'review_ready_for_operator') disposition = 'pipeline_pending';
       else if (stop === 'pipeline_pending') disposition = 'pipeline_pending';

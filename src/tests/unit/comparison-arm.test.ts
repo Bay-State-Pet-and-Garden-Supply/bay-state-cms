@@ -52,4 +52,31 @@ describe('isolated comparison arm bootstrap', () => {
     expect(events).toEqual(['preflight:baseline', 'preflight:candidate']);
     expect(result.results).toEqual([]);
   });
+
+  it('builds a coordinator-backed paid scope and closes under the CLI cap', async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { Database } = await import('bun:sqlite');
+    const dir = mkdtempSync(`${tmpdir()}/t4-budget-arm-`);
+    try {
+      const { PaidEffectBudgetCoordinator } = await import('../../ai/paid-effect-budget');
+      const { pilotBudgetAuthorization } = await import('../../../scratch/comparison-budget');
+      const authorization = pilotBudgetAuthorization({ runId: 't4-test-run', arms: ['candidate'] });
+      expect(authorization.approvedCeilingMicros).toBe(3_000_000);
+      expect(authorization.billingContracts[0]?.contractId).toBe('serper-pilot-2499-credits');
+      // Coordinator accepts the authorization and snapshots an empty ledger.
+      const ledgerDb = new Database(`${dir}/budget.sqlite`);
+      const coordinator = new PaidEffectBudgetCoordinator(ledgerDb, authorization);
+      const snapshot = coordinator.snapshot({
+        qualificationRunId: 't4-test-run', authorizationId: authorization.authorizationId,
+        arm: 'candidate', outputId: 'batch-1', beneficiaries: [{ kind: 'item', id: 'item-1' }],
+      });
+      expect(snapshot.totalEncumberedMicros).toBe(0);
+      expect(snapshot.availableMicros).toBe(3_000_000);
+      coordinator.close('t4 unit test complete');
+      ledgerDb.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
