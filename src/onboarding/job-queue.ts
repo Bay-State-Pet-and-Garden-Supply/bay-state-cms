@@ -1669,6 +1669,33 @@ export class OnboardingWorker {
         const killSwitchDetail = killSwitchActive
           ? ' | kill_switch: official auto-selection disabled by kill switch (BAYSTATE_CMS_OFFICIAL_AUTO_SELECT_DISABLED=1)'
           : '';
+        // Per-candidate auto-select junction (diagnostic capture): for every
+        // verified-strong candidate, name which of the four strong-path
+        // conjuncts (authority, coverage, matcher, contradiction) fails, so a
+        // parked run names the exact failing gate instead of a generic suffix.
+        const gateDiagnostics = verifiedStrong.map((v) => {
+          const gates: string[] = [];
+          if (!hasAuthority(v.candidate)) gates.push('no_authority');
+          if (!v.observedIdentity.coverageComplete) gates.push('incomplete_coverage');
+          const junctionIdentity = matchOfficialPageIdentity({
+            registerName: item.name,
+            registerUpc: item.upc,
+            brandHint: activeBrandHint,
+            pageName: v.observedIdentity.pageName ?? '',
+            pageBrand: v.observedIdentity.pageBrand,
+            pageKind: v.observedIdentity.pageKind,
+            variants: v.observedIdentity.variants,
+            observedGtins: v.observedIdentity.observedGtins,
+          });
+          if (junctionIdentity.outcome !== 'unique_name_variant_match') gates.push(`matcher:${junctionIdentity.outcome}(${junctionIdentity.reasons.join('+') || 'no_reasons'})`);
+          const junctionContradictions = findContradictoryProductAxes(item.name, [
+            { field: 'heading', value: v.observedIdentity.pageName ?? '' },
+            ...v.observedIdentity.variants.map((variant) => ({ field: 'variant', value: variant.label })),
+          ]);
+          if (junctionContradictions.length) gates.push(`contradiction(${junctionContradictions.join('+')})`);
+          return `${v.candidate.url} [${v.proofClass}] ${gates.length ? `BLOCKED:${gates.join(',')}` : 'PASS'}`;
+        });
+        const gateDetail = gateDiagnostics.length ? ` | gates: ${gateDiagnostics.join(' || ').slice(0, 2000)}` : '';
 
         updateDiscoveryRunStep(discoveryRunId, 'applying_outcome');
 
@@ -1726,10 +1753,10 @@ export class OnboardingWorker {
           completeDiscoveryRun(
             discoveryRunId,
             'needs_input_candidates',
-            `No candidate passed verification — needs manual URL review${verificationDetail}${authorityDetail}${killSwitchDetail}`,
+            `No candidate passed verification — needs manual URL review${verificationDetail}${authorityDetail}${killSwitchDetail}${gateDetail}`,
           );
           const manualReviewReason =
-            `needs_review: no candidate passed verification${verificationDetail}${authorityDetail}${killSwitchDetail}`;
+            `needs_review: no candidate passed verification${verificationDetail}${authorityDetail}${killSwitchDetail}${gateDetail}`;
           updateItemStageStatus(item.id, 'completed', manualReviewReason);
 
           console.log(
@@ -1749,7 +1776,8 @@ export class OnboardingWorker {
             : `needs_review: no candidate passed verification` +
               (topVerificationForEvent ? ` | ${topVerificationForEvent.decisionReason}` : '') +
               authorityDetail +
-              killSwitchDetail,
+              killSwitchDetail +
+              gateDetail,
           bestCandidateUrl: bestSource.url,
           bestCandidateDomain: bestSource.domain ?? null,
           officialDomains,
