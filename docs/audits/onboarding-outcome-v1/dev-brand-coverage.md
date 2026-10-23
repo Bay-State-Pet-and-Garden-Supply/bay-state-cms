@@ -40,6 +40,21 @@ The three negatives are intentionally unhinted. DEV-0039 is the known counterexa
 - **Wrong-brand/no-domain negatives:** `DEV-0027`, `DEV-0039`, `DEV-0041`; unhinted by design, no brand/domain mapping. Retain as negative controls, not runnable brand-mapped rows.
 - Duplicate UPCs occur in the development source: `035585357409` (DEV-0001 kept; DEV-0003 dropped), `035585357423` (DEV-0002 kept; DEV-0004 dropped), and `035585357416` (DEV-0035 kept; DEV-0036 dropped). The latter three rows are among the unattested count of 160; they are still source rows and are not additional unique imported items. Recommendation IDs refer to source rows; the existing runner de-duplicates UPCs and keeps the earliest encountered row.
 
+## Clean 6-row slice receipt (2026-10-23, reviewer-approved slice executed)
+
+All six approved rows run singly under the $3 cap, candidate arm. Variance scare investigated and cleared: per-run `outcome_message` + source counts match earlier receipts exactly; the summary-table collapse of `gate_blocks` without reason text had hidden distinct honest outcomes.
+
+| Row | Run outcome | Sources | Report gates | Gold |
+|---|---|---:|---|---|
+| DEV-0001 KONG LG | `needs_input_candidates`, `proof=none / no_structured_gtin_found` | 2 | `BLOCKED_SOURCE_REVIEW` | `discontinued_unlisted` — found but unverifiable, unforced |
+| DEV-0002 KONG SM | same | 2 | same | same |
+| DEV-0005 DR MARTY | `needs_input_no_candidates`, `No matching product pages found` | 0 | `BLOCKED_SOURCE_REVIEW` | runnable-brand miss — nothing found, nothing claimed |
+| DEV-0014 WOOF LG | `needs_input_ambiguous` | 18 | `BLOCKED_SOURCE_REVIEW` | `confirm_variant 42864284991684` — held, no accidental XL |
+| DEV-0015 WOOF XL | `needs_input_candidates`, `exact_variant_gtin` + matcher/contradiction BLOCKED | 15 | + `BLOCKED_IDENTITY_MATCHER` + `BLOCKED_IDENTITY_CONTRADICTION` | `confirm_variant 42864285057220` — correct park |
+| DEV-0019 BENEBONE SM | `needs_input_ambiguous` | 18 | `BLOCKED_SOURCE_REVIEW` | `confirm_variant 44092915293347` |
+
+Spend: $0 / 0 credits on all six (all park on sitemap-local evidence before paid dispatch; ledgers attest). Session total remains ~2 Serper credits (key check + standalone paid proof).
+
 ## Explicit non-goals and safety boundary
 
 - No invented brand hints, first-token guessing, or inferred domain mappings.
