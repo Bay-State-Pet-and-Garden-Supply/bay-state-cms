@@ -46,6 +46,7 @@ export async function preflightComparisonArm(options: ArmBootstrapOptions, rows:
     initialized = true;
     runMigrations();
     const validation = await materializeQualificationRuntime(resolveRooted(options.freezePath), options.privateRoot, resolveRooted(options.workspacePath), path.resolve(options.destinationRoot), db);
+    importQualificationRuntimeRecords(db, validation.run.runtimeRecords, validation.run.workspaceId);
     const items: InsertItemData[] = rows.map((row, index) => ({
       upc: row.upc, name: row.register_name, price: String(row.price), rowNumber: index + 1,
       isHeld: true, stageStatus: 'pending',
