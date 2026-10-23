@@ -178,3 +178,11 @@ Focused suites green: `discovery-run-trace` 8/8 (incl. 2 new T2 tests) + `brand-
 Freeze: candidate head `bd740123`; public smoke pin still references older `4c3a5aa4` — stale, refresh pending before any qualification claim.
 
 T8 status: BLOCKED. T4 wiring (coordinator + scope + snapshot into `runBoundedWorker`) not implemented; TypeSafe hard-refused by transport; Serper priced-but-unbounded. The $3.30 / 2,499-credit position is recorded but unusable until enforcement lands. No paid dispatch occurred in this session.
+
+## T4+T8 closeout (2026-10-23, wired + re-smoked)
+
+T4 enforcement landed: `releaseComparisonArm` builds a `PaidEffectBudgetCoordinator` on a shared per-run `budget.sqlite` ledger, authorizes `$3.00` (schema max; operator's extra `$0.30` recorded as unusable headroom) + frozen `serper-pilot-2499-credits` contract, and threads scope + Serper/browser contracts into the worker via `setQualificationPaidEffect`. `searchSerperWeb` / `collectItemEvidenceBrowser` now fail closed with `contract_required` when no contract is present; the worker path supplies it, contract-free paths park with an explicit reason instead of dispatching unbounded. Committed `e2322057`.
+
+T8 re-smoke (candidate arm, `--row-id DEV-0015`, `--max-spend-usd 3`, run `2026-10-23T02-06-01-631Z-3c555ddc-8954-4079-aaad-3715d0b0ed84`): stop `no-progress`, `discovery:completed`, outcome `needs_input_candidates`. Report row: `blocked / needs_input`, gates `BLOCKED_SOURCE_REVIEW + BLOCKED_IDENTITY_MATCHER + BLOCKED_IDENTITY_CONTRADICTION` — no authority failure. Coordinator snapshot captured (`available`, encumbered 0, available 3,000,000, 0 effects): DEV-0015 parks before any Serper/browser dispatch (sitemap-local verification only), so spend is honestly $0 / 0 credits with the ledger proving it. Nothing dispatched, holdout untouched.
+
+Remaining: TypeSafe stays hard-refused at transport; browser sessions share the Serper zero-dollar contract slot pending their own pinned contract; provider-side retry/error billing beyond one POST stays an unknown liability per the billing-evidence note.
