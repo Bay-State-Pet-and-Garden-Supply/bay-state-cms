@@ -186,3 +186,16 @@ T4 enforcement landed: `releaseComparisonArm` builds a `PaidEffectBudgetCoordina
 T8 re-smoke (candidate arm, `--row-id DEV-0015`, `--max-spend-usd 3`, run `2026-10-23T02-06-01-631Z-3c555ddc-8954-4079-aaad-3715d0b0ed84`): stop `no-progress`, `discovery:completed`, outcome `needs_input_candidates`. Report row: `blocked / needs_input`, gates `BLOCKED_SOURCE_REVIEW + BLOCKED_IDENTITY_MATCHER + BLOCKED_IDENTITY_CONTRADICTION` — no authority failure. Coordinator snapshot captured (`available`, encumbered 0, available 3,000,000, 0 effects): DEV-0015 parks before any Serper/browser dispatch (sitemap-local verification only), so spend is honestly $0 / 0 credits with the ledger proving it. Nothing dispatched, holdout untouched.
 
 Remaining: TypeSafe stays hard-refused at transport; browser sessions share the Serper zero-dollar contract slot pending their own pinned contract; provider-side retry/error billing beyond one POST stays an unknown liability per the billing-evidence note.
+
+## T8 hinted re-smokes (2026-10-23, attested hints wired)
+
+Recommendation adopted: wire operator-gold brand hints for the four mappable rows, leave wrong-brand (DEV-0039) and no-domain (DEV-0027/0041) negatives unhinted. `ATTESTED_BRAND_HINTS` now covers DEV-0015/0014 (WOOF), DEV-0019 (BENEBONE), DEV-0001/0002 (KONG) — `scratch/run-comparison.ts`.
+
+| Row | Outcome | Verdict vs gold |
+|---|---|---|
+| DEV-0014 LG | `needs_input_ambiguous` — `variant:ambiguous: multiple variants require operator choice`, STOPPED_AT_TYPED_OUTCOME | matches gold `confirm_variant 42864284991684`: held for explicit choice, no accidental XL |
+| DEV-0019 fishbone SM | same ambiguous hold | matches gold `confirm_variant 44092915293347` |
+| DEV-0001 gold LG | `needs_input_candidates` — `[needs_review] proof=none / no_structured_gtin_found`, score 97 | matches gold `discontinued_unlisted`: no page forced |
+| DEV-0002 gold SM | same | matches gold `discontinued_unlisted` |
+
+Spend all four: encumbered 0, 0 paid effects. Runs park on sitemap-local evidence before any Serper/browser dispatch — ledgers prove $0 / 0 credits. Session total unchanged: **$0 and ~1 Serper credit** (the key-check POST only).

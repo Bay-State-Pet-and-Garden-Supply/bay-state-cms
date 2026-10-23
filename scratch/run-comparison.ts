@@ -116,10 +116,14 @@ async function main(): Promise<void> {
       budgetDbPath,
     });
   }
-  // Operator-attested brand hints for the predeclared pilot (source-reviewed 2026-10-22).
-  // NOT inferred: dev rows carry no brand field, and first-token guessing misattributes
-  // (e.g. DEV-0039 "PURE" is actually NutriSource). Unlisted rows enter with no hint.
-  const ATTESTED_BRAND_HINTS: Record<string, string> = { 'DEV-0015': 'WOOF' };
+  // Operator-attested brand hints for the predeclared pilot (source-reviewed 2026-10-22,
+  // report.md §R8 gold table). NOT inferred: dev rows carry no brand field, and first-token
+  // guessing misattributes (e.g. DEV-0039 "PURE" is actually NutriSource). Unlisted rows
+  // (DEV-0039, DEV-0027, DEV-0041) enter with no hint: wrong-brand and no-domain negatives.
+  const ATTESTED_BRAND_HINTS: Record<string, string> = {
+    'DEV-0015': 'WOOF', 'DEV-0014': 'WOOF', 'DEV-0019': 'BENEBONE',
+    'DEV-0001': 'KONG', 'DEV-0002': 'KONG',
+  };
   const seenUpcs = new Set<string>();
   const population = selectedRows.flatMap(row => {
     if (!hasOnlyAllowedInput(row) || typeof row.upc !== 'string' ||
