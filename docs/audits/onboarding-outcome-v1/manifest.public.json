@@ -15,7 +15,8 @@
   "comparison_freeze_sha": "8e45d1737070a05b0d98139da61d591d098f65a9309fd76f6243579bfb04bed0",
   "freeze_rule": "Record candidate SHA after development fixes at comparison freeze; never treat observed publication HEAD as the eventual candidate pin.",
   "freeze_file": ".baystate-cms/qualification/onboarding-outcome-v1/freeze-r8-smoke1.json",
-  "freeze_note": "R8 1-row smoke (DEV-0015), candidate rev 4c3a5aa4, baseline 91b52e9b. Live Serper-only; TypeSafe refused."
+  "freeze_note": "R8 1-row smoke (DEV-0015), candidate rev 4c3a5aa4, baseline 91b52e9b. Live Serper-only; TypeSafe refused.",
+  "comparison_design": "candidate-schema mechanism proof (option A): baseline arm executes candidate migration chain as disclosed overlay; no incumbent-efficacy claim. Baseline-vs-candidate improvement comparison remains BLOCKED_COMPARABILITY pending schema reconciliation."
  },
  "runtime_observation": {
   "bun_version": "1.4.2",

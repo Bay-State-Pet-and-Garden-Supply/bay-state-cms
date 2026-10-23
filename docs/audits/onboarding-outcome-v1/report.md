@@ -118,3 +118,11 @@ Reviewer: sole operator. No planner/agent output adjudicates truth. Verdicts ref
 | DEV-0002 | 035585357423 | discontinued_unlisted | Same deal, SM companion. |
 
 Implications recorded: distributor route required (DEV-0027); brand-discovery gap for truncated hints (DEV-0041); first-token hint misattribution (DEV-0039); no-GTIN variant resolution is the live capability under test (DEV-0015/0014/0019); discontinued rows must remain explicitly unresolved, never forced (DEV-0001/0002).
+
+## R8 live smoke v1 — BLOCKED on baseline/candidate comparability
+
+The 1-row DEV-0015 smoke reached the arm DBs but preflight honestly refused both arms: frozen runtime records use the candidate's newer `extractor_profiles` columns (profile_type, runtime, variant-selection metadata; +627 lines of profile migrations since baseline pin `91b52e9b`), which the baseline migration chain cannot create. Forcing the candidate schema onto the baseline arm would silently advance the incumbent and invalidate the comparison; skipping those records would run the arms on different profile authority.
+
+Per the build contract this is `BLOCKED_COMPARABILITY`, not a product bug to patch around. Options: (a) rebase the comparison so both arms share the profile schema (e.g. candidate-backported baseline overlay, explicitly disclosed); (b) narrow the live pilot to profile-independent rows (DEV-0001/0002 discontinued pair excluded — they need no profile — but they also need no live work); (c) accept that live comparison requires the candidate's schema and compare candidate-vs-candidate runs for mechanism proof only, with no baseline efficacy claim.
+
+No live provider call has been made; $3 ceiling untouched. The refusal above is the fail-closed system working as designed.
