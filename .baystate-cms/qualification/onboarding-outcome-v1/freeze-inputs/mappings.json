@@ -1,0 +1,195 @@
+{
+  "bundleOrigin": {
+    "kind": "reviewed_generation"
+  },
+  "entries": [
+    {
+      "attributeId": "brand",
+      "catalogField": "ProductField16",
+      "id": "brand-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "species",
+      "catalogField": "ProductField17",
+      "id": "species-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "life-stage",
+      "catalogField": "ProductField18",
+      "id": "life-stage-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "breed-size",
+      "catalogField": "ProductField19",
+      "id": "breed-size-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "dietary-features",
+      "catalogField": "ProductField20",
+      "id": "dietary-features-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "health-benefits",
+      "catalogField": "ProductField21",
+      "id": "health-benefits-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "food-form",
+      "catalogField": "ProductField22",
+      "id": "food-form-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "flavor",
+      "catalogField": "ProductField23",
+      "id": "flavor-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "category",
+      "catalogField": "ProductField24",
+      "id": "category-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "product-type",
+      "catalogField": "ProductField25",
+      "id": "product-type-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "product-feature",
+      "catalogField": "ProductField26",
+      "id": "product-feature-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "size",
+      "catalogField": "ProductField27",
+      "id": "size-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "material",
+      "catalogField": "ProductField28",
+      "id": "material-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "color",
+      "catalogField": "ProductField29",
+      "id": "color-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "packaging-type",
+      "catalogField": "ProductField30",
+      "id": "packaging-type-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "product-cross-sell",
+      "catalogField": "ProductField32",
+      "id": "product-cross-sell-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    },
+    {
+      "attributeId": "nutrition",
+      "catalogField": "ProductField8",
+      "id": "nutrition-mapping",
+      "isStale": false,
+      "serialization": {
+        "kind": "scalar",
+        "prefix": "",
+        "suffix": ""
+      }
+    }
+  ],
+  "schemaVersion": 2
+}

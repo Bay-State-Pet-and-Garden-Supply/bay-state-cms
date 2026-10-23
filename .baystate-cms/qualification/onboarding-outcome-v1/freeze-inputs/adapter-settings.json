@@ -1,0 +1,14 @@
+{
+  "defaultNewRecords": true,
+  "defaultPublishFlags": {
+    "htmlpages": true,
+    "index": true
+  },
+  "productUploadMatchingKey": "SKU",
+  "versionVariableOptions": {
+    "checkpoint": 500,
+    "sitemap": false,
+    "useOptimizer": false
+  },
+  "xmlVersion": "15.0"
+}

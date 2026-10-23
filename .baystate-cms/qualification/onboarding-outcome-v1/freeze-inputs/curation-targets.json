@@ -1,0 +1,151 @@
+{
+  "bundleOrigin": {
+    "kind": "reviewed_generation"
+  },
+  "entries": [
+    {
+      "attributeId": null,
+      "catalogField": null,
+      "enabled": true,
+      "id": "primary-product-type",
+      "kind": "product_type",
+      "label": "Primary Product Type",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": true,
+      "selectionMode": "single",
+      "sortOrder": 0
+    },
+    {
+      "attributeId": "brand",
+      "catalogField": "ProductField16",
+      "enabled": false,
+      "id": "brand-target",
+      "kind": "product_field",
+      "label": "Brand",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 10
+    },
+    {
+      "attributeId": "species",
+      "catalogField": "ProductField17",
+      "enabled": true,
+      "id": "species-target",
+      "kind": "product_field",
+      "label": "Animal Species",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 11
+    },
+    {
+      "attributeId": "life-stage",
+      "catalogField": "ProductField18",
+      "enabled": true,
+      "id": "life-stage-target",
+      "kind": "product_field",
+      "label": "Life Stage",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 12
+    },
+    {
+      "attributeId": "food-form",
+      "catalogField": "ProductField22",
+      "enabled": true,
+      "id": "food-form-target",
+      "kind": "product_field",
+      "label": "Food Form",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 14
+    },
+    {
+      "attributeId": "flavor",
+      "catalogField": "ProductField23",
+      "enabled": true,
+      "id": "flavor-target",
+      "kind": "product_field",
+      "label": "Flavor",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 15
+    },
+    {
+      "attributeId": "packaging-type",
+      "catalogField": "ProductField30",
+      "enabled": true,
+      "id": "packaging-type-target",
+      "kind": "product_field",
+      "label": "Packaging Type",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 18
+    },
+    {
+      "attributeId": "material",
+      "catalogField": "ProductField28",
+      "enabled": true,
+      "id": "material-target",
+      "kind": "product_field",
+      "label": "Material",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 19
+    },
+    {
+      "attributeId": "color",
+      "catalogField": "ProductField29",
+      "enabled": true,
+      "id": "color-target",
+      "kind": "product_field",
+      "label": "Color",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 20
+    },
+    {
+      "attributeId": "product-feature",
+      "catalogField": "ProductField26",
+      "enabled": true,
+      "id": "product-feature-target",
+      "kind": "product_field",
+      "label": "Product Feature",
+      "mandatory": false,
+      "optionSource": "configured",
+      "required": false,
+      "selectionMode": "single",
+      "sortOrder": 22
+    },
+    {
+      "attributeId": null,
+      "catalogField": null,
+      "enabled": true,
+      "id": "store-pages",
+      "kind": "page",
+      "label": "Category Pages",
+      "mandatory": false,
+      "optionSource": "live_store",
+      "required": false,
+      "selectionMode": "multiple",
+      "sortOrder": 30
+    }
+  ],
+  "schemaVersion": 2
+}

@@ -1,0 +1,592 @@
+{
+  "bundleOrigin": {
+    "kind": "reviewed_generation"
+  },
+  "entries": [
+    {
+      "attributeProfileId": "dog-food-dry-profile",
+      "description": "Dry dog food (kibble).",
+      "id": "dog-food-dry",
+      "invariantAttributes": {},
+      "name": "Dry Dog Food",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "dog-food-wet-profile",
+      "description": "Canned and pouch wet dog food.",
+      "id": "dog-food-wet",
+      "invariantAttributes": {},
+      "name": "Wet Dog Food",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "dog-treats-profile",
+      "description": "Treats and chews for dogs.",
+      "id": "dog-treats",
+      "invariantAttributes": {},
+      "name": "Dog Treats",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "dog-toys-profile",
+      "description": "Toys for dogs.",
+      "id": "dog-toys",
+      "invariantAttributes": {},
+      "name": "Dog Toys",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "dog-crates-kennels-profile",
+      "description": "Wire crates, travel kennels, and outdoor dog runs.",
+      "id": "dog-crates-kennels",
+      "invariantAttributes": {},
+      "name": "Dog Crates & Kennels",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "dog-waste-bags-profile",
+      "description": "Dog waste bag rolls and dispensers.",
+      "id": "dog-waste-bags",
+      "invariantAttributes": {},
+      "name": "Dog Waste Bags",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "cat-food-dry-profile",
+      "description": "Dry cat food (kibble).",
+      "id": "cat-food-dry",
+      "invariantAttributes": {},
+      "name": "Dry Cat Food",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "cat-food-wet-profile",
+      "description": "Canned and pouch wet cat food.",
+      "id": "cat-food-wet",
+      "invariantAttributes": {},
+      "name": "Wet Cat Food",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "cat-treats-profile",
+      "description": "Treats for cats.",
+      "id": "cat-treats",
+      "invariantAttributes": {},
+      "name": "Cat Treats",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "cat-toys-profile",
+      "description": "Toys for cats.",
+      "id": "cat-toys",
+      "invariantAttributes": {},
+      "name": "Cat Toys",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "cat-litter-profile",
+      "description": "Cat litter and litter accessories.",
+      "id": "cat-litter",
+      "invariantAttributes": {},
+      "name": "Cat Litter",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "pet-beds-profile",
+      "description": "Dog beds, cat beds, and orthopedic pet pads.",
+      "id": "pet-beds",
+      "invariantAttributes": {},
+      "name": "Pet Beds",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "grooming-profile",
+      "description": "Pet grooming supplies, shampoos, and tools.",
+      "id": "grooming",
+      "invariantAttributes": {},
+      "name": "Grooming",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "supplements-profile",
+      "description": "Pet dietary supplements and vitamins.",
+      "id": "supplements",
+      "invariantAttributes": {},
+      "name": "Supplements",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "collars-leashes-profile",
+      "description": "Collars, leashes, harnesses, and tags.",
+      "id": "collars-leashes",
+      "invariantAttributes": {},
+      "name": "Collars & Leashes",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "flea-tick-treatment-profile",
+      "description": "Flea and tick prevention and treatment products.",
+      "id": "flea-tick-treatment",
+      "invariantAttributes": {},
+      "name": "Flea & Tick Treatment",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "small-animal-feed-bedding-profile",
+      "description": "Rabbit pellets, guinea pig food, timothy hay, and bedding.",
+      "id": "small-animal-feed-bedding",
+      "invariantAttributes": {},
+      "name": "Small Animal Feed & Bedding",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "poultry-feed-profile",
+      "description": "Chicken layer crumbles, starter mash, duck, and game bird feed.",
+      "id": "poultry-feed",
+      "invariantAttributes": {},
+      "name": "Poultry Feed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": null,
+      "description": "Hive boxes, frames, feeders, smokers, protective gear, and honey extraction equipment.",
+      "id": "bee-supplies",
+      "invariantAttributes": {},
+      "name": "Bee Supplies & Apiary",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "poultry-coops-equipment-profile",
+      "description": "Chicken coops, brooders, chick waterers, and nesting boxes.",
+      "id": "poultry-coops-equipment",
+      "invariantAttributes": {},
+      "name": "Poultry Coops & Equipment",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "cattle-feed-profile",
+      "description": "Beef and dairy feed, mineral blocks, and calf milk replacer.",
+      "id": "cattle-feed",
+      "invariantAttributes": {},
+      "name": "Cattle Feed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "goat-sheep-feed-profile",
+      "description": "Goat feed, sheep feed, sweet feed, and mineral tubs.",
+      "id": "goat-sheep-feed",
+      "invariantAttributes": {},
+      "name": "Goat & Sheep Feed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "pig-swine-feed-profile",
+      "description": "Pig grower feed, sow pellets, and mini pig food.",
+      "id": "pig-swine-feed",
+      "invariantAttributes": {},
+      "name": "Pig & Swine Feed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "stock-tanks-waterers-profile",
+      "description": "Galvanized and poly stock tanks, heated pails, and auto waterers.",
+      "id": "stock-tanks-waterers",
+      "invariantAttributes": {},
+      "name": "Stock Tanks & Waterers",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "livestock-feeders-profile",
+      "description": "Hay racks, creep feeders, fence feeders, and mineral feeders.",
+      "id": "livestock-feeders",
+      "invariantAttributes": {},
+      "name": "Livestock Feeders",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "livestock-health-dewormers-profile",
+      "description": "Dewormers, udder care, wound spray, syringes, and antiseptics.",
+      "id": "livestock-health-dewormers",
+      "invariantAttributes": {},
+      "name": "Livestock Health & Dewormers",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "fly-insect-control-livestock-profile",
+      "description": "Pour-on insecticides, fly sprays, dust bags, and fly traps.",
+      "id": "fly-insect-control-livestock",
+      "invariantAttributes": {},
+      "name": "Fly & Pest Control for Livestock",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "stall-mats-bedding-profile",
+      "description": "Pine shavings, wood pellets, rubber stall mats, and straw.",
+      "id": "stall-mats-bedding",
+      "invariantAttributes": {},
+      "name": "Stall Mats & Bedding",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "horse-feed-profile",
+      "description": "Senior horse feed, performance feed, hay pellets, and beet pulp.",
+      "id": "horse-feed",
+      "invariantAttributes": {},
+      "name": "Horse Feed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "horse-treats-supplements-profile",
+      "description": "Horse treats, joint supplements, electrolyte paste, and hoof care.",
+      "id": "horse-treats-supplements",
+      "invariantAttributes": {},
+      "name": "Horse Treats & Supplements",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "fly-control-equine-profile",
+      "description": "Horse fly sprays, fly masks, fly sheets, and boots.",
+      "id": "fly-control-equine",
+      "invariantAttributes": {},
+      "name": "Equine Fly & Pest Control",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "equine-grooming-hoof-profile",
+      "description": "Horse shampoos, curry combs, hoof picks, rasps, and thrush care.",
+      "id": "equine-grooming-hoof",
+      "invariantAttributes": {},
+      "name": "Equine Grooming & Hoof Care",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "horse-blankets-tack-profile",
+      "description": "Turnout sheets, halters, lead ropes, saddles, and pads.",
+      "id": "horse-blankets-tack",
+      "invariantAttributes": {},
+      "name": "Horse Blankets & Tack",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "electric-fence-chargers-profile",
+      "description": "AC plug-in, solar, and battery powered fence energizers.",
+      "id": "electric-fence-chargers",
+      "invariantAttributes": {},
+      "name": "Electric Fence Chargers",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "fence-wire-mesh-profile",
+      "description": "Barbed wire, field fence, welded wire, horse fence, and chain link.",
+      "id": "fence-wire-mesh",
+      "invariantAttributes": {},
+      "name": "Fence Wire & Mesh",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "t-posts-wooden-posts-profile",
+      "description": "Steel T-posts, wooden fence posts, and step-in posts.",
+      "id": "t-posts-wooden-posts",
+      "invariantAttributes": {},
+      "name": "T-Posts & Wooden Fence Posts",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "corral-panels-gates-profile",
+      "description": "Tube gates, corral panels, wire mesh gates, and gate hardware.",
+      "id": "corral-panels-gates",
+      "invariantAttributes": {},
+      "name": "Corral Panels & Farm Gates",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "electric-fence-insulators-profile",
+      "description": "T-post insulators, corner insulators, polytape, and polywire.",
+      "id": "electric-fence-insulators",
+      "invariantAttributes": {},
+      "name": "Electric Fence Insulators",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "fencing-tools-profile",
+      "description": "Fence pliers, post hole diggers, wire strainers, and post drivers.",
+      "id": "fencing-tools",
+      "invariantAttributes": {},
+      "name": "Fencing Tools & Accessories",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "heating-pellets-wood-profile",
+      "description": "Hardwood and softwood stove pellets and compressed fuel logs.",
+      "id": "heating-pellets-wood",
+      "invariantAttributes": {},
+      "name": "Heating Wood Pellets",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "firewood-kindling-profile",
+      "description": "Packaged firewood, fire starters, and kindling.",
+      "id": "firewood-kindling",
+      "invariantAttributes": {},
+      "name": "Firewood & Kindling",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "propane-heaters-profile",
+      "description": "Radiant propane heaters, forced-air heaters, and tank-top heaters.",
+      "id": "propane-heaters",
+      "invariantAttributes": {},
+      "name": "Propane Heaters",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "garage-barn-heaters-profile",
+      "description": "Heavy-duty electric heaters and kerosene forced-air heaters.",
+      "id": "garage-barn-heaters",
+      "invariantAttributes": {},
+      "name": "Garage & Barn Heaters",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "coop-barn-heat-lamps-profile",
+      "description": "Infrared heat lamps, chick heating plates, and coop heaters.",
+      "id": "coop-barn-heat-lamps",
+      "invariantAttributes": {},
+      "name": "Coop & Barn Heat Lamps",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "stove-pipe-chimney-care-profile",
+      "description": "Stove pipe, chimney brushes, creosote removers, and gaskets.",
+      "id": "stove-pipe-chimney-care",
+      "invariantAttributes": {},
+      "name": "Stove Pipe & Chimney Care",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "lawn-fertilizer-profile",
+      "description": "Granular lawn food, weed & feed, and crabgrass preventer.",
+      "id": "lawn-fertilizer",
+      "invariantAttributes": {},
+      "name": "Lawn Fertilizer",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "grass-seed-profile",
+      "description": "Turfgrass seed blends, sun & shade mixes, and lawn patch repair.",
+      "id": "grass-seed",
+      "invariantAttributes": {},
+      "name": "Grass Seed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "weed-control-profile",
+      "description": "Selective weed killers, non-selective brush killers, and pre-emergents.",
+      "id": "weed-control",
+      "invariantAttributes": {},
+      "name": "Weed Control",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "insect-control-profile",
+      "description": "Grub killer, perimeter pest spray, ant killer, and mole repellent.",
+      "id": "insect-control",
+      "invariantAttributes": {},
+      "name": "Insect & Pest Control",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "potting-soil-profile",
+      "description": "Potting soil, compost, raised bed mix, bark mulch, and peat moss.",
+      "id": "potting-soil",
+      "invariantAttributes": {},
+      "name": "Potting Soil & Mulch",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "hand-tools-profile",
+      "description": "Shovels, rakes, hoes, pruners, loppers, and trowels.",
+      "id": "hand-tools",
+      "invariantAttributes": {},
+      "name": "Hand Garden Tools",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "garden-hoses-reels-profile",
+      "description": "Heavy-duty garden hoses, hose reels, carts, and expandable hoses.",
+      "id": "garden-hoses-reels",
+      "invariantAttributes": {},
+      "name": "Garden Hoses & Reels",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "sprinklers-nozzles-profile",
+      "description": "Oscillating sprinklers, spray nozzles, hose timers, and drip irrigation.",
+      "id": "sprinklers-nozzles",
+      "invariantAttributes": {},
+      "name": "Sprinklers & Hose Nozzles",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "plant-food-fertilizer-profile",
+      "description": "All-purpose plant food, vegetable fertilizer, and bloom boosters.",
+      "id": "plant-food-fertilizer",
+      "invariantAttributes": {},
+      "name": "Plant Food & Garden Fertilizer",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "lawn-mowers-profile",
+      "description": "Riding mowers, push mowers, and zero-turn mowers.",
+      "id": "lawn-mowers",
+      "invariantAttributes": {},
+      "name": "Lawn Mowers",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "string-trimmers-edgers-profile",
+      "description": "Gas and cordless string trimmers, lawn edgers, and brush cutters.",
+      "id": "string-trimmers-edgers",
+      "invariantAttributes": {},
+      "name": "String Trimmers & Edgers",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "chainsaws-log-splitters-profile",
+      "description": "Gas and battery chainsaws, bar oil, and log splitters.",
+      "id": "chainsaws-log-splitters",
+      "invariantAttributes": {},
+      "name": "Chainsaws & Log Splitters",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "pressure-washers-profile",
+      "description": "Gas and electric pressure washers, surface cleaners, and detergents.",
+      "id": "pressure-washers",
+      "invariantAttributes": {},
+      "name": "Pressure Washers",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "power-tool-accessories-profile",
+      "description": "Saw blades, drill bit sets, trimmer line, and replacement chains.",
+      "id": "power-tool-accessories",
+      "invariantAttributes": {},
+      "name": "Power Tool Accessories",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "air-compressors-hoses-profile",
+      "description": "Portable air compressors, air hoses, and tire inflators.",
+      "id": "air-compressors-hoses",
+      "invariantAttributes": {},
+      "name": "Air Compressors & Hoses",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "trailer-hitches-balls-profile",
+      "description": "Receiver hitches, hitch balls, ball mounts, and hitch pins.",
+      "id": "trailer-hitches-balls",
+      "invariantAttributes": {},
+      "name": "Trailer Hitches & Hitch Balls",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "towing-couplers-jacks-profile",
+      "description": "Trailer couplers, A-frame jacks, and swivel jacks.",
+      "id": "towing-couplers-jacks",
+      "invariantAttributes": {},
+      "name": "Trailer Couplers & Jacks",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "trailer-lights-wiring-profile",
+      "description": "LED trailer light kits and 4-way / 7-way wiring harnesses.",
+      "id": "trailer-lights-wiring",
+      "invariantAttributes": {},
+      "name": "Trailer Lights & Wiring",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "tie-down-straps-chains-profile",
+      "description": "Ratchet tie-down straps, tow chains, and binder chains.",
+      "id": "tie-down-straps-chains",
+      "invariantAttributes": {},
+      "name": "Tie-Down Straps & Chains",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "bird-food-profile",
+      "description": "Black oil sunflower, wild bird seed mixes, nyjer seed, and nectar.",
+      "id": "bird-food",
+      "invariantAttributes": {},
+      "name": "Wild Bird Food & Seed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "suet-cakes-profile",
+      "description": "High-energy suet cakes, peanut suet, and berry suet.",
+      "id": "suet-cakes",
+      "invariantAttributes": {},
+      "name": "Suet Cakes",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "wild-bird-feeders-profile",
+      "description": "Tube feeders, hopper feeders, suet feeders, and hummingbird feeders.",
+      "id": "wild-bird-feeders",
+      "invariantAttributes": {},
+      "name": "Wild Bird Feeders",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "bird-houses-baths-profile",
+      "description": "Wooden birdhouses, bluebird houses, and birdbaths.",
+      "id": "bird-houses-baths",
+      "invariantAttributes": {},
+      "name": "Bird Houses & Baths",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "deer-wildlife-feed-profile",
+      "description": "Whole corn, deer attractant blocks, and food plot seed.",
+      "id": "deer-wildlife-feed",
+      "invariantAttributes": {},
+      "name": "Deer & Wildlife Feed",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "work-boots-profile",
+      "description": "Leather work boots, rubber barn boots, and steel-toe work boots.",
+      "id": "work-boots",
+      "invariantAttributes": {},
+      "name": "Work Boots & Barn Boots",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "work-gloves-profile",
+      "description": "Leather work gloves, insulated winter gloves, and coated garden gloves.",
+      "id": "work-gloves",
+      "invariantAttributes": {},
+      "name": "Work Gloves",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "workwear-outerwear-profile",
+      "description": "Duck canvas jackets, chore coats, and insulated vests.",
+      "id": "workwear-outerwear",
+      "invariantAttributes": {},
+      "name": "Workwear Outerwear",
+      "oldIdAliases": []
+    },
+    {
+      "attributeProfileId": "overalls-coveralls-profile",
+      "description": "Bib overalls and insulated coveralls.",
+      "id": "overalls-coveralls",
+      "invariantAttributes": {},
+      "name": "Overalls & Coveralls",
+      "oldIdAliases": []
+    }
+  ],
+  "schemaVersion": 2
+}

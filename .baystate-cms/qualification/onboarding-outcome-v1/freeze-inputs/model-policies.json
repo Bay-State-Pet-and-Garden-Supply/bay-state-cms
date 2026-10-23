@@ -1,0 +1,62 @@
+{
+  "bundleOrigin": {
+    "kind": "reviewed_generation"
+  },
+  "policy": {
+    "defaultModel": "qwen2.5vl:latest",
+    "defaultProvider": "ollama",
+    "imageDataSharing": "local_only",
+    "mlFeatures": {
+      "confidenceCalibration": {
+        "activatedAt": null,
+        "activatedBy": null,
+        "qualificationReceiptDigest": null,
+        "state": "disabled"
+      },
+      "pageReranking": {
+        "activatedAt": null,
+        "activatedBy": null,
+        "qualificationReceiptDigest": null,
+        "state": "disabled"
+      },
+      "productionEmbeddings": {
+        "activatedAt": null,
+        "activatedBy": null,
+        "qualificationReceiptDigest": null,
+        "state": "disabled"
+      },
+      "productionRetrieval": {
+        "activatedAt": null,
+        "activatedBy": null,
+        "qualificationReceiptDigest": null,
+        "state": "disabled"
+      }
+    },
+    "providerLocalities": {
+      "ollama": "local",
+      "typesafe": "cloud"
+    },
+    "stageOverrides": {
+      "category_page_proposals": {
+        "fallbackModel": null,
+        "fallbackProvider": null,
+        "model": "jev-1.13.0",
+        "provider": "typesafe"
+      },
+      "primary_product_type_proposal": {
+        "fallbackModel": null,
+        "fallbackProvider": null,
+        "model": "jev-1.13.0",
+        "provider": "typesafe"
+      },
+      "product_attribute_proposals": {
+        "fallbackModel": null,
+        "fallbackProvider": null,
+        "model": "jev-1.13.0",
+        "provider": "typesafe"
+      }
+    },
+    "textDataSharing": "cloud_allowed"
+  },
+  "schemaVersion": 2
+}

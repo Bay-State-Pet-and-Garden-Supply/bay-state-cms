@@ -1,0 +1,2919 @@
+{
+  "fieldRegistry": {
+    "entryCount": 42,
+    "xmlFields": [
+      "Graphic",
+      "MoreInformationGraphic",
+      "Name",
+      "Price",
+      "ProductDescription",
+      "ProductField1",
+      "ProductField10",
+      "ProductField11",
+      "ProductField12",
+      "ProductField13",
+      "ProductField14",
+      "ProductField15",
+      "ProductField16",
+      "ProductField17",
+      "ProductField18",
+      "ProductField19",
+      "ProductField2",
+      "ProductField20",
+      "ProductField21",
+      "ProductField22",
+      "ProductField23",
+      "ProductField24",
+      "ProductField25",
+      "ProductField26",
+      "ProductField27",
+      "ProductField28",
+      "ProductField29",
+      "ProductField3",
+      "ProductField30",
+      "ProductField31",
+      "ProductField32",
+      "ProductField4",
+      "ProductField5",
+      "ProductField6",
+      "ProductField7",
+      "ProductField8",
+      "ProductField9",
+      "QuantityOnHand",
+      "SaleAmount",
+      "SKU",
+      "Taxable",
+      "Weight"
+    ]
+  },
+  "fields": [
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 1,
+      "distinctValueHash": "79b8353033a082bd205a32a585333996f65b268bca1309724bf36d073920ac31",
+      "nonEmptyCount": 30,
+      "recordCount": 30,
+      "xmlField": "DisplayMoreInformationPage"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 84,
+      "distinctValueHash": "a588035f8d5a067b0cf3ebd56b85e398e3e1cc1980c20030bdced92a96dc2e3a",
+      "nonEmptyCount": 84,
+      "recordCount": 84,
+      "xmlField": "FileName"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 15261,
+      "distinctValueHash": "c595e9ddc6a2265dc9764f8b1d3579bc98eca19dbacbb381525e3e22989bccc5",
+      "nonEmptyCount": 15309,
+      "recordCount": 15309,
+      "xmlField": "GTIN"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 30,
+      "distinctValueHash": "151e95449d22e10b8ebeae04789a72a6f724705c49cade015b5ac31b8956b822",
+      "nonEmptyCount": 30,
+      "recordCount": 30,
+      "xmlField": "MoreInformationGraphic"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 697,
+      "distinctValueHash": "2982e88b1653bd9be4bc9f8c0d65d4b477c2c8a3fc7f759c21ba91b30ef485e2",
+      "nonEmptyCount": 21810,
+      "recordCount": 22098,
+      "xmlField": "ProductField1"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "\n",
+          "occurrenceCount": 63
+        },
+        {
+          "character": ",",
+          "occurrenceCount": 82
+        },
+        {
+          "character": ";",
+          "occurrenceCount": 140
+        },
+        {
+          "character": "/",
+          "occurrenceCount": 108
+        },
+        {
+          "character": ">",
+          "occurrenceCount": 156
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 4
+        }
+      ],
+      "distinctValueCount": 4,
+      "distinctValueHash": "1913f340225e2c53c50cb4c49427a32ff5466a217ae393954970c43c26e38b74",
+      "nonEmptyCount": 85,
+      "recordCount": 22051,
+      "xmlField": "ProductField10"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 1,
+      "distinctValueHash": "ba87142089caecc9a5beccc5874d939791fdf143375f552d075a7256860ff5c3",
+      "nonEmptyCount": 690,
+      "recordCount": 22051,
+      "xmlField": "ProductField11"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 4,
+      "distinctValueHash": "8f6e2e5e30b57a851011d59e6529a9768dbe14f3c6a26b1468b592ed26c6431d",
+      "nonEmptyCount": 12558,
+      "recordCount": 22051,
+      "xmlField": "ProductField12"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 0,
+      "distinctValueHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "nonEmptyCount": 0,
+      "recordCount": 22051,
+      "xmlField": "ProductField13"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 0,
+      "distinctValueHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "nonEmptyCount": 0,
+      "recordCount": 22051,
+      "xmlField": "ProductField14"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 2,
+      "distinctValueHash": "a893001a14fc7b809057bef7b1f7be18efaf51ad09ea47aa73efc9612866e8a6",
+      "nonEmptyCount": 1802,
+      "recordCount": 22051,
+      "xmlField": "ProductField15"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 1
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 96
+        }
+      ],
+      "distinctValueCount": 997,
+      "distinctValueHash": "76ddbb848dca123e944973dd615892555e26539401798fecf2ab432de737b7d8",
+      "nonEmptyCount": 15438,
+      "recordCount": 22090,
+      "xmlField": "ProductField16"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "|",
+          "occurrenceCount": 523
+        }
+      ],
+      "distinctValueCount": 66,
+      "distinctValueHash": "92754cb05e017bb37251edd6dde76cc911127558d925f03552748674e672b302",
+      "nonEmptyCount": 11218,
+      "recordCount": 22051,
+      "xmlField": "ProductField17"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "|",
+          "occurrenceCount": 547
+        }
+      ],
+      "distinctValueCount": 14,
+      "distinctValueHash": "2a3ea8e80b85864740cb615f64be340f00ff38b131195f66e76eb8066cea1818",
+      "nonEmptyCount": 2076,
+      "recordCount": 22051,
+      "xmlField": "ProductField18"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "|",
+          "occurrenceCount": 13
+        }
+      ],
+      "distinctValueCount": 11,
+      "distinctValueHash": "62b66eeea2f66a742429767b3eb42be8e28e4a475a198aeed36ccc9350741f6c",
+      "nonEmptyCount": 1441,
+      "recordCount": 22051,
+      "xmlField": "ProductField19"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 3
+        }
+      ],
+      "distinctValueCount": 138,
+      "distinctValueHash": "ba318819a6b24d8c5109a5ebe8a1474794e47df59da65c3b505c6bb39ee7266b",
+      "nonEmptyCount": 10775,
+      "recordCount": 22059,
+      "xmlField": "ProductField2"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 417
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 163
+        }
+      ],
+      "distinctValueCount": 24,
+      "distinctValueHash": "e0a46c2c7cea505f4fdd6faa9ac09cbf8993bb27b3afdb3a14fff17843ce2428",
+      "nonEmptyCount": 1842,
+      "recordCount": 22051,
+      "xmlField": "ProductField20"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "|",
+          "occurrenceCount": 60
+        }
+      ],
+      "distinctValueCount": 38,
+      "distinctValueHash": "0ccaeccdf2bb573d349f0391275d052bc59b9e1b4997a68a51495bbba74826f5",
+      "nonEmptyCount": 403,
+      "recordCount": 22051,
+      "xmlField": "ProductField21"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "/",
+          "occurrenceCount": 2
+        },
+        {
+          "character": ">",
+          "occurrenceCount": 2
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 23
+        }
+      ],
+      "distinctValueCount": 53,
+      "distinctValueHash": "37abc6f4ea299c53c8a438fb72020945fd224aa2a039e7543989172a7ccc8868",
+      "nonEmptyCount": 4208,
+      "recordCount": 22051,
+      "xmlField": "ProductField22"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "/",
+          "occurrenceCount": 1
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 1057
+        }
+      ],
+      "distinctValueCount": 375,
+      "distinctValueHash": "d4dfc26608b43c9275e523295ad2c4f3e1b3668da840d9da390bf3c3af408147",
+      "nonEmptyCount": 3940,
+      "recordCount": 22051,
+      "xmlField": "ProductField23"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 784
+        },
+        {
+          "character": ">",
+          "occurrenceCount": 12
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 818
+        }
+      ],
+      "distinctValueCount": 130,
+      "distinctValueHash": "9f40ee58eb54fc6ab2c0ae8cec9c294443204d360d21a72c81d9b205522c1125",
+      "nonEmptyCount": 12980,
+      "recordCount": 22052,
+      "xmlField": "ProductField24"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 436
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 550
+        }
+      ],
+      "distinctValueCount": 367,
+      "distinctValueHash": "5d8d69de6da493b3ad6987bdd51f5440766968c353c52d4a0c32edf91cc01e3b",
+      "nonEmptyCount": 12646,
+      "recordCount": 22052,
+      "xmlField": "ProductField25"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 11,
+      "distinctValueHash": "35f395d0430ac5589e4aa4232c66c99f581c3c7159823370948099b1fbc999c1",
+      "nonEmptyCount": 214,
+      "recordCount": 22051,
+      "xmlField": "ProductField26"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 28,
+      "distinctValueHash": "982aff32f521e720381cdf7d27e330c1acd1d91acf0805f223464995711a9ae3",
+      "nonEmptyCount": 401,
+      "recordCount": 22051,
+      "xmlField": "ProductField27"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 16,
+      "distinctValueHash": "f3f53a4f4b96006762d4e582c18980ebf5e3af7b19c983364b203042f6bc93e3",
+      "nonEmptyCount": 448,
+      "recordCount": 22051,
+      "xmlField": "ProductField28"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 88,
+      "distinctValueHash": "167ca6c7baf81a619eb3d84b78bad64367fef71dd6afca7cdd9b8338e06182bf",
+      "nonEmptyCount": 883,
+      "recordCount": 22051,
+      "xmlField": "ProductField29"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 9,
+      "distinctValueHash": "0c065596babf41d4d8dc44ac8b54674dbce8c68e52f3ee82cdd368d18cee7883",
+      "nonEmptyCount": 52,
+      "recordCount": 22059,
+      "xmlField": "ProductField3"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 17,
+      "distinctValueHash": "cce4bf94719fc494a83eb8d14c091dbe68cfb6e97bce2b742b1e65d99be4dc1a",
+      "nonEmptyCount": 2348,
+      "recordCount": 22051,
+      "xmlField": "ProductField30"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 55,
+      "distinctValueHash": "e9aeccd67c7fbda2ae5ed356c2fe8efda780dcb16aedcf2a76b0dd077d61fecb",
+      "nonEmptyCount": 6663,
+      "recordCount": 22051,
+      "xmlField": "ProductField31"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 4066,
+      "distinctValueHash": "3044691fe2acb6722d9ae7a7548632312a2b9d6f5e28d188f45905362df0ab1b",
+      "nonEmptyCount": 20787,
+      "recordCount": 22051,
+      "xmlField": "ProductField32"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 8,
+      "distinctValueHash": "bf192bfa69766e1f34db807ad440599aa8364852b63596932c0ae40d19c13cdc",
+      "nonEmptyCount": 2294,
+      "recordCount": 22059,
+      "xmlField": "ProductField4"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 3
+        },
+        {
+          "character": "/",
+          "occurrenceCount": 13
+        }
+      ],
+      "distinctValueCount": 40,
+      "distinctValueHash": "354a6d440d06cf8fce837bae4997da03e16ce1022cbccc2d52eedb03e47936bb",
+      "nonEmptyCount": 1740,
+      "recordCount": 22059,
+      "xmlField": "ProductField5"
+    },
+    {
+      "delimiterEvidence": [],
+      "distinctValueCount": 1,
+      "distinctValueHash": "ba87142089caecc9a5beccc5874d939791fdf143375f552d075a7256860ff5c3",
+      "nonEmptyCount": 1326,
+      "recordCount": 22051,
+      "xmlField": "ProductField6"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": ",",
+          "occurrenceCount": 14
+        },
+        {
+          "character": "/",
+          "occurrenceCount": 193
+        }
+      ],
+      "distinctValueCount": 402,
+      "distinctValueHash": "4e6eff1b17dbf5f4877e8ec1f7e0a3a518e9f24f2fa0fd8ba648b0cae2296432",
+      "nonEmptyCount": 1864,
+      "recordCount": 22051,
+      "xmlField": "ProductField7"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "\n",
+          "occurrenceCount": 1361
+        },
+        {
+          "character": ",",
+          "occurrenceCount": 1155
+        },
+        {
+          "character": ";",
+          "occurrenceCount": 228
+        },
+        {
+          "character": "/",
+          "occurrenceCount": 1188
+        },
+        {
+          "character": ">",
+          "occurrenceCount": 2165
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 45
+        }
+      ],
+      "distinctValueCount": 57,
+      "distinctValueHash": "daed8632db33b757ec25ff961e7fe9b9c0c2b7a4af0848237d2fb988609854cf",
+      "nonEmptyCount": 100,
+      "recordCount": 22051,
+      "xmlField": "ProductField8"
+    },
+    {
+      "delimiterEvidence": [
+        {
+          "character": "\n",
+          "occurrenceCount": 1605
+        },
+        {
+          "character": ",",
+          "occurrenceCount": 1230
+        },
+        {
+          "character": ";",
+          "occurrenceCount": 512
+        },
+        {
+          "character": "/",
+          "occurrenceCount": 1954
+        },
+        {
+          "character": ">",
+          "occurrenceCount": 3129
+        },
+        {
+          "character": "|",
+          "occurrenceCount": 35
+        }
+      ],
+      "distinctValueCount": 68,
+      "distinctValueHash": "a3f3ae78caa8c5ef7bf305738c7cdda011e5a090a423d67cebe7f0a48adb810e",
+      "nonEmptyCount": 89,
+      "recordCount": 22051,
+      "xmlField": "ProductField9"
+    }
+  ],
+  "pages": [
+    {
+      "pageName": "##FaceBook Store",
+      "productCount": 2,
+      "sampleSkus": [
+        "712038962419",
+        "712038962648"
+      ]
+    },
+    {
+      "pageName": "#Services",
+      "productCount": 1,
+      "sampleSkus": [
+        "COOPDEL"
+      ]
+    },
+    {
+      "pageName": "Apparel",
+      "productCount": 178,
+      "sampleSkus": [
+        "031626055761",
+        "031626055891",
+        "031626056157",
+        "031626059172",
+        "031626059196",
+        "031626059219",
+        "031626059226",
+        "031626059233",
+        "031626059240",
+        "031626801566"
+      ]
+    },
+    {
+      "pageName": "Baby Chicks",
+      "productCount": 113,
+      "sampleSkus": [
+        "018222003044",
+        "032584945064",
+        "046938020017",
+        "052643032535",
+        "076711006327",
+        "084369008204",
+        "084369040433",
+        "084369091121",
+        "084369091442",
+        "084369092036"
+      ]
+    },
+    {
+      "pageName": "Barn Supplies Buckets & Feeders",
+      "productCount": 132,
+      "sampleSkus": [
+        "000399248908",
+        "012891130018",
+        "012891232002",
+        "012891232019",
+        "012891232026",
+        "012891245019",
+        "012891251003",
+        "012891251010",
+        "012891251027",
+        "012891251034"
+      ]
+    },
+    {
+      "pageName": "Barn Supplies Farm Gates & Fencing",
+      "productCount": 166,
+      "sampleSkus": [
+        "000251067739",
+        "000251067937",
+        "010515060789",
+        "010515090786",
+        "010515203469",
+        "010515300861",
+        "010515400066",
+        "010515400899",
+        "010515780069",
+        "017141014780"
+      ]
+    },
+    {
+      "pageName": "Barn Supplies Shop All",
+      "productCount": 428,
+      "sampleSkus": [
+        "000251067937",
+        "000399248908",
+        "010515060789",
+        "010515090786",
+        "010515203469",
+        "010515300861",
+        "010515400066",
+        "010515400899",
+        "010515780069",
+        "011169016122"
+      ]
+    },
+    {
+      "pageName": "Barn Supplies Tools & Equipment",
+      "productCount": 325,
+      "sampleSkus": [
+        "000399248908",
+        "012891130018",
+        "012891232002",
+        "012891232019",
+        "012891232026",
+        "012891245019",
+        "012891251003",
+        "012891251010",
+        "012891251027",
+        "012891251034"
+      ]
+    },
+    {
+      "pageName": "Bay State Country Gift Shop",
+      "productCount": 433,
+      "sampleSkus": [
+        "0003444009",
+        "013658115279",
+        "013658125551",
+        "013658152151",
+        "013658158375",
+        "013658158474",
+        "013658158818",
+        "013658158962",
+        "013658159174",
+        "013658164420"
+      ]
+    },
+    {
+      "pageName": "Beekeeping",
+      "productCount": 92,
+      "sampleSkus": [
+        "037064113506",
+        "048661901151",
+        "084369173704",
+        "084369173728",
+        "084369173742",
+        "084369173766",
+        "084369173780",
+        "084369173827",
+        "084369173865",
+        "084369173902"
+      ]
+    },
+    {
+      "pageName": "Boots",
+      "productCount": 82,
+      "sampleSkus": [
+        "025784331119",
+        "091053502290",
+        "091053502313",
+        "091053502320",
+        "091053503846",
+        "091053503860",
+        "091053503877",
+        "091053505284",
+        "091053505369",
+        "091053505505"
+      ]
+    },
+    {
+      "pageName": "Brand - Blue Buffalo",
+      "productCount": 4,
+      "sampleSkus": [
+        "840243101153",
+        "840243112920",
+        "859610000876",
+        "859610005888"
+      ]
+    },
+    {
+      "pageName": "Brand - Blue Seal",
+      "productCount": 3,
+      "sampleSkus": [
+        "639139015502",
+        "808631039266",
+        "808631039280"
+      ]
+    },
+    {
+      "pageName": "Brand - Fromm",
+      "productCount": 23,
+      "sampleSkus": [
+        "072705113408",
+        "072705113446",
+        "072705113484",
+        "072705113521",
+        "072705114061",
+        "072705114146",
+        "072705114344",
+        "072705114443",
+        "072705114542",
+        "072705114641"
+      ]
+    },
+    {
+      "pageName": "Brand - Instinct",
+      "productCount": 36,
+      "sampleSkus": [
+        "769949600541",
+        "769949600640",
+        "769949600657",
+        "769949605768",
+        "769949605928",
+        "769949605935",
+        "769949607014",
+        "769949607519",
+        "769949607540",
+        "769949610120"
+      ]
+    },
+    {
+      "pageName": "Brand - Science Diet",
+      "productCount": 30,
+      "sampleSkus": [
+        "052742001821",
+        "052742016016",
+        "052742020402",
+        "052742020426",
+        "052742020488",
+        "052742021041",
+        "052742033167",
+        "052742033181",
+        "052742033204",
+        "052742041285"
+      ]
+    },
+    {
+      "pageName": "Cage Bird Cages & Accessories",
+      "productCount": 68,
+      "sampleSkus": [
+        "026851003663",
+        "026851003670",
+        "026851003946",
+        "048081000069",
+        "048081010617",
+        "048081011423",
+        "048081032053",
+        "048081602300",
+        "048081602317",
+        "048081602324"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Canary & Finch",
+      "productCount": 116,
+      "sampleSkus": [
+        "022053604516",
+        "022053604813",
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698",
+        "046706321735",
+        "046706322503",
+        "046706322510",
+        "046706322534"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Cockatiel",
+      "productCount": 127,
+      "sampleSkus": [
+        "022053604516",
+        "022053604813",
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698",
+        "046706321735",
+        "046706322503",
+        "046706322510",
+        "046706322534"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Food",
+      "productCount": 135,
+      "sampleSkus": [
+        "042934423647",
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698",
+        "046706321735",
+        "046706322503",
+        "046706322510",
+        "046706322534",
+        "046706322541"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Food & Supplies Shop All",
+      "productCount": 199,
+      "sampleSkus": [
+        "0001454",
+        "026851003946",
+        "042934417028",
+        "042934417042",
+        "042934417080",
+        "042934423647",
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Healthcare",
+      "productCount": 32,
+      "sampleSkus": [
+        "042934423647",
+        "048081011447",
+        "071859006352",
+        "071859475110",
+        "071859475127",
+        "071859942612",
+        "071859942643",
+        "071859942704",
+        "097612139044",
+        "618940313137"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Litter & Nesting",
+      "productCount": 14,
+      "sampleSkus": [
+        "021687202501",
+        "022053602208",
+        "022053604516",
+        "022053604813",
+        "026851003946",
+        "037461122002",
+        "048081011447",
+        "068328041204",
+        "071859009216",
+        "087535180056"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Parakeet",
+      "productCount": 107,
+      "sampleSkus": [
+        "026851002116",
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698",
+        "046706321735",
+        "046706322503",
+        "046706322510",
+        "046706322534",
+        "046706322541"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Parrot",
+      "productCount": 141,
+      "sampleSkus": [
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698",
+        "046706321735",
+        "046706322503",
+        "046706322510",
+        "046706322534",
+        "046706322541",
+        "046706322565"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Pigeon",
+      "productCount": 24,
+      "sampleSkus": [
+        "037461122002",
+        "042934417028",
+        "042934417042",
+        "042934417080",
+        "042934423647",
+        "048081011447",
+        "071859006352",
+        "071859009216",
+        "071859051314",
+        "071859475110"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Toys",
+      "productCount": 78,
+      "sampleSkus": [
+        "026851003663",
+        "026851003670",
+        "048081010617",
+        "048081011423",
+        "048081011447",
+        "048081032053",
+        "048081602300",
+        "048081602317",
+        "048081602324",
+        "048081602331"
+      ]
+    },
+    {
+      "pageName": "Caged Bird Treats",
+      "productCount": 77,
+      "sampleSkus": [
+        "011641750018",
+        "011641750100",
+        "042934424019",
+        "046706321650",
+        "046706321667",
+        "046706321698",
+        "046706321735",
+        "046706322503",
+        "046706322510",
+        "046706322534"
+      ]
+    },
+    {
+      "pageName": "Cat Beds & Carriers",
+      "productCount": 30,
+      "sampleSkus": [
+        "027773004769",
+        "027773004776",
+        "027773007630",
+        "027773007678",
+        "027773007685",
+        "027773014409",
+        "027773014447",
+        "027773017066",
+        "027773017073",
+        "027773017080"
+      ]
+    },
+    {
+      "pageName": "Cat Bowls & Feeders",
+      "productCount": 74,
+      "sampleSkus": [
+        "022517437155",
+        "022517437162",
+        "022517437186",
+        "022517437209",
+        "022517437216",
+        "022517437223",
+        "029695233692",
+        "029695244056",
+        "029695244773",
+        "029695244780"
+      ]
+    },
+    {
+      "pageName": "Cat Flea & Tick",
+      "productCount": 42,
+      "sampleSkus": [
+        "010279001332",
+        "010279001349",
+        "019962890826",
+        "031658105267",
+        "039079001304",
+        "039079001311",
+        "039079003087",
+        "039079012287",
+        "039079060325",
+        "039079091442"
+      ]
+    },
+    {
+      "pageName": "Cat Food Dry",
+      "productCount": 282,
+      "sampleSkus": [
+        "017800106252",
+        "017800150149",
+        "017800150200",
+        "017800166294",
+        "017800184960",
+        "019014712267",
+        "019014712366",
+        "019014712458",
+        "019014712465",
+        "019014712496"
+      ]
+    },
+    {
+      "pageName": "Cat Food Raw",
+      "productCount": 70,
+      "sampleSkus": [
+        "072635110294",
+        "072635110300",
+        "072635110317",
+        "072635110324",
+        "072635110331",
+        "072635110348",
+        "072635110355",
+        "072635110362",
+        "186011001158",
+        "186011001165"
+      ]
+    },
+    {
+      "pageName": "Cat Food Shop All",
+      "productCount": 700,
+      "sampleSkus": [
+        "017800106252",
+        "017800150149",
+        "017800150200",
+        "017800166294",
+        "017800184960",
+        "019014712267",
+        "019014712366",
+        "019014712458",
+        "019014712465",
+        "019014712496"
+      ]
+    },
+    {
+      "pageName": "Cat Food Wet",
+      "productCount": 468,
+      "sampleSkus": [
+        "023100110196",
+        "023100110202",
+        "023100110219",
+        "023100110240",
+        "023100110257",
+        "023100110264",
+        "023100114156",
+        "023100114163",
+        "023100114170",
+        "023100114187"
+      ]
+    },
+    {
+      "pageName": "Cat Grooming",
+      "productCount": 119,
+      "sampleSkus": [
+        "018065051479",
+        "018065055743",
+        "018065284013",
+        "018065284044",
+        "018065969927",
+        "018065981448",
+        "018065983244",
+        "018065983558",
+        "018065983756",
+        "018065984203"
+      ]
+    },
+    {
+      "pageName": "Cat Healthcare",
+      "productCount": 187,
+      "sampleSkus": [
+        "011444450016",
+        "011444450023",
+        "011444451013",
+        "011444455011",
+        "011444456018",
+        "011444457015",
+        "011444459019",
+        "011444460015",
+        "011444652014",
+        "011444660019"
+      ]
+    },
+    {
+      "pageName": "Cat Leashes Collars & Harnesses",
+      "productCount": 7,
+      "sampleSkus": [
+        "013227011186",
+        "013227937714",
+        "013227937745",
+        "013227937837",
+        "013227937868",
+        "013227963768",
+        "759023067667"
+      ]
+    },
+    {
+      "pageName": "Cat Litter & Litter Boxes",
+      "productCount": 147,
+      "sampleSkus": [
+        "000338004183",
+        "000338004206",
+        "000338004404",
+        "018065053626",
+        "018065053671",
+        "018065053718",
+        "018065055743",
+        "018065059130",
+        "018065059147",
+        "018065059154"
+      ]
+    },
+    {
+      "pageName": "Cat Supplies Shop All",
+      "productCount": 717,
+      "sampleSkus": [
+        "000338004183",
+        "000338004206",
+        "000338004404",
+        "010279001332",
+        "010279001349",
+        "011444455011",
+        "011444456018",
+        "011444457015",
+        "012104702407",
+        "013227937837"
+      ]
+    },
+    {
+      "pageName": "Cat Toys & Scratchers",
+      "productCount": 304,
+      "sampleSkus": [
+        "023465360021",
+        "023465360045",
+        "023465360120",
+        "023465360212",
+        "023465360328",
+        "023465360373",
+        "023465360427",
+        "023465360441",
+        "023465360823",
+        "023465360922"
+      ]
+    },
+    {
+      "pageName": "Cat Treats",
+      "productCount": 169,
+      "sampleSkus": [
+        "022517444719",
+        "022517444740",
+        "022517444818",
+        "022517444825",
+        "022517444856",
+        "022517444863",
+        "023100000992",
+        "023100001579",
+        "023100001586",
+        "023100085418"
+      ]
+    },
+    {
+      "pageName": "Delivery Services",
+      "productCount": 12,
+      "sampleSkus": [
+        "COOPDEL",
+        "DELARROW",
+        "DELFHFUB",
+        "DELMVPALLET",
+        "DELPROJSPAY",
+        "DELSUNMEADOW",
+        "DELSUNMEADOW2",
+        "ELEVATOR",
+        "ELIZABETH",
+        "GATEDELMV"
+      ]
+    },
+    {
+      "pageName": "Dog Beds",
+      "productCount": 103,
+      "sampleSkus": [
+        "027773004868",
+        "027773004875",
+        "027773004882",
+        "027773004899",
+        "027773004905",
+        "027773004912",
+        "027773005070",
+        "027773005087",
+        "027773008248",
+        "027773009481"
+      ]
+    },
+    {
+      "pageName": "Dog Bowls & Feeders",
+      "productCount": 117,
+      "sampleSkus": [
+        "029695230790",
+        "029695231773",
+        "029695231797",
+        "029695231803",
+        "029695233692",
+        "029695237133",
+        "029695244056",
+        "029695244773",
+        "029695244780",
+        "029695244858"
+      ]
+    },
+    {
+      "pageName": "Dog Cleanup",
+      "productCount": 181,
+      "sampleSkus": [
+        "010279105849",
+        "010279105856",
+        "010279105924",
+        "010279105948",
+        "010279115404",
+        "018065051042",
+        "018065051226",
+        "018065051257",
+        "018065051479",
+        "018065051622"
+      ]
+    },
+    {
+      "pageName": "Dog Clothing & Accessories",
+      "productCount": 144,
+      "sampleSkus": [
+        "010279105832",
+        "013227934768",
+        "076484049651",
+        "076484083921",
+        "076484363238",
+        "076484729027",
+        "076484729034",
+        "076484729058",
+        "076484729065",
+        "076484769115"
+      ]
+    },
+    {
+      "pageName": "Dog Crates & Carriers",
+      "productCount": 73,
+      "sampleSkus": [
+        "027773004769",
+        "027773006848",
+        "027773007135",
+        "027773010678",
+        "027773010685",
+        "027773014409",
+        "027773014447",
+        "027773019565",
+        "027773019572",
+        "027773021971"
+      ]
+    },
+    {
+      "pageName": "Dog Dental Treats",
+      "productCount": 174,
+      "sampleSkus": [
+        "018214555193",
+        "018214812784",
+        "018214812791",
+        "018214812807",
+        "018214812814",
+        "018214817086",
+        "018214827900",
+        "018214833581",
+        "018214833598",
+        "018214833604"
+      ]
+    },
+    {
+      "pageName": "Dog Flea & Tick",
+      "productCount": 81,
+      "sampleSkus": [
+        "019962890826",
+        "039079001304",
+        "039079001311",
+        "039079003704",
+        "039079012287",
+        "039079060172",
+        "039079060325",
+        "039079091442",
+        "039079092265",
+        "041535022099"
+      ]
+    },
+    {
+      "pageName": "Dog Food Dry",
+      "productCount": 714,
+      "sampleSkus": [
+        "022808353218",
+        "022808353225",
+        "022808353249",
+        "022808370550",
+        "022808370659",
+        "022808370673",
+        "022808370703",
+        "022808370727",
+        "022808383840",
+        "022808384748"
+      ]
+    },
+    {
+      "pageName": "Dog Food Raw",
+      "productCount": 405,
+      "sampleSkus": [
+        "022808786108",
+        "022808786115",
+        "022808786122",
+        "022808786139",
+        "022808786146",
+        "022808786153",
+        "064992580100",
+        "064992581404",
+        "072635010082",
+        "072635110072"
+      ]
+    },
+    {
+      "pageName": "Dog Food Shop All",
+      "productCount": 1518,
+      "sampleSkus": [
+        "0065407",
+        "017800149105",
+        "017800149181",
+        "017800174404",
+        "017800404556",
+        "020279994817",
+        "020279998006",
+        "020279998013",
+        "020279998037",
+        "022808002123"
+      ]
+    },
+    {
+      "pageName": "Dog Food Wet",
+      "productCount": 558,
+      "sampleSkus": [
+        "011132168551",
+        "011132168575",
+        "011132168599",
+        "022808001751",
+        "022808001997",
+        "022808002123",
+        "022808002666",
+        "022808002871",
+        "022808004844",
+        "022808004868"
+      ]
+    },
+    {
+      "pageName": "Dog Grooming",
+      "productCount": 295,
+      "sampleSkus": [
+        "011444228028",
+        "018065051479",
+        "018065054432",
+        "018065055606",
+        "018065060945",
+        "018065060969",
+        "018065060983",
+        "018065070005",
+        "018065070050",
+        "018065070067"
+      ]
+    },
+    {
+      "pageName": "Dog Healthcare",
+      "productCount": 395,
+      "sampleSkus": [
+        "010279105832",
+        "010279105849",
+        "010279105924",
+        "010279105948",
+        "010279115404",
+        "011444450016",
+        "011444450023",
+        "011444451013",
+        "011444455011",
+        "011444456018"
+      ]
+    },
+    {
+      "pageName": "Dog Leashes Collars & Harnesses",
+      "productCount": 726,
+      "sampleSkus": [
+        "013227003679",
+        "013227003693",
+        "013227003723",
+        "013227003747",
+        "013227034758",
+        "013227034819",
+        "013227034840",
+        "013227034871",
+        "013227034901",
+        "013227034932"
+      ]
+    },
+    {
+      "pageName": "Dog Supplies Shop All",
+      "productCount": 1784,
+      "sampleSkus": [
+        "010279105832",
+        "010279105849",
+        "010279105856",
+        "010279105924",
+        "010279105948",
+        "010279115404",
+        "011444228028",
+        "011444455011",
+        "011444456018",
+        "011444457015"
+      ]
+    },
+    {
+      "pageName": "Dog Toys",
+      "productCount": 1649,
+      "sampleSkus": [
+        "0035585134000",
+        "018214552000",
+        "018214552048",
+        "018214555193",
+        "018214778158",
+        "018214778165",
+        "018214778172",
+        "018214778189",
+        "018214778196",
+        "018214801825"
+      ]
+    },
+    {
+      "pageName": "Dog Treats Bakery",
+      "productCount": 308,
+      "sampleSkus": [
+        "0100810017533169",
+        "11902",
+        "11905",
+        "11906",
+        "11909",
+        "11911",
+        "11916",
+        "11917",
+        "11920",
+        "11921"
+      ]
+    },
+    {
+      "pageName": "Dog Treats Biscuits Cookies & Crunchy Treats",
+      "productCount": 637,
+      "sampleSkus": [
+        "000433020019",
+        "000433020071",
+        "000433020095",
+        "0100810017533169",
+        "034846550016",
+        "034846550023",
+        "034846550030",
+        "034846550047",
+        "034846550054",
+        "034846550061"
+      ]
+    },
+    {
+      "pageName": "Dog Treats Bones Bully Sticks & Natural Chews",
+      "productCount": 619,
+      "sampleSkus": [
+        "&#160; &#160;840139114236",
+        "018214816331",
+        "035585356778",
+        "070155101587",
+        "070155101600",
+        "073101001016",
+        "073101017048",
+        "073101017055",
+        "073101212436",
+        "076344100249"
+      ]
+    },
+    {
+      "pageName": "Dog Treats Shop All",
+      "productCount": 2122,
+      "sampleSkus": [
+        "&#160; &#160;840139114236",
+        "000433020019",
+        "000433020071",
+        "000433020095",
+        "0035585134000",
+        "0100810017533169",
+        "012104751207",
+        "012104752044",
+        "012104752204",
+        "012104767109"
+      ]
+    },
+    {
+      "pageName": "Dog Treats Soft & Chewy",
+      "productCount": 438,
+      "sampleSkus": [
+        "012104751207",
+        "012104752044",
+        "012104752204",
+        "012104767109",
+        "012104768045",
+        "012104769103",
+        "012104781044",
+        "012104781204",
+        "012104783048",
+        "012104891040"
+      ]
+    },
+    {
+      "pageName": "Farm Animal Chicken & Poultry",
+      "productCount": 372,
+      "sampleSkus": [
+        "0001434",
+        "011169016122",
+        "011444455011",
+        "014425941770",
+        "018222003020",
+        "018222003037",
+        "018222003044",
+        "018222003310",
+        "018222003389",
+        "018222003402"
+      ]
+    },
+    {
+      "pageName": "Farm Animal Cow",
+      "productCount": 170,
+      "sampleSkus": [
+        "000399248908",
+        "0049132",
+        "011169016122",
+        "011444455011",
+        "012891130018",
+        "012891245019",
+        "012891251003",
+        "012891251010",
+        "012891251027",
+        "012891251034"
+      ]
+    },
+    {
+      "pageName": "Farm Animal Llama & Alpaca",
+      "productCount": 144,
+      "sampleSkus": [
+        "000399248908",
+        "0009841",
+        "011169016122",
+        "011444455011",
+        "012891130018",
+        "012891245019",
+        "012891251003",
+        "012891251010",
+        "012891251027",
+        "012891251034"
+      ]
+    },
+    {
+      "pageName": "Farm Animal Pig",
+      "productCount": 146,
+      "sampleSkus": [
+        "000399248908",
+        "0009841",
+        "011169016122",
+        "011444455011",
+        "012891130018",
+        "012891245019",
+        "012891251003",
+        "012891251010",
+        "012891251027",
+        "012891251034"
+      ]
+    },
+    {
+      "pageName": "Farm Animal Sheep & Goat",
+      "productCount": 177,
+      "sampleSkus": [
+        "000399248908",
+        "011169016122",
+        "011444455011",
+        "012891130018",
+        "012891245019",
+        "012891251003",
+        "012891251010",
+        "012891251027",
+        "012891251034",
+        "012891260012"
+      ]
+    },
+    {
+      "pageName": "Farm Animal Shop All",
+      "productCount": 633,
+      "sampleSkus": [
+        "0001434",
+        "0001476",
+        "0001500",
+        "000399248908",
+        "0005484",
+        "0007701",
+        "0009841",
+        "0017328",
+        "0022730",
+        "0055831"
+      ]
+    },
+    {
+      "pageName": "Featured Brand - Purina",
+      "productCount": 1,
+      "sampleSkus": [
+        "883576011409"
+      ]
+    },
+    {
+      "pageName": "Featured Products",
+      "productCount": 147,
+      "sampleSkus": [
+        "076484131325",
+        "076484228605",
+        "076484533815",
+        "076484596001",
+        "076484596025",
+        "076484596032",
+        "076484596049",
+        "076484613883",
+        "076484844058",
+        "076484844065"
+      ]
+    },
+    {
+      "pageName": "Fencing & Gates",
+      "productCount": 31,
+      "sampleSkus": [
+        "019263255409",
+        "038923005031",
+        "038923012473",
+        "038923018529",
+        "038923019052",
+        "038923019076",
+        "038923019113",
+        "038923019380",
+        "038923022229",
+        "038923022335"
+      ]
+    },
+    {
+      "pageName": "Fish Food Betta",
+      "productCount": 20,
+      "sampleSkus": [
+        "017163125303",
+        "017163125310",
+        "029904109619",
+        "042055335027",
+        "043324016487",
+        "046798168195",
+        "046798168386",
+        "046798770190",
+        "046798770220",
+        "046798770817"
+      ]
+    },
+    {
+      "pageName": "Fish Food Goldfish",
+      "productCount": 19,
+      "sampleSkus": [
+        "017163125303",
+        "017163125310",
+        "029904109619",
+        "042055335027",
+        "046798161400",
+        "046798162278",
+        "046798770251",
+        "046798770886",
+        "046798771265",
+        "046798771272"
+      ]
+    },
+    {
+      "pageName": "Fish Food Koi & Pond Fish",
+      "productCount": 27,
+      "sampleSkus": [
+        "017163125303",
+        "017163125310",
+        "025033017177",
+        "029904109619",
+        "042055335027",
+        "046798162100",
+        "046798164340",
+        "046798167358",
+        "049146000154",
+        "085045014182"
+      ]
+    },
+    {
+      "pageName": "Fish Food Shop All",
+      "productCount": 73,
+      "sampleSkus": [
+        "017163125303",
+        "017163125310",
+        "025033017177",
+        "029904109619",
+        "042055043113",
+        "042055043281",
+        "042055335027",
+        "046798161066",
+        "046798161097",
+        "046798161400"
+      ]
+    },
+    {
+      "pageName": "Fish Food Tropical",
+      "productCount": 38,
+      "sampleSkus": [
+        "017163125303",
+        "017163125310",
+        "025033017177",
+        "029904109619",
+        "042055043281",
+        "042055335027",
+        "046798161066",
+        "046798161097",
+        "046798161516",
+        "046798161622"
+      ]
+    },
+    {
+      "pageName": "Fish Pond Supplies",
+      "productCount": 76,
+      "sampleSkus": [
+        "015561208154",
+        "015561208161",
+        "015561208178",
+        "015561208185",
+        "017163125303",
+        "017163125310",
+        "018506001308",
+        "022102976212",
+        "025033017078",
+        "025033017139"
+      ]
+    },
+    {
+      "pageName": "Fish Supplies Shop All",
+      "productCount": 94,
+      "sampleSkus": [
+        "015905001908",
+        "015905060837",
+        "015905060868",
+        "015905064170",
+        "017163010449",
+        "017163020127",
+        "017163125303",
+        "017163125310",
+        "022102976212",
+        "025033017078"
+      ]
+    },
+    {
+      "pageName": "Fish Tanks & Accessories",
+      "productCount": 89,
+      "sampleSkus": [
+        "015905001908",
+        "017163010449",
+        "017163125303",
+        "017163125310",
+        "022102976212",
+        "025033021341",
+        "025033021358",
+        "025033021440",
+        "025033021457",
+        "029431004050"
+      ]
+    },
+    {
+      "pageName": "Fish Water Treatments & Test Kits",
+      "productCount": 23,
+      "sampleSkus": [
+        "017163020127",
+        "017163125303",
+        "017163125310",
+        "022102976212",
+        "029904109619",
+        "046798161684",
+        "046798771845",
+        "046798779612",
+        "049146000154",
+        "051378014007"
+      ]
+    },
+    {
+      "pageName": "Flowers & Plants",
+      "productCount": 78,
+      "sampleSkus": [
+        "018506011390",
+        "032903001693",
+        "034613180507",
+        "034613340086",
+        "034613340123",
+        "034613340147",
+        "035355340082",
+        "035355340129",
+        "038776621211",
+        "038776625035"
+      ]
+    },
+    {
+      "pageName": "Food Candy & Refreshments",
+      "productCount": 176,
+      "sampleSkus": [
+        "0003424607",
+        "0003444009",
+        "016000160101",
+        "016000215535",
+        "03422900",
+        "03425800",
+        "03448005",
+        "040000001607",
+        "040000424314",
+        "04022309"
+      ]
+    },
+    {
+      "pageName": "Gardening Tools & Supplies",
+      "productCount": 801,
+      "sampleSkus": [
+        "009114958009",
+        "009853000618",
+        "013887005044",
+        "013887041110",
+        "013887041127",
+        "013887080003",
+        "015221170807",
+        "015221170814",
+        "015221172337",
+        "015221702893"
+      ]
+    },
+    {
+      "pageName": "Gloves",
+      "productCount": 99,
+      "sampleSkus": [
+        "031626055761",
+        "031626055891",
+        "031626056157",
+        "031626059172",
+        "031626059196",
+        "031626059219",
+        "031626059226",
+        "031626059233",
+        "031626059240",
+        "031626801566"
+      ]
+    },
+    {
+      "pageName": "Grills & Accessories",
+      "productCount": 134,
+      "sampleSkus": [
+        "011502122770",
+        "016800200045",
+        "016800200076",
+        "018506001100",
+        "041570055120",
+        "041570150160",
+        "052000328660",
+        "052000328677",
+        "060162640131",
+        "071121510709"
+      ]
+    },
+    {
+      "pageName": "Hardware",
+      "productCount": 176,
+      "sampleSkus": [
+        "009114958009",
+        "012891440018",
+        "012891440025",
+        "012891440032",
+        "012891440124",
+        "012891440438",
+        "013600749026",
+        "013600763237",
+        "013658115279",
+        "013658125551"
+      ]
+    },
+    {
+      "pageName": "Hay",
+      "productCount": 57,
+      "sampleSkus": [
+        "035355000832",
+        "194",
+        "3004470",
+        "3025767",
+        "500921",
+        "55311211",
+        "60CUBEMA",
+        "60CUBES12",
+        "703948500945",
+        "703948501119"
+      ]
+    },
+    {
+      "pageName": "Heating",
+      "productCount": 50,
+      "sampleSkus": [
+        "013734116022",
+        "022624003502",
+        "023865099088",
+        "023865099101",
+        "023865099156",
+        "023865099811",
+        "023865099835",
+        "031626055761",
+        "031626055891",
+        "031626056157"
+      ]
+    },
+    {
+      "pageName": "Home Shop All",
+      "productCount": 1349,
+      "sampleSkus": [
+        "0003424607",
+        "0003444009",
+        "009114958009",
+        "010838200206",
+        "011423003387",
+        "011423941016",
+        "011423941092",
+        "011423941276",
+        "011423941382",
+        "011502122770"
+      ]
+    },
+    {
+      "pageName": "Horse Dewormers",
+      "productCount": 19,
+      "sampleSkus": [
+        "021784471121",
+        "021784471251",
+        "078631731389",
+        "078631731396",
+        "086621028517",
+        "087219011676",
+        "087219711569",
+        "350604600114",
+        "606199013007",
+        "726287074441"
+      ]
+    },
+    {
+      "pageName": "Horse Feed",
+      "productCount": 134,
+      "sampleSkus": [
+        "095668039240",
+        "095668940003",
+        "095668940010",
+        "1175",
+        "150",
+        "180434000026",
+        "184280000032",
+        "184280000094",
+        "184280000148",
+        "184280000261"
+      ]
+    },
+    {
+      "pageName": "Horse Feed & Treats Shop All",
+      "productCount": 260,
+      "sampleSkus": [
+        "0009841",
+        "013600019037",
+        "013600019211",
+        "013600031008",
+        "084110500032",
+        "084110500049",
+        "084110500056",
+        "084110500063",
+        "084110500117",
+        "084110500124"
+      ]
+    },
+    {
+      "pageName": "Horse First Aid",
+      "productCount": 116,
+      "sampleSkus": [
+        "010576000281",
+        "0110884521065307",
+        "011444035015",
+        "011444056010",
+        "011444134039",
+        "011444300014",
+        "011444426035",
+        "011444430056",
+        "011444432029",
+        "011444447023"
+      ]
+    },
+    {
+      "pageName": "Horse Fly Control",
+      "productCount": 60,
+      "sampleSkus": [
+        "011444070030",
+        "011444200017",
+        "011444220015",
+        "011444220039",
+        "011444230014",
+        "011444230038",
+        "011444231011",
+        "011444520023",
+        "011444520047",
+        "011444520054"
+      ]
+    },
+    {
+      "pageName": "Horse Grooming",
+      "productCount": 172,
+      "sampleSkus": [
+        "000399389410",
+        "011444032090",
+        "011444035015",
+        "011444056010",
+        "011444080039",
+        "011444134039",
+        "011444146025",
+        "011444165019",
+        "011444193036",
+        "011444200017"
+      ]
+    },
+    {
+      "pageName": "Horse Health & Wellness Shop All",
+      "productCount": 342,
+      "sampleSkus": [
+        "000399389410",
+        "010576000281",
+        "0110884521065307",
+        "011444032090",
+        "011444035015",
+        "011444056010",
+        "011444077015",
+        "011444080039",
+        "011444134039",
+        "011444146025"
+      ]
+    },
+    {
+      "pageName": "Horse Treats",
+      "productCount": 98,
+      "sampleSkus": [
+        "013600019037",
+        "013600019211",
+        "013600031008",
+        "084110500032",
+        "084110500049",
+        "084110500056",
+        "084110500063",
+        "084110500117",
+        "084110500124",
+        "084110500438"
+      ]
+    },
+    {
+      "pageName": "Horse Vitamins & Supplements",
+      "productCount": 138,
+      "sampleSkus": [
+        "011444077015",
+        "011444225010",
+        "011444430056",
+        "013600019037",
+        "013600019211",
+        "013600031008",
+        "018788330684",
+        "018788330721",
+        "076110789074",
+        "078631731389"
+      ]
+    },
+    {
+      "pageName": "Jerky Dog Treats",
+      "productCount": 138,
+      "sampleSkus": [
+        "013423220504",
+        "013423220535",
+        "031400073103",
+        "031400074520",
+        "031400075138",
+        "031400075411",
+        "031400075794",
+        "031400075831",
+        "031400075848",
+        "031400075855"
+      ]
+    },
+    {
+      "pageName": "Landscape Services",
+      "productCount": 9,
+      "sampleSkus": [
+        "AERATION",
+        "DESIGN",
+        "DETHATCH",
+        "LANDSCAPE50",
+        "MAGCALPLUS",
+        "MULCHINSTALL",
+        "ORGFERT5M",
+        "PLANTING",
+        "SLICESEED10K"
+      ]
+    },
+    {
+      "pageName": "Lawn & Garden Shop All",
+      "productCount": 1758,
+      "sampleSkus": [
+        "003247328104",
+        "009114958009",
+        "009853000618",
+        "011192110002",
+        "011192110019",
+        "011192110026",
+        "011192110033",
+        "011192110040",
+        "011192400790",
+        "011192402053"
+      ]
+    },
+    {
+      "pageName": "Lawn Care",
+      "productCount": 332,
+      "sampleSkus": [
+        "003247328104",
+        "009114958009",
+        "011192600732",
+        "015221170807",
+        "015221170814",
+        "015221172337",
+        "015221702893",
+        "022401003565",
+        "022401003817",
+        "022401005583"
+      ]
+    },
+    {
+      "pageName": "Lawn Equipment Rental",
+      "productCount": 11,
+      "sampleSkus": [
+        "023883847005",
+        "AERATOR",
+        "BGDETHATCHER",
+        "BLOWER",
+        "CULTIVATOR",
+        "DELEQUIPMENT",
+        "DELEQUIPMENT1",
+        "DETHATCHER",
+        "ROTOTILLER",
+        "SLICE SEED"
+      ]
+    },
+    {
+      "pageName": "Mulch & Loam",
+      "productCount": 18,
+      "sampleSkus": [
+        "032247884594",
+        "032247885591",
+        "032247886598",
+        "BLACK",
+        "BLACKKIT3YD",
+        "FILLDEL",
+        "HALFBLACK",
+        "HALFHEMLOCK",
+        "HALFPINE",
+        "HEMLOCK"
+      ]
+    },
+    {
+      "pageName": "Pest Control",
+      "productCount": 193,
+      "sampleSkus": [
+        "018441950082",
+        "023883200107",
+        "024654059221",
+        "031615906005",
+        "031615906029",
+        "031615907002",
+        "031615909006",
+        "037321002376",
+        "037321002383",
+        "037321006916"
+      ]
+    },
+    {
+      "pageName": "Pest Control & Animal Repellents",
+      "productCount": 153,
+      "sampleSkus": [
+        "016069000301",
+        "016069006921",
+        "023883200107",
+        "024654059221",
+        "036348010203",
+        "036348010456",
+        "036348010784",
+        "036348010791",
+        "036348010838",
+        "036348010845"
+      ]
+    },
+    {
+      "pageName": "Plants",
+      "productCount": 60,
+      "sampleSkus": [
+        "014305418934",
+        "014949359914",
+        "724529127641",
+        "724529201884",
+        "724529382972",
+        "724529386727",
+        "724529432219",
+        "724529510580",
+        "724529513000",
+        "724529513154"
+      ]
+    },
+    {
+      "pageName": "Propane Filling Station",
+      "productCount": 3,
+      "sampleSkus": [
+        "899003000212",
+        "GASGRILLTANK",
+        "NEWTANKFILLED"
+      ]
+    },
+    {
+      "pageName": "Reptile Bearded Dragon",
+      "productCount": 71,
+      "sampleSkus": [
+        "010838200305",
+        "046798162537",
+        "046798162551",
+        "046798162667",
+        "046798165088",
+        "046798165989",
+        "046798166009",
+        "046798292401",
+        "046798292524",
+        "046798292531"
+      ]
+    },
+    {
+      "pageName": "Reptile Bedding & Substrate",
+      "productCount": 13,
+      "sampleSkus": [
+        "08479007209",
+        "097612134032",
+        "097612300055",
+        "097612300109",
+        "097612300222",
+        "097612321708",
+        "097612321906",
+        "097612331004",
+        "097612340068",
+        "097612750041"
+      ]
+    },
+    {
+      "pageName": "Reptile Food & Supplies Shop All",
+      "productCount": 99,
+      "sampleSkus": [
+        "010838200305",
+        "046798162537",
+        "046798162551",
+        "046798162667",
+        "046798165088",
+        "046798165989",
+        "046798166009",
+        "046798169536",
+        "046798169765",
+        "046798292401"
+      ]
+    },
+    {
+      "pageName": "Reptile Food & Treats",
+      "productCount": 46,
+      "sampleSkus": [
+        "010838200305",
+        "046798162537",
+        "046798162551",
+        "046798162667",
+        "046798165088",
+        "046798165989",
+        "046798166009",
+        "046798169765",
+        "046798292401",
+        "046798292524"
+      ]
+    },
+    {
+      "pageName": "Reptile Frog",
+      "productCount": 48,
+      "sampleSkus": [
+        "091197225017",
+        "091197225024",
+        "091197227011",
+        "091197227025",
+        "091197227028",
+        "091197227035",
+        "096316671485",
+        "096316700017",
+        "096316700031",
+        "096316700079"
+      ]
+    },
+    {
+      "pageName": "Reptile Heating & Lighting",
+      "productCount": 58,
+      "sampleSkus": [
+        "091197225017",
+        "091197225024",
+        "091197227011",
+        "091197227025",
+        "091197227028",
+        "091197227035",
+        "096316671485",
+        "096316700017",
+        "096316700031",
+        "096316700079"
+      ]
+    },
+    {
+      "pageName": "Reptile Lizard",
+      "productCount": 71,
+      "sampleSkus": [
+        "010838200305",
+        "046798162537",
+        "046798162551",
+        "046798162667",
+        "046798165088",
+        "046798165989",
+        "046798166009",
+        "046798292401",
+        "046798292524",
+        "046798292531"
+      ]
+    },
+    {
+      "pageName": "Reptile Snake",
+      "productCount": 56,
+      "sampleSkus": [
+        "091037003034",
+        "091197225017",
+        "091197225024",
+        "091197227011",
+        "091197227025",
+        "091197227028",
+        "091197227035",
+        "096316671485",
+        "096316700017",
+        "096316700031"
+      ]
+    },
+    {
+      "pageName": "Reptile Tanks & Accessories",
+      "productCount": 56,
+      "sampleSkus": [
+        "010838200152",
+        "010838200251",
+        "010838200305",
+        "091197225017",
+        "091197225024",
+        "091197227011",
+        "091197227025",
+        "091197227028",
+        "091197227035",
+        "096316671485"
+      ]
+    },
+    {
+      "pageName": "Reptile Turtle",
+      "productCount": 61,
+      "sampleSkus": [
+        "010838200305",
+        "046798162537",
+        "046798162551",
+        "046798162667",
+        "046798165088",
+        "046798165989",
+        "046798166009",
+        "046798195146",
+        "046798292401",
+        "046798292524"
+      ]
+    },
+    {
+      "pageName": "Season Products Summer",
+      "productCount": 247,
+      "sampleSkus": [
+        "011423003387",
+        "011423941016",
+        "011423941092",
+        "011423941276",
+        "011423941382",
+        "013658115279",
+        "013658125551",
+        "013658152151",
+        "013658158375",
+        "013658158474"
+      ]
+    },
+    {
+      "pageName": "Seasonal Products",
+      "productCount": 174,
+      "sampleSkus": [
+        "013658115279",
+        "013658125551",
+        "013658152151",
+        "013658158375",
+        "013658158474",
+        "013658158818",
+        "013658158962",
+        "013658159174",
+        "013658164420",
+        "013658414327"
+      ]
+    },
+    {
+      "pageName": "Seeds & Seed Starting",
+      "productCount": 350,
+      "sampleSkus": [
+        "009853000618",
+        "02180201",
+        "023075027031",
+        "033349050825",
+        "033349077501",
+        "033349410292",
+        "033349410322",
+        "033349412111",
+        "033349412142",
+        "033349412272"
+      ]
+    },
+    {
+      "pageName": "Shavings & Bedding",
+      "productCount": 46,
+      "sampleSkus": [
+        "022053602208",
+        "037461122002",
+        "050159212519",
+        "050197801171",
+        "050197802062",
+        "050197802307",
+        "052643032535",
+        "066380180213",
+        "068328022203",
+        "084369000017"
+      ]
+    },
+    {
+      "pageName": "Small Pet Bedding & Litter",
+      "productCount": 43,
+      "sampleSkus": [
+        "037461122002",
+        "045125605822",
+        "045125620535",
+        "045125621648",
+        "045125621686",
+        "045125630626",
+        "066380004151",
+        "066380004168",
+        "066380004182",
+        "066380004199"
+      ]
+    },
+    {
+      "pageName": "Small Pet Food",
+      "productCount": 118,
+      "sampleSkus": [
+        "0001444",
+        "0043945",
+        "0055831",
+        "0056270",
+        "042934447230",
+        "045125611540",
+        "045125611564",
+        "045125620535",
+        "046706563067",
+        "051233256771"
+      ]
+    },
+    {
+      "pageName": "Small Pet Food & Supplies Shop All",
+      "productCount": 343,
+      "sampleSkus": [
+        "0001444",
+        "0043945",
+        "0056270",
+        "010838200305",
+        "037461122002",
+        "042934446127",
+        "042934447230",
+        "042934449159",
+        "042934449432",
+        "045125602197"
+      ]
+    },
+    {
+      "pageName": "Small Pet Grooming & Health",
+      "productCount": 29,
+      "sampleSkus": [
+        "045125604115",
+        "045125611540",
+        "045125611564",
+        "045125611588",
+        "045125620535",
+        "045125622959",
+        "045125630015",
+        "045125630114",
+        "045125630442",
+        "045125630626"
+      ]
+    },
+    {
+      "pageName": "Small Pet Guinea Pig",
+      "productCount": 187,
+      "sampleSkus": [
+        "0001444",
+        "010838200305",
+        "026851004028",
+        "042934447032",
+        "045125602197",
+        "045125602296",
+        "045125603767",
+        "045125603781",
+        "045125604009",
+        "045125604023"
+      ]
+    },
+    {
+      "pageName": "Small Pet Habitats & Accessories",
+      "productCount": 94,
+      "sampleSkus": [
+        "045125522457",
+        "045125602197",
+        "045125602296",
+        "045125602395",
+        "045125603729",
+        "045125603743",
+        "045125603767",
+        "045125603781",
+        "045125604009",
+        "045125604023"
+      ]
+    },
+    {
+      "pageName": "Small Pet Hamster",
+      "productCount": 164,
+      "sampleSkus": [
+        "0001444",
+        "026851003175",
+        "026851022091",
+        "045125602197",
+        "045125602296",
+        "045125603767",
+        "045125603781",
+        "045125604009",
+        "045125604023",
+        "045125604030"
+      ]
+    },
+    {
+      "pageName": "Small Pet Hay",
+      "productCount": 47,
+      "sampleSkus": [
+        "0001444",
+        "042934440897",
+        "045125619027",
+        "045125619058",
+        "045125619126",
+        "045125619171",
+        "045125619225",
+        "045125619331",
+        "045125620535",
+        "071859000824"
+      ]
+    },
+    {
+      "pageName": "Small Pet Mouse & Rat",
+      "productCount": 147,
+      "sampleSkus": [
+        "0001444",
+        "045125602197",
+        "045125602296",
+        "045125603767",
+        "045125603781",
+        "045125604009",
+        "045125604023",
+        "045125604030",
+        "045125604047",
+        "045125604061"
+      ]
+    },
+    {
+      "pageName": "Small Pet Rabbit",
+      "productCount": 225,
+      "sampleSkus": [
+        "0001444",
+        "0043945",
+        "0055831",
+        "010838200305",
+        "026851003175",
+        "026851004028",
+        "026851022039",
+        "026851022053",
+        "042934447230",
+        "045125602197"
+      ]
+    },
+    {
+      "pageName": "Small Pet Toys & Chews",
+      "productCount": 79,
+      "sampleSkus": [
+        "045125604764",
+        "045125611076",
+        "045125611090",
+        "045125611113",
+        "045125611182",
+        "045125611267",
+        "045125611328",
+        "045125611458",
+        "045125611465",
+        "045125611472"
+      ]
+    },
+    {
+      "pageName": "Small Pet Treats",
+      "productCount": 74,
+      "sampleSkus": [
+        "042934446127",
+        "042934449159",
+        "042934449432",
+        "045125604764",
+        "045125611076",
+        "045125611090",
+        "045125611113",
+        "045125611182",
+        "045125611267",
+        "045125611519"
+      ]
+    },
+    {
+      "pageName": "Soap Lotion & Sanitizer",
+      "productCount": 52,
+      "sampleSkus": [
+        "074182459932",
+        "813049004119",
+        "MBBCLGMS",
+        "MBBESGMS",
+        "MBBGPGMS",
+        "MBBLBGMS",
+        "MBBLPGMS",
+        "MBBLRGMS",
+        "MBBOCGMS",
+        "MBBPFGMS"
+      ]
+    },
+    {
+      "pageName": "Soy Candles & Melts",
+      "productCount": 86,
+      "sampleSkus": [
+        "MCCALV12",
+        "MCCBAC12",
+        "MCCBCO16",
+        "MCCBCOWM",
+        "MCCBMU16",
+        "MCCBMUWM",
+        "MCCBNB16",
+        "MCCBNBWM",
+        "MCCBPR12",
+        "MCCBSE16"
+      ]
+    },
+    {
+      "pageName": "Special Offers",
+      "productCount": 158,
+      "sampleSkus": [
+        "034846550016",
+        "034846550023",
+        "034846550030",
+        "034846550047",
+        "034846550054",
+        "034846550061",
+        "034846550078",
+        "034846550092",
+        "034846550108",
+        "034846550115"
+      ]
+    },
+    {
+      "pageName": "The Fall Shop",
+      "productCount": 5,
+      "sampleSkus": [
+        "754572981594",
+        "754572993764",
+        "754572998295",
+        "STALKS",
+        "STRAW"
+      ]
+    },
+    {
+      "pageName": "The Holiday Shoppe",
+      "productCount": 138,
+      "sampleSkus": [
+        "021344013914",
+        "021344016588",
+        "035585468372",
+        "035585468389",
+        "035585468396",
+        "035585499123",
+        "035585499451",
+        "035585504926",
+        "035585506791",
+        "035585506807"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Baths",
+      "productCount": 48,
+      "sampleSkus": [
+        "049121067844",
+        "077625444342",
+        "078978203129",
+        "078978210899",
+        "078978211001",
+        "078978550049",
+        "085045000093",
+        "085045000505",
+        "085045000611",
+        "085045000758"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Feeders",
+      "productCount": 266,
+      "sampleSkus": [
+        "00715038304227",
+        "00715038305361",
+        "00715038398127",
+        "00715038398134",
+        "018222006106",
+        "018222007011",
+        "018222007073",
+        "018222007097",
+        "018222007271",
+        "018222007295"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Food Shop All",
+      "productCount": 304,
+      "sampleSkus": [
+        "00715038304227",
+        "00715038305361",
+        "00715038398127",
+        "00715038398134",
+        "011641750018",
+        "011641750056",
+        "011641750100",
+        "011641750513",
+        "011641750551",
+        "011641750605"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Hangers Poles & Baffles",
+      "productCount": 67,
+      "sampleSkus": [
+        "021964102111",
+        "021964102173",
+        "021964104818",
+        "021964109011",
+        "021964502027",
+        "021964502263",
+        "021964502270",
+        "021964602505",
+        "021964605278",
+        "021964801007"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Houses",
+      "productCount": 55,
+      "sampleSkus": [
+        "026107092007",
+        "077625444342",
+        "078978203129",
+        "078978210899",
+        "078978211001",
+        "633686003227",
+        "645194070318",
+        "645194615007",
+        "645194616004",
+        "645194617001"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Seed & Seed Mixes",
+      "productCount": 175,
+      "sampleSkus": [
+        "011641750018",
+        "011641750056",
+        "011641750100",
+        "011641750513",
+        "011641750551",
+        "011641750605",
+        "011641750711",
+        "011641750902",
+        "011641751015",
+        "011641751053"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Suet & Mealworms",
+      "productCount": 144,
+      "sampleSkus": [
+        "018222001019",
+        "018222001033",
+        "018222001057",
+        "018222001071",
+        "018222001095",
+        "018222001101",
+        "018222002061",
+        "018222002085",
+        "018222002139",
+        "018222005017"
+      ]
+    },
+    {
+      "pageName": "Wild Bird Supplies Shop All",
+      "productCount": 315,
+      "sampleSkus": [
+        "00715038304227",
+        "00715038305361",
+        "00715038398127",
+        "00715038398134",
+        "018222006106",
+        "018222007011",
+        "018222007073",
+        "018222007097",
+        "018222007271",
+        "018222007295"
+      ]
+    },
+    {
+      "pageName": "Wildlife Deer Food",
+      "productCount": 39,
+      "sampleSkus": [
+        "013600019051",
+        "013600031008",
+        "053695126081",
+        "053695600772",
+        "078978203129",
+        "1386004",
+        "1386008",
+        "4055744029615",
+        "639139003233",
+        "639139003257"
+      ]
+    },
+    {
+      "pageName": "Wildlife Squirrel Food",
+      "productCount": 18,
+      "sampleSkus": [
+        "011641754085",
+        "011641754092",
+        "018222002054",
+        "018222006083",
+        "018222006106",
+        "018222006113",
+        "070187841963",
+        "078978203129",
+        "094922307705",
+        "094922455840"
+      ]
+    },
+    {
+      "pageName": "Winter Supplies",
+      "productCount": 145,
+      "sampleSkus": [
+        "013600749026",
+        "023865088082",
+        "023865099040",
+        "023865099088",
+        "023865099101",
+        "023865099156",
+        "023865099408",
+        "023865099811",
+        "023865099835",
+        "023865099873"
+      ]
+    },
+    {
+      "pageName": "Wood Pellets",
+      "productCount": 17,
+      "sampleSkus": [
+        "622685000016",
+        "622685000016TON",
+        "622685000023",
+        "622685000023A",
+        "685584000020",
+        "685584000020PALLET",
+        "739088770931",
+        "739088770931TON",
+        "777686020805",
+        "852453003011"
+      ]
+    }
+  ],
+  "parseFailureCount": 0,
+  "parseFailures": [],
+  "productFileCount": 22098,
+  "schemaVersion": 1,
+  "sourceTreeHash": "4a057811d054ebd1934c10f05f6375ce56bb45d5261cd308143470759068830c"
+}
