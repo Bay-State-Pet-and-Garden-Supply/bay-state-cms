@@ -70,6 +70,7 @@ export function importQualificationRuntimeRecords(db: Database, records: readonl
         continue;
       }
       const sql = `INSERT INTO "${record.table}" (${names.map(name => `"${name}"`).join(', ')}) VALUES (${names.map(() => '?').join(', ')})`;
+      db.query(sql).run(...(names.map(name => record.row[name]) as string[]));
     }
   });
   insert();
