@@ -368,7 +368,7 @@ function extractJsonLdGtins(
                 results.push({
                   gtin: rawStr,
                   normalizedGtin: normalizeGtinDigits(rawStr),
-                  type: 'single',
+                  type: 'variant',
                   path: `${pathPrefix ? pathPrefix + '.' : ''}Product.offers[${offIdx}].${og.key}`,
                   isValidChecksum: validateGtin(rawStr),
                 });
