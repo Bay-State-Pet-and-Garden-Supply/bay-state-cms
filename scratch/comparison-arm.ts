@@ -78,7 +78,7 @@ export async function preflightComparisonArm(options: ArmBootstrapOptions, rows:
 /** Release a previously prepared arm only after the coordinator has preflighted every requested arm.
  * T4: with a budget input, builds a shared paid-effect coordinator and threads scope + Serper
  * contract into the worker; every Serper POST / browser session reserves against the run ledger. */
-export async function releaseComparisonArm(options: ArmBootstrapOptions, prepared: PreparedArm, budget?: { runId: string; capUsd: number }): Promise<ArmResult> {
+export async function releaseComparisonArm(options: ArmBootstrapOptions, prepared: PreparedArm, budget?: { runId: string; capUsd: number; paidEffect?: RunPaidEffect }): Promise<ArmResult> {
   let bindings: Record<string, string> = {};
   let initialized = false;
   try {
@@ -97,7 +97,7 @@ export async function releaseComparisonArm(options: ArmBootstrapOptions, prepare
     const released = releaseBatchItems(prepared.batchId, prepared.itemIds);
     if (released !== prepared.imported) throw new Error('Population release reconciliation failed');
     updateBatchExecutionState(prepared.batchId, 'running');
-    const paidEffect = budget ? buildRunPaidEffect(options, prepared, budget) : undefined;
+    const paidEffect = budget?.paidEffect;
     const result = await runBoundedWorker(options, validation, prepared, items.length, paidEffect);
     if (paidEffect) {
       try {
@@ -106,7 +106,7 @@ export async function releaseComparisonArm(options: ArmBootstrapOptions, prepare
       } catch {
         (result as { budgetSnapshot?: unknown }).budgetSnapshot = null;
       }
-      paidEffect.coordinator.close(`run ${budget!.runId} arm ${options.arm} complete`);
+      // The parent owns the shared coordinator and closes it after all arms finish.
     }
     return result;
   } catch (error) {
@@ -132,23 +132,27 @@ type RunPaidEffect = {
   serperSearchContract: VerifiedPaidEffectBillingContract;
 };
 
-function buildRunPaidEffect(
+export function buildRunPaidEffect(
   options: ArmBootstrapOptions,
   prepared: PreparedArm,
-  budget: { runId: string; capUsd: number },
+  budget: { runId: string; capUsd: number; authorizationUsdMicros: number; billingReferences: Array<{ provider: string; contractId: string }> },
+  coordinator?: PaidEffectBudgetCoordinator,
 ): RunPaidEffect {
   if (!options.budgetDbPath) throw new Error('Qualification release requires a shared budget ledger path.');
-  if (!Number.isFinite(budget.capUsd) || budget.capUsd <= 0 || budget.capUsd > 3) {
+  const cap = Math.min(Math.round(budget.capUsd * 1_000_000), budget.authorizationUsdMicros);
+  if (!Number.isFinite(cap) || cap <= 0 || cap > 3_000_000) {
     throw new Error('Qualification paid release requires a positive approved cap within the $3 CLI/freeze ceiling.');
   }
-  const ledgerDb = new Database(options.budgetDbPath);
-  const authorization = pilotBudgetAuthorization({ runId: budget.runId, arms: [options.arm] });
-  const expectedCeiling = Math.round(budget.capUsd * 1_000_000);
-  if (authorization.approvedCeilingMicros > expectedCeiling) {
-    throw new Error('Frozen pilot authorization exceeds the approved CLI cap.');
-  }
-  const coordinator = new PaidEffectBudgetCoordinator(ledgerDb, authorization);
-  const client = createPaidEffectBudgetClient(request => coordinator.handleRequest(request), new AbortController().signal);
+  // Freeze r8-smoke1 pins the legacy 'serper-subscription' id; the pilot contract it
+  // authorizes is serperPilotContract ('serper-pilot-2499-credits'). Accept both ids
+  // here; a future freeze cut records the pilot id explicitly.
+  const serperContract = budget.billingReferences.find(ref => ref.provider === 'serper_search' &&
+    (ref.contractId === 'serper-pilot-2499-credits' || ref.contractId === 'serper-subscription'));
+  const ledgerDb = coordinator ? undefined : new Database(options.budgetDbPath);
+  const authorization = pilotBudgetAuthorization({ runId: budget.runId, arms: ['baseline', 'candidate'] });
+  const boundedAuthorization = { ...authorization, approvedCeilingMicros: Math.min(authorization.approvedCeilingMicros, cap) };
+  const effectCoordinator = coordinator ?? new PaidEffectBudgetCoordinator(ledgerDb!, boundedAuthorization);
+  const client = createPaidEffectBudgetClient(request => effectCoordinator.handleRequest(request), new AbortController().signal);
   const scope: QualificationPaidEffectScope = {
     qualificationRunId: budget.runId,
     authorizationId: authorization.authorizationId,
@@ -156,7 +160,7 @@ function buildRunPaidEffect(
     outputId: prepared.batchId,
     beneficiaries: prepared.itemIds.map(id => ({ kind: 'item' as const, id })),
   };
-  return { coordinator, client, scope, serperSearchContract: authorization.billingContracts[0]! };
+  return { coordinator: effectCoordinator, client, scope, serperSearchContract: authorization.billingContracts[0]! };
 }
 
 async function runBoundedWorker(options: ArmBootstrapOptions, runtime: QualificationRuntimeValidation, prepared: PreparedArm, imported: number, paidEffect?: RunPaidEffect): Promise<ArmResult> {

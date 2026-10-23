@@ -197,6 +197,9 @@ function validateInput(input: ItemEvidenceBrowserInput): Map<string, ItemEvidenc
 /** Collect code-owned read observations through the host validating proxy and isolated render container. */
 export async function collectItemEvidenceBrowser(input: ItemEvidenceBrowserInput): Promise<ItemEvidenceBrowserResult> {
   const candidates = validateInput(input);
+  if (!input.paidEffectDescriptor) {
+    throw new ItemEvidenceBrowserError('contract_required', 'Browser render requires a verified billing contract; no unbounded session was started.');
+  }
   const runner = new DockerRenderContainerRunner();
   const runId = `item-evidence-${randomUUID()}`;
   const ledgerBefore = input.ledger.snapshot();
@@ -229,9 +232,6 @@ export async function collectItemEvidenceBrowser(input: ItemEvidenceBrowserInput
     if (!proxy.mitmAvailable) throw new ItemEvidenceBrowserError('isolation_unavailable', 'validating HTTPS interception credential unavailable');
     await ensureIsolatedRenderNetwork();
     const spec = buildRenderContainerSpec(runId, proxy.url);
-    if (!input.paidEffectDescriptor) {
-      throw new ItemEvidenceBrowserError('contract_required', 'Browser render requires a verified billing contract; no unbounded session was started.');
-    }
     const paidEffectDescriptor = input.paidEffectDescriptor;
     await runPaidEffect({
       descriptor: paidEffectDescriptor,
@@ -240,10 +240,10 @@ export async function collectItemEvidenceBrowser(input: ItemEvidenceBrowserInput
         if (signal.aborted) throw new ItemEvidenceBrowserError('cancelled', 'cancelled before isolated browser start');
         input.onDispatch?.();
         await runner.start(spec);
+        started = true;
         return { value: undefined };
       },
     });
-    started = true;
     if (input.signal?.aborted) throw new ItemEvidenceBrowserError('cancelled', 'cancelled before isolated browser start');
     const actionsByCandidate = new Map<string, ItemEvidenceBrowserAction[]>();
     for (const action of input.actions) actionsByCandidate.set(action.candidateId, [...(actionsByCandidate.get(action.candidateId) ?? []), action]);

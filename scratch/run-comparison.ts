@@ -19,7 +19,7 @@ import {
   writeJson,
   type Row,
 } from './onboarding-outcome';
-import { preflightComparisonArm, releaseComparisonArm, type ArmBootstrapOptions, type ArmPreflightResult, type ArmResult, type PopulationRow } from './comparison-arm';
+import { buildRunPaidEffect, preflightComparisonArm, releaseComparisonArm, type ArmBootstrapOptions, type ArmPreflightResult, type ArmResult, type PopulationRow } from './comparison-arm';
 import { captureComparisonArm, unavailableComparisonCapture, writeComparisonCapture, type ComparisonCaptureBundle } from './comparison-capture';
 import { projectComparisonRows, type ComparisonInput } from './comparison-report';
 import type { PaidEffectBudgetSnapshot } from '../src/db/repositories/qualification-run-budget-repo';
@@ -148,15 +148,25 @@ async function main(): Promise<void> {
     const readFd = openSync(credPath, 'r');
     byArm.get(arm)!.credentialFd = readFd;
   }
+  let sharedBudgetCoordinator: import('../src/ai/paid-effect-budget').PaidEffectBudgetCoordinator | undefined;
   const barrier = await runArmBarrier<NonNullable<ArmPreflightResult['prepared']>, ArmResult>(
     arms,
     async arm => {
       const result = await preflightComparisonArm(byArm.get(arm)!, population);
       return { prepared: result.prepared, denial: result.denial };
     },
-    (arm, prepared) => releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap }),
+    async (arm, prepared) => {
+      const freeze = await readQualificationFreeze(freezePath);
+      const paidEffect = buildRunPaidEffect(byArm.get(arm)!, prepared, {
+        runId, capUsd: options.cap, authorizationUsdMicros: freeze.authorizationUsdMicros,
+        billingReferences: freeze.billingReferences,
+      }, sharedBudgetCoordinator);
+      sharedBudgetCoordinator = paidEffect.coordinator;
+      return releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap, paidEffect });
+    },
     options.cap > 0 && options.mode === 'comparison',
   );
+  sharedBudgetCoordinator?.close(`run ${runId} complete`);
   for (const fd of credentialFdByArm.values()) try { closeSync(fd); } catch { /* already closed */ }
   rmSync(credDir, { recursive: true, force: true });
   const outputs: string[] = [];

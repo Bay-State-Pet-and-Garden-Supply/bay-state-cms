@@ -139,10 +139,13 @@ export function projectGateBlocks(reason: string | null): string[] {
   const gatesIdx = reason.indexOf('| gates:');
   if (gatesIdx === -1) return blocks;
   const gatesSection = reason.slice(gatesIdx);
-  if (/no_authority/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_AUTHORITY');
-  if (/incomplete_coverage/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_COVERAGE');
-  if (/matcher:(?!unique_name_variant_match)|BLOCKED:.*matcher:/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_MATCHER');
-  if (/contradiction\(/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_CONTRADICTION');
+  // URLs can contain arbitrary path/query text; only interpret the diagnostic
+  // tokens following the final URL as gate evidence.
+  const gateTokens = gatesSection.replace(/https?:\/\/\S+/g, '');
+  if (/no_authority/.test(gateTokens)) blocks.push('BLOCKED_IDENTITY_AUTHORITY');
+  if (/incomplete_coverage/.test(gateTokens)) blocks.push('BLOCKED_IDENTITY_COVERAGE');
+  if (/matcher:(?!unique_name_variant_match)|BLOCKED:.*matcher:/.test(gateTokens)) blocks.push('BLOCKED_IDENTITY_MATCHER');
+  if (/contradiction\(/.test(gateTokens)) blocks.push('BLOCKED_IDENTITY_CONTRADICTION');
   return blocks;
 }
 

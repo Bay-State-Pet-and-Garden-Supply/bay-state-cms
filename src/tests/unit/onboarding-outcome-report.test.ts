@@ -129,10 +129,27 @@ describe('projectComparisonRows', () => {
     );
     expect(authResult.rows[0]?.gate_blocks).toContain('BLOCKED_IDENTITY_AUTHORITY');
     const noGates = projectComparisonRows(
-      [{ row_id: 'r-plain', upc: 'a2', register_name: 'A2', price: 1 }],
+      [{ row_id: 'r-plain', upc: 'a2', register_name: 'A2', price: 2 }],
       [{ id: 'i2', upc: 'a2', stage: 'discovery', stageStatus: 'completed', status: 'needs_review', errorMessage: 'needs_review: parked' }],
       [],
     );
     expect(noGates.rows[0]?.gate_blocks).toEqual(['BLOCKED_SOURCE_REVIEW']);
+  });
+  it('ignores gate-like text in URLs and keeps truncated gate diagnostics review-only', () => {
+    const urlReason = 'needs_review: parked | gates: https://example.test/no_authority/incomplete_coverage [exact_gtin] BLOCKED:matcher:reject_conflict(x)';
+    const urlResult = projectComparisonRows(
+      [{ row_id: 'r-url', upc: 'url', register_name: 'URL', price: 1 }],
+      [{ id: 'url-item', upc: 'url', stage: 'discovery', stageStatus: 'completed', status: 'needs_review', errorMessage: urlReason }],
+      [],
+    );
+    expect(urlResult.rows[0]?.gate_blocks).toEqual(['BLOCKED_SOURCE_REVIEW', 'BLOCKED_IDENTITY_MATCHER']);
+
+    const truncatedReason = 'needs_review: parked | gates: https://example.test/p [exact_gtin]';
+    const truncatedResult = projectComparisonRows(
+      [{ row_id: 'r-truncated', upc: 'truncated', register_name: 'Truncated', price: 1 }],
+      [{ id: 'truncated-item', upc: 'truncated', stage: 'discovery', stageStatus: 'completed', status: 'needs_review', errorMessage: truncatedReason }],
+      [],
+    );
+    expect(truncatedResult.rows[0]?.gate_blocks).toEqual(['BLOCKED_SOURCE_REVIEW']);
   });
 });

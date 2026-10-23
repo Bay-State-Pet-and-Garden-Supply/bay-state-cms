@@ -76,20 +76,19 @@ export interface RunItemEvidenceAcquisitionInput {
 
 function acquisitionPaidEffectDescriptor(
   contract: VerifiedPaidEffectBillingContract | undefined,
-  provider: string,
-  model: string,
   effect: string,
   logicalEffectId: string,
 ): PaidEffectAttemptDescriptor {
+  if (!contract) throw new Error(`paid_effect_contract_required:${effect}`);
   return {
     idempotencyKey: createPaidEffectIdempotencyKey(),
     logicalEffectId,
-    provider: contract?.provider ?? provider,
-    model: contract?.model ?? model,
+    provider: contract.provider,
+    model: contract.model,
     effect,
-    billingContractId: contract?.contractId ?? `missing-${effect}-contract`,
-    billingContractHash: contract ? hashCanonicalJson(contract) : hashCanonicalJson({ missing: effect }),
-    requestedUnits: contract ? Object.fromEntries(contract.dimensions.map(dimension => [dimension.name, dimension.maxUnits])) : {},
+    billingContractId: contract.contractId,
+    billingContractHash: hashCanonicalJson(contract),
+    requestedUnits: Object.fromEntries(contract.dimensions.map(dimension => [dimension.name, dimension.maxUnits])),
   };
 }
 const FIELD_LABELS: Readonly<Record<string, readonly string[]>> = {
@@ -520,7 +519,7 @@ async function runIdentityBootstrapWithinBudget(
       investigationId: `item-acquisition-${input.runId}`, workspaceId: input.workspaceId,
       candidates: [candidate], actions: [action], budget, ledger, resources: browserResources, signal: scope.signal,
       paidEffectDescriptor: acquisitionPaidEffectDescriptor(
-        input.paidEffect?.browserSessionContract, 'browser', 'local-render-session', 'browser-session-start',
+        input.paidEffect?.browserSessionContract, 'browser-session-start',
         `browser-session:${input.itemId}:${input.runId}:${action.id}`,
       ),
     });
@@ -675,7 +674,7 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
           count: 20, maxResponseBytes: reservedBytes, signal: scope.signal,
           onDispatch: () => { scope.assertHeld(); markItemAcquisitionDispatched(reservation.id); dispatched = true; },
           paidEffectDescriptor: acquisitionPaidEffectDescriptor(
-            input.paidEffect?.serperSearchContract, 'serper_search', 'web', 'serper-search-post',
+            input.paidEffect?.serperSearchContract, 'serper-search-post',
             `serper-search:${input.itemId}:${input.runId}`,
           ),
         });
@@ -770,7 +769,7 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
         investigationId: `item-acquisition-${input.runId}`, workspaceId: input.workspaceId,
         candidates: [selectedCandidate], actions: [selectedAction], budget, ledger, resources: browserResources, signal: scope.signal,
         paidEffectDescriptor: acquisitionPaidEffectDescriptor(
-          input.paidEffect?.browserSessionContract, 'browser', 'local-render-session', 'browser-session-start',
+          input.paidEffect?.browserSessionContract, 'browser-session-start',
           `browser-session:${input.itemId}:${input.runId}:${selectedAction.id}`,
         ),
         onDispatch: () => {
@@ -856,7 +855,10 @@ async function runWithinBudget(input: RunItemEvidenceAcquisitionInput, usage: It
       return { ...failure, evidence: latest.evidence, checklist: latest.readiness.evaluation, modelCallIds: decision.modelCallIds, usage, reason: failure.reason };
     }
   });
-  if (!input.paidEffect) return execute();
+  if (!input.paidEffect?.scope || !input.paidEffect.client ||
+    !input.paidEffect.serperSearchContract || !input.paidEffect.browserSessionContract) {
+    throw new Error('paid_effect_scope_or_contract_required');
+  }
   return withQualificationPaidEffectScope({
     scope: input.paidEffect.scope,
     client: input.paidEffect.client,
@@ -872,6 +874,10 @@ export async function runItemEvidenceAcquisition(input: RunItemEvidenceAcquisiti
   if (state.status !== 'ok') return { status: state.status, evidence: state.evidence, checklist: state.readiness.evaluation, modelCallIds: [], usage, reason: state.reason ?? 'Current acquisition state is unavailable.' };
   if (state.readiness.evaluation.status === 'ready' && state.readiness.classificationReady) return { status: 'completed', evidence: state.evidence, checklist: state.readiness.evaluation, modelCallIds: [], usage, reason: 'The current-run listing checklist and reviewed classification are satisfied; no supplemental retrieval was dispatched.' };
   if (state.readiness.evaluation.status === 'ready' && !state.readiness.classificationReady) return { status: 'needs_attention', evidence: state.evidence, checklist: state.readiness.evaluation, modelCallIds: [], usage, reason: state.readiness.classificationReason ?? 'Human review is required before the current listing classification can be ready.' };
+  if (!input.paidEffect?.scope || !input.paidEffect.client ||
+    !input.paidEffect.serperSearchContract || !input.paidEffect.browserSessionContract) {
+    return { status: 'unavailable', evidence: state.evidence, checklist: state.readiness.evaluation, modelCallIds: [], usage, reason: 'Paid-effect scope and verified billing contracts are required before supplemental evidence retrieval.' };
+  }
   try {
     return await runWithinBudget(input, usage);
   } catch (error) {

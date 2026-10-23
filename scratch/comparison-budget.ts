@@ -202,7 +202,7 @@ export class ComparisonBudgetIpcCoordinator {
   }
 }
 
-/** Frozen Serper pilot contract: 1 request unit reserved per POST against the operator-reported 2,499-credit pool.
+/** Frozen Serper pilot contract: one request unit per POST, cumulatively capped at the operator-reported 2,499-credit pool.
  * Zero-dollar (credits are not USD); the dollar ceiling stays TypeSafe-only. Evidence: operator statement
  * 2026-10-23, docs/audits/onboarding-outcome-v1/provider-billing-evidence.md. Provider-side retry/error
  * billing beyond the single POST is uncontracted and stays an unknown liability. */
@@ -212,7 +212,7 @@ export function serperPilotContract(): VerifiedPaidEffectBillingContract {
     contractId: 'serper-pilot-2499-credits',
     provider: 'serper_search',
     model: 'web',
-    dimensions: [{ name: 'requests', unit: 'request', maxUnits: 1, priceMicros: 0, priceUnits: 1 }],
+    dimensions: [{ name: 'requests', unit: 'request', maxUnits: 1, cumulativeMaxUnits: 2_499, priceMicros: 0, priceUnits: 1 }],
     attemptOverheadMicros: 0,
     maxChargeMicros: 0,
     authoritativeUsageSource: 'none' as const,
