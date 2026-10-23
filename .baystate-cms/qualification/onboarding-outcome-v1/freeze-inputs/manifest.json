@@ -1,9 +1,26 @@
 {
-  "appVersion": "0.1.0",
-  "baselineCommit": null,
-  "generatedAt": "2026-06-07T20:11:07.232Z",
-  "productCount": 21602,
-  "schemaVersion": 1,
-  "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
-  "workspaceName": "Bay State"
+  "activeRevision": "bay-state-v2",
+  "bundleHash": "c4e814523bd86b3d4900cf5fd24e55dfe2c9f132392a76896e04a8a55a2bd082",
+  "catalogEvidenceHash": "02dcec2a445642d089f3284fe1b5fccfa2cc5479b0ead1b13170a057b8d16586",
+  "compatibilityVersion": 2,
+  "createdAt": "2026-08-01T12:00:00.000Z",
+  "fileVersions": {
+    "attribute-profiles.json": "dd962d0aa075aa476b7b01f4e98698a0d2631b788e2a99fb30900700fc1b283c",
+    "attributes.json": "fbfa40390572795749ad80c19288a69def3c7c778cb99a836fa51d830952eebe",
+    "brands.json": "f2616741d0c96ec095d3d8060a25dd51ccc3acc09bd8f893f574af0f79470a70",
+    "curation-targets.json": "8a364c9c06ab7c87388759a96a0bd966b298783b3004dd4eba76a32da044f3a1",
+    "data-sharing.json": "c05ae34d9b3130e4ccbcf5580303cdc23ed5e08f035ac9cd78b9cfa58c85d6f2",
+    "guidance.json": "1427bba26f1aa4ba683a9b1b706d72204a60958be2e9d1ce3c9e78b7cc5379f3",
+    "mappings.json": "483d2eca184e62399e28ecdcb8ce04388edbac9452f70cd58e41a289e80bfa2e",
+    "model-policies.json": "71ed5ea9246705af79cd91967cda1461e7d173f1c95d67f6ef12ff77a6fa06c9",
+    "product-types.json": "fe5f40ef51c25a5854f3671405e026003154d157fafffd991dbd14f357670e26"
+  },
+  "hasUnresolvedSafetyFindings": false,
+  "lifecycle": "active",
+  "migrationProvenance": {
+    "kind": "reviewed_generation"
+  },
+  "schemaVersion": 2,
+  "sourceCatalogCommit": "4e7340ea7085fec5497e3e3857c02410174423d8",
+  "updatedAt": "2026-10-03T15:23:23.911Z"
 }
