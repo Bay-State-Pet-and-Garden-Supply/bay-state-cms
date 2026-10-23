@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, realpath, rename, rm, copyFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, rename, rm, copyFile, readdir, symlink, readlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { constants as fsConstants } from 'node:fs';
 import { createRuntimeActivationContext, loadRuntimeConfigAuthority, type RuntimeConfigAuthority } from '../src/classification/config-loader';
@@ -95,14 +95,33 @@ export async function materializeQualificationRuntime(
   const parentReal = await realpath(dirname(destination));
   assertContained(root, parentReal);
   const stage = resolve(parentReal, `.${basename(destination)}-${randomUUID()}`);
-  const workspaceRelative = relative(root, await realpath(workspacePath));
+  const workspaceReal = await realpath(workspacePath);
+  const workspaceRelative = relative(root, workspaceReal);
+  const copyTree = async (src: string, dst: string): Promise<void> => {
+    await mkdir(dst, { recursive: true });
+    for (const entry of await readdir(src, { withFileTypes: true })) {
+      const from = resolve(src, entry.name);
+      const to = resolve(dst, entry.name);
+      assertContained(stage, to);
+      if (entry.isSymbolicLink()) {
+        const linkTarget = await readlink(from);
+        assertContained(stage, resolve(dirname(to), linkTarget));
+        await symlink(linkTarget, to);
+      } else if (entry.isDirectory()) await copyTree(from, to);
+      else if (entry.isFile()) await copyFile(from, to);
+    }
+  };
   try {
     await mkdir(stage, { recursive: false });
+    // Seed the stage with the declared workspace tree, then overlay frozen
+    // artifacts (overwriting identical paths instead of colliding with them).
+    await copyTree(workspaceReal, stage);
     for (const artifact of checked.run.artifacts) {
       const source = await resolvePrivateFile(root, artifact.path);
       const target = resolve(stage, artifact.path);
       assertContained(stage, target);
       await mkdir(dirname(target), { recursive: true });
+      await rm(target, { force: true });
       await copyFile(source, target, fsConstants.COPYFILE_EXCL);
     }
     const stagedWorkspace = resolve(stage, workspaceRelative);
