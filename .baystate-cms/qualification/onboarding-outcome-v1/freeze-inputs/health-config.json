@@ -1,0 +1,68 @@
+{
+  "rules": [
+    {
+      "code": "MISSING_NAME",
+      "defaultSeverity": "blocker",
+      "description": "Ensure product name is populated (not empty).",
+      "name": "Product Name Populate check",
+      "severity": "blocker"
+    },
+    {
+      "code": "INVALID_PRICE",
+      "defaultSeverity": "blocker",
+      "description": "Ensure price format is a valid non-negative float.",
+      "name": "Valid Price Number Format",
+      "severity": "blocker"
+    },
+    {
+      "code": "INVALID_SALE_PRICE",
+      "defaultSeverity": "blocker",
+      "description": "Ensure sale price format is a valid non-negative float.",
+      "name": "Valid Sale Price Number Format",
+      "severity": "blocker"
+    },
+    {
+      "code": "MISSING_PRICE",
+      "defaultSeverity": "warning",
+      "description": "Ensure product price is set (not null/empty).",
+      "name": "Price Populate check",
+      "severity": "warning"
+    },
+    {
+      "code": "MISSING_DESCRIPTION",
+      "defaultSeverity": "warning",
+      "description": "Ensure product description is populated for SEO.",
+      "name": "Description check",
+      "severity": "warning"
+    },
+    {
+      "code": "MISSING_PRIMARY_IMAGE",
+      "defaultSeverity": "warning",
+      "description": "Ensure product has a primary image reference.",
+      "name": "Primary Image check",
+      "severity": "blocker"
+    },
+    {
+      "code": "SUSPICIOUS_MEDIA_REF",
+      "defaultSeverity": "warning",
+      "description": "Ensure primary media path looks like a valid URL or path.",
+      "name": "Suspicious Media reference format",
+      "severity": "warning"
+    },
+    {
+      "code": "UNKNOWN_PRESERVED_FIELDS",
+      "defaultSeverity": "warning",
+      "description": "Warn if the product has unknown elements preserved.",
+      "name": "Unknown Preserved fields check",
+      "severity": "disabled"
+    },
+    {
+      "code": "ADVANCED_BLOCKS_PRESERVED",
+      "defaultSeverity": "warning",
+      "description": "Warn if product has advanced blocks (options, subproducts) preserved.",
+      "name": "Advanced Blocks check",
+      "severity": "warning"
+    }
+  ],
+  "schemaVersion": 1
+}

@@ -44,7 +44,6 @@ function passingRunner(): PolicyWorkerRunner {
         title: exp.name,
         brand: 'BetterBone',
         description: 'Tier-1 validation-path extraction.',
-        price: '$12.99',
         primaryImage: 'https://shop.example.com/images/alpha.jpg',
         additionalImages: [],
         customFields: {

@@ -59,6 +59,8 @@ export function buildCatalogProductEvidenceInput(
   product: Product,
   workspacePath: string,
   _pages?: PageRow[],
+  _options?: unknown,
+  ocrImageRefs?: string[],
 ): CatalogProductSource {
   // Compute a deterministic hash of classification-relevant fields
   const productHash = computeProductHash(product);
@@ -101,6 +103,7 @@ export function buildCatalogProductEvidenceInput(
     preservedContent,
     primaryImage: product.core.media?.primary ?? null,
     additionalImages: product.core.media?.additional ?? [],
+    ocrImageRefs: ocrImageRefs ? [...ocrImageRefs] : [],
     sourceUrl: null, // No source URL for catalog products
     existingPageNames,
     workspacePath,

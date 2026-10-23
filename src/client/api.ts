@@ -1,6 +1,10 @@
 import type { FieldRegistryEntry } from '../shared/schemas/field-registry';
 import type { StoreManagerReportResponse } from '../shared/schemas/store-manager-report';
 import type { CatalogProposal } from '../shared/schemas/catalog-health-proposal';
+import type {
+  CanonicalClassificationReadinessResult,
+  ClassificationDraftProjectionPreview,
+} from '../shared/schemas/classification';
 
 const API_BASE = '/api';
 
@@ -128,8 +132,9 @@ export interface ExportResult {
   xmlPath: string;
   manifestPath: string;
   instructionsPath: string;
-  zipPath: string;
+  zipPath: string | null;
   productCount: number;
+  missingImagesWarning?: string;
 }
 
 // Store Workspace
@@ -222,6 +227,8 @@ export interface CatalogClassificationDetail {
     errorMessage: string | null;
   } | null;
   configDrift: boolean;
+  classificationReadiness?: CanonicalClassificationReadinessResult | null;
+  draftProjection: ClassificationDraftProjectionPreview | null;
   sourceDrift: boolean;
   evidence: Array<{
     id: string;
@@ -1005,6 +1012,11 @@ export interface ConnectionOptionView {
   models: Array<{ id: string; name?: string }>;
   stageSupport: Record<string, { supported: boolean; reason?: string }>;
 }
+export interface GenerativeCopyWorkloadView {
+  provider: string;
+  model: string;
+  textDataSharing: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
+}
 
 export interface ClassificationPolicySettingsResponse {
   migrationRequired: boolean;
@@ -1016,6 +1028,7 @@ export interface ClassificationPolicySettingsResponse {
   imageDataSharing: 'local_only' | 'cloud_allowed';
   stages: EffectiveStageRouteView[];
   availableConnections: ConnectionOptionView[];
+  copyGeneration: GenerativeCopyWorkloadView | null;
 }
 
 export interface PreviewPolicyInputPayload {
@@ -1030,6 +1043,7 @@ export interface PreviewPolicyInputPayload {
   defaultModel?: string;
   textDataSharing?: 'local_only' | 'cloud_allowed';
   imageDataSharing?: 'local_only' | 'cloud_allowed';
+  copyGeneration?: GenerativeCopyWorkloadView | null;
 }
 
 export interface PreviewPolicyResultResponse {
@@ -1047,6 +1061,7 @@ export interface PreviewPolicyResultResponse {
       text: { from: string; to: string };
       image: { from: string; to: string };
     };
+    copyGeneration: { from: GenerativeCopyWorkloadView | null; to: GenerativeCopyWorkloadView | null };
   };
 }
 
@@ -1063,6 +1078,7 @@ export interface ApplyPolicyInputPayload {
   defaultModel?: string;
   textDataSharing?: 'local_only' | 'cloud_allowed';
   imageDataSharing?: 'local_only' | 'cloud_allowed';
+  copyGeneration?: GenerativeCopyWorkloadView | null;
 }
 
 interface ApplyPolicyResultResponse {
@@ -1088,5 +1104,28 @@ export function applyClassificationPolicy(payload: ApplyPolicyInputPayload) {
   return request<{ result: ApplyPolicyResultResponse }>('/classification/settings/policy/apply', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export interface SecuritySettings {
+  tokenConfigured: boolean;
+  tokenMask: string | null;
+  releaseAdminEnabled: boolean;
+  apiTokenSource: 'environment' | 'database' | 'unset';
+  releaseAdminSource: 'environment' | 'database';
+}
+
+export function getSecuritySettings() {
+  return request<SecuritySettings>('/settings/security');
+}
+
+export function generateSecurityToken() {
+  return request<SecuritySettings & { generatedToken: string }>('/settings/security/token', { method: 'POST' });
+}
+
+export function updateSecuritySettings(releaseAdminEnabled: boolean) {
+  return request<SecuritySettings>('/settings/security', {
+    method: 'PUT',
+    body: JSON.stringify({ releaseAdminEnabled }),
   });
 }

@@ -1,7 +1,7 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
-import { hashCanonicalJson } from '../../shared/stable-id';
-import { RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } from '../../onboarding/imported-identity';
+import { hashCanonicalJson, canonicalJsonStringify } from '../../shared/stable-id';
+import { validateIdentityTuple, RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } from '../../onboarding/imported-identity';
 import type { OnboardingItem, ItemStatus, PipelineStage, LegacyPipelineStage, StageStatus, SourcingDecision, SourcingDecisionV2 } from '../../shared/schemas/onboarding';
 
 /**
@@ -29,7 +29,12 @@ import { SourcingDecisionV2Schema } from '../../shared/schemas/onboarding';
  * `OnboardingItem` schema predates it, so repo returns carry it as an
  * intersection type without widening the shared schema.
  */
-export type OnboardingItemWithEntryPolicy = OnboardingItem & { sourcingEntryPolicyVersion: number };
+export type OnboardingItemWithEntryPolicy = OnboardingItem & {
+  sourcingEntryPolicyVersion: number;
+  claimedBy: string | null;
+  claimedAt: string | null;
+  inputRevision: string;
+};
 
 export interface OnboardingItemRow {
   id: string;
@@ -67,6 +72,8 @@ export interface OnboardingItemRow {
   row_number: number;
   created_at: string;
   updated_at: string;
+  claimed_by?: string | null;
+  claimed_at?: string | null;
 }
 
 export interface InsertItemData {
@@ -241,6 +248,36 @@ export interface ChunkAcceptanceHydration {
   byId: Map<string, string[]>;
 }
 
+function itemExecutionInputRevision(row: OnboardingItemRow): string {
+  return hashCanonicalJson({
+    id: row.id,
+    batchId: row.batch_id,
+    upc: row.upc,
+    name: row.name,
+    price: row.price,
+    quantity: row.quantity,
+    brandHint: row.brand_hint,
+    departmentHint: row.department_hint,
+    sourceUrl: row.source_url,
+    expectedName: row.expected_name ?? null,
+    coordinatedTitle: row.coordinated_title ?? null,
+    sourceType: row.source_type ?? null,
+    sourcingEntryPolicyVersion: row.sourcing_entry_policy_version ?? null,
+    acceptedEvidenceAttemptIdsJson: row.accepted_evidence_attempt_ids_json ?? null,
+    acceptedEvidenceAttemptId: row.accepted_evidence_attempt_id ?? null,
+    sourcingDecisionJson: row.sourcing_decision_json ?? null,
+    extractionDataJson: row.extraction_data_json ?? null,
+    rawIdentityJson: row.raw_identity_json ?? null,
+    normalizedIdentityJson: row.normalized_identity_json ?? null,
+    identityNormalizerVersion: row.identity_normalizer_version ?? null,
+    identityProvenanceHash: row.identity_provenance_hash ?? null,
+    isHeld: row.is_held ?? null,
+    heldReason: row.held_reason ?? null,
+    isDuplicate: row.is_duplicate ?? null,
+    existingSku: row.existing_sku ?? null,
+  });
+}
+
 function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydration | null): OnboardingItemWithEntryPolicy {
   // Acceptances hydrate from the relational authority once the distributor
   // V2 migration marker exists (ADR 0014: normalized rows are 100%
@@ -315,7 +352,6 @@ function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydrati
       const ver = row.identity_normalizer_version ?? null;
       const hash = row.identity_provenance_hash ?? null;
       try {
-        const { validateIdentityTuple } = require('../../onboarding/imported-identity');
         const effectiveLossy = ver === 0 ? true : undefined;
         const res = validateIdentityTuple({ rawJson: raw, normalizedJson: norm, version: ver, provenanceHash: hash, lossy: effectiveLossy });
         if (!res.ok) {
@@ -325,8 +361,6 @@ function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydrati
         return { rawIdentityJson: null, normalizedIdentityJson: null, identityNormalizerVersion: null, identityProvenanceHash: null, identityLossy: false };
       }
       // Envelopes already validated via shared validator; still ensure canonical parse for return
-      const { canonicalJsonStringify } = require('../../shared/stable-id');
-      const { RawIdentityEnvelopeV1Schema, NormalizedIdentityEnvelopeV1Schema } = require('../../onboarding/imported-identity');
       const rawOut = (() => { if (!raw) return null; try { const p = JSON.parse(raw); const r = RawIdentityEnvelopeV1Schema.safeParse(p); return r.success && canonicalJsonStringify(p) === raw ? raw : null; } catch { return null; } })();
       const normOut = (() => { if (!norm) return null; try { const p = JSON.parse(norm); const r = NormalizedIdentityEnvelopeV1Schema.safeParse(p); return r.success && canonicalJsonStringify(p) === norm ? norm : null; } catch { return null; } })();
       if ((raw !== null && rawOut === null) || (norm !== null && normOut === null)) {
@@ -337,6 +371,9 @@ function mapRowToItem(row: OnboardingItemRow, hydration?: ChunkAcceptanceHydrati
     rowNumber: row.row_number,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    claimedBy: row.claimed_by ?? null,
+    claimedAt: row.claimed_at ?? null,
+    inputRevision: itemExecutionInputRevision(row),
   };
 }
 
@@ -378,6 +415,22 @@ export function findCurationDataJsonById(id: string): string | null {
     .query('SELECT curation_data_json FROM onboarding_items WHERE id = ?')
     .get(id) as { curation_data_json: string | null } | undefined;
   return row?.curation_data_json ?? null;
+}
+
+/**
+ * Held-claim guard for discovery selection audit (issue #364): re-reads the
+ * claim pair (stage_status + claimed_by) the owning worker set at claim time.
+ * A superseded/requeued/reclaimed item fails here so a stale owner never
+ * writes run-bound selection audit rows. Returns the raw pair; null when no
+ * row matches.
+ */
+export function getDiscoveryClaimState(itemId: string): { stageStatus: string; claimedBy: string | null } | null {
+  const db = getDb();
+  const row = db.query(
+    `SELECT stage_status, claimed_by FROM onboarding_items WHERE id = ?`,
+  ).get(itemId) as { stage_status: string; claimed_by: string | null } | undefined;
+  if (!row) return null;
+  return { stageStatus: row.stage_status, claimedBy: row.claimed_by };
 }
 
 export function insertItems(
@@ -475,6 +528,42 @@ export function insertItems(
         rowNumber: item.rowNumber,
         createdAt: now,
         updatedAt: now,
+        claimedBy: null,
+        claimedAt: null,
+        inputRevision: itemExecutionInputRevision({
+          id,
+          batch_id: batchId,
+          upc: item.upc,
+          name: item.name,
+          price: item.price ?? null,
+          quantity: item.quantity ?? null,
+          brand_hint: item.brandHint ?? null,
+          department_hint: item.departmentHint ?? null,
+          source_url: item.sourceUrl ?? null,
+          expected_name: null,
+          coordinated_title: null,
+          status: 'imported',
+          stage: targetStage,
+          stage_status: targetStageStatus,
+          error_message: null,
+          retry_count: 0,
+          is_duplicate: isDuplicateNum,
+          existing_sku: item.existingSku ?? null,
+          source_type: 'official_page',
+          sourcing_entry_policy_version: sourcingEntryPolicyVersion,
+          accepted_evidence_attempt_ids_json: null,
+          accepted_evidence_attempt_id: null,
+          sourcing_decision_json: null,
+          extraction_data_json: null,
+          curation_data_json: null,
+          raw_identity_json: item.rawIdentityJson ?? null,
+          normalized_identity_json: item.normalizedIdentityJson ?? null,
+          identity_normalizer_version: item.identityNormalizerVersion ?? null,
+          identity_provenance_hash: item.identityProvenanceHash ?? null,
+          row_number: item.rowNumber,
+          created_at: now,
+          updated_at: now,
+        }),
       });
     }
   });
@@ -550,6 +639,18 @@ export function findExtractionDataByWorkspaceAndUpc(workspaceId: string, upc: st
   ).get(workspaceId, upc) as { extraction_data_json: string | null; brand_hint: string | null } | undefined;
   if (!row) return null;
   return { extractionDataJson: row.extraction_data_json, brandHint: row.brand_hint };
+}
+/** Find the newest workspace-owned item id for a SKU; foreign workspace rows remain invisible. */
+export function findLatestItemIdByWorkspaceAndUpc(workspaceId: string, upc: string): string | null {
+  const row = getDb().query(
+    `SELECT i.id AS id
+     FROM onboarding_items i
+     JOIN onboarding_batches b ON b.id = i.batch_id
+     WHERE b.workspace_id = ? AND i.upc = ?
+     ORDER BY i.created_at DESC, i.row_number ASC
+     LIMIT 1`,
+  ).get(workspaceId, upc) as { id: string } | undefined;
+  return row?.id ?? null;
 }
 
 export function listItemsByBatchChunked(
@@ -1511,6 +1612,173 @@ export function persistItemShadowPackagingOcrResult(
   return true;
 }
 
+export interface ClaimedItemCurationLease {
+  workerId: string;
+  claimedAt: string;
+  inputRevision: string;
+}
+
+function updateClaimedCurationItem(
+  itemId: string,
+  claim: ClaimedItemCurationLease,
+  transition: 'completed' | 'failed' | 'pending',
+  curationDataJson?: string,
+  errorMessage?: string | null,
+  beforeCommit?: () => void,
+): boolean {
+  if (!claim.workerId || !claim.claimedAt || !claim.inputRevision) return false;
+  const db = getDb();
+  const now = new Date().toISOString();
+  const [prepareListingA, prepareListingB] = stagePredicateParams('prepare_listing');
+  return db.transaction(() => {
+    const row = db.query('SELECT * FROM onboarding_items WHERE id = ?').get(itemId) as OnboardingItemRow | undefined;
+    if (
+      !row ||
+      row.stage_status !== 'in_progress' ||
+      row.claimed_by !== claim.workerId ||
+      row.claimed_at !== claim.claimedAt ||
+      (transition !== 'pending' && itemExecutionInputRevision(row) !== claim.inputRevision)
+    ) {
+      return false;
+    }
+    try {
+      if (toCanonicalStored(row.stage) !== 'prepare_listing') return false;
+    } catch {
+      return false;
+    }
+
+    const activeBatchClause =
+      transition === 'pending'
+        ? ''
+        : ` AND batch_id IN (
+             SELECT id FROM onboarding_batches
+             WHERE status = 'active' AND (execution_state = 'running' OR execution_state IS NULL)
+           )`;
+    const curationSet = curationDataJson === undefined ? '' : 'curation_data_json = ?, ';
+    const parameters = [
+      ...(curationDataJson === undefined ? [] : [curationDataJson]),
+      transition,
+      transition === 'failed' ? errorMessage ?? null : null,
+      now,
+      itemId,
+      prepareListingA,
+      prepareListingB,
+      claim.workerId,
+      claim.claimedAt,
+    ];
+    const result = db.run(
+      `UPDATE onboarding_items
+       SET ${curationSet}stage_status = ?, error_message = ?, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'in_progress'
+         AND claimed_by = ? AND claimed_at = ?${activeBatchClause}`,
+      parameters,
+    );
+    if (result.changes !== 1) return false;
+    beforeCommit?.();
+    return true;
+  })();
+}
+
+/** Commit a run's output and finish the item in the same claim-guarded transaction. */
+export function commitClaimedItemCuration(
+  itemId: string,
+  claim: ClaimedItemCurationLease,
+  curationDataJson: string,
+  beforeCommit?: () => void,
+): boolean {
+  return updateClaimedCurationItem(itemId, claim, 'completed', curationDataJson, undefined, beforeCommit);
+}
+
+/** Record an item-local curation failure only while this exact lease is current. */
+export function failClaimedItemCuration(
+  itemId: string,
+  claim: ClaimedItemCurationLease,
+  errorMessage: string,
+): boolean {
+  return updateClaimedCurationItem(itemId, claim, 'failed', undefined, errorMessage);
+}
+
+/** Return a still-owned curation claim to pending after stale-input or stop detection. */
+export function releaseClaimedItemCuration(itemId: string, claim: ClaimedItemCurationLease): boolean {
+  return updateClaimedCurationItem(itemId, claim, 'pending');
+}
+export interface ClaimedItemExtractionLease {
+  workerId: string;
+  claimedAt: string;
+  inputRevision: string;
+}
+
+function updateClaimedExtractionItem(
+  itemId: string,
+  claim: ClaimedItemExtractionLease,
+  transition: 'completed' | 'failed' | 'needs_input' | 'pending',
+  extractionDataJson?: string,
+  errorMessage?: string | null,
+  beforeCommit?: () => void,
+): boolean {
+  if (!claim.workerId || !claim.claimedAt || !claim.inputRevision) return false;
+  const db = getDb();
+  const now = new Date().toISOString();
+  const [extractionA, extractionB] = stagePredicateParams('collect_details');
+  return db.transaction(() => {
+    const row = db.query('SELECT * FROM onboarding_items WHERE id = ?').get(itemId) as OnboardingItemRow | undefined;
+    if (!row || row.stage_status !== 'in_progress' || row.claimed_by !== claim.workerId ||
+        row.claimed_at !== claim.claimedAt || (transition !== 'pending' && itemExecutionInputRevision(row) !== claim.inputRevision)) return false;
+    try {
+      if (toCanonicalStored(row.stage) !== 'collect_details') return false;
+    } catch {
+      return false;
+    }
+    const activeBatchClause = transition === 'pending' ? '' : ` AND batch_id IN (
+      SELECT id FROM onboarding_batches WHERE status = 'active' AND (execution_state = 'running' OR execution_state IS NULL)
+    )`;
+    const extractionSet = extractionDataJson === undefined ? '' : 'extraction_data_json = ?, ';
+    const parameters = [
+      ...(extractionDataJson === undefined ? [] : [extractionDataJson]),
+      transition,
+      transition === 'failed' || transition === 'needs_input' ? errorMessage ?? null : null,
+      now,
+      itemId,
+      extractionA,
+      extractionB,
+      claim.workerId,
+      claim.claimedAt,
+    ];
+    const result = db.run(
+      `UPDATE onboarding_items
+       SET ${extractionSet}stage_status = ?, error_message = ?, claimed_by = NULL, claimed_at = NULL, updated_at = ?
+       WHERE id = ? AND (stage = ? OR stage = ?) AND stage_status = 'in_progress'
+         AND claimed_by = ? AND claimed_at = ?${activeBatchClause}`,
+      parameters,
+    );
+    if (result.changes !== 1) return false;
+    beforeCommit?.();
+    return true;
+  })();
+}
+
+/** Commit accepted-evidence extraction only while the exact item lease/input remains current. */
+export function commitClaimedItemExtraction(
+  itemId: string,
+  claim: ClaimedItemExtractionLease,
+  extractionDataJson: string,
+  beforeCommit?: () => void,
+): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'completed', extractionDataJson, undefined, beforeCommit);
+}
+
+export function failClaimedItemExtraction(itemId: string, claim: ClaimedItemExtractionLease, errorMessage: string): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'failed', undefined, errorMessage);
+}
+export function requireClaimedItemExtractionInput(itemId: string, claim: ClaimedItemExtractionLease, reason: string): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'needs_input', undefined, reason);
+}
+
+export function releaseClaimedItemExtraction(itemId: string, claim: ClaimedItemExtractionLease): boolean {
+  return updateClaimedExtractionItem(itemId, claim, 'pending');
+}
+
+
 /** Write the item's curation_data_json (used by the legacy worker and by the
  *  cohort member-projection atomic commit — PR3 hardening Commit B / R3). */
 export function updateItemCurationData(id: string, curationDataJson: string): void {
@@ -1519,6 +1787,50 @@ export function updateItemCurationData(id: string, curationDataJson: string): vo
   db.query(
     'UPDATE onboarding_items SET curation_data_json = ?, updated_at = ? WHERE id = ?',
   ).run(curationDataJson, now, id);
+}
+
+/**
+ * Verify-and-write one curation-document field (listing-evidence rerun +
+ * operator verification): re-reads the CURRENT stored document, re-applies
+ * the field onto the live bytes, and writes it back inside one transaction.
+ * Reviewer edits (title, description, media, other curation keys) made while
+ * an evaluation await was in flight survive — only the named field is
+ * replaced, never a stale pre-await snapshot spread over the row. The
+ * optional `expectRevision` guard fails closed (`null` return, no write)
+ * when the live document changed since the caller read it; the route then
+ * persists nothing and reports the conflict instead of clobbering.
+ */
+export function updateItemCurationField(
+  id: string,
+  field: string,
+  value: unknown,
+  options?: { expectRevision?: string | null },
+): { ok: true } | { ok: false; code: 'revision_stale' } {
+  const db = getDb();
+  const now = new Date().toISOString();
+  return db.transaction(() => {
+    const row = db.query('SELECT curation_data_json FROM onboarding_items WHERE id = ?').get(id) as
+      | { curation_data_json: string | null } | undefined;
+    if (!row) return { ok: false as const, code: 'revision_stale' as const };
+    let live: Record<string, unknown>;
+    try {
+      const parsed: unknown = row.curation_data_json ? JSON.parse(String(row.curation_data_json)) : {};
+      live = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      live = {};
+    }
+    if (options && options.expectRevision !== undefined && options.expectRevision !== null) {
+      if (hashCanonicalJson(live) !== options.expectRevision) {
+        return { ok: false as const, code: 'revision_stale' as const };
+      }
+    }
+    const next = { ...live, [field]: value };
+    db.query(
+      'UPDATE onboarding_items SET curation_data_json = ?, updated_at = ? WHERE id = ?',
+    ).run(JSON.stringify(next), now, id);
+    return { ok: true as const };
+  })();
 }
 
 export function updateItemBrandHint(id: string, brandHint: string | null): void {
@@ -2344,9 +2656,23 @@ const AUTO_ADVANCE_COLUMNS = 'i.id, i.batch_id, i.source_url, i.source_type, i.e
  * distinction from the human-held discovery holds (no-domain-mapped and
  * no-candidate-passed-verification leave the URL NULL).
  */
-export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceRow[] {
+export function listDiscoveryCompletedWithUrl(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [discA, discB] = stagePredicateParams('find_product_page');
+  const params: Array<string | number> = [workspaceId, discA, discB];
+  // Keyset resume: rows strictly after the cursor's (row_number, id) so a
+  // poll never materializes the pool ahead of the cursor. An unknown cursor
+  // id (advanced-away row) yields an empty page; callers wrap from the head.
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
@@ -2354,8 +2680,10 @@ export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceR
      WHERE b.workspace_id = ? AND b.status = 'active'
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
        AND i.source_url IS NOT NULL
-     ORDER BY i.row_number`,
-  ).all(workspaceId, discA, discB) as AutoAdvanceRow[];
+       ${keyset}
+     ORDER BY i.row_number, i.id
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**
@@ -2366,9 +2694,20 @@ export function listDiscoveryCompletedWithUrl(workspaceId: string): AutoAdvanceR
  * Curation readiness). `extraction_data_json IS NOT NULL` is the data guard
  * — applies to both official-page and distributor-record sources.
  */
-export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
+export function listExtractionCompleted(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [extA, extB] = stagePredicateParams('collect_details');
+  const params: Array<string | number> = [workspaceId, extA, extB];
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
@@ -2376,8 +2715,10 @@ export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
      WHERE b.workspace_id = ? AND b.status = 'active'
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
        AND i.extraction_data_json IS NOT NULL
-     ORDER BY i.row_number`,
-  ).all(workspaceId, extA, extB) as AutoAdvanceRow[];
+       ${keyset}
+     ORDER BY i.row_number, i.id
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**
@@ -2385,17 +2726,30 @@ export function listExtractionCompleted(workspaceId: string): AutoAdvanceRow[] {
  * pool. The semantic-blocked / cohort-parent-in-flight guards live in
  * `src/onboarding/auto-advance.ts` (they need the hydrated curation payload).
  */
-export function listCurationCompleted(workspaceId: string): AutoAdvanceRow[] {
+export function listCurationCompleted(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [curA, curB] = stagePredicateParams('prepare_listing');
+  const params: Array<string | number> = [workspaceId, curA, curB];
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
      JOIN onboarding_batches b ON b.id = i.batch_id
      WHERE b.workspace_id = ? AND b.status = 'active'
        AND (i.stage = ? OR i.stage = ?) AND i.stage_status = 'completed'
-     ORDER BY i.row_number`,
-  ).all(workspaceId, curA, curB) as AutoAdvanceRow[];
+       ${keyset}
+     ORDER BY i.row_number, i.id
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**
@@ -2404,10 +2758,35 @@ export function listCurationCompleted(workspaceId: string): AutoAdvanceRow[] {
  * domain-release eligibility pool. Official-page items only: a distributor
  * record has no page and its materialization is deterministic (never
  * released by profile availability).
+ *
+ * Issue #303 follow-up: optional keyset pagination (`LIMIT` + resume after
+ * `(row_number, id)`), mirroring the auto-advance pools, so the
+ * domain-release sweep pages discovery instead of materializing the whole
+ * unbounded pool before its first yield. Unpaginated callers keep the full
+ * pool in `(row_number, id)` order.
  */
-export function listBlockedExtractionItemsByWorkspace(workspaceId: string): AutoAdvanceRow[] {
+export function listBlockedExtractionItemsByWorkspace(workspaceId: string, page?: { afterId?: string; limit?: number }): AutoAdvanceRow[] {
   const db = getDb();
   const [extA, extB] = stagePredicateParams('collect_details');
+  const params: Array<string | number> = [workspaceId, extA, extB];
+  // Keyset resume: rows strictly after the cursor's (row_number, id) so a
+  // poll never materializes the pool ahead of the cursor. An unknown cursor
+  // id yields an empty page; callers stop (discovery mutates nothing, so the
+  // cursor is always known mid-pass).
+  let keyset = '';
+  if (page?.afterId !== undefined) {
+    keyset = 'AND (i.row_number, i.id) > (SELECT row_number, id FROM onboarding_items WHERE id = ?)';
+    params.push(page.afterId);
+  }
+  let limitClause = '';
+  if (page?.limit !== undefined) {
+    limitClause = 'LIMIT ?';
+    params.push(page.limit);
+  }
+  // Unpaginated callers keep the legacy `row_number` order verbatim; keyset
+  // pages need the total `(row_number, id)` order so tied rows neither skip
+  // nor repeat at page boundaries.
+  const orderBy = page === undefined ? 'ORDER BY i.row_number' : 'ORDER BY i.row_number, i.id';
   return db.query(
     `SELECT ${AUTO_ADVANCE_COLUMNS}
      FROM onboarding_items i
@@ -2416,9 +2795,10 @@ export function listBlockedExtractionItemsByWorkspace(workspaceId: string): Auto
        AND (i.stage = ? OR i.stage = ?)
        AND i.stage_status IN ('failed', 'needs_input')
        AND (i.source_type IS NULL OR i.source_type != 'distributor_record')
-       AND i.source_url IS NOT NULL
-     ORDER BY i.row_number`,
-  ).all(workspaceId, extA, extB) as AutoAdvanceRow[];
+       ${keyset}
+     ${orderBy}
+     ${limitClause}`,
+  ).all(...params) as AutoAdvanceRow[];
 }
 
 /**

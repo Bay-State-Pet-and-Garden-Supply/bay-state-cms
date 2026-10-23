@@ -85,6 +85,8 @@ export default defineConfig({
       'src/tests/unit/naming-promotion-gate.test.ts',
       'src/tests/unit/naming-presync-overlay.test.ts',
       'src/tests/unit/naming-reimport-hold.test.ts',
+      // Naming promotion uses bun:sqlite; the same file is registered under test:db.
+      'src/tests/unit/naming-promotion-filenames.test.ts',
       // Brand guarantee uses bun:sqlite via llm-client; runs under bun test.
       // NOTE: keep isolated from name-consolidation-stage.test.ts — that file
       // vi.mock()s title-consolidation and bun shares the module registry
@@ -148,6 +150,7 @@ export default defineConfig({
       // Backfill remediation (M1/M2A/M3): bun:test suites with bun:sqlite —
       // run under bun test via test:db, excluded from Vitest.
       'src/tests/integration/change-set-approval-scope.test.ts',
+      'src/tests/integration/family-push-recovery.test.ts',
       'src/tests/integration/milestone1-backfill-dryrun.test.ts',
       'src/tests/integration/milestone2a-image-trust-exit.test.ts',
       'src/tests/integration/p18-catalog-review-ui.test.ts',
@@ -155,6 +158,43 @@ export default defineConfig({
       'src/tests/unit/classification-operations.test.ts',
       'src/tests/unit/drift-expected-push.test.ts',
       'src/tests/unit/export-missing-images.test.ts',
+      'src/tests/unit/family-push-operation.test.ts',
+      // TypeSafe onboarding expansion (issues #363-#376): bun:test suites with
+      // bun:sqlite — run under bun test via test:db, excluded from Vitest.
+      'src/tests/integration/change-set-linked-approval.test.ts',
+      'src/tests/integration/storefront-family-adoption.test.ts',
+      'src/tests/integration/storefront-family-export.test.ts',
+      'src/tests/integration/storefront-family-join.test.ts',
+      'src/tests/integration/storefront-family-proposal.test.ts',
+      'src/tests/unit/evidence-backed-naming.test.ts',
+      'src/tests/unit/evidence-backed-naming-seam.test.ts',
+      'src/tests/unit/evidence-backed-naming-smoke.test.ts',
+      'src/tests/unit/listing-evidence-behavior.test.ts',
+      'src/tests/unit/listing-evidence-verify.test.ts',
+      'src/tests/unit/name-consolidation-stage.test.ts',
+      'src/tests/unit/naming-listing-qualification.test.ts',
+      'src/tests/unit/sitemap-matcher.test.ts',
+      'src/tests/unit/sitemap-selection.test.ts',
+      'src/tests/unit/sitemap-selection-qualification.test.ts',
+      'src/tests/unit/sitemap-selection-workflow.test.ts',
+      'src/tests/unit/evidence-backed-naming.test.ts',
+      'src/tests/unit/evidence-backed-naming-seam.test.ts',
+      'src/tests/unit/evidence-backed-naming-smoke.test.ts',
+      'src/tests/unit/listing-evidence-behavior.test.ts',
+      'src/tests/unit/listing-evidence-verify.test.ts',
+      'src/tests/unit/name-consolidation-stage.test.ts',
+      'src/tests/unit/naming-listing-qualification.test.ts',
+      'src/tests/unit/storefront-family-plan.test.ts',
+      'src/tests/unit/storefront-family-qualification.test.ts',
+      'src/tests/unit/family-push-operation.test.ts',
+      'src/tests/integration/change-set-linked-approval.test.ts',
+      'src/tests/integration/storefront-family-adoption.test.ts',
+      'src/tests/integration/storefront-family-export.test.ts',
+      'src/tests/integration/storefront-family-join.test.ts',
+      'src/tests/integration/storefront-family-proposal.test.ts',
+      'src/tests/integration/family-push-recovery.test.ts',
+      'src/tests/unit/storefront-family-plan.test.ts',
+      'src/tests/unit/storefront-family-qualification.test.ts',
       'src/tests/unit/ocr-image-selection.test.ts',
       'src/tests/unit/p19-idempotent-catalog-runs.test.ts',
       'src/tests/unit/product-page-joins.test.ts',
@@ -321,8 +361,23 @@ export default defineConfig({
       'src/tests/unit/release-routes.test.ts',
       'src/tests/unit/release-shadow.test.ts',
       // PR5 effective-curation-type suites (bun:test imports — vitest cannot collect them)
-      'src/tests/unit/effective-curation-type.test.ts',
       'src/tests/unit/effective-curation-stages.test.ts',
+      // Issue #356/#357 reviewed-projection consumer regression suites —
+      // bun:test/bun:sqlite via the repository layer; run under bun test via
+      // test:db (dual-runner gate §6.1). Canonical workflow + related
+      // canonical/profile/export seam suites (already Bun-native).
+      'src/tests/unit/canonical-classification-workflow.test.ts',
+      'src/tests/unit/canonical-classification-config.test.ts',
+      'src/tests/unit/canonical-classification-correction.test.ts',
+      'src/tests/unit/canonical-classification-decision.test.ts',
+      'src/tests/unit/canonical-classification-effective.test.ts',
+      'src/tests/unit/canonical-classification-profile.test.ts',
+      'src/tests/unit/canonical-classification-proposal.test.ts',
+      'src/tests/unit/provisional-attribute-seam.test.ts',
+      'src/tests/unit/export-safeguards-seam.test.ts',
+      'src/tests/unit/page-removal-workflow-seam.test.ts',
+      'src/tests/unit/readiness-invalidation-seam.test.ts',
+      'src/tests/unit/sensitive-claim-seam.test.ts',
       // PR8 draft-projection stage suite (bun:test imports — vitest cannot collect it)
       'src/tests/unit/draft-projection.test.ts',
       // PR8 acceptance (bun:test imports — vitest cannot collect it)
@@ -508,6 +563,36 @@ export default defineConfig({
       // Jev v3 source-extractor seam — transitively imports bun:sqlite via the
       // collector's benchmark-exporter chain; run under bun test directly.
       'src/tests/unit/jev-source-collection.test.ts',
+      'src/tests/unit/jev-public-source-enrichment.test.ts',
+      'src/tests/unit/jev-source-request-window.test.ts',
+      'src/tests/unit/legacy-classification-history-only.test.ts',
+      'src/tests/unit/sku-local-evidence.test.ts',
+      'src/tests/unit/sku-local-page-evidence.test.ts',
+      'src/tests/unit/sku-local-siblings.test.ts',
+      // P1 engine suite imports repository/connection transitively (bun:sqlite); run under bun test via test:db.
+      'src/tests/unit/p1-engine-correctness.test.ts',
+      // Issue #303 worker-poll yield regression — bun:test/bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/onboarding-worker-poll-yield.test.ts',
+      // Issue #304 venison cohort fail-closed regression — bun:test/bun:sqlite, run under bun test (test:db)
+      'src/tests/unit/venison-cohort-fail-closed.test.ts',
+      // Profile generation policy — imports bun:test for vi; run under bun test via test:db
+      'src/tests/unit/profile-generation-policy.test.ts',
+      // Backfill preflight/reconcile — transitive bun:sqlite via codec/decision chain; run under bun test (test:db)
+      'src/tests/unit/backfill-preflight.test.ts',
+      'src/tests/unit/backfill-reconcile.test.ts',
+      // Change-set item/run binding — transitive bun:sqlite via repositories; run under bun test (test:db)
+      'src/tests/unit/change-set-item-run-binding.test.ts',
+      // Onboarding expansion suites use bun:test / bun:sqlite; isolated invocations in test:db.
+      'src/tests/unit/accepted-item-evidence-db.test.ts',
+      'src/tests/unit/grounded-copy.test.ts',
+      'src/tests/unit/item-acquisition-budget.test.ts',
+      'src/tests/unit/item-acquisition-serper-migration.test.ts',
+      'src/tests/unit/item-acquisition-serper-search.test.ts',
+      'src/tests/unit/item-checklist.test.ts',
+      'src/tests/unit/listing-completeness-exception-repo.test.ts',
+      'src/tests/unit/security-settings-repo.test.ts',
+      'src/tests/unit/security-settings-routes.test.ts',
+      'src/tests/unit/storefront-family-origin.test.ts',
     ],
   },
 });

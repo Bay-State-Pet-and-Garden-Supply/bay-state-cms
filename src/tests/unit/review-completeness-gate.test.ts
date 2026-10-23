@@ -744,8 +744,7 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     const body = await res.json();
     expect(body.failures[0].blockers).toContain('missing_price');
 
-    // Projection surfaces the blocker so the reviewer can FIX it by editing
-    // the item price (editable for both source types per adjudication).
+    // The price blocker is visible in Review; prices cannot be changed there.
     const detailRes = await makeApp().request(`/api/onboarding/items/${id}`);
     expect(detailRes.status).toBe(200);
     const detail = await detailRes.json();
@@ -941,58 +940,48 @@ describe('POST /api/onboarding/items/review-complete — e10s01 completeness gat
     expect(failure.blockers).toContain('missing_pages');
   });
 
-  it('PUT rejects the quantity key for distributor_record rows but keeps price writable (adjudication)', async () => {
+  it('PUT rejects distributor quantity edits and all onboarding price changes', async () => {
     const batchId = makeBatch('put-dist-qty');
-    const id = createItem(batchId, { upc: `DQ-${randomUUID().slice(0, 6)}`, brandHint: 'Acme' });
+    const id = createItem(batchId, { upc: `DQ-${randomUUID().slice(0, 6)}`, price: '8.99', brandHint: 'Acme' });
     getDb().run("UPDATE onboarding_items SET source_type = 'distributor_record' WHERE id = ?", [id]);
+    const app = makeApp();
 
-    const qtyRes = await makeApp().request(`/api/onboarding/items/${id}`, {
+    const qtyRes = await app.request(`/api/onboarding/items/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantity: 5 }),
     });
     expect(qtyRes.status).toBe(400);
 
-    // Price stays writable: item.price is the promoter's ONLY distributor
-    // price authority, so the reviewer must be able to fix a missing_price
-    // blocker from Review.
-    const priceRes = await makeApp().request(`/api/onboarding/items/${id}`, {
+    const priceRes = await app.request(`/api/onboarding/items/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ price: '12.50' }),
     });
-    expect(priceRes.status).toBe(200);
-    expect(findItemById(id)!.price).toBe('12.50');
+    expect(priceRes.status).toBe(400);
+    expect(findItemById(id)!.price).toBe('8.99');
   });
 
-  it('PUT rejects negative price and quantity values (the promoter writes them verbatim otherwise)', async () => {
-    const batchId = makeBatch('put-negative');
-    const id = createItem(batchId, { upc: `NEG-${randomUUID().slice(0, 6)}` });
+  it('PUT rejects page-extracted prices and invalid negative quantity values', async () => {
+    const batchId = makeBatch('put-price-extraction');
+    const id = createItem(batchId, { upc: `PRICE-${randomUUID().slice(0, 6)}`, price: '  $9.99 ' });
     const app = makeApp();
-    const priceRes = await app.request(`/api/onboarding/items/${id}`, {
+
+    const extractedPriceRes = await app.request(`/api/onboarding/items/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ price: '-5.00' }),
+      body: JSON.stringify({ extraction_data: { price: '19.99' } }),
     });
-    expect(priceRes.status).toBe(400);
-    // Currency-symbol-wrapped negatives must fail too: validation runs AFTER
-    // stripping `$ ,` whitespace, mirroring the promotion price cleanup
-    // (blind review F2 — " $-5 " previously smuggled a negative through).
-    const wrappedRes = await app.request(`/api/onboarding/items/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ price: ' $-5 ' }),
-    });
-    expect(wrappedRes.status).toBe(400);
+    expect(extractedPriceRes.status).toBe(400);
+    expect(findItemById(id)!.price).toBe('  $9.99 ');
+
     const qtyRes = await app.request(`/api/onboarding/items/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantity: -3 }),
     });
     expect(qtyRes.status).toBe(400);
-    const item = findItemById(id)!;
-    expect(item.price).toBeNull();
-    expect(item.quantity).toBeNull();
+    expect(findItemById(id)!.quantity).toBeNull();
   });
 
   it('PUT normalizes edited curatedWeight through convertToLbs at the route level', async () => {

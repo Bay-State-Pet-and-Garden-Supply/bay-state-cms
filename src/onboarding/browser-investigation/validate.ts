@@ -51,7 +51,6 @@ function fail(
 export interface ValidationExpectedIdentity {
   name: string;
   brandHint?: string | null;
-  price?: string | null;
   /** Trusted product GTIN (rides the worker UPC slot — never the SKU slot). */
   gtin?: string | null;
   /** Trusted source SKU for variant-identity matching. */
@@ -79,7 +78,6 @@ export interface PolicyWorkerResult {
     title?: string | null;
     brand?: string | null;
     description?: string | null;
-    price?: string | null;
     primaryImage?: string | null;
     additionalImages?: string[];
     customFields?: Record<string, string>;
@@ -116,7 +114,6 @@ export interface PolicyWorkerRunner {
     expected: {
       name: string;
       brandHint?: string | null;
-      price?: string | null;
       upc?: string;
       sku?: string;
       platformVariantId?: string;
@@ -334,7 +331,6 @@ const FIELD_PRESENT_READERS: Readonly<Record<PolicyField, (data: PolicyWorkerDat
   title: (data) => !!data.title?.trim(),
   brand: (data) => !!data.brand?.trim(),
   description: (data) => !!data.description?.trim(),
-  price: (data) => !!data.price?.trim(),
   images: (data) => !!data.primaryImage || (data.additionalImages ?? []).length > 0,
   sku: (data) => !!data.customFields?.sku?.trim(),
   gtin: (data) => !!data.customFields?.gtin?.trim(),
@@ -509,7 +505,6 @@ export function classifyIdentity(sample: ValidationSampleInput, result: PolicyWo
 function runnerExpectedOf(expected: ValidationExpectedIdentity): {
   name: string;
   brandHint?: string | null;
-  price?: string | null;
   upc?: string;
   sku?: string;
   platformVariantId?: string;
@@ -517,7 +512,6 @@ function runnerExpectedOf(expected: ValidationExpectedIdentity): {
   return {
     name: expected.name,
     ...(expected.brandHint ? { brandHint: expected.brandHint } : {}),
-    ...(expected.price ? { price: expected.price } : {}),
     ...(expected.gtin ? { upc: expected.gtin } : {}),
     ...(expected.sku ? { sku: expected.sku } : {}),
     ...(expected.platformVariantId ? { platformVariantId: expected.platformVariantId } : {}),

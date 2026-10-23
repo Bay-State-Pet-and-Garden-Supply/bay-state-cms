@@ -24,7 +24,7 @@ import { sha256Hex } from '../../shared/stable-id';
 import type { Workspace } from '../../shared/types';
 
 const REVIEWED_FIELDS = [
-  'ProductField4', 'ProductField8', 'ProductField16', 'ProductField17',
+  'ProductField1', 'ProductField4', 'ProductField8', 'ProductField16', 'ProductField17',
   'ProductField18', 'ProductField19', 'ProductField20', 'ProductField21',
   'ProductField22', 'ProductField23', 'ProductField24', 'ProductField25',
   'ProductField26', 'ProductField27', 'ProductField28', 'ProductField29',

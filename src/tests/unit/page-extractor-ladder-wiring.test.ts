@@ -8,9 +8,8 @@
  *
  * Contract under test: additive-only enrichment (profile values always win),
  * deterministic identity classification fed by forwarded UPC/GTIN, failure
- * isolation (never-throws, frozen-target safe), spreadsheet price precedence
- * without nulling ladder prices, zero extra network traffic, and final-
- * redirected-URL provenance.
+ * isolation (never-throws, frozen-target safe), immutable onboarding-price
+ * authority with no page-price observations, and final redirected-URL provenance.
  *
  * Runs under `bun test` (registered in package.json test:db) alongside the
  * other page-extractor DB suites.
@@ -94,7 +93,7 @@ mock.module('../../extraction-worker/browser/rendered-page-runner', () => ({
   },
 }));
 
-import { extractViaHttpDetailed, extractProductData } from '../../onboarding/page-extractor';
+import { extractViaHttpDetailed, extractConfirmedPageStatic, extractProductData } from '../../onboarding/page-extractor';
 import { applyLadderEnrichment } from '../../onboarding/extraction-ladder/enrich';
 import { doStaticExtract, doRenderedExtract } from '../../extraction-worker/routes/extract';
 import { ExtractionDataSchema, type ExtractionData } from '../../shared/schemas/onboarding';
@@ -184,6 +183,21 @@ describe('extraction ladder wiring — HTTP fast path (ADR-0031)', () => {
     // Two variants reported by the platform = parent product page signal.
     expect(result.data.identityStatus).toBe('parent_product_only');
   });
+  test('confirmed no-profile structured data uses only the static HTTP parser', async () => {
+    const fetched = stubHtml(`<!doctype html><html><head>
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Exact Widget 12 oz","brand":{"@type":"Brand","name":"Acme"},"description":"A grounded description"}</script>
+    </head><body></body></html>`);
+    const result = await extractConfirmedPageStatic('https://example.com/products/exact-widget', {
+      name: 'Exact Widget 12 oz',
+      brandHint: 'Acme',
+    });
+    expect(result.data.title).toBe('Exact Widget 12 oz');
+    expect(result.data.brand).toBe('Acme');
+    expect(result.data.description).toBe('A grounded description');
+    expect(fetched.calls).toEqual(['https://example.com/products/exact-widget']);
+    expect(runnerCalls).toHaveLength(0);
+    expect(renderedRunCalls).toBe(0);
+  });
 
   test('fills brand from structured JSON-LD, including nested WebPage.mainEntity graphs', async () => {
     stubHtml(`<!doctype html>
@@ -198,6 +212,29 @@ describe('extraction ladder wiring — HTTP fast path (ADR-0031)', () => {
     expect(result.data.brand).toBe('Nested Brand');
     expect(result.data.fieldProvenance.brand).toBe('ladder-json-ld');
   });
+  test('excludes price fields from extracted page evidence', async () => {
+    stubHtml(`<!doctype html>
+      <html>
+        <head>
+          <meta property="product:price:amount" content="54.99">
+          <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Widget","brand":{"@type":"Brand","name":"Widget Brand","price":"54.99"},"offers":{"price":"54.99","priceCurrency":"USD"}}</script>
+        </head>
+        <body>
+          <div itemscope itemtype="https://schema.org/Product">
+            <span itemprop="name">Widget</span>
+            <meta itemprop="price" content="54.99">
+          </div>
+        </body>
+      </html>`);
+    const result = await extractViaHttpDetailed('https://example.com/products/widget', null);
+
+    expect(result.data.price).toBeNull();
+    expect(JSON.stringify(result.raw)).not.toContain('54.99');
+    expect(result.raw.jsonLd).not.toHaveProperty('offers');
+    expect(result.raw.metaTags).not.toHaveProperty('product:price:amount');
+    expect(result.raw.microdata).not.toHaveProperty('price');
+  });
+
 
   test('appends Nuxt gallery images to additionalImages without touching primaryImage', async () => {
     stubHtml(`<!doctype html>
@@ -230,7 +267,7 @@ describe('extraction ladder wiring — HTTP fast path (ADR-0031)', () => {
     expect(result.data.additionalImages).toEqual(['https://example.com/img/distinct.png']);
   });
 
-  test('fills price/description from an embedded WooCommerce Store API payload', async () => {
+  test('fills description (never price) from an embedded WooCommerce Store API payload', async () => {
     stubHtml(`<!doctype html>
       <html>
         <head><script src="/wp-content/plugins/woocommerce/assets/js/frontend/woocommerce.min.js"></script></head>
@@ -240,7 +277,8 @@ describe('extraction ladder wiring — HTTP fast path (ADR-0031)', () => {
       </html>`);
     const result = await extractViaHttpDetailed('https://example.com/product/widget', null);
     expect(result.data.title).toBe('Woo Widget');
-    expect(result.data.price).toBe('1299');
+    // Input Price Authority (ADR 0043): page prices are never extracted.
+    expect(result.data.price).toBeNull();
     expect(result.data.description).toBe('Long woo description');
     expect(result.data.fieldProvenance.title).toBe('ladder-woocommerce');
   });
@@ -450,32 +488,26 @@ describe('extraction ladder wiring — production profile/worker seam (ADR-0031)
     expect(expectedArg?.upc).toBe('0012345678905');
   });
 
-  test('worker-branch spreadsheet override: ladder price survives without a spreadsheet price, is overridden when present', async () => {
-    // Successful worker extraction carrying a ladder-enriched price.
+  test('worker page prices are removed before extraction returns', async () => {
     runnerResponse = {
       ok: true,
       data: ExtractionDataSchema.parse({
         title: 'Worker Widget',
         price: '12.99',
         fieldProvenance: { title: 'profile-selector', price: 'ladder-shopify' },
+        customFields: { salePrice: '9.99' },
       }),
       warnings: [],
       fieldProvenance: {},
     } as any;
 
-    // No spreadsheet price → ladder price AND its provenance survive (MAJOR A).
-    const survived = await extractProductData('https://forwarding.example/products/worker-widget', {
+    const extracted = await extractProductData('https://forwarding.example/products/worker-widget', {
       name: 'Worker Widget',
     });
-    expect(survived.price).toBe('12.99');
-    expect(survived.fieldProvenance.price).toBe('ladder-shopify');
-
-    // Spreadsheet price present → spreadsheet wins, provenance flips.
-    const overridden = await extractProductData('https://forwarding.example/products/worker-widget', {
-      name: 'Worker Widget',
-      price: '19.99',
-    });
-    expect(overridden.price).toBe('19.99');
-    expect(overridden.fieldProvenance.price).toBe('spreadsheet-import');
+    expect(extracted.price).toBeNull();
+    expect(extracted.fieldProvenance).not.toHaveProperty('price');
+    expect(extracted.customFields).not.toHaveProperty('salePrice');
+    expect(JSON.stringify(extracted)).not.toContain('12.99');
+    expect(JSON.stringify(extracted)).not.toContain('9.99');
   });
 });

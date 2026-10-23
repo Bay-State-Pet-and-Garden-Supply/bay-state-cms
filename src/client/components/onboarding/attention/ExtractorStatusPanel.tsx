@@ -13,7 +13,7 @@ import type { DomainReleaseResponse, AttentionReason } from '../../../../shared/
 import { getDomainDiagnostics } from '../../../onboarding-api';
 import { releaseDomainItems } from '../../../onboarding-work-api';
 import { getProfileWorkspacePath } from '../../profile-workspace/route';
-import { deriveProfileReadiness, PROFILE_READINESS_LABELS, type ProfileReadinessState } from './attention-logic';
+import { deriveProfileReadiness, PROFILE_READINESS_LABELS, type ProfileReadinessState, type ReviewedHealth } from './attention-logic';
 
 interface ExtractorStatusPanelProps {
   domain: string;
@@ -47,6 +47,7 @@ export function ExtractorStatusPanel({
 }: ExtractorStatusPanelProps): React.ReactElement {
   const [entries, setEntries] = useState<DomainDiagnosticsEntry[] | null>(null);
   const [diagError, setDiagError] = useState<string | null>(null);
+  const [reviewedHealth, setReviewedHealth] = useState<ReviewedHealth | null>(null);
   const [release, setRelease] = useState<ReleaseState>({ status: 'idle', result: null, message: null });
 
   const releasedOnce = useRef(false);
@@ -54,13 +55,23 @@ export function ExtractorStatusPanel({
 
   const loadDiagnostics = useCallback(async () => {
     setDiagError(null);
+    setReviewedHealth(null);
     try {
       const res = await getDomainDiagnostics();
-      if (mounted.current) setEntries(res.entries);
+      const profileResponse = await fetch(`/api/domains/${encodeURIComponent(domain)}/profile-state`);
+      if (!profileResponse.ok) throw new Error(`HTTP ${profileResponse.status}`);
+      const profileState = await profileResponse.json() as { reviewedHealth?: ReviewedHealth };
+      if (!profileState.reviewedHealth || typeof profileState.reviewedHealth.healthy !== 'boolean') {
+        throw new Error('Invalid reviewed extractor health');
+      }
+      if (mounted.current) {
+        setEntries(res.entries);
+        setReviewedHealth(profileState.reviewedHealth);
+      }
     } catch (err) {
       if (mounted.current) setDiagError(err instanceof Error ? err.message : 'Could not check extractor status');
     }
-  }, []);
+  }, [domain]);
 
   useEffect(() => {
     mounted.current = true;
@@ -89,8 +100,8 @@ export function ExtractorStatusPanel({
     }
   }, [domain, onReleaseResult]);
 
-  const readiness = entries ? deriveProfileReadiness(domain, entries) : null;
-  const state: ProfileReadinessState = readiness?.state ?? 'unknown';
+  const readiness = entries ? deriveProfileReadiness(domain, entries, reviewedHealth) : null;
+  const state: ProfileReadinessState = diagError ? 'unknown' : readiness?.state ?? 'unknown';
 
   // Auto-release once when a usable profile is detected. Suppressed for
   // `extraction_profile_failed` so the operator can decide retry-vs-setup.
@@ -117,10 +128,20 @@ export function ExtractorStatusPanel({
 
   const bannerText =
     state === 'ready'
-      ? `We have a working extractor for ${domain}.`
+      ? `Reviewed extractor health is healthy for ${domain}.`
       : state === 'failed'
         ? `Extractor generation failed for ${domain}. Set it up again to continue.`
-        : `We do not have a working extractor for ${domain} yet.`;
+        : state === 'blocked'
+          ? `Extractor is not ready for release for ${domain}: ${readiness?.reviewedHealth?.reason ?? 'review required'}.`
+          : state === 'stale'
+            ? `Extractor health is stale for ${domain}; refresh its review before release.`
+            : state === 'missing'
+              ? `No extractor profile is available for ${domain}.`
+              : `Extractor status is unknown for ${domain}; readiness could not be confirmed.`;
+
+  const nonreadyMeta = readiness?.reviewedHealth && !readiness.reviewedHealth.healthy
+    ? `${readiness.reviewedHealth.reason ?? 'review required'}${readiness.reviewedHealth.versionId ? ` · version ${readiness.reviewedHealth.versionId}` : ''}`
+    : null;
 
   return (
     <section className="attn-section" aria-label="Extractor status">
@@ -137,6 +158,7 @@ export function ExtractorStatusPanel({
             {readiness.entry.generationCount > 0 ? (
               <span>{readiness.entry.generationCount} generation attempts</span>
             ) : null}
+            {nonreadyMeta ? <span>review: {nonreadyMeta}</span> : null}
           </div>
         ) : null}
 
@@ -193,7 +215,7 @@ export function ExtractorStatusPanel({
         {release.status === 'done' && release.result ? (
           <div className="attn-profile-banner attn-profile-ready" role="status">
             {release.result.count === 0
-              ? `No blocked products on ${release.result.domain} needed a release (they may already be running, or none were blocked).`
+              ? `No blocked products on ${release.result.domain} needed a release.${release.result.skippedCount > 0 ? ` ${release.result.skippedCount} skipped for manual review.` : ' They may already be running, or none were blocked.'}`
               : `Released ${release.result.count} blocked product${release.result.count === 1 ? '' : 's'} on ${release.result.domain}.${release.result.skippedCount > 0 ? ` ${release.result.skippedCount} left for manual review.` : ''}`}
           </div>
         ) : null}

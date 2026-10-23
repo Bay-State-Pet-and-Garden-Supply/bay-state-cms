@@ -1,27 +1,16 @@
 /**
  * Cohort-level Execution Product Type resolver (issue #30 PR4 C3).
  *
- * PURE module: builds per-member frozen evidence, runs the deterministic
- * keyword match, aggregates the family outcome, and validates family
- * invariants — with NO DB reads, NO model calls, and NO persistence. The
- * freeze-time integration (write-once `execution_product_type_id` +
- * `final_membership_hash` in the final CAS transaction) lives in the next
- * commit (C4a); this module is only invoked from there.
+ * PURE module: builds per-member frozen evidence (the read-only freeze-scan
+ * side of the shared frozen-evidence mapping in
+ * `./frozen-evidence-mapping`), runs the deterministic keyword match, and
+ * maps ranked labels — with NO DB reads, NO model calls, and NO persistence.
  *
- * Inputs are fully frozen (architecture-report §2.1):
- * - per-member `execution-evidence-v1` projections (`spreadsheetIdentity` +
- *   `extraction` + frozen packaging OCR);
- * - each member's immutable runtime snapshot (product type options resolved
- *   via `resolveTargetsFromSnapshot` — a pure snapshot reader; the
- *   DB-backed `resolveEnabledTargets` is never called here).
- *
- * Aggregation (architecture-report §2.2, DECISION-C; no majority forcing):
- * - all confident members agree               -> `coherent`
- * - >=1 confident match, >=1 abstainer, no
- *   contradiction                             -> `coherent_with_abstentions`
- * - >=2 confident DISTINCT ids                -> `conflicted` (id never picked)
- * - no confident match                        -> `abstained`
- * A member result below `confidenceFloor` counts as an abstention.
+ * Inputs are fully frozen: per-member `execution-evidence` projections
+ * (`spreadsheetIdentity` + `extraction` + frozen packaging OCR) plus each
+ * member's immutable runtime snapshot (product type options resolved via
+ * `resolveTargetsFromSnapshot` — a pure snapshot reader; the DB-backed
+ * `resolveEnabledTargets` is never called here).
  *
  * PR5 hardening (P1-2): a member's compatible reviewed Primary Product Type
  * (from its snapshot's provenance-compatible reviewed facts) participates at
@@ -31,19 +20,24 @@
  * 'reviewed', and a reviewed type may resolve an otherwise-abstaining member.
  */
 import { randomUUID } from 'node:crypto';
-import { hashCanonicalJson } from '../shared/stable-id';
-import { sourceProvenanceFromMember } from './cohort-decision-authority';
 import type {
   ClassificationEvidence,
 } from '../shared/schemas/classification';
 import type {
   ExecutionEvidenceProjectionMemberV1,
   ExecutionEvidenceProjectionMemberV2,
+  ExecutionEvidenceProjectionMemberV3,
 } from '../shared/schemas/cohorts';
 import { matchKeywordOptions } from './curation-target-matcher';
 import { buildEvidenceTargetPacket } from './evidence-targeting';
 import { type ResolvedTargetOption } from './curation-target-resolver';
 import { packagingOcrDataToEvidence } from './ocr-evidence';
+import {
+  buildFrozenProjectionEntries,
+  frozenOcrModelParams,
+  isFrozenOcrEligible,
+  type FrozenEvidenceEntry,
+} from './frozen-evidence-mapping';
 
 const now = () => new Date().toISOString();
 
@@ -65,18 +59,11 @@ export interface EvidenceFromProjectionOptions {
   /** Product SKU stamped on the produced records (default: the projection's productSku). */
   productSku?: string;
   /**
-   * PR12 review R1: the EXPECTED OCR execution-authority digest for the
-   * snapshot the evidence is being built under. When supplied (`!==
-   * undefined`), OCR materializes ONLY when the projection's frozen
-   * `ocrExecutionDigest` EXACTLY equals it — a stored digest computed under
-   * a DIFFERENT authority (stale OCR) is rejected even though it is non-null
-   * and its input hash matches. `null` (a snapshot whose digest cannot be
-   * computed) rejects OCR ENTIRELY — fail closed, and the PR13 C4 literal
-   * contract means an explicitly-supplied `null` NEVER matches a stored
-   * `null` (no digest comparison can bless OCR without an expected
-   * authority). Absent (the freeze path, whose pull-forward already re-ran
-   * OCR under the current authority) keeps the pre-PR12 non-null check
-   * byte-identically.
+   * The EXPECTED OCR execution-authority digest for the snapshot the
+   * evidence is being built under. OCR materializes ONLY on exact
+   * non-null equality with the projection's frozen `ocrExecutionDigest`.
+   * Absent/null/mismatch excludes OCR (fail closed); plaintext callers
+   * without an authority digest never acquire OCR participation.
    */
   expectedOcrExecutionDigest?: string | null;
 }
@@ -90,302 +77,50 @@ export interface DeterministicTypeMatchResult {
   source: 'keyword' | null;
 }
 
-// ─── C3a helpers (complexity/duplication extraction) ─────────────────────────
-// Each helper is intentionally tiny (<60 lines, <20 cyclomatic) so the Fallow
-// complexity gate passes per-function. Behavior preserved verbatim: same
-// field mapping, same ordering, same confidence floors, same OCR binding.
-// Frozen execution hashes unchanged — helpers only hoist byte-identical blocks.
-
-type ProjectionEvidenceContext = {
-  sku: string;
-  runId: string;
-  sourceUrl: string | null;
-  ext: ExecutionEvidenceProjectionMemberV1['extraction'];
-  identity: ExecutionEvidenceProjectionMemberV1['spreadsheetIdentity'];
-  extV2: ExecutionEvidenceProjectionMemberV2['extraction'] | null;
-  distributorSource: boolean;
-  distributorMetadata: Record<string, unknown> | undefined;
-  pageSource: ClassificationEvidence['source'];
-  pageEvidenceUrl: string | null;
-};
-
-function resolveProjectionEvidenceContext(
-  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
-  options: EvidenceFromProjectionOptions,
-): ProjectionEvidenceContext {
-  const sku = options.productSku ?? memberProjection.productSku ?? '';
-  const runId = options.runId ?? '';
-  const sourceUrl = memberProjection.sourceUrl;
-  const ext = memberProjection.extraction;
-  const identity = memberProjection.spreadsheetIdentity;
-  const extV2 =
-    'itemSourceType' in memberProjection
-      ? (memberProjection as ExecutionEvidenceProjectionMemberV2).extraction
-      : null;
-  const sourceProvenance = sourceProvenanceFromMember(memberProjection);
-  const distributorSource = sourceProvenance.itemSourceType === 'distributor_record';
-  const distributorMetadata = distributorSource
-    ? {
-        provenance: 'distributor_record',
-        providerIds: sourceProvenance.providerIds,
-        acceptedEvidenceAttemptIds: sourceProvenance.acceptedEvidenceAttemptIds,
-        sourcingGenerationId: sourceProvenance.sourcingGenerationId,
-        evidenceHash: sourceProvenance.distributorEvidenceHash,
-        fieldProvenance: ext.fieldProvenance ?? {},
-      }
-    : undefined;
-  const pageSource: ClassificationEvidence['source'] = distributorSource
-    ? 'distributor_record'
-    : 'official_product_page';
-  const pageEvidenceUrl = distributorSource ? null : sourceUrl;
-  return { sku, runId, sourceUrl, ext, identity, extV2, distributorSource, distributorMetadata, pageSource, pageEvidenceUrl };
-}
-
-type EvidencePush = (entry: Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>) => void;
-
-function pushSpreadsheetIdentity(push: EvidencePush, identity: ProjectionEvidenceContext['identity']): void {
-  push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'name', snippet: identity.name.slice(0, 300), value: identity.name, metadata: { provenance: 'spreadsheet_import' } });
-  if (identity.expectedName && identity.expectedName !== identity.name) {
-    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'expected_name', snippet: identity.expectedName.slice(0, 300), value: identity.expectedName, metadata: { provenance: 'spreadsheet_import', refinement: 'discovery_consolidation' } });
-  }
-  if (identity.brandHint) {
-    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'brand', snippet: identity.brandHint.slice(0, 300), value: identity.brandHint, metadata: { provenance: 'spreadsheet_import' } });
-  }
-}
-
-type ProjectionIdentityField = { field: string; value: string; sourceField: string; snippet: string };
-
-function collectBaseIdentityFields(ext: ProjectionEvidenceContext['ext']): ProjectionIdentityField[] {
-  const fields: ProjectionIdentityField[] = [];
-  if (ext.title && ext.title.trim()) {
-    fields.push({ field: 'name', value: ext.title, sourceField: 'name', snippet: ext.title.slice(0, 300) });
-  }
-  if (ext.brand && ext.brand.trim()) {
-    fields.push({ field: 'brand', value: ext.brand, sourceField: 'brand', snippet: ext.brand.slice(0, 300) });
-  }
-  if (ext.weight && ext.weight.trim()) {
-    fields.push({ field: 'weight', value: ext.weight, sourceField: 'weight', snippet: ext.weight.slice(0, 300) });
-  }
-  return fields;
-}
-
-function collectDistributorIdentityFields(
-  extV2: ProjectionEvidenceContext['extV2'],
-): ProjectionIdentityField[] {
-  const fields: ProjectionIdentityField[] = [];
-  if (extV2?.distributorSku && extV2.distributorSku.trim()) {
-    fields.push({ field: 'distributorSku', value: extV2.distributorSku, sourceField: 'distributor_sku', snippet: extV2.distributorSku.slice(0, 300) });
-  }
-  if (extV2?.manufacturerPartNumber && extV2.manufacturerPartNumber.trim()) {
-    fields.push({ field: 'manufacturerPartNumber', value: extV2.manufacturerPartNumber, sourceField: 'manufacturer_part_number', snippet: extV2.manufacturerPartNumber.slice(0, 300) });
-  }
-  for (const [key, rawVal] of Object.entries(extV2?.variantAttributes ?? {})) {
-    const value = String(rawVal ?? '').trim();
-    if (!value) continue;
-    fields.push({ field: key, value, sourceField: key, snippet: value.slice(0, 300) });
-  }
-  return fields;
-}
-
-function collectProjectionIdentityFields(ctx: ProjectionEvidenceContext): ProjectionIdentityField[] {
-  const fields = collectBaseIdentityFields(ctx.ext);
-  if (ctx.distributorSource) {
-    fields.push(...collectDistributorIdentityFields(ctx.extV2));
-  }
-  return fields;
-}
-
-function pushIdentityFields(
-  push: EvidencePush,
-  identityFields: ProjectionIdentityField[],
-  ctx: ProjectionEvidenceContext,
-): void {
-  for (const f of identityFields) {
-    push({
-      attributeId: null,
-      source: ctx.pageSource,
-      reliability: 'medium',
-      sourceUrl: ctx.pageEvidenceUrl,
-      sourceField: f.sourceField,
-      snippet: f.snippet,
-      value: f.value,
-      metadata: ctx.distributorMetadata ?? { provenance: 'official_product_page' },
-    });
-  }
-}
-
-function pushMerchDescriptionBullets(
-  push: EvidencePush,
-  extV2: NonNullable<ProjectionEvidenceContext['extV2']>,
-  pageSource: ClassificationEvidence['source'],
-  pageEvidenceUrl: string | null,
-  merchMetadata: Record<string, unknown>,
-): void {
-  if (extV2.description && extV2.description.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: 'description', snippet: extV2.description.slice(0, 500), value: extV2.description, metadata: merchMetadata });
-  }
-  for (const bullet of extV2.bulletPoints ?? []) {
-    if (!bullet || !String(bullet).trim()) continue;
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: merchMetadata });
-  }
-}
-
-function pushMerchScalars(
-  push: EvidencePush,
-  extV2: NonNullable<ProjectionEvidenceContext['extV2']>,
-  pageSource: ClassificationEvidence['source'],
-  pageEvidenceUrl: string | null,
-  merchMetadata: Record<string, unknown>,
-): void {
-  const merchScalars: Array<{ sourceField: string; value: string | null }> = [
-    { sourceField: 'distributor_category', value: (extV2 as { distributorCategory?: string | null }).distributorCategory ?? null },
-    { sourceField: 'dimensions', value: (extV2 as { dimensions?: string | null }).dimensions ?? null },
-    { sourceField: 'case_pack', value: (extV2 as { casePack?: string | null }).casePack ?? null },
-    { sourceField: 'unit_of_measure', value: (extV2 as { unitOfMeasure?: string | null }).unitOfMeasure ?? null },
-    { sourceField: 'ingredients', value: (extV2 as { ingredients?: string | null }).ingredients ?? null },
-  ];
-  for (const item of merchScalars) {
-    const trimmed = (item.value ?? '').trim();
-    if (!trimmed) continue;
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl: pageEvidenceUrl, sourceField: item.sourceField, snippet: trimmed.slice(0, 300), value: trimmed, metadata: merchMetadata });
-  }
-}
-
-function pushDistributorMerchandising(
-  push: EvidencePush,
-  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
-  ctx: ProjectionEvidenceContext,
-): void {
-  const { extV2, distributorSource, pageSource, pageEvidenceUrl, distributorMetadata } = ctx;
-  const isV2Distributor =
-    distributorSource &&
-    extV2 != null &&
-    (memberProjection as ExecutionEvidenceProjectionMemberV2).extractionMethod === 'distributor_record_v2';
-  if (!isV2Distributor || !extV2) return;
-  const merchMetadata = {
-    ...(distributorMetadata ?? {}),
-    merchandisingProvenance: (extV2 as { merchandisingProvenance?: Record<string, unknown> }).merchandisingProvenance ?? {},
-  };
-  pushMerchDescriptionBullets(push, extV2, pageSource, pageEvidenceUrl, merchMetadata);
-  pushMerchScalars(push, extV2, pageSource, pageEvidenceUrl, merchMetadata);
-}
-
-function pushOfficialPageFields(push: EvidencePush, ctx: ProjectionEvidenceContext): void {
-  const { ext, distributorSource, pageSource, sourceUrl } = ctx;
-  if (distributorSource) return;
-  if (ext.description && ext.description.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'description', snippet: ext.description.slice(0, 500), value: ext.description, metadata: { provenance: 'official_product_page' } });
-  }
-  for (const bullet of ext.bulletPoints) {
-    if (!bullet || !bullet.trim()) continue;
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: { provenance: 'official_product_page' } });
-  }
-  if (ext.searchKeywords && ext.searchKeywords.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'low', sourceUrl, sourceField: 'search_keywords', snippet: ext.searchKeywords.slice(0, 300), value: ext.searchKeywords, metadata: { provenance: 'product_data' } });
-  }
-  for (const [key, rawVal] of Object.entries(ext.customFields)) {
-    const value = String(rawVal ?? '').trim();
-    if (!value) continue;
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: key, snippet: value.slice(0, 300), value, metadata: { provenance: 'product_data' } });
-  }
-}
-
-function ocrInputHashMatches(
-  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
-  ext: ProjectionEvidenceContext['ext'],
-): boolean {
-  const frozenOcr = ext.ocr;
-  if (frozenOcr.packagingOcrData == null) return false;
-  return hashCanonicalJson({
-    sourceUrl: memberProjection.sourceUrl,
-    extractionSourceUrl: memberProjection.extractionSourceUrl,
-    primaryImage: ext.primaryImage,
-    additionalImages: ext.additionalImages,
-  }) === frozenOcr.ocrInputHash;
-}
-
-function ocrExecutionDigestBound(
-  frozenOcr: ProjectionEvidenceContext['ext']['ocr'],
-  expectedDigest: string | null | undefined,
-  hasExpected: boolean,
-): boolean {
-  if (hasExpected) {
-    return expectedDigest !== null && frozenOcr.ocrExecutionDigest === expectedDigest;
-  }
-  return frozenOcr.ocrExecutionDigest !== null;
-}
-
-function materializeFrozenOcr(
-  evidence: ClassificationEvidence[],
-  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
-  ctx: ProjectionEvidenceContext,
-  expectedDigest: string | null | undefined,
-  hasExpected: boolean,
-): void {
-  const frozenOcr = ctx.ext.ocr;
-  if (!frozenOcr.packagingOcrData) return;
-  if (!ocrInputHashMatches(memberProjection, ctx.ext)) return;
-  if (!ocrExecutionDigestBound(frozenOcr, expectedDigest, hasExpected)) return;
-  const modelCallIds = frozenOcr.packagingOcrData.metadata?.modelCallIds;
-  evidence.push(...packagingOcrDataToEvidence(frozenOcr.packagingOcrData, {
-    runId: ctx.runId,
-    sku: ctx.sku,
-    model: frozenOcr.outcome?.model ?? 'unknown',
-    ...(Array.isArray(modelCallIds) && modelCallIds.length > 0 ? { modelCallIds } : {}),
-  }));
-}
-
 /**
  * Build the per-member evidence records purely from a frozen
- * `execution-evidence-v1` projection member — a projection-only mirror of the
- * frozen-mode evidence stage (`executeFrozenEvidenceExtraction`,
- * `src/classification/stages/evidence-extraction.ts:28-137`) WITHOUT
- * persistence: no `onboarding_items` reads, no model calls, no write-back.
- *
- * Field mapping mirrors the frozen stage exactly:
- * - `spreadsheetIdentity` -> `spreadsheet` source records (name, expected_name,
- *   brand);
- * - normalized `extraction` fields -> `official_product_page` source records
- *   (name, brand, weight, description, bullet_point, search_keywords [low],
- *   custom fields);
- * - frozen packaging OCR -> `visual_product_evidence` records (the frozen
- *   stage's conversion, via the shared PURE converter in
- *   `./ocr-evidence` — P2-T1 removed this module's mirrored copy).
+ * `execution-evidence` projection member — the read-only freeze-scan mirror
+ * of the frozen-mode evidence stage (`executeFrozenEvidenceExtraction`)
+ * WITHOUT persistence: no `onboarding_items` reads, no model calls, no
+ * write-back. Text field selection, source/provenance labeling, and OCR
+ * eligibility are the shared frozen-evidence mapping
+ * (`./frozen-evidence-mapping`); conversion stays the shared PURE converter
+ * in `./ocr-evidence`.
  *
  * The OCR is materialized ONLY when the projection's own input-hash binding
- * still matches (recomputed purely from frozen fields) AND the projection
- * carries a non-null `ocrExecutionDigest` (the execution-authority binding the
- * freeze verified against the member snapshot's plan/rule digest — immutable
- * in the content-addressed projection). The frozen stage additionally
- * re-derives the snapshot digest at stage time; this builder cannot (no
- * snapshot in scope) and trusts the digest frozen at freeze time.
+ * still matches (recomputed purely from frozen fields) AND the expected
+ * execution-authority digest exactly equals the stored digest (both
+ * non-null; absent/null/mismatch excludes OCR).
  */
 export function evidenceFromProjection(
-  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2,
+  memberProjection: ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2 | ExecutionEvidenceProjectionMemberV3,
   options: EvidenceFromProjectionOptions = {},
 ): ClassificationEvidence[] {
   const evidence: ClassificationEvidence[] = [];
-  const ctx = resolveProjectionEvidenceContext(memberProjection, options);
-
-  const push: EvidencePush = (entry) => {
+  const sku = options.productSku ?? memberProjection.productSku ?? '';
+  const runId = options.runId ?? '';
+  const push = (entry: FrozenEvidenceEntry): void => {
     evidence.push({
       ...entry,
       id: randomUUID(),
-      runId: ctx.runId,
+      runId,
       stageName: 'evidence_extraction',
-      productSku: ctx.sku,
+      productSku: sku,
       capturedAt: now(),
     } as ClassificationEvidence);
   };
-
-  pushSpreadsheetIdentity(push, ctx.identity);
-  pushIdentityFields(push, collectProjectionIdentityFields(ctx), ctx);
-  pushDistributorMerchandising(push, memberProjection, ctx);
-  pushOfficialPageFields(push, ctx);
-
-  const hasExpected = options.expectedOcrExecutionDigest !== undefined;
-  materializeFrozenOcr(evidence, memberProjection, ctx, options.expectedOcrExecutionDigest, hasExpected);
-
+  for (const entry of buildFrozenProjectionEntries(memberProjection)) {
+    push(entry);
+  }
+  if (memberProjection.extraction.ocr?.packagingOcrData && isFrozenOcrEligible(memberProjection, options.expectedOcrExecutionDigest ?? null)) {
+    const ocrParams = frozenOcrModelParams(memberProjection);
+    evidence.push(...packagingOcrDataToEvidence(memberProjection.extraction.ocr.packagingOcrData, {
+      runId,
+      sku,
+      model: ocrParams.model,
+      ...(ocrParams.modelCallIds ? { modelCallIds: ocrParams.modelCallIds } : {}),
+    }));
+  }
   return evidence;
 }
 
@@ -437,6 +172,60 @@ export function matchMemberDeterministically(
   options: ResolvedTargetOption[],
 ): DeterministicTypeMatchResult {
   return scoreTypeMatch(memberEvidence, options).match;
+}
+// ─── C3c: family-aware ranker context (issue #304) ────────────────────────────
+// SKU-local factual authority is preserved: every member is still classified
+// from its OWN evidence (no borrowing, no family conclusion, no force-type,
+// no veto). The context below is PROMPT context only for the run-bound
+// ranker: when a terse member title cannot carry the dry/wet signal on its
+// own, the ranker sees the family's confident verdicts as disambiguating
+// context. The model still decides from the member's own evidence.
+// Sibling divergence without consensus, and own-evidence deterministic
+// matches, are never touched by this context.
+
+/** Confident sibling verdicts for ranker context (strongest first). */
+export interface SiblingProductTypeContext {
+  siblings: Array<{ productTypeId: string; label: string; confidence: number }>;
+}
+
+/**
+ * Derive confident sibling types from frozen product-line snapshots (the
+ * same `productLineItems` the pipeline already threads). Each sibling's
+ * frozen name/webTitle/brand/description/flavor/productForm text is scored
+ * with the shared keyword matcher; only matches clearing
+ * `KEYWORD_MATCH_MIN_CONFIDENCE` contribute. Returns null when no sibling is
+ * confident (the ranker then runs exactly as today). Pure: no DB, no model.
+ */
+export function buildSiblingProductTypeContextFromLineItems(
+  productLineItems: ReadonlyArray<{
+    sku: string;
+    name: string;
+    webTitle: string | null;
+    brand: string | null;
+    description: string;
+    flavor: string | null;
+    productForm: string | null;
+  }> | undefined,
+  currentSku: string,
+  options: ResolvedTargetOption[],
+): SiblingProductTypeContext | null {
+  if (!productLineItems || productLineItems.length === 0 || options.length === 0) return null;
+  const siblings: Array<{ productTypeId: string; label: string; confidence: number }> = [];
+  for (const item of productLineItems) {
+    if (!item.sku || item.sku === currentSku) continue;
+    const text = [item.name, item.webTitle, item.brand, item.description, item.flavor, item.productForm]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+      .join(' ');
+    if (text.trim().length < 3) continue;
+    const matches = matchKeywordOptions({ options, text, selectionMode: 'single' });
+    const top = matches[0];
+    if (top && top.confidence >= KEYWORD_MATCH_MIN_CONFIDENCE) {
+      siblings.push({ productTypeId: top.value, label: top.label, confidence: top.confidence });
+    }
+  }
+  if (siblings.length === 0) return null;
+  siblings.sort((a, b) => b.confidence - a.confidence || (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+  return { siblings: siblings.slice(0, 3) };
 }
 
 // ─── C3b: aggregation REMOVED (issue #351 SKU-local evidence) ─────────────────

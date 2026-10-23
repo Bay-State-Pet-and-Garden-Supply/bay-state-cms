@@ -53,21 +53,16 @@ import {
   AiTransportError,
   fetchWithDeadlines,
 } from './network-transport';
+import {
+  getItemAcquisitionModelPrice,
+  ItemAcquisitionBudgetDeniedError,
+} from '../onboarding/item-acquisition-budget';
 
 // ─── Public identity ─────────────────────────────────────────────────────────
 
-export const TYPESAFE_EVALUATED_MODEL = 'jev-1.13.0';
+export { TYPESAFE_EVALUATED_MODEL, TYPESAFE_KNOWN_MODELS } from './typesafe-models';
+import { TYPESAFE_EVALUATED_MODEL as EVALUATED_MODEL, TYPESAFE_KNOWN_MODELS as KNOWN_MODELS } from './typesafe-models';
 const SYSTEMONE_ENDPOINT_PATH = '/systemone';
-
-/**
- * Canonical versioned pins this integration treats as known-good. Only the
- * evaluated pin (`jev-1.13.0`) is a known pin; `jev-latest`/`jev-preview`
- * are documented aliases (see `TYPESAFE_KNOWN_ALIASES`) recorded verbatim in
- * provenance when discovered — never known pins.
- */
-export const TYPESAFE_KNOWN_MODELS: ReadonlyArray<string> = [
-  TYPESAFE_EVALUATED_MODEL,
-] as const;
 
 /**
  * Documented TypeSafe aliases. These survive only as discovered models
@@ -133,7 +128,7 @@ export interface SystemOnePinCheck {
  */
 export function checkSystemOneModelPin(modelId: string): SystemOnePinCheck {
   const pin = modelId?.trim() ?? '';
-  if (TYPESAFE_KNOWN_MODELS.includes(pin)) {
+  if (KNOWN_MODELS.includes(pin)) {
     return {
       ok: true,
       kind: 'known_pin',
@@ -152,7 +147,7 @@ export function checkSystemOneModelPin(modelId: string): SystemOnePinCheck {
     kind: 'unknown_pin',
     message:
       `Model "${pin || '(empty)'}" is not a recognized TypeSafe model. ` +
-      `Choose the evaluated pin "${TYPESAFE_EVALUATED_MODEL}" or a documented alias (jev-latest, jev-preview). ` +
+      `Choose the evaluated pin "${EVALUATED_MODEL}" or a documented alias (jev-latest, jev-preview). ` +
       `Pins are never silently substituted with an alias.`,
   };
 }
@@ -180,7 +175,7 @@ export function isSystemOneModelMatch(requestedModel: string, returnedModel: str
   if (returnedModel === requestedModel) return true;
   if (
     TYPESAFE_KNOWN_ALIASES.includes(requestedModel) &&
-    TYPESAFE_KNOWN_MODELS.includes(returnedModel)
+    KNOWN_MODELS.includes(returnedModel)
   ) {
     return true;
   }
@@ -835,6 +830,12 @@ export async function executeSystemOne(
     options.assertHeld?.();
     assertConnectionEnabledForDispatch(conn, modelId);
     options.assertConnectionEnabled?.();
+    // TypeSafe's documented System One request has no enforceable output-token
+    // cap. Item acquisition therefore refuses this remote effect before fetch,
+    // even if the policy lists a price estimate.
+    if (getItemAcquisitionModelPrice(conn.id, modelId)) {
+      throw new ItemAcquisitionBudgetDeniedError('budget_not_enforceable', 'typesafe_output_token_limit');
+    }
 
     let response: Response;
     try {

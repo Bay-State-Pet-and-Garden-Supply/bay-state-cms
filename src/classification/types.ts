@@ -4,6 +4,7 @@ import type {
   ClassificationConfigSnapshotRef,
 } from '../shared/types';
 import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
+import type { AcceptedItemEvidence } from '../shared/schemas/item-evidence';
 
 // ─── Stage Identity ────────────────────────────────────────────────────────────
 
@@ -59,8 +60,7 @@ export interface StageOutput {
   abstained: boolean;
   /** Reason for abstention or failure */
   message?: string;
-  /** Arbitrary metadata returned by the stage (e.g. compatibility data for CurationData fields).
-   * This data is NOT represented as proposals and does NOT appear in the Review UI. */
+  /** Stage metadata is not itself reviewable proposal data. Explicit read models may expose declared preview metadata in the Review UI. */
   metadata?: Record<string, unknown>;
 }
 
@@ -99,6 +99,8 @@ export interface StageContext {
   snapshot?: RuntimeClassificationSnapshot;
   /** Current run ID for recording results */
   runId: string;
+  /** Accepted immutable evidence for an item-local onboarding run. */
+  acceptedEvidence?: AcceptedItemEvidence;
   /**
    * Optional ownership assertion injected by the cohort executor (PR3
    * hardening C). When present, `runPipeline` invokes it IMMEDIATELY BEFORE
@@ -167,7 +169,9 @@ export interface StageContext {
    *  (legacy/shadow keep the coordinator + `cohortCache` path). */
   preComputedTitle?: string;
   /** Source of the pre-computed title, required when preComputedTitle is set. */
-  preComputedTitleSource?: 'llm_cohort' | 'cohort_fallback';
+  preComputedTitleSource?: 'llm_cohort' | 'cohort_fallback' | 'typesafe' | 'deterministic';
+  /** Durable name decision accompanying the pre-computed title (issue #365). */
+  preComputedNameDecision?: unknown;
   /**
    * Frozen member execution-evidence projection (issue #30 PR3 M2, cohort
    * mode; Amendment A V2 with source provenance). When present, the

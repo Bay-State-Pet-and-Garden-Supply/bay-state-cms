@@ -16,7 +16,7 @@ import {
   buildModelPolicyView,
   type ModelPolicyView,
 } from '../classification/model-policy-gateway';
-import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
+import type { ModelPolicyConfig, ModelPolicyConfigV2 } from '../shared/schemas/classification';
 
 export type ModelPolicySnapshot =
   | { state: 'configured'; view: ModelPolicyView; source: 'active_v2' | 'legacy_v1' }
@@ -58,15 +58,22 @@ export function captureModelPolicySnapshot(
 
 /** Convenience: capture from a run-bound snapshot model policy when available. */
 export function modelPolicyViewFromConfig(
-  policy: ModelPolicyConfigV2,
+  policy: ModelPolicyConfigV2 | ModelPolicyConfig,
   snapshotHash?: string,
 ): ModelPolicyView | null {
+  const v2 = normalizeSnapshotPolicy(policy);
+  if (!v2) return null;
+  return buildModelPolicyView(v2, snapshotHash ? { snapshotHash } : {});
+}
+
+function normalizeSnapshotPolicy(policy: ModelPolicyConfigV2 | ModelPolicyConfig): ModelPolicyConfigV2 | null {
   if (!policy || typeof policy !== 'object') return null;
-  const localities = (policy as Partial<ModelPolicyConfigV2>).providerLocalities;
-  if (!localities || typeof localities !== 'object' || Object.keys(localities).length === 0) {
-    // No attested provider locality (legacy v1 shape or empty v2): fail closed
-    // — protected calls abstain rather than infer locality from a provider name.
-    return null;
+  const candidate = policy as Partial<ModelPolicyConfigV2>;
+  if (candidate.providerLocalities && typeof candidate.providerLocalities === 'object' &&
+    Object.keys(candidate.providerLocalities).length > 0) {
+    return candidate as ModelPolicyConfigV2;
   }
-  return buildModelPolicyView(policy, snapshotHash ? { snapshotHash } : {});
+  // Legacy v1 carries no attested locality and can never authorize a
+  // protected call: fail closed rather than infer locality from a name.
+  return null;
 }

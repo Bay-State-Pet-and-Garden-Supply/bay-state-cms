@@ -15,7 +15,7 @@ import {
 import {
   getEffectiveProposalTargetId,
   getEffectiveProposalValue,
-} from '../../classification/assignment-projection';
+} from '../../classification/effective-proposal';
 
 function proposal(overrides: Partial<ClassificationProposal> = {}): ClassificationProposal {
   return {

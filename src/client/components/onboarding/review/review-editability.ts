@@ -10,15 +10,9 @@
  * renders the field read-only with an explanatory note instead of offering
  * a dead input.
  *
- * Price adjudication (post-review, epic e10): item.price is the promoter's
- * ONLY price authority for distributor sources (draft-promoter.ts ~777) and
- * nothing upstream forces it null, so a missing price BLOCKS review
- * completion for every source type. The reviewer must be able to fix that
- * blocker, so price is EDITABLE for both source types.
- *
- * Explicit-save only: every consequential save triggers the server's
- * `markReviewInvalidated('consequential_edit')`, so keystroke autosave is
- * forbidden by contract (see plan §4.4).
+ * Price is immutable onboarding input. Reviewers cannot edit it or send it
+ * as part of a listing update. Quantity remains editable only for
+ * official-page items.
  */
 import type { SourceType } from '../../../../shared/schemas/onboarding';
 import type { ReviewDraft } from './review-types';
@@ -38,23 +32,17 @@ export type ReviewEditableFieldKey =
   | 'curatedWeight'
   | 'curatedDescription'
   | 'searchKeywords'
-  | 'price'
   | 'quantity';
 
 /**
- * Plan §3 matrix (as adjudicated). All curated text fields AND price are
- * editable for both source types:
- * - price: editable always (item.price is the only promotion price source;
- *   an empty value blocks the gate, so it must be fixable in Review).
- * - quantity: official_page editable; distributor_record readonly
- *   (inventory comes from the qualified distributor record).
+ * Quantity is editable for official-page items and read-only when inventory
+ * is managed by a distributor record.
  */
 export function fieldEditability(
   sourceType: SourceType | null | undefined,
   field: ReviewEditableFieldKey,
 ): ReviewFieldEditability {
   const distributor = sourceType === 'distributor_record';
-  if (field === 'price') return 'editable';
   if (field === 'quantity') return distributor ? 'readonly' : 'editable';
   return 'editable';
 }
@@ -103,8 +91,6 @@ export function listingFactValues(extraction: Record<string, unknown> | null | u
 export interface ReviewListingUpdatePayload {
   curation_data: Record<string, unknown>;
   brandHint: string | null;
-  /** Present ONLY for official_page sources (omitted key ≠ null price). */
-  price?: string | null;
   /** Present ONLY for official_page sources; integer or null. */
   quantity?: number | null;
 }
@@ -117,16 +103,10 @@ const trimOrNull = (value: string | null | undefined): string | null => {
 /**
  * Build the PUT /items/:id body fragment for the review listing form.
  *
- * Contract:
  * - The four curated keys are always sent (trimmed-or-null), matching the
- *   pre-V2 payload shape plus brandHint.
- * - `price` is included for BOTH source types (adjudication: item.price is
- *   the only promotion price authority; omission would make the gate's
- *   missing_price blocker unfixable for distributor rows).
- * - `quantity` is included ONLY when the source allows editing
- *   (official_page); distributor payloads omit the key ENTIRELY.
- * - Quantity parses as an integer; unparseable input clears to null rather
- *   than sending garbage to the server.
+ *   existing payload shape plus brandHint.
+ * - Immutable price input is never included.
+ * - `quantity` is included only when editable; distributor payloads omit it.
  */
 export function buildListingUpdatePayload(
   draft: ReviewDraft,
@@ -142,9 +122,6 @@ export function buildListingUpdatePayload(
     brandHint: trimOrNull(draft.brandHint),
   };
 
-  if (fieldEditability(sourceType, 'price') === 'editable') {
-    payload.price = trimOrNull(draft.price);
-  }
   if (fieldEditability(sourceType, 'quantity') === 'editable') {
     const parsed = parseInt((draft.quantity ?? '').trim(), 10);
     payload.quantity = Number.isNaN(parsed) ? null : parsed;

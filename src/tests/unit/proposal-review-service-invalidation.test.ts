@@ -238,6 +238,24 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
       [wsId],
     );
 
+    // Both proposed page additions and accepted page removals depend on the pair.
+    const pageProposalIds = ['prop-page-add', 'prop-page-remove'];
+    const pageValues = [{ pageName: 'Dog Food' }, null];
+    for (const [index, proposalId] of pageProposalIds.entries()) {
+      db.run(
+        `INSERT INTO classification_proposals
+         (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+         VALUES (?, ?, '012345678901', 'category_page', 'page-dog-food', ?, 0.85, 'accepted', datetime('now'))`,
+        [proposalId, runId, JSON.stringify(pageValues[index])],
+      );
+      db.run(
+        `INSERT INTO classification_proposal_decisions
+         (id, proposal_id, decision, decision_origin, created_at)
+         VALUES (?, ?, 'accepted', 'human_review', datetime('now'))`,
+        [randomUUID(), proposalId],
+      );
+    }
+
     // Mark item reviewed initially
     markReviewed({ itemId, batchId, reviewedBy: 'reviewer-1' });
 
@@ -292,6 +310,13 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     expect(refreshItem).toBeDefined();
     expect(refreshItem.trigger_type).toBe('primary_product_type_change');
     expect(refreshItem.status).toBe('queued');
+    for (const proposalId of pageProposalIds) {
+      expect(db.query('SELECT status, is_stale, staleness_reason FROM classification_proposals WHERE id = ?')
+        .get(proposalId)).toEqual({ status: 'stale', is_stale: 1, staleness_reason: 'product_type_changed' });
+      const pageDecision = db.query('SELECT superseded_at FROM classification_proposal_decisions WHERE proposal_id = ?')
+        .get(proposalId) as { superseded_at: string | null } | undefined;
+      expect(pageDecision?.superseded_at).not.toBeNull();
+    }
   });
 
   function createReviewFixture(dependentAccepted = true) {
@@ -379,7 +404,7 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
       sourceKind: 'onboarding', onboardingItemId: fixture.itemId,
       decisions: [{ proposalId: fixture.fieldProposalId, decision: 'accepted', revisedTargetId: 'invented', reviewerId: 'nick' }] });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('invalid_decisions');
+    if (!result.ok) expect(result.code).toBe('protected_target_refused');
     expect(getDb().query('SELECT COUNT(*) AS n FROM classification_proposal_decisions WHERE proposal_id = ?').get(fixture.fieldProposalId)).toEqual({ n: 1 });
     expect(getDb().query('SELECT COUNT(*) AS n FROM classification_history_events WHERE run_id = ?').get(fixture.runId)).toEqual(beforeHistory);
   });
@@ -395,12 +420,12 @@ describe('proposal-review-service invalidation & guardrails (P1.2)', () => {
     expect(getDb().query('SELECT COUNT(*) AS n FROM classification_proposal_decisions WHERE proposal_id = ?').get(fixture.typeProposalId)).toEqual({ n: 0 });
   });
 
-  it('rolls back a mixed request that accepts a dependent invalidated by its earlier type correction', () => {
+  it('rolls back a mixed request that decides a dependent invalidated by its earlier type correction', () => {
     const fixture = createReviewFixture(false);
     const result = submitProposalDecisions({ workspaceId: wsId, productSku: fixture.sku, runId: fixture.runId,
       sourceKind: 'onboarding', onboardingItemId: fixture.itemId, decisions: [
         { proposalId: fixture.typeProposalId, decision: 'accepted', revisedValue: { categoryId: 'cat_food_cat', productTypeId: 'cat_food' }, reviewerId: 'nick', expectedRevisionId: null },
-        { proposalId: fixture.fieldProposalId, decision: 'accepted', reviewerId: 'nick', expectedRevisionId: null },
+        { proposalId: fixture.fieldProposalId, decision: 'rejected', reviewerId: 'nick', expectedRevisionId: null },
       ] });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe('decision_conflict');

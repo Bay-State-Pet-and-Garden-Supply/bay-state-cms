@@ -198,64 +198,53 @@ describe('widened universal tier — stages thread the shared flag', () => {
     }) as unknown as ResolvedTargets);
   }
 
-  it('attribute_applicability stage marks the widened attribute applicable pre-type (flag ON)', async () => {
+  it('attribute_applicability stage refuses missing frozen profile authority when widening is enabled', async () => {
     overrideUniversalTierFlags({ universalTierWideningEnabled: true });
     stubResolver();
-    const input = {
-      ...baseInput(),
-      acceptedProposals: [], // no reviewed Primary Product Type
-      allProposals: [],
-    } as never;
+    const result = await attributeApplicabilityStage.execute(baseInput() as never, context);
 
-    const result = (await attributeApplicabilityStage.execute(input as never, context)) as Extract<import('../../classification/types').StageResult, { status: 'succeeded' }>;
-
-    const states = (result.output.metadata as { applicability: Array<{ attributeId: string; state: string; reason?: string }> }).applicability;
-    const sizeState = states.find(s => s.attributeId === 'size');
-    expect(sizeState?.state).toBe('applicable');
-    expect(sizeState?.reason ?? '').toMatch(/Widened universal tier/);
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') return;
+    expect(result.output?.metadata).toMatchObject({
+      applicability: [],
+      profileStatus: 'configuration_gap',
+    });
   });
 
-  it('attribute_applicability stage keeps legacy unknown pre-type (flag OFF)', async () => {
-    expect(getUniversalTierFlags().universalTierWideningEnabled).toBe(false);
+  it('attribute_applicability stage does not infer a profile from missing authority when widening is disabled', async () => {
     stubResolver();
-    const input = {
-      ...baseInput(),
-      acceptedProposals: [],
-      allProposals: [],
-    } as never;
+    const result = await attributeApplicabilityStage.execute(baseInput() as never, context);
 
-    const result = (await attributeApplicabilityStage.execute(input as never, context)) as Extract<import('../../classification/types').StageResult, { status: 'succeeded' }>;
-
-    const states = (result.output.metadata as { applicability: Array<{ attributeId: string; state: string }> }).applicability;
-    expect(states.find(s => s.attributeId === 'size')?.state).toBe('unknown');
+    expect(result.status).toBe('abstained');
+    if (result.status !== 'abstained') return;
+    expect(result.output?.metadata).toMatchObject({
+      applicability: [],
+      profileStatus: 'configuration_gap',
+    });
   });
 
-  it('product_attribute_proposals stage produces proposals pre-type only while flag ON (byte-identical OFF)', async () => {
+  it('product_attribute_proposals stage never bypasses missing frozen profile authority', async () => {
     stubResolver();
-    const input = {
-      ...baseInput(),
-      acceptedProposals: [],
-      allProposals: [],
-    } as never;
+    const input = baseInput() as never;
 
-    // Flag OFF: gated to unknown → explicit abstention, zero proposals.
-    const offResult = (await productAttributeProposalsStage.execute(
+    const offResult = await productAttributeProposalsStage.execute(
       JSON.parse(JSON.stringify(input)) as never,
       context,
-    )) as Extract<import('../../classification/types').StageResult, { status: 'abstained' }>;
+    );
     expect(offResult.status).toBe('abstained');
+    if (offResult.status !== 'abstained') return;
     expect(offResult.output?.proposals ?? []).toEqual([]);
+    expect(offResult.output?.metadata).toMatchObject({ profileStatus: 'configuration_gap' });
 
-    // Flag ON: widened tier proceeds (no options in this fixture ⇒ the shared
-    // engine reports no match, but gating itself passed — the message proves
-    // the target was PROCESSED rather than withheld).
     overrideUniversalTierFlags({ universalTierWideningEnabled: true });
-    const onResult = (await productAttributeProposalsStage.execute(
+    const onResult = await productAttributeProposalsStage.execute(
       JSON.parse(JSON.stringify(input)) as never,
       context,
-    )) as Extract<import('../../classification/types').StageResult, { status: 'succeeded' | 'abstained' }>;
+    );
+    expect(onResult.status).toBe('abstained');
+    if (onResult.status !== 'abstained') return;
     expect(onResult.output?.proposals ?? []).toEqual([]);
-    expect(onResult.output?.message ?? '').not.toMatch(/withheld until the type is accepted/);
+    expect(onResult.output?.metadata).toMatchObject({ profileStatus: 'configuration_gap' });
   });
 
   it('PR9 DECISION-B: pre-type widening resolves the effective type source to none (no dependency rows possible)', () => {

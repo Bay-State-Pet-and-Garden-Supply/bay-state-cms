@@ -1,8 +1,8 @@
-import crypto from 'node:crypto';
-
 /**
- * A lightweight, synchronous pure JS SHA-256 implementation for environment-agnostic hashing
- * (works in Node.js, Bun, and browser environments where node:crypto is externalized).
+ * Environment-agnostic SHA-256. node:crypto is required lazily inside
+ * sha256() so the module import itself never evaluates a node builtin —
+ * Vite externalizes node:crypto in client bundles as a throwing stub, and
+ * a top-level import crashes the whole app before render.
  */
 function pureSha256(data: string | Uint8Array): string {
   const K = [
@@ -108,11 +108,19 @@ function pureSha256(data: string | Uint8Array): string {
  * Uses node:crypto when available, falling back to pure SHA-256 in browser environments.
  */
 export function sha256(data: string | Uint8Array): string {
-  if (crypto && typeof crypto.createHash === 'function') {
-    if (typeof data === 'string') {
-      return crypto.createHash('sha256').update(data, 'utf8').digest('hex');
+  try {
+    // Lazy require: top-level node: imports crash Vite client bundles.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodeCrypto: { createHash?: (algo: string) => { update: (d: string | Uint8Array, e?: string) => { digest: (f: string) => string } } } | undefined =
+      typeof process !== 'undefined' && process.versions?.node ? require('node:crypto') : undefined;
+    if (nodeCrypto && typeof nodeCrypto.createHash === 'function') {
+      if (typeof data === 'string') {
+        return nodeCrypto.createHash('sha256').update(data, 'utf8').digest('hex');
+      }
+      return nodeCrypto.createHash('sha256').update(data).digest('hex');
     }
-    return crypto.createHash('sha256').update(data).digest('hex');
+  } catch {
+    // Bundled or restricted runtime: fall through to pure JS.
   }
   return pureSha256(data);
 }

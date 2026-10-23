@@ -178,3 +178,30 @@ callVlmWithDispatcher → dispatchWorkloadChat into the request body. Note
 the repetition heuristic requires ≥6 consecutive single-token repeats
 (multi-token n-grams: ≥3), so legitimately repeated printed lines do not
 trigger the penalized retry.
+
+## 7. Default visionOcr routing decision (local-first, issue #333)
+
+Record of the operator-side default-routing decision (2026-10-03, verified
+live; issue #333):
+
+- **Decision: local-first.** The default (non-run-bound) packaging-OCR path
+  resolves through the AI Compute `visionOcr` dispatcher to the enabled local
+  Ollama route (`qwen2.5vl:latest`, loopback). Rationale: zero marginal cost,
+  verified working against a real package image, and immune to cloud credit
+  exhaustion silently zeroing OCR evidence (species/productForm/lifeStage all
+  lose a source when a cloud primary 429s with no fallback engaged).
+- **Production state:** `visionOcr` is explicitly local-only (text + images
+  device-local, no cloud fallback, fail-closed). Old frozen run plans keep
+  their frozen local route — unchanged by this decision.
+- **Code behavior (shipped with this decision):** when a *cloud* `visionOcr`
+  primary fails closed on quota (HTTP 429) with no configured fallback,
+  `callVlmWithDispatcher` falls back to the enabled local route (legacy
+  `api_keys.ollama_vlm` when enabled, else the first enabled loopback AI
+  Compute connection) and surfaces an actionable warning — persisted as a
+  `cloud_quota_fallback` parser note on the OCR metadata plus an
+  `ACTION REQUIRED` log (top up credits or set the `visionOcr` primary to
+  the local route). Any other failure, and any run-bound (frozen-plan) call,
+  behaves exactly as before.
+- **If cloud stays in the path:** a 429 on the primary must page, not just
+  log — treat the `ACTION REQUIRED` warning as the paging trigger until a
+  dedicated alerting seam exists.

@@ -48,6 +48,7 @@ export const ATTENTION_GROUP_ORDER: ReadonlyArray<AttentionGroupMeta> = [
   { reason: 'source_conflict', label: 'Distributor match conflict', chipLabel: 'Conflict' },
   { reason: 'processing_failed', label: 'Processing failure', chipLabel: 'Processing failed' },
   { reason: 'semantic_validation_blocked', label: 'Curation semantic conflict', chipLabel: 'Curation conflict' },
+  { reason: 'listing_completeness_unresolved', label: 'Listing checklist needs attention', chipLabel: 'Checklist blocked' },
   { reason: 'unknown', label: 'Other', chipLabel: 'Other' },
 ];
 
@@ -74,6 +75,7 @@ export const ATTENTION_ACTION_LABELS: Record<AttentionAction, string> = {
   retry_processing: 'Retry',
   resolve_semantic_conflict: 'Review curation findings',
   enter_manual_evidence: 'Enter manual evidence',
+  resolve_listing_completeness: 'Open listing checklist',
 };
 
 export function getAttentionActionLabel(action: AttentionAction | null | undefined): string {
@@ -113,6 +115,8 @@ export function getAttentionActions(
       return ['retry_processing'];
     case 'semantic_validation_blocked':
       return ['resolve_semantic_conflict'];
+    case 'listing_completeness_unresolved':
+      return ['resolve_listing_completeness'];
     default:
       return [];
   }
@@ -138,7 +142,9 @@ export function getAttentionActionConsequence(action: AttentionAction | null | u
     case 'retry_processing':
       return 'Retry the processing step for this product.';
     case 'resolve_semantic_conflict':
-      return 'After the findings are resolved, this family re-runs Curation automatically and the product returns to Review.';
+      return 'After its findings are resolved, this product reruns Curation and returns to Review when ready.';
+    case 'resolve_listing_completeness':
+      return 'Open the item’s listing checklist to review each missing requirement and add accepted evidence or a valid exception.';
     case 'enter_manual_evidence':
       return 'Entering manual evidence completes extraction with a signed attestation; the family page stays reference-only and the item still passes Review.';
     default:
@@ -179,6 +185,8 @@ export function getAttentionConsequence(
       return 'Retry processing for this product.';
     case 'semantic_validation_blocked':
       return 'Resolve the findings and re-run Curation for this family; the product returns to Review automatically.';
+    case 'listing_completeness_unresolved':
+      return 'Open this item’s listing checklist to resolve exact missing or stale requirements before review, approval, or export.';
     case 'manual_evidence_available':
       return 'Enter product facts manually with a signed attestation; the family page is reference only and the item still passes Review.';
     default:
@@ -205,29 +213,36 @@ export function normalizeDomain(domain: string): string {
 
 // ─── Extractor profile readiness ───────────────────────────────────────────────
 
-export type ProfileReadinessState = 'ready' | 'missing' | 'failed' | 'unknown';
+export type ProfileReadinessState = 'ready' | 'missing' | 'failed' | 'unknown' | 'stale' | 'blocked';
+
+export interface ReviewedHealth {
+  healthy: boolean;
+  reason: string | null;
+  versionId: string | null;
+}
 
 export interface ProfileReadiness {
   state: ProfileReadinessState;
-  /** The matched diagnostics entry (null when the domain has no diagnostics row). */
   entry: DomainDiagnosticsEntry | null;
+  reviewedHealth: ReviewedHealth | null;
 }
 
-/**
- * Derive whether a domain has a usable extractor profile from the
- * domain-diagnostics snapshot. The diagnostics entry is authoritative:
- * `hasActiveProfile` → ready; a failed generation with no active profile →
- * failed; otherwise missing (never attempted or still generating). Unknown
- * only when the domain itself is missing (no diagnostics entry).
- */
-export function deriveProfileReadiness(domain: string | null, entries: DomainDiagnosticsEntry[]): ProfileReadiness {
-  if (!domain) return { state: 'unknown', entry: null };
+/** Readiness requires the authoritative reviewed-health verdict, not a legacy active-profile row. */
+export function deriveProfileReadiness(
+  domain: string | null,
+  entries: DomainDiagnosticsEntry[],
+  reviewedHealth: ReviewedHealth | null = null,
+): ProfileReadiness {
+  if (!domain) return { state: 'unknown', entry: null, reviewedHealth };
   const target = normalizeDomain(domain);
   const entry = entries.find((e) => normalizeDomain(e.domain) === target) ?? null;
-  if (!entry) return { state: 'unknown', entry: null };
-  if (entry.hasActiveProfile) return { state: 'ready', entry };
-  if (entry.latestGenerationStatus === 'failed') return { state: 'failed', entry };
-  return { state: 'missing', entry };
+  if (!entry) return { state: 'unknown', entry: null, reviewedHealth };
+  if (!reviewedHealth) return { state: 'unknown', entry, reviewedHealth: null };
+  if (reviewedHealth.healthy) return { state: 'ready', entry, reviewedHealth };
+  if (reviewedHealth.reason === 'health_check_failed') return { state: 'unknown', entry, reviewedHealth };
+  if (entry.healthStale) return { state: 'stale', entry, reviewedHealth };
+  if (entry.latestGenerationStatus === 'failed' && !entry.hasActiveProfile) return { state: 'failed', entry, reviewedHealth };
+  return { state: 'blocked', entry, reviewedHealth };
 }
 
 export const PROFILE_READINESS_LABELS: Record<ProfileReadinessState, string> = {
@@ -235,7 +250,10 @@ export const PROFILE_READINESS_LABELS: Record<ProfileReadinessState, string> = {
   missing: 'No working extractor for this domain',
   failed: 'Extractor generation failed',
   unknown: 'Extractor status unknown',
+  stale: 'Extractor health is stale',
+  blocked: 'Extractor is not approved for release',
 };
+
 
 // ─── Queue grouping ────────────────────────────────────────────────────────────
 

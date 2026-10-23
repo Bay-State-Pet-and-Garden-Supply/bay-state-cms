@@ -761,10 +761,10 @@ export function ChangeSetReview() {
     try {
       const res = await approveChangeSet(selected);
       if (res.success) {
-        setResult(`Approved successfully!\nCommit Hash: ${res.commitHash}`);
+        setResult('Product updates approved.');
         await fetch();
       } else {
-        setError(res.errors.join('; '));
+        setError('Could not approve this update. Please review the items that need attention.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -782,10 +782,9 @@ export function ChangeSetReview() {
     setResult('');
     try {
       const res = await repairChangeSetImages(selected);
-      setResult(res.summary);
+      setResult(res.success ? 'Product images refreshed.' : 'Some product images need attention.');
       if (!res.success) {
-        const failed = res.results.filter(r => r.error);
-        setError(`${failed.length} product(s) failed: ${failed.map(f => `${f.sku}: ${f.error}`).join('; ')}`);
+        setError('Some product images could not be refreshed. Please ask for help.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -803,10 +802,12 @@ export function ChangeSetReview() {
     try {
       const res = await exportChangeSet(selected);
       if (res.success) {
-        setResult(`Export package created successfully!\nXML: ${res.xmlPath}\nManifest: ${res.manifestPath}`);
-        window.open(`/api/export/change-set/${selected}/images-zip`, '_blank');
+        setResult(res.missingImagesWarning ? 'Store files are ready, but some product images are missing.' : 'Store files are ready to download.');
+        if (res.zipPath) {
+          window.open(`/api/export/change-set/${selected}/images-zip`, '_blank');
+        }
       } else {
-        setError('Export failed');
+        setError('Could not prepare store files. Please try again or ask for help.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -825,14 +826,14 @@ export function ChangeSetReview() {
     try {
       const res = await pushPublish(selected);
       if (res.success) {
-        setResult(`Push & Publish started successfully!\nJob ID: ${res.jobId}\nProduct count: ${res.productCount}`);
+        setResult('Your store update has started. Check Store Updates for progress.');
         if (res.warnings.length > 0) {
-          setResult(r => r + '\nWarnings: ' + res.warnings.join('; '));
+          setResult(r => r + ' Some items may need attention before the update is complete.');
         }
         window.open(`/api/export/change-set/${selected}/images-zip`, '_blank');
         await fetch();
       } else {
-        setError('Push & Publish failed');
+        setError('Could not start the store update. Please try again or ask for help.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -851,7 +852,7 @@ export function ChangeSetReview() {
     try {
       const res = await uploadOnly(selected);
       if (res.success) {
-        setResult(`Upload completed successfully!\nJob ID: ${res.jobId}\nProduct count: ${res.productCount}\nNote: Changes may not be visible until publication.`);
+        setResult('Your changes were sent to your store. They may not appear until the store is published.');
         window.open(`/api/export/change-set/${selected}/images-zip`, '_blank');
         await fetch();
       }
@@ -865,13 +866,13 @@ export function ChangeSetReview() {
 
   const handleDiscard = async () => {
     if (!selected) return;
-    if (!confirm('Are you sure you want to discard this change set? This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to discard this product update? This cannot be undone.')) return;
     setLoading(true);
     setActiveAction('discard');
     setError('');
     try {
       await discardChangeSet(selected);
-      setResult('Change set successfully discarded.');
+      setResult('This update was discarded.');
       setSelected(null);
       setItems([]);
       setSelectedItemSku(null);
@@ -940,6 +941,58 @@ export function ChangeSetReview() {
 
   const selectedItemValidation = validation?.items.find(v => v.sku === selectedItemSku);
 
+  const changeSetStatusLabel = (status: string) => {
+    switch (status) {
+      case 'draft': return 'Needs review';
+      case 'approved': return 'Approved';
+      case 'exported': return 'Ready to send';
+      case 'uploaded': return 'Sent to store';
+      case 'published': return 'Store updated';
+      case 'discarded': return 'Discarded';
+      case 'failed': return 'Needs attention';
+      default: return 'In progress';
+    }
+  };
+
+  const itemOperationLabel = (operation: string) => {
+    switch (operation) {
+      case 'create': return 'New product';
+      case 'update': return 'Product update';
+      case 'archive':
+      case 'delete':
+        return 'Remove from store';
+      default: return 'Product update';
+    }
+  };
+
+  const validationStatusLabel = (status: string) => {
+    if (status === 'valid') return 'Ready';
+    if (status === 'blocked') return 'Needs attention';
+    if (status === 'warning') return 'Review needed';
+    return 'Not checked';
+  };
+
+  const diffFieldLabel = (path: string) => {
+    const field = path.split('.').pop() ?? path;
+    const knownLabels: Record<string, string> = {
+      sku: 'Product code',
+      SKU: 'Product code',
+      name: 'Product name',
+      title: 'Product name',
+      price: 'Price entered',
+      salePrice: 'Sale price',
+      description: 'Description',
+      primaryImage: 'Primary image',
+      productOnPages: 'Store categories',
+    };
+    if (knownLabels[field]) return knownLabels[field];
+    if (/^ProductField\d+$/i.test(field)) return 'Product detail';
+    return field
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/^\w/, letter => letter.toUpperCase());
+  };
+
   return (
     <div className="cs-manager-container">
       <style dangerouslySetInnerHTML={{ __html: STYLE_RULES }} />
@@ -948,13 +1001,13 @@ export function ChangeSetReview() {
       <div className="cs-sidebar">
         <div className="cs-sidebar-header">
           <div className="cs-sidebar-title">
-            <span>Change Sets</span>
+            <span>Product updates</span>
             <button 
               className="cs-button cs-btn-secondary" 
               style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', gap: '4px' }} 
               onClick={fetch}
               disabled={loading}
-              title="Refresh Change Sets"
+              title="Refresh product updates"
             >
               🔄 Refresh
             </button>
@@ -963,7 +1016,7 @@ export function ChangeSetReview() {
             <span className="cs-search-icon">🔍</span>
             <input
               type="text"
-              placeholder="Search change sets..."
+              placeholder="Search product updates..."
               className="cs-search-input"
               value={csSearch}
               onChange={(e) => setCsSearch(e.target.value)}
@@ -973,7 +1026,7 @@ export function ChangeSetReview() {
 
         <div className="cs-sidebar-list custom-scrollbar">
           {filteredChangeSets.length === 0 && (
-            <p style={{ padding: 16, color: '#94a3b8', textAlign: 'center', fontSize: 13 }}>No change sets found.</p>
+            <p style={{ padding: 16, color: '#94a3b8', textAlign: 'center', fontSize: 13 }}>No product updates found.</p>
           )}
           {filteredChangeSets.map(cs => {
             const isActive = selected === cs.id;
@@ -987,14 +1040,10 @@ export function ChangeSetReview() {
                   <strong style={{ fontSize: 14, color: '#1e293b' }}>{cs.title}</strong>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                  <span className={`cs-status-badge cs-status-${cs.status}`}>{cs.status}</span>
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>
-                    {cs.id.slice(0, 8)}
-                  </span>
+                  <span className={`cs-status-badge cs-status-${cs.status}`}>{changeSetStatusLabel(cs.status)}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Base: <code>{cs.baseCommit.slice(0, 8)}</code></span>
-                  <span>{formatDate(cs.createdAt).split(',')[0]}</span>
+                  <span>Added {formatDate(cs.createdAt).split(',')[0]}</span>
                 </div>
               </div>
             );
@@ -1011,10 +1060,8 @@ export function ChangeSetReview() {
               <div className="cs-workspace-title-area">
                 <h2 className="cs-workspace-title">{selectedChangeSet.title}</h2>
                 <div className="cs-workspace-meta">
-                  <span className={`cs-status-badge cs-status-${selectedChangeSet.status}`}>{selectedChangeSet.status}</span>
-                  <span>Baseline Commit: <code style={{ background: '#f1f5f9', padding: '2px 4px', borderRadius: 4 }}>{selectedChangeSet.baseCommit.slice(0, 8)}</code></span>
-                  <span>Workspace: <span style={{ fontWeight: 600 }}>{selectedChangeSet.workspaceId}</span></span>
-                  <span>Created: {formatDate(selectedChangeSet.createdAt)}</span>
+                  <span className={`cs-status-badge cs-status-${selectedChangeSet.status}`}>{changeSetStatusLabel(selectedChangeSet.status)}</span>
+                  <span>Added: {formatDate(selectedChangeSet.createdAt)}</span>
                 </div>
               </div>
 
@@ -1027,22 +1074,22 @@ export function ChangeSetReview() {
                       onClick={handleValidate} 
                       disabled={loading}
                     >
-                      {activeAction === 'validate' ? <span className="spinner-sm spinner-secondary" /> : '🔍 Validate'}
+                      {activeAction === 'validate' ? <span className="spinner-sm spinner-secondary" /> : '🔍 Check update'}
                     </button>
                     <button 
                       className="cs-button cs-btn-success" 
                       onClick={handleApprove} 
                       disabled={loading}
-                      title="Validate & commit changes to catalog baseline"
+                      title="Approve this product update"
                     >
-                      {activeAction === 'approve' ? <span className="spinner-sm" /> : '✅ Approve & Commit'}
+                      {activeAction === 'approve' ? <span className="spinner-sm" /> : '✅ Approve update'}
                     </button>
                     <button 
                       className="cs-button cs-btn-danger" 
                       onClick={handleDiscard} 
                       disabled={loading}
                     >
-                      {activeAction === 'discard' ? <span className="spinner-sm" /> : '🗑️ Discard'}
+                      {activeAction === 'discard' ? <span className="spinner-sm" /> : '🗑️ Discard update'}
                     </button>
                   </>
                 )}
@@ -1053,47 +1100,47 @@ export function ChangeSetReview() {
                       onClick={handleExport} 
                       disabled={loading}
                     >
-                      {activeAction === 'export' ? <span className="spinner-sm" /> : '📤 Export Package'}
+                      {activeAction === 'export' ? <span className="spinner-sm" /> : '📤 Prepare store files'}
                     </button>
                     <button 
                       className="cs-button cs-btn-secondary" 
                       onClick={() => window.open(`/api/export/change-set/${selected}/xml`, '_blank')} 
                       disabled={loading}
-                      title="Download ShopSite products XML file"
+                      title="Download the product file for your store"
                     >
-                      📄 Download XML
+                      📄 Download product file
                     </button>
                     <button 
                       className="cs-button cs-btn-secondary" 
                       onClick={() => window.open(`/api/export/change-set/${selected}/images-zip`, '_blank')} 
                       disabled={loading}
-                      title="Download brand-organized images ZIP"
+                      title="Download product images"
                     >
-                      📦 Download Images ZIP
+                      📦 Download images
                     </button>
                     <button 
                       className="cs-button cs-btn-warning" 
                       onClick={handleRepairImages} 
                       disabled={loading}
-                      title="Re-download product images from onboarding extraction data"
+                      title="Refresh product images"
                     >
-                      {activeAction === 'repair-images' ? <span className="spinner-sm" /> : '🖼️ Repair Images'}
+                      {activeAction === 'repair-images' ? <span className="spinner-sm" /> : '🖼️ Fix product images'}
                     </button>
                     <button 
                       className="cs-button cs-btn-success" 
                       onClick={handlePushPublish} 
                       disabled={loading}
-                      title="Publish and build ShopSite pages"
+                      title="Send these approved changes to your store"
                     >
-                      {activeAction === 'pushPublish' ? <span className="spinner-sm" /> : '🚀 Push & Publish'}
+                      {activeAction === 'pushPublish' ? <span className="spinner-sm" /> : '🚀 Update your store'}
                     </button>
                     <button 
                       className="cs-button cs-btn-secondary" 
                       onClick={handleUploadOnly} 
                       disabled={loading}
-                      title="Upload changes without publishing"
+                      title="Send changes to your store without making them live"
                     >
-                      {activeAction === 'uploadOnly' ? <span className="spinner-sm spinner-secondary" /> : '☁️ Upload Only'}
+                      {activeAction === 'uploadOnly' ? <span className="spinner-sm spinner-secondary" /> : '☁️ Send without publishing'}
                     </button>
                   </>
                 )}
@@ -1104,15 +1151,19 @@ export function ChangeSetReview() {
             {error && (
               <div style={{ padding: '12px 24px 0 24px' }}>
                 <div className="cs-banner cs-banner-error">
-                  <div className="cs-banner-title">⚠️ Operation Failed</div>
-                  <div>{error}</div>
+                  <div className="cs-banner-title">We couldn't complete that action.</div>
+                  <div>Please try again. If it continues, ask for help.</div>
+                  <details style={{ marginTop: 6 }}>
+                    <summary style={{ cursor: 'pointer' }}>More details</summary>
+                    <div>{error}</div>
+                  </details>
                 </div>
               </div>
             )}
             {result && (
               <div style={{ padding: '12px 24px 0 24px' }}>
                 <div className="cs-banner cs-banner-success">
-                  <div className="cs-banner-title">✅ Operation Succeeded</div>
+                  <div className="cs-banner-title">✅ Done</div>
                   <div style={{ whiteSpace: 'pre-wrap' }}>{result}</div>
                 </div>
               </div>
@@ -1125,24 +1176,24 @@ export function ChangeSetReview() {
                   validation.blockers > 0 ? 'cs-banner-error' : validation.warnings > 0 ? 'cs-banner-warning' : 'cs-banner-success'
                 }`}>
                   <div className="cs-banner-title">
-                    {validation.blockers > 0 ? '❌ Validation Blocked' : validation.warnings > 0 ? '⚠️ Validation Warnings' : '✅ Validation Passed'}
+                    {validation.blockers > 0 ? '❌ Not ready to approve' : validation.warnings > 0 ? '⚠️ Please review these notes' : '✅ All checks passed'}
                   </div>
                   <div style={{ display: 'flex', gap: 16 }}>
-                    <span>Blockers: <strong>{validation.blockers}</strong></span>
+                    <span>Items to fix: <strong>{validation.blockers}</strong></span>
                     <span>Warnings: <strong>{validation.warnings}</strong></span>
-                    <span>Infos: <strong>{validation.infos}</strong></span>
+                    <span>Notes: <strong>{validation.infos}</strong></span>
                     <span style={{ marginLeft: 'auto', fontWeight: 700 }}>
-                      {validation.canApprove ? '✅ Ready to Approve' : '❌ Cannot Approve (Fix blockers)'}
+                      {validation.canApprove ? '✅ Ready to approve' : '❌ Fix these items before approving'}
                     </span>
                   </div>
                   {validation.items.length > 0 && (
                     <div style={{ marginTop: 8, fontSize: 12, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 6 }}>
-                      <strong>Global Issues:</strong>
+                      <strong>Details to review:</strong>
                       <div style={{ maxHeight: 100, overflowY: 'auto', marginTop: 4 }}>
                         {validation.items.map(item =>
                           item.results.map((r, idx) => (
                             <div key={`${item.sku}-${r.code}-${idx}`} style={{ margin: '2px 0' }}>
-                              <code>{item.sku}</code>: [{r.code}] {r.message}
+                              Product code {item.sku}: {r.message}
                             </div>
                           ))
                         )}
@@ -1158,12 +1209,12 @@ export function ChangeSetReview() {
               {/* Products/Items modified list sidebar */}
               <div className="cs-items-sidebar">
                 <div className="cs-items-sidebar-header">
-                  <h3 className="cs-items-sidebar-title">Staged Items ({items.length})</h3>
+                  <h3 className="cs-items-sidebar-title">Products in this update ({items.length})</h3>
                   <div className="cs-sidebar-search-container">
                     <span className="cs-search-icon">🔍</span>
                     <input
                       type="text"
-                      placeholder="Filter SKU / name..."
+                      placeholder="Product name or code..."
                       className="cs-search-input"
                       value={itemSearch}
                       onChange={(e) => setItemSearch(e.target.value)}
@@ -1190,7 +1241,7 @@ export function ChangeSetReview() {
                           textTransform: 'uppercase'
                         }}
                       >
-                        {op === 'all' ? 'All' : op}
+                        {op === 'all' ? 'All' : op === 'create' ? 'New' : op === 'update' ? 'Changed' : 'Archived'}
                       </button>
                     ))}
                   </div>
@@ -1198,7 +1249,7 @@ export function ChangeSetReview() {
 
                 <div className="cs-items-scroller custom-scrollbar">
                   {filteredItems.length === 0 && (
-                    <p style={{ padding: 16, color: '#94a3b8', textAlign: 'center', fontSize: 12 }}>No matching items.</p>
+                    <p style={{ padding: 16, color: '#94a3b8', textAlign: 'center', fontSize: 12 }}>No matching products.</p>
                   )}
                   {filteredItems.map(item => {
                     const isSelected = selectedItemSku === item.sku;
@@ -1212,16 +1263,16 @@ export function ChangeSetReview() {
                         }}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{item.sku}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Product code: {item.sku}</span>
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                            <span className={`cs-op-pill cs-op-${item.operation}`}>{item.operation}</span>
+                            <span className={`cs-op-pill cs-op-${item.operation}`}>{itemOperationLabel(item.operation)}</span>
                             {item.validationStatus !== 'unknown' && (
                               <span style={{ 
                                 fontSize: 10, 
                                 fontWeight: 600,
                                 color: item.validationStatus === 'blocked' ? '#e11d48' : item.validationStatus === 'valid' ? '#059669' : '#d97706'
                               }}>
-                                • {item.validationStatus}
+                                • {validationStatusLabel(item.validationStatus)}
                               </span>
                             )}
                           </div>
@@ -1241,12 +1292,12 @@ export function ChangeSetReview() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
                       <div>
                         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-                          Staged Changes for SKU: <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{selectedItem.sku}</span>
+                          Changes for product code: <span style={{ fontFamily: 'monospace', background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{selectedItem.sku}</span>
                         </h3>
                         <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
-                          <span className={`cs-op-pill cs-op-${selectedItem.operation}`}>{selectedItem.operation}</span>
+                          <span className={`cs-op-pill cs-op-${selectedItem.operation}`}>{itemOperationLabel(selectedItem.operation)}</span>
                           <span style={{ fontSize: 12, color: '#64748b' }}>
-                            Validation: <strong>{selectedItem.validationStatus}</strong>
+                            Review status: <strong>{validationStatusLabel(selectedItem.validationStatus)}</strong>
                           </span>
                         </div>
                       </div>
@@ -1257,19 +1308,19 @@ export function ChangeSetReview() {
                           className={`cs-tab-button ${activeTab === 'diff' ? 'cs-tab-button-active' : ''}`}
                           onClick={() => setActiveTab('diff')}
                         >
-                          Visual Diff
+                          Changes
                         </button>
                         <button 
                           className={`cs-tab-button ${activeTab === 'json' ? 'cs-tab-button-active' : ''}`}
                           onClick={() => setActiveTab('json')}
                         >
-                          Raw JSON Comparison
+                          More details
                         </button>
                         <button 
                           className={`cs-tab-button ${activeTab === 'preview' ? 'cs-tab-button-active' : ''}`}
                           onClick={() => setActiveTab('preview')}
                         >
-                          Live Preview Card
+                          Product preview
                         </button>
                       </div>
                     </div>
@@ -1277,11 +1328,11 @@ export function ChangeSetReview() {
                     {/* Item-level warnings/validation blockers */}
                     {selectedItemValidation && selectedItemValidation.results.length > 0 && (
                       <div className="item-validation-alert">
-                        <strong>⚠️ Validation Issues Staged:</strong>
+                        <strong>Things to fix before approval:</strong>
                         <ul>
                           {selectedItemValidation.results.map((r, idx) => (
                             <li key={idx} style={{ color: r.severity === 'blocker' ? '#be123c' : '#b45309' }}>
-                              <strong>[{r.severity.toUpperCase()}]</strong> {r.fieldPath ? `(${r.fieldPath})` : ''} {r.message}
+                              <strong>{r.severity === 'blocker' ? 'Needs fixing' : r.severity === 'warning' ? 'Please check' : 'Note'}</strong> {r.fieldPath ? `${diffFieldLabel(r.fieldPath)}: ` : ''}{r.message}
                             </li>
                           ))}
                         </ul>
@@ -1293,21 +1344,21 @@ export function ChangeSetReview() {
                       <div style={{ overflowX: 'auto' }}>
                         {selectedItem.operation === 'create' && (
                           <div className="cs-banner cs-banner-success" style={{ marginBottom: 16 }}>
-                            <span>➕ This is a <strong>New Product</strong> draft. The table below lists all staged attributes.</span>
+                            <span>➕ This is a <strong>new product</strong>. Review its details below.</span>
                           </div>
                         )}
                         {selectedItem.operation === 'archive' && (
                           <div className="cs-banner cs-banner-error" style={{ marginBottom: 16 }}>
-                            <span>🗑️ This product is scheduled to be <strong>Archived/Deleted</strong>.</span>
+                            <span>🗑️ This product will be removed from your store.</span>
                           </div>
                         )}
 
                         <table className="cs-table-diff">
                           <thead>
                             <tr>
-                              <th style={{ width: '25%' }}>Attribute Field</th>
-                              <th style={{ width: '37.5%' }}>Original Value</th>
-                              <th style={{ width: '37.5%' }}>Staged Value</th>
+                              <th style={{ width: '25%' }}>Product detail</th>
+                              <th style={{ width: '37.5%' }}>Before</th>
+                              <th style={{ width: '37.5%' }}>After</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1318,7 +1369,7 @@ export function ChangeSetReview() {
                               
                               return (
                                 <tr key={diff.key} style={{ background: isAdded ? '#f0fdf4' : isRemoved ? '#fff1f2' : '#fffbeb' }}>
-                                  <td className="diff-path">{diff.key}</td>
+                                  <td className="diff-path">{diffFieldLabel(diff.key)}</td>
                                   <td>
                                     {isRemoved && <span className="diff-val-removed">{String(diff.baseVal)}</span>}
                                     {isChanged && <span className="diff-val-removed">{String(diff.baseVal)}</span>}
@@ -1339,7 +1390,7 @@ export function ChangeSetReview() {
                             {computeDiff(selectedItem.baseJson, selectedItem.draftJson).length === 0 && (
                               <tr>
                                 <td colSpan={3} style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
-                                  No differences detected in attributes.
+                                  There are no changes to review.
                                 </td>
                               </tr>
                             )}
@@ -1351,19 +1402,19 @@ export function ChangeSetReview() {
                     {activeTab === 'json' && (
                       <div className="cs-json-split-container">
                         <div className="cs-json-split-col">
-                          <div className="cs-json-split-col-header">Original Base (Baseline)</div>
+                          <div className="cs-json-split-col-header">Details before</div>
                           <pre className="cs-json-split-pre custom-scrollbar">
                             {selectedItem.baseJson 
                               ? JSON.stringify(JSON.parse(selectedItem.baseJson), null, 2)
-                              : '// No base database record (New Item)'}
+                              : '// No previous product record'}
                           </pre>
                         </div>
                         <div className="cs-json-split-col">
-                          <div className="cs-json-split-col-header">Staged Draft Changes</div>
+                          <div className="cs-json-split-col-header">Details after</div>
                           <pre className="cs-json-split-pre custom-scrollbar">
                             {selectedItem.draftJson 
                               ? JSON.stringify(JSON.parse(selectedItem.draftJson), null, 2)
-                              : '// No draft JSON (Deleted/Archived)'}
+                              : '// Product removed'}
                           </pre>
                         </div>
                       </div>
@@ -1376,7 +1427,7 @@ export function ChangeSetReview() {
                           if (!previewData) {
                             return (
                               <div className="cs-item-empty">
-                                <span>Failed to parse item catalog preview data</span>
+                                <span>Product preview is unavailable.</span>
                               </div>
                             );
                           }
@@ -1406,12 +1457,12 @@ export function ChangeSetReview() {
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <h4 className="product-preview-title">{previewData.name}</h4>
                                     <span className={`cs-status-badge cs-status-${previewData.status === 'active' ? 'approved' : 'draft'}`}>
-                                      {previewData.status}
+                                      {previewData.status === 'active' ? 'Active' : previewData.status === 'draft' ? 'Draft' : 'Archived'}
                                     </span>
                                   </div>
                                   
                                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-                                    <span className="product-preview-sku">SKU: {previewData.sku}</span>
+                                    <span className="product-preview-sku">Product code: {previewData.sku}</span>
                                   </div>
                                   
                                   <div className="product-preview-price">
@@ -1436,7 +1487,7 @@ export function ChangeSetReview() {
                               {/* Extended schema visual check */}
                               <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
                                 <h5 style={{ margin: '0 0 10px 0', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                  Schema Attributes & Custom Data
+                                  Additional product details
                                 </h5>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 20px' }}>
                                   {previewData.raw.core && (
@@ -1450,7 +1501,7 @@ export function ChangeSetReview() {
                                         <span style={{ fontWeight: 600, color: '#334155' }}>{previewData.raw.core.taxable ? 'Yes' : 'No'}</span>
                                       </div>
                                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, borderBottom: '1px solid #f1f5f9', paddingBottom: 3 }}>
-                                        <span style={{ color: '#64748b' }}>QOH:</span>
+                                        <span style={{ color: '#64748b' }}>Stock in store:</span>
                                         <span style={{ fontWeight: 600, color: '#334155' }}>
                                           {previewData.raw.core.inventory?.quantityOnHand !== undefined && previewData.raw.core.inventory?.quantityOnHand !== null 
                                             ? previewData.raw.core.inventory.quantityOnHand 
@@ -1465,7 +1516,7 @@ export function ChangeSetReview() {
                                   )}
                                   {previewData.raw.customFields && Object.entries(previewData.raw.customFields).map(([k, v]) => (
                                     <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, borderBottom: '1px solid #f1f5f9', paddingBottom: 3 }}>
-                                      <span style={{ color: '#64748b' }}>{k}:</span>
+                                      <span style={{ color: '#64748b' }}>{diffFieldLabel(k)}:</span>
                                       <span style={{ fontWeight: 600, color: '#334155', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={String(v)}>
                                         {String(v)}
                                       </span>
@@ -1481,7 +1532,7 @@ export function ChangeSetReview() {
                   </div>
                 ) : (
                   <div className="cs-item-empty">
-                    <span>👈 Select a staged product item from the sidebar to review attribute differences</span>
+                    <span>Select a product above to review its changes.</span>
                   </div>
                 )}
               </div>
@@ -1490,9 +1541,9 @@ export function ChangeSetReview() {
         ) : (
           <div className="cs-empty-state">
             <div className="cs-empty-icon">📂</div>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontWeight: 700, color: '#334155' }}>Select a Change Set</h3>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontWeight: 700, color: '#334155' }}>Select a product update</h3>
             <p style={{ margin: 0, fontSize: 14, color: '#64748b', maxWidth: 360 }}>
-              Choose a change set from the sidebar to review modifications, run validations, and publish updates to ShopSite.
+              Choose an update from the list to review what will change before it reaches your store.
             </p>
           </div>
         )}

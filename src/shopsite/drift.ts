@@ -302,6 +302,28 @@ export function acceptRemoteForDrift(workspacePath: string, drift: DriftRow): Ac
   if (!remoteProduct.sku) {
     throw new Error('Cannot accept remote product without SKU.');
   }
+  let observedLocal: Product | null = null;
+  let currentLocal: Product | null = null;
+  try {
+    observedLocal = drift.localJson ? JSON.parse(drift.localJson) as Product : null;
+  } catch {
+    observedLocal = null;
+  }
+  try {
+    currentLocal = readProductFile(workspacePath, remoteProduct.sku) ?? null;
+  } catch {
+    currentLocal = null;
+  }
+  if (!observedLocal || !currentLocal) {
+    throw new Error('This product must be added through onboarding so its price comes from your input.');
+  }
+  if ([observedLocal, currentLocal].some((local) =>
+    local.core.price !== remoteProduct.core.price ||
+    local.core.salePrice !== remoteProduct.core.salePrice
+  )) {
+    throw new Error('The store price differs from the price entered during onboarding. It was not accepted; review other changes separately.');
+  }
+
 
   // Issue #106 SEQUENCE 2e: collision-aware re-import. A pulled FileName
   // owned by ANOTHER sku holds with IMPORT_FILENAME_COLLISION — no write,

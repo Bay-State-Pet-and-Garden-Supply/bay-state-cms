@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "status": "PROPOSED_PENDING_DEVELOPMENT_FIT_AND_OPERATOR_APPROVAL",
+  "holdout_fit_access": "FORBIDDEN",
+  "selection": {
+    "capability_specific": ["discovery", "naming", "claims", "family_decisions"],
+    "method": "Fit decision boundaries on source-labeled development components only under preregistered safety/coverage objective; publish exact thresholds, tie-breaking and support before holdout unseal.",
+    "thresholds": null,
+    "tie_breaking": null,
+    "no_fit_behavior": null,
+    "provider_disabled_behavior": null,
+    "abstention_reasons": null
+  },
+  "requirements": ["Do not copy arbitrary fixture or classification thresholds.", "Retain retrieval misses and all abstentions in denominators.", "Freeze code, policies, rules, budgets and candidate before sealed evaluation."],
+  "numerical_targets": "All targets, including population counts, thresholds, budgets and statistical choices, are proposals pending fit; no measured result asserted."
+}

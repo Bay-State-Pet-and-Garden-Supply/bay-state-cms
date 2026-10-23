@@ -27,8 +27,7 @@ import { enrichProductDetails } from './detail-enrichment';
 import { llmRankOptions } from './curation-target-ranker';
 import { isCalibratedBulkAcceptable } from './proposal-safety';
 import type { CalibratedThresholds } from './confidence-calibrator';
-import { buildModelCallContext } from './runtime-snapshot';
-import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
+import { buildModelCallContext, snapshotHash as computeSnapshotHash } from './runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
 import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
 import {
@@ -43,8 +42,66 @@ import {
   type PageAssignmentResult,
 } from './page-assignment-llm';
 import { coordinateCohortPagesOnce } from './cohort-page-proposal-engine';
-import { getEffectiveCurationProductType } from './effective-curation-type';
-import { isProtectedTargetId } from './classification-ownership';
+import { getEffectiveCurationProductType, getReviewedClassificationPair } from './effective-curation-type';
+import { buildSiblingProductTypeContextFromLineItems } from './cohort-product-type-resolver';
+import { isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+
+/** Missing or incompatible capture is an authority gap, never a live-config fallback. */
+function capturedConfigurationGap(context: StageContext, sku: string): string | null {
+  const snapshot = context.snapshot;
+  if (!snapshot) return 'configuration_gap: Product-field output requires the run’s captured runtime configuration.';
+  try {
+    if (!Array.isArray(snapshot.attributes) || !Array.isArray(snapshot.attributeMappings)
+      || !Array.isArray(snapshot.curationTargets) || !snapshot.fieldOptions || !snapshot.configSnapshotRef?.hash
+      || snapshot.workspaceId !== context.workspaceId || snapshot.productSku !== sku
+      || computeSnapshotHash(snapshot) !== snapshot.snapshotHash) {
+      return 'configuration_gap: Captured runtime configuration does not match this SKU/workspace or its immutable hash.';
+    }
+  } catch {
+    return 'configuration_gap: Captured runtime configuration is invalid.';
+  }
+  return null;
+}
+
+/**
+ * Resolve permission AND inference inputs from captured authority. A caller’s
+ * bare target/options cannot authorize output. Ownership remains centralized
+ * in classification-ownership; Category/Product Type target retirement is #358.
+ */
+function captureProductFieldTarget(
+  target: ResolvedTarget,
+  context: StageContext,
+): { target: ResolvedTarget; message?: never } | { target?: never; message: string } {
+  const snapshot = context.snapshot;
+  if (!snapshot) return { message: 'configuration_gap: Product-field output requires captured configuration.' };
+  const attributeId = target.config.attributeId ?? target.config.id;
+  const attribute = snapshot.attributes.find(attribute => attribute.id === attributeId);
+  const frozenTarget = snapshot.curationTargets.find(candidate => candidate.id === target.config.id
+    && candidate.kind === 'product_field' && (candidate.enabled || candidate.mandatory)
+    && candidate.attributeId === attributeId);
+  if (!attribute || !frozenTarget) {
+    return { message: `configuration_gap: Product-field target "${target.config.id}" / attribute "${attributeId}" is not permitted by the captured configuration.` };
+  }
+  const mappings = snapshot.attributeMappings;
+  const mappingsView = mappings as Parameters<typeof isProtectedTargetId>[1];
+  const targetField = target.config.catalogField ?? null;
+  const binding = mappings.filter(mapping => mapping.attributeId === attributeId);
+  if (isProtectedTargetId(attributeId, mappingsView) || isProtectedTargetId(targetField, mappingsView)
+    || (targetField && isProtectedCatalogField(targetField, attributeId, mappings))) {
+    const refusal = protectedTargetRefusal(targetField ?? attributeId);
+    return { message: `${refusal.code}: ${refusal.reason}` };
+  }
+  if (binding.length !== 1 || binding[0].isStale || !binding[0].catalogField
+    || targetField !== (frozenTarget.catalogField ?? null)
+    || (frozenTarget.catalogField && frozenTarget.catalogField !== binding[0].catalogField)) {
+    return { message: `configuration_gap: Product-field target "${target.config.id}" has no unique current captured field binding.` };
+  }
+  if (isProtectedCatalogField(binding[0].catalogField, attributeId, mappings)) {
+    const refusal = protectedTargetRefusal(binding[0].catalogField);
+    return { message: `${refusal.code}: ${refusal.reason}` };
+  }
+  return { target: { config: frozenTarget, attribute, options: snapshot.fieldOptions[frozenTarget.id] ?? [] } };
+}
 
 // ─── Shared small helpers (complexity/duplication extraction) ───────────────
 // Each helper is intentionally tiny (<60 lines, <20 cyclomatic) so the Fallow
@@ -157,7 +214,25 @@ export async function processProductTypeTarget(
   // approved Category through the frozen snapshot mapping. Only approved
   // configured combinations produce a pair proposal — never an invented
   // taxonomy label or combination.
+  // Issue #304: thread the member's own reviewed pair (reviewed precedence)
+  // + confident sibling verdicts (ranker context only) into the same
+  // decision boundary. Sibling context is prompt context only: it never
+  // inherits facts, never vetoes, never force-types (ADR 0041 SKU-local
+  // authority).
   const { resolveClassificationDecision } = await import('./product-type-decision');
+  // Own-SKU reviewed pair only (a live rejection in this run withdraws
+  // carried authority, mirroring `getEffectiveClassification`); never a
+  // sibling or family conclusion.
+  const reviewedPair = context.snapshot
+    ? getReviewedClassificationPair(context.snapshot, input.allProposals.filter(proposal =>
+        proposal.productSku === input.sku && proposal.runId === context.runId,
+      ))
+    : null;
+  const siblingContext = buildSiblingProductTypeContextFromLineItems(
+    context.productLineItems,
+    input.sku,
+    target.options,
+  );
   const decision = await resolveClassificationDecision({
     target,
     evidence: input.evidence,
@@ -166,6 +241,8 @@ export async function processProductTypeTarget(
     snapshot: context.snapshot,
     modelPolicy,
     assertHeld: context.assertHeld,
+    reviewedPair: reviewedPair ?? undefined,
+    siblingContext: siblingContext ?? undefined,
   });
 
   if (decision.status === 'abstained' || !decision.productTypeId || !decision.categoryId) {
@@ -638,15 +715,21 @@ export async function processProductFieldTarget(
   context: StageContext,
   options: { cardinality?: 'single' | 'multiple'; calibratedThresholds?: CalibratedThresholds | null } = {},
 ): Promise<TargetProcessResult> {
+  const configurationGap = capturedConfigurationGap(context, input.sku);
+  if (configurationGap) return { proposals: [], message: configurationGap };
+  const captured = captureProductFieldTarget(target, context);
+  if (captured.message !== undefined) return { proposals: [], message: captured.message };
+  return processCapturedProductFieldTarget(captured.target, input, context, options);
+}
+
+/** Execute only targets already resolved and authorized from this capture. */
+async function processCapturedProductFieldTarget(
+  target: ResolvedTarget,
+  input: StageInput,
+  context: StageContext,
+  options: { cardinality?: 'single' | 'multiple'; calibratedThresholds?: CalibratedThresholds | null },
+): Promise<TargetProcessResult> {
   const { config: targetConfig, options: targetOptions } = target;
-  // ADR 0041 / issue #349: Brand is never a classifier-owned output. The
-  // shared composition refuses Brand targets here so neither catalog nor
-  // onboarding classification can emit a Brand proposal through any route
-  // (free-text, shortcut, provider output, profile entry, mapped field).
-  // Supplied Brand stays readable as input evidence — it is never produced.
-  if (isProtectedTargetId(targetConfig.attributeId ?? targetConfig.id) || isProtectedTargetId(targetConfig.catalogField)) {
-    return { proposals: [], message: `Brand is not a classifier-owned output; "${targetConfig.label}" is outside classification ownership.` };
-  }
   const options2 = targetOptions;
   const selectionMode = options.cardinality ?? (targetConfig.selectionMode ?? 'single') as 'single' | 'multiple';
   const snapshotHash = context.snapshot?.snapshotHash ?? null;
@@ -696,7 +779,7 @@ async function processBatchSequentially(
   const allProposals: ClassificationProposal[] = [];
   const messages: string[] = [];
   for (const item of items) {
-    const res = await processProductFieldTarget(item.target, input, context, {
+    const res = await processCapturedProductFieldTarget(item.target, input, context, {
       cardinality: item.cardinality,
       calibratedThresholds,
     });
@@ -759,20 +842,35 @@ export async function processProductFieldTargetsBatch(
     return { proposals: [], messages: [] };
   }
 
-  const modelPolicy = modelPolicyViewFromSnapshot(context.snapshot);
-  const isSystemOne = await isSystemOneAttributeRoute(modelPolicy);
+  const configurationGap = capturedConfigurationGap(context, input.sku);
+  if (configurationGap) return { proposals: [], messages: [configurationGap] };
 
-  if (!isSystemOne) {
-    return processBatchSequentially(items, input, context, options.calibratedThresholds);
-  }
-
-  // System One is active:
+  // Resolve all targets before route selection or model dispatch, including
+  // the sequential path. No synthetic/no-snapshot execution exception exists.
   const allProposals: ClassificationProposal[] = [];
   const messages: string[] = [];
-  const { freeTextItems, controlledItems } = splitBatchControlledItems(items);
+  const ownedItems: Array<{ target: ResolvedTarget; cardinality?: 'single' | 'multiple' }> = [];
+  for (const item of items) {
+    const captured = captureProductFieldTarget(item.target, context);
+    if (captured.message !== undefined) {
+      messages.push(captured.message);
+      continue;
+    }
+    ownedItems.push({ ...item, target: captured.target });
+  }
+  if (ownedItems.length === 0) return { proposals: allProposals, messages };
+
+  const modelPolicy = modelPolicyViewFromSnapshot(context.snapshot);
+  const isSystemOne = await isSystemOneAttributeRoute(modelPolicy);
+  if (!isSystemOne) {
+    const sequential = await processBatchSequentially(ownedItems, input, context, options.calibratedThresholds);
+    return { proposals: sequential.proposals, messages: [...messages, ...sequential.messages] };
+  }
+
+  const { freeTextItems, controlledItems } = splitBatchControlledItems(ownedItems);
 
   for (const item of freeTextItems) {
-    const res = await processProductFieldTarget(item.target, input, context, {
+    const res = await processCapturedProductFieldTarget(item.target, input, context, {
       cardinality: item.cardinality,
       calibratedThresholds: options.calibratedThresholds,
     });

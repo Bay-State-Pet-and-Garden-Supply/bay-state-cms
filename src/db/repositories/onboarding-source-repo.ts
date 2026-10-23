@@ -1,6 +1,10 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
 import type { OnboardingSource } from '../../shared/schemas/onboarding';
+import {
+  DiscoveryAssessmentSchema,
+  type DiscoveryAssessment,
+} from '../../shared/schemas/discovery-assessment';
 
 /**
  * Discovery run traceability (epic #46 batch-analysis follow-up).
@@ -133,6 +137,11 @@ export function stampSourcesWithDiscoveryRun(itemId: string, runId: string): voi
   );
 }
 
+/** Stamp one candidate row with its producing run (no-op when already bound). */
+export function stampSourceWithDiscoveryRun(sourceId: string, runId: string): void {
+  getDb().query('UPDATE onboarding_sources SET discovery_run_id = ? WHERE id = ? AND discovery_run_id IS NULL').run(runId, sourceId);
+}
+
 /** Latest run for an item (most recently created), or null. */
 export function getLatestDiscoveryRunForItem(itemId: string): DiscoveryRunRow | null {
   const db = getDb();
@@ -155,6 +164,80 @@ export function listDiscoveryRunsForBatch(batchId: string): DiscoveryRunRow[] {
     .all(batchId) as DiscoveryRunRow[];
 }
 
+export interface DiscoveryAssessmentGuard {
+  itemId: string;
+  runId: string;
+  claimToken?: string;
+  expectedRevision?: number;
+}
+
+export type DiscoveryAssessmentRead =
+  | { status: 'available'; assessment: DiscoveryAssessment; revision: number }
+  | { status: 'unknown' }
+  | { status: 'invalid' };
+
+/**
+ * Save only while this is the item's live running discovery run. The optional
+ * claim token and assessment revision make competing workers fail closed.
+ */
+export function saveDiscoveryAssessment(
+  guard: DiscoveryAssessmentGuard,
+  input: unknown,
+): boolean {
+  const assessmentJson = JSON.stringify(input);
+  if (assessmentJson === undefined) throw new Error('Discovery assessment is not JSON serializable');
+  const db = getDb();
+  const bindings: Array<string | number> = [
+    assessmentJson,
+    new Date().toISOString(),
+    guard.runId,
+    guard.itemId,
+  ];
+  let guardSql = '';
+  if (guard.claimToken !== undefined) {
+    guardSql += ' AND claim_token = ?';
+    bindings.push(guard.claimToken);
+  }
+  if (guard.expectedRevision !== undefined) {
+    guardSql += ' AND assessment_revision = ?';
+    bindings.push(guard.expectedRevision);
+  }
+  const result = db.query(
+    `UPDATE onboarding_discovery_runs
+     SET assessment_json = ?, assessment_revision = assessment_revision + 1, assessment_updated_at = ?
+     WHERE id = ? AND item_id = ? AND status = 'running'${guardSql}
+       AND id = (SELECT id FROM onboarding_discovery_runs
+                 WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1)`,
+  ).run(...bindings, guard.itemId);
+  return result.changes === 1;
+}
+
+/** Read only a current running assessment; legacy NULL is unknown, malformed JSON invalid. */
+export function readDiscoveryAssessment(guard: DiscoveryAssessmentGuard): DiscoveryAssessmentRead {
+  const db = getDb();
+  const row = db.query(
+    `SELECT assessment_json, assessment_revision, claim_token
+     FROM onboarding_discovery_runs
+     WHERE id = ? AND item_id = ? AND status = 'running'
+       AND id = (SELECT id FROM onboarding_discovery_runs
+                 WHERE item_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1)`,
+  ).get(guard.runId, guard.itemId, guard.itemId) as
+    | { assessment_json: string | null; assessment_revision: number; claim_token: string | null }
+    | undefined;
+  if (!row || (guard.claimToken !== undefined && row.claim_token !== guard.claimToken)) return { status: 'unknown' };
+  if (row.assessment_json === null) return { status: 'unknown' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.assessment_json);
+  } catch {
+    return { status: 'invalid' };
+  }
+  const assessment = DiscoveryAssessmentSchema.safeParse(parsed);
+  if (!assessment.success) return { status: 'invalid' };
+  if (guard.expectedRevision !== undefined && row.assessment_revision !== guard.expectedRevision) return { status: 'unknown' };
+  return { status: 'available', assessment: assessment.data, revision: row.assessment_revision };
+}
+
 export interface OnboardingSourceRow {
   id: string;
   item_id: string;
@@ -166,6 +249,7 @@ export interface OnboardingSourceRow {
   is_selected: number;
   source_method: string;
   metadata_json: string | null;
+  discovery_run_id?: string | null;
   review_status?: string | null;
   decision_origin?: string | null;
   decision_reason?: string | null;
@@ -181,6 +265,8 @@ export interface InsertSourceData {
   confidence: number;
   sourceMethod?: string;
   metadataJson?: string | null;
+  /** Owning discovery run; stamped at insert so currentness checks never see NULL on live rows. */
+  discoveryRunId?: string | null;
 }
 
 function mapRowToSource(row: OnboardingSourceRow): OnboardingSource {
@@ -195,6 +281,7 @@ function mapRowToSource(row: OnboardingSourceRow): OnboardingSource {
     isSelected: row.is_selected === 1,
     sourceMethod: row.source_method,
     metadataJson: row.metadata_json,
+    discoveryRunId: row.discovery_run_id ?? null,
     reviewStatus: row.review_status ?? 'pending',
     decisionOrigin: row.decision_origin ?? null,
     decisionReason: row.decision_reason ?? null,
@@ -208,8 +295,8 @@ export function insertSources(itemId: string, sources: InsertSourceData[]): Onbo
   const now = new Date().toISOString();
   const stmt = db.query(
     `INSERT INTO onboarding_sources
-      (id, item_id, url, title, snippet, domain, confidence, is_selected, source_method, metadata_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      (id, item_id, url, title, snippet, domain, confidence, is_selected, source_method, metadata_json, discovery_run_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
   );
 
   const inserted: OnboardingSource[] = [];
@@ -227,6 +314,7 @@ export function insertSources(itemId: string, sources: InsertSourceData[]): Onbo
         source.confidence,
         source.sourceMethod ?? 'unknown',
         source.metadataJson ?? null,
+        source.discoveryRunId ?? null,
         now,
       );
       inserted.push({
@@ -240,6 +328,7 @@ export function insertSources(itemId: string, sources: InsertSourceData[]): Onbo
         isSelected: false,
         sourceMethod: source.sourceMethod ?? 'unknown',
         metadataJson: source.metadataJson ?? null,
+        discoveryRunId: source.discoveryRunId ?? null,
         reviewStatus: 'pending',
         createdAt: now,
       });

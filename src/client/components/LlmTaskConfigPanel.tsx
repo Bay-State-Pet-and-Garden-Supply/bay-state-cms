@@ -46,6 +46,7 @@ const TASK_LABELS: Record<LlmTask, string> = {
   attribute_value_classification: 'Attribute value classification',
   product_field_refactor: 'Product field refactor',
   store_manager_assistant: 'Store manager assistant',
+  one_shot_selector_generation: 'One-shot selector generation',
 };
 
 const TASK_HINTS: Record<LlmTask, string> = {
@@ -61,6 +62,7 @@ const TASK_HINTS: Record<LlmTask, string> = {
   attribute_value_classification: 'Classifies attribute values. Governed by the workspace classification model policy (Settings → Classification).',
   product_field_refactor: 'Refactors product custom fields.',
   store_manager_assistant: 'Powers the chat-based Store Manager AI Assistant.',
+  one_shot_selector_generation: 'Generates a selector profile from a captured product page using the dedicated one-shot selector-generation route.',
 };
 
 const TASK_GROUPS: Array<{ label: string; tasks: LlmTask[] }> = [
@@ -312,7 +314,7 @@ function LlmTaskConfigRow(props: LlmTaskConfigRowProps) {
 
   useEffect(() => {
     loadModels(provider);
-  }, [provider]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [provider]);
 
   const required = REQUIRED_TASKS.includes(task);
   const missing = !config;

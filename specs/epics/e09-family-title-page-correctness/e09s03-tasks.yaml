@@ -23,7 +23,8 @@ tasks:
     description: "Shadow/replay validation against a verified backup clone: re-run completed-cohort validation read-only; same frozen run replays without new model calls and produces identical canonical artifact. NO live re-run without explicit user approval. New revisions only — no backfill."
     verify: "manual — requires verified SQLite backup clone; record replay hash comparison here when run"
     risk: P0
-    status: planned
+    status: blocked
+    blocked_reason: "2026-10-19: awaiting owner approval + verified SQLite backup clone (owner-gated manual step, not implementable by agent)"
     allure:
       severity: critical
       categories: ["Rollout", "Replay"]
@@ -31,7 +32,8 @@ tasks:
     description: "Record shadow metrics into specs/metrics/family-title-page-eval-v1.json after first real cohort revision completes under the new authority hash (replace placeholder modelExecutionPlanHash on freeze)."
     verify: "node -e \"const j=require('./specs/metrics/family-title-page-eval-v1.json'); if(j.modelExecutionPlanHash.startsWith('placeholder')) throw new Error('not frozen')\""
     risk: P2
-    status: failing
+    status: blocked
+    blocked_reason: "2026-10-19: awaiting first real cohort revision under the new authority hash (blocked on e09s03t03 rollout + live cohort run)"
     allure:
       severity: medium
       categories: ["Metrics", "Rollout"]

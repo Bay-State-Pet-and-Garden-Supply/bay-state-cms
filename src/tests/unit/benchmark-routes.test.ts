@@ -55,15 +55,18 @@ describe('Benchmark HTTP routes', () => {
     }
   });
 
+  // Governed seed: hardened benchmark-prediction (#356) requires a complete
+  // canonical Product Classification pair; legacy `primary_product_type`
+  // rows are history, not predictions.
   function seedRun(sku: string, productType: string, confidence = 0.9) {
     const db = getDb();
     const run = createRun(workspaceId, sku, CONFIG_SNAPSHOT_ID, CONFIG_HASH, { sourceKind: 'catalog_product' });
     const now = new Date().toISOString();
     const pid = randomUUID();
     db.run(
-      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', ?, ?, ?, 'accepted', ?)`,
-      [pid, run.id, sku, productType, JSON.stringify({ productTypeId: productType }), confidence, now],
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'product_classification', ?, ?, 'accepted', ?)`,
+      [pid, run.id, sku, JSON.stringify({ categoryId: 'fixture-category', productTypeId: productType }), confidence, now],
     );
     db.run(
       `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)

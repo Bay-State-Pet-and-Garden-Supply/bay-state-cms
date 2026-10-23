@@ -165,8 +165,6 @@ export function ProductDetail({ sku, onBack }: Props) {
       
       Object.entries(fieldValues).forEach(([field, val]) => {
         if (field === 'Name') core.name = val;
-        else if (field === 'Price') core.price = val || null;
-        else if (field === 'SaleAmount') core.salePrice = val || null;
         else if (field === 'ProductDescription') core.description = val || null;
         else if (field === 'Weight') core.weight = val || null;
         else if (field === 'Taxable') core.taxable = !!val;
@@ -208,12 +206,12 @@ export function ProductDetail({ sku, onBack }: Props) {
         preserved
       };
       
-      const result = await saveDraft(sku, {
+      await saveDraft(sku, {
         core,
         customFields,
         shopsite,
       });
-      setMessage(`Draft saved to change set ${result.changeSetId}`);
+      setMessage('Your changes are saved as a draft. They have not been sent to your store.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -327,7 +325,8 @@ export function ProductDetail({ sku, onBack }: Props) {
     const additional: any[] = [];
 
     editableFields.forEach((field) => {
-      const isForced = field.xmlField === 'Name' || field.xmlField === 'ProductDescription';
+      const isForced = field.xmlField === 'Name' || field.xmlField === 'ProductDescription' ||
+        field.xmlField === 'Price' || field.xmlField === 'SaleAmount';
       if (isForced || currentPinned.includes(field.xmlField)) {
         pinned.push(field);
       } else {
@@ -354,6 +353,23 @@ export function ProductDetail({ sku, onBack }: Props) {
     const onChange = (val: any) => {
       setFieldValues(prev => ({ ...prev, [entry.xmlField]: val }));
     };
+    if (entry.xmlField === 'Price' || entry.xmlField === 'SaleAmount') {
+      const note = entry.xmlField === 'Price'
+        ? 'Set when this product was added. It cannot be changed here.'
+        : 'This amount is read-only here.';
+      return (
+        <div key={entry.xmlField} style={styles.field}>
+          <label style={styles.label}>{entry.label}</label>
+          <output
+            aria-label={`${entry.label}, read only`}
+            style={{ ...styles.input, display: 'block', background: '#f8faf7', whiteSpace: 'pre-wrap' }}
+          >
+            {value || 'Not set'}
+          </output>
+          <small style={{ color: '#6b7280', fontSize: 12 }}>{note}</small>
+        </div>
+      );
+    }
 
     if (entry.xmlField === 'ProductDescription') {
       return (
@@ -503,8 +519,8 @@ export function ProductDetail({ sku, onBack }: Props) {
       <button style={styles.back} onClick={onBack}>← Back to Catalog</button>
       
       <ViewHeader
-        title={`SKU: ${sku}`}
-        description={nameVal ? `Product Draft: ${nameVal}` : 'Catalog Item Details & ShopSite Synchronization Fields'}
+        title={nameVal || 'Product details'}
+        description="Review product details. The price entered when this product was added stays the same."
         actions={
           <div className="custom-checklist-container">
             <button
@@ -524,7 +540,7 @@ export function ProductDetail({ sku, onBack }: Props) {
                 transition: 'all 0.2s',
               }}
             >
-              ⚙️ Customize Layout
+              Choose visible details
             </button>
           </div>
         }
@@ -532,7 +548,7 @@ export function ProductDetail({ sku, onBack }: Props) {
       {customizingFields && (
         <div className="custom-checklist-dropdown" style={{ marginBottom: 16 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: '#1e293b', marginBottom: 12, borderBottom: '1px solid #f1f5f9', paddingBottom: 6 }}>
-            Visible Fields Setup
+            Choose which product details to show
           </div>
           <div style={{ maxHeight: 240, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {registry
@@ -560,7 +576,7 @@ export function ProductDetail({ sku, onBack }: Props) {
                       onChange={() => toggleFieldPinned(field.xmlField)}
                       style={{ cursor: isForced ? 'not-allowed' : 'pointer' }}
                     />
-                    {field.label || field.xmlField} {isForced && <span style={{ fontSize: 10, color: '#94a3b8' }}>(Always)</span>}
+                    {field.label || field.xmlField} {isForced && <span style={{ fontSize: 10, color: '#94a3b8' }}>(Always shown)</span>}
                   </label>
                 );
               })}
@@ -586,8 +602,7 @@ export function ProductDetail({ sku, onBack }: Props) {
       )}
 
       <p style={styles.subtitle}>
-        {data?.hasDraft ? '🖊️ Has unsaved draft' : '✓ Approved version'}
-        {data?.changeSetId ? ` — Change Set: ${data.changeSetId.slice(0, 8)}` : ''}
+        {data?.hasDraft ? 'Changes saved for review' : 'Current product details'}
       </p>
 
       <div style={{ display: 'flex', gap: 32, marginTop: 24, flexWrap: 'wrap' }}>
@@ -649,7 +664,7 @@ export function ProductDetail({ sku, onBack }: Props) {
                   transition: 'all 0.2s',
                 }}
               >
-                <span>📦 {showAllFields ? 'Hide' : 'Show'} Remaining Fields ({additionalFieldsList.length})</span>
+                <span>📦 {showAllFields ? 'Hide' : 'Show'} more product details ({additionalFieldsList.length})</span>
                 <span style={{ transform: showAllFields ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
               </button>
               {showAllFields && (
@@ -674,13 +689,11 @@ export function ProductDetail({ sku, onBack }: Props) {
 
           <div style={styles.buttonRow}>
             <button style={styles.button} onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Draft'}
+              {saving ? 'Saving...' : 'Save for review'}
             </button>
           </div>
           
-          <p style={styles.info}>
-            Changes are saved to a SQLite draft change set. Git and product files are not modified until approval.
-          </p>
+          <p style={styles.info}>Your changes will be saved for review. They will not appear in your store until you approve them.</p>
         </div>
       </div>
 

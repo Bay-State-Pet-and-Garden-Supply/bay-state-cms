@@ -234,7 +234,6 @@ export function ProfileGenerationReview(
   const activeSelectorRecord: Record<string, string | null> = activeProfile
     ? {
         titleSelector: activeProfile.titleSelector ?? null,
-        priceSelector: (activeProfile as any).priceSelector ?? null,
         descriptionSelector: activeProfile.descriptionSelector ?? null,
         brandSelector: (activeProfile as any).brandSelector ?? null,
         imagesSelector: activeProfile.imagesSelector ?? null,
@@ -258,7 +257,7 @@ export function ProfileGenerationReview(
     byFieldTally,
     activeCustomSelectors,
     proposedCustomSelectors,
-  });
+  }).filter((row) => !/price|cost|sale/i.test(row.key));
 
   // Apply local edits to proposed selectors
   const editedFields = reviewFields.map((row) => {

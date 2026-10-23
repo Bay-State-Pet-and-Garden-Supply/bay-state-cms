@@ -124,7 +124,6 @@ describe('profile extraction audit gate T1: pilot replay and scoring', () => {
               title: { available: true, expectedValue: 'Organic Herbal Shampoo 16oz' },
               brand: { available: true, expectedValue: 'PilotBrand' },
               description: { available: true },
-              price: { available: false }, // price not available on brand site
               gtin: { available: false },  // gtin not available on page
               sku: { available: true, expectedValue: 'SHAMP-16' },
             },
@@ -155,7 +154,6 @@ describe('profile extraction audit gate T1: pilot replay and scoring', () => {
             fields: {
               title: { available: true, expectedValue: 'Puppy Wipes 100ct' },
               brand: { available: true, expectedValue: 'PilotBrand' },
-              price: { available: false },
               sku: { available: true, expectedValue: 'WIPE-100' },
             },
             images: {
@@ -237,8 +235,9 @@ describe('profile extraction audit gate T1: pilot replay and scoring', () => {
     expect(s1Baseline?.identityVerdict).toBe('correct_match');
     expect(s1Baseline?.fieldScores.title.correct).toBe(true);
     expect(s1Baseline?.fieldScores.brand.correct).toBe(true);
-    expect(s1Baseline?.fieldScores.price.status).toBe('unavailable');
-    expect(s1Baseline?.fieldScores.price.correct).toBe(true);
+    for (const row of result.rows.filter(r => r.sampleId === 'sample-1')) {
+      expect(row.fieldScores).not.toHaveProperty('price');
+    }
     expect(s1Baseline?.fieldScores.gtin.status).toBe('unavailable');
     expect(s1Baseline?.fieldScores.gtin.correct).toBe(true);
     expect(s1Baseline?.fieldCorrectnessScore).toBe(1.0);
@@ -357,7 +356,6 @@ describe('profile extraction audit gate T1: pilot replay and scoring', () => {
           fields: {
             title: { available: true, expectedValue: `Product ${id}` },
             brand: { available: true, expectedValue: 'TestBrand' },
-            price: { available: true, expectedValue: '9.99' },
           },
           images: {
             primaryImage: `https://pilot.example.com/images/${id}.jpg`,

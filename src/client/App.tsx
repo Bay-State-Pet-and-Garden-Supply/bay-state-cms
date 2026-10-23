@@ -184,13 +184,13 @@ function App() {
     // forces a specific tab.
     if (newView === 'settings') {
       const settingsTab = url.searchParams.get('tab');
-      const validSettingsTabs = ['ai', 'catalog', 'types', 'mappings-health'];
+      const validSettingsTabs = ['general', 'ai', 'catalog', 'types', 'mappings-health', 'taxonomy-release'];
       if (!validSettingsTabs.includes(settingsTab ?? '')) {
         url.searchParams.delete('tab');
       }
     } else if (newView === 'onboarding') {
       const onboardingTab = url.searchParams.get('tab');
-      const validOnboardingTabs = ['needs_attention', 'processing', 'waiting_on_family', 'review', 'approved'];
+      const validOnboardingTabs = ['needs_attention', 'processing', 'review', 'approved'];
       if (!validOnboardingTabs.includes(onboardingTab ?? '')) {
         url.searchParams.delete('tab');
       }
@@ -342,7 +342,7 @@ function App() {
   };
 
   if (!ready) {
-    return <div style={navStyles.loading}>Loading Bay State CMS...</div>;
+    return <div style={navStyles.loading}>Loading your catalog...</div>;
   }
 
   return (
@@ -350,7 +350,7 @@ function App() {
       <nav style={navStyles.nav} aria-label="Main Navigation">
         <div style={navStyles.navBrand}>
           <span style={navStyles.navBrandBadge}>Bay State</span>
-          <span style={navStyles.navBrandText}>CMS</span>
+          <span style={navStyles.navBrandText}>Catalog</span>
         </div>
         {workspace && workspace.bootstrapStatus === 'complete' && workspace.baselineCommit && (
           <div style={navStyles.tabList} role="tablist">
@@ -373,42 +373,42 @@ function App() {
               onClick={() => handleNavigate('onboarding')}
               aria-current={view === 'onboarding' ? 'page' : undefined}
             >
-              Onboarding
+              Add Products
             </button>
             <button
               style={view === 'changesets' ? navStyles.navLinkActive : navStyles.navLink}
               onClick={() => handleNavigate('changesets')}
               aria-current={view === 'changesets' ? 'page' : undefined}
             >
-              Change Sets
+              Review Changes
             </button>
             <button
               style={view === 'health' ? navStyles.navLinkActive : navStyles.navLink}
               onClick={() => handleNavigate('health')}
               aria-current={view === 'health' ? 'page' : undefined}
             >
-              Catalog Health
+              Catalog Review
             </button>
             <button
               style={view === 'assistant' ? navStyles.navLinkActive : navStyles.navLink}
               onClick={() => handleNavigate('assistant')}
               aria-current={view === 'assistant' ? 'page' : undefined}
             >
-              Store Manager
+              Catalog Help
             </button>
             <button
               style={view === 'drift' ? navStyles.navLinkActive : navStyles.navLink}
               onClick={() => handleNavigate('drift')}
               aria-current={view === 'drift' ? 'page' : undefined}
             >
-              Drift
+              Store Changes
             </button>
             <button
               style={view === 'syncjobs' ? navStyles.navLinkActive : navStyles.navLink}
               onClick={() => handleNavigate('syncjobs')}
               aria-current={view === 'syncjobs' ? 'page' : undefined}
             >
-              Sync Jobs
+              Store Updates
             </button>
             <button
               style={view === 'settings' ? navStyles.navLinkActive : navStyles.navLink}

@@ -160,19 +160,22 @@ describe('OrgillConnector — new storefront template (direct-PDP, observed 2026
     expect(calls.length).toBe(1);
   });
 
-  test('new no-results page is recognized (Viewing 1 - 0 of 0 results)', () => {
-    expect(isOrgillSearchPage(FIXTURES['no-results-new.html'])).toBe(true);
-    expect(parseOrgillSearchCandidates(FIXTURES['no-results-new.html'])).toEqual([]);
+  test('live no-results-new page yields SKU-bearing search candidates', () => {
+    const candidates = parseOrgillSearchCandidates(FIXTURES['no-results-new.html']);
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.every((url) => /\/index\.aspx\?[^#]*\bsku=\d+/i.test(url))).toBe(true);
   });
 
-  test('new no-results page routes to not_stocked:no_exact_match', async () => {
+  test('live 43-result page proceeds to PDP stage instead of false no_exact_match', async () => {
+    // The old behavior returned not_stocked/no-exact-match without ever
+    // fetching a PDP (dead candidate regex). Now candidates are found and
+    // the PDP fetch decides: with no PDP fixture stubbed the transport fails
+    // closed with source_error (fail-closed, never a fabricated outcome).
     const { fetchPage } = makeFetcher({
       [SEARCH + '999999999999']: { ok: true, html: FIXTURES['no-results-new.html'], finalUrl: SEARCH + '999999999999' },
     });
     const result = await new OrgillConnector({ fetchPage }).lookupByGtin(makeRequest('999999999999'));
-    expect(result.outcome).toBe('not_stocked');
-    if (result.outcome !== 'not_stocked') return;
-    expect(result.reason).toMatch(/no exact match/);
+    expect(result.outcome).toBe('source_error');
   });
 });
 
@@ -402,7 +405,7 @@ describe('OrgillConnector — LIVE-shaped markup (captured 2026-08-15 from www.o
 });
 
 describe('OrgillConnector — pure parser units', () => {
-  test('parseOrgillSearchCandidates: only same-origin ProductDetail links, deduped, capped', () => {
+  test('parseOrgillSearchCandidates: ProductDetail links, deduped, capped', () => {
     const urls = parseOrgillSearchCandidates(FIXTURES['found-search.html']);
     expect(urls).toEqual([PDP]);
     expect(parseOrgillSearchCandidates(FIXTURES['not-found.html'])).toEqual([]);

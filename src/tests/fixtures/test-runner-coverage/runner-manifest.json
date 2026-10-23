@@ -10,15 +10,18 @@
     "src/tests/unit/profile-audit-replay-runner.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
     "src/tests/unit/profile-audit-pilot.test.ts": "transitive bun:sqlite via page-extractor (Issue #174); runs under bun test (test:db)",
     "src/tests/unit/profile-audit-stratified-manifest.test.ts": "transitive bun:sqlite via page-extractor (Issue #175); runs under bun test (test:db)",
-    "src/tests/unit/profile-audit-versioned-corpus.test.ts": "transitive bun:sqlite via manifest-builder (Issue #190); runs under bun test (test:db)"
+    "src/tests/unit/p1-engine-correctness.test.ts": "transitive bun:sqlite via repository/connection; fails Vitest collection, runs under bun test (test:db)",
+    "src/tests/unit/profile-audit-versioned-corpus.test.ts": "transitive bun:sqlite via manifest-builder (Issue #190); runs under bun test (test:db)",
+    "src/tests/unit/naming-promotion-filenames.test.ts": "uses db/connection (bun:sqlite); runs under bun test (test:db)",
+    "src/tests/unit/backfill-preflight.test.ts": "transitive bun:sqlite via codec/decision chain; fails Vitest collection, runs under bun test (test:db)",
+    "src/tests/unit/backfill-reconcile.test.ts": "transitive bun:sqlite via codec/decision chain; fails Vitest collection, runs under bun test (test:db)",
+    "src/tests/unit/change-set-item-run-binding.test.ts": "transitive bun:sqlite via repositories; fails Vitest collection, runs under bun test (test:db)"
   },
   "version": 1,
   "vitestSafe": {
     "src/tests/unit/brand-strategy-builder-schema.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/brand-strategy-routes.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/domain-profile-state.test.ts": "textual bun mention only; collects under Vitest",
-    "src/tests/unit/e04s01-curation-determinism.test.ts": "textual bun mention only; collects under Vitest",
-    "src/tests/unit/e04s02-curation-provenance.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/manual-evidence-full-set.test.ts": "textual bun mention only; collects under Vitest",
     "src/tests/unit/profile-test-matrix.test.ts": "guarded dynamic import(try/catch) only, no static bun import; collects under Vitest",
     "src/tests/unit/profile-versioning.test.ts": "textual bun mention only; collects under Vitest",

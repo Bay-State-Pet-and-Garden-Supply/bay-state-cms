@@ -59,4 +59,5 @@ For substantial answers, use this shape:
 - Prefer the `product-xml-mapping.md` table for quick field lookups.
 - When a field is pass-through only, explain what that means practically (can't edit through CMS; preserved as-is on round-trip).
 - When the user wants to add support for a new field, use `codebase-integration.md` for the workflow and `product-field-catalog.md` for the field's documented properties.
+- Distinguish ShopSite's native `<ProductType>` (`Tangible` / `Download`, fulfillment behavior) from Bay State's canonical classification Product Type facet (`ProductField25`, labeled `Facet - Product Type`). They are different outputs.
 - Always call out the three DTD-governed emit behaviors: `MinimumQuantity` (precedence `customFields` → preserved → default `0`), `ProductType` (precedence `customFields` → preserved → default `Tangible`), `MoreInformationText` (precedence `customFields` → preserved → description, plus auto-emitted `DisplayMoreInformationPage`). See `product-xml-mapping.md` Known divergences.

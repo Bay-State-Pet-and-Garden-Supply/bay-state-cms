@@ -120,6 +120,19 @@ export const V5HierarchyNodeSchema = z.object({
     .record(ClassificationSlugSchema, z.union([z.string(), z.array(z.string()).nonempty()]))
     .optional()
     .default(() => ({})),
+  /**
+   * Approved ShopSite storefront projection for this type (v11+; absent on
+   * older releases). Exact Facet Category / Facet Product Type values the
+   * approved pair projects to the catalog. Owner-governed per product type:
+   * website categories may legitimately be finer than canonical categories
+   * (e.g. `Dog Treats` vs `Dog Toys` under internal `dog`), which is why
+   * this lives on the type rather than the category. Pair-level duplicates
+   * remain an error; category-level divergence is a warning.
+   */
+  websiteValues: z.object({
+    category: z.string().min(1),
+    productType: z.string().min(1),
+  }).strict().optional(),
 }).strict();
 export type V5HierarchyNode = z.infer<typeof V5HierarchyNodeSchema>;
 

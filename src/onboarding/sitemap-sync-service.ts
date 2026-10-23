@@ -21,7 +21,6 @@ export interface ShopifyProductDto {
   variants: Array<{
     id: number;
     title: string;
-    price: string;
     sku: string | null;
     barcode: string | null;
     option1: string | null;
@@ -118,7 +117,6 @@ export async function ingestShopifyCatalog(
 
         for (const v of prod.variants) {
           const variantUrl = `${baseUrl}?variant=${v.id}`;
-          const dollarPrice = v.price ? parseFloat(v.price) : null;
           variantInputs.push({
             url: variantUrl,
             baseUrl,
@@ -127,7 +125,6 @@ export async function ingestShopifyCatalog(
             sku: v.sku ? String(v.sku) : null,
             brand: prod.vendor || null,
             variantTokens: [v.option1, v.option2, v.option3].filter(Boolean) as string[],
-            price: Number.isNaN(dollarPrice) ? null : dollarPrice,
           });
         }
       }

@@ -315,8 +315,46 @@ WHERE i.source_type = 'distributor_record'
 6. Record before/after capabilities (`configurationReason`) and reconnect
    only after the per-connector gates pass again.
 
-## Existing rows (the stranded cohort)
+### Wedged-worker restart recovery (issue #303)
 
+Symptom (2026-09-22, batch `NEWFORNICK0090626`): the API process spins at
+>100% CPU and EVERY request to `:3030` times out (HTTP 000, including the
+cheap `GET /api/onboarding/batches`), while sibling processes stay healthy
+(`:5173` → 200, `:3032` → 401). No log output since startup, no error — the
+23h spin went unnoticed because nothing logged worker-iteration duration and
+nothing alerted on request throughput dropping to zero.
+
+Recovery (restart IS the recovery — claims are atomic, so re-poll is safe):
+
+1. Kill the dev stack PIDs and restart (`bun run dev`); verify `:3030`
+   answers 200 in under a second.
+2. Confirm no data loss: worker claims are atomic
+   (`UPDATE … WHERE stage_status = 'pending'` CAS in
+   `claimItemsForProcessing`; guarded re-advance UPDATEs in the
+   auto-advance/domain-release sweeps; CAS lease reclaim for cohort runs),
+   and every poll sweep is idempotent (re-polling an unchanged world is a
+   no-op). Before the next promote, verify batch counts agree post-restart
+   (compare `stage`/`stage_status` tallies against the pre-restart
+   snapshot or the last known-good work-state counts).
+3. If a poll iteration wedges again, look for a `[OnboardingWorker] Poll
+   iteration slow|failed: <N>ms` warn line (logged when an iteration
+   exceeds 1s or throws) — a slow iteration means a sweep outgrew its per-
+   iteration budget (`AUTO_ADVANCE_SWEEP_LIMIT` = 200,
+   `DOMAIN_RELEASE_SWEEP_LIMIT` = 200; leftovers advance on later polls),
+   and a failed iteration defers the next poll to a single backoff deadline
+   (up to 30s) instead of hot-looping. The regression
+   (`src/tests/unit/onboarding-worker-poll-yield.test.ts`) proves the
+   throughput half: a `GET /api/onboarding/batches` issued while a batch
+   poll is in flight is served before the poll finishes (a fully
+   synchronous iteration would serve it only after returning). Analysis
+   behind the yield/bound/backoff fix: the entire poll iteration ran
+   synchronously before any yielding await, so one iteration held the event
+   loop for the whole sweep sequence and drove throughput to zero.
+
+Do NOT bulk-rewrite rows, delete evidence, or close the issue on restart
+alone — close only on the identified root cause plus the regression.
+
+## Existing rows (the stranded cohort)
 - No automatic migration of historical `sourcing/pending` rows. The 148
   legacy rows carry `sourcing_entry_policy_version = 0` and are never
   claimed, observed, or backfilled by the worker.

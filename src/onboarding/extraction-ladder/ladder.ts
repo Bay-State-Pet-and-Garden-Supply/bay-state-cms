@@ -398,7 +398,7 @@ export async function runExtractionLadder(
         layersUsed.push('woocommerce');
         addField('product_name', wc.product.name ?? undefined, 'platform_api', 'WooCommerce Store API payload');
         addField('sku', wc.product.sku ?? undefined, 'platform_api', 'WooCommerce Store API payload');
-        if (wc.product.price) addField('price', wc.product.price, 'platform_api', 'WooCommerce Store API payload');
+        // Input Price Authority (ADR 0043): page prices are never collected.
         productName ??= wc.product.name;
         sku ??= wc.product.sku;
         for (const image of wc.product.images) {

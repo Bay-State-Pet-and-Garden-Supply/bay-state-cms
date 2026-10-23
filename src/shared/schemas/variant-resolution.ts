@@ -84,7 +84,6 @@ export const VariantMatchInputSchema = z.object({
   mpn: z.string().max(512).nullable().optional(),
   name: z.string().min(1).max(512),
   brandHint: z.string().max(256).nullable().optional(),
-  price: z.string().max(64).nullable().optional(),
   variantTokens: z.array(z.string().max(128)).max(32).optional(),
   expectedOptions: z.array(ExpectedOptionSchema).max(8).optional(),
   /**

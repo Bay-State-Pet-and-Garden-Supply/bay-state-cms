@@ -28,7 +28,7 @@ import type { CatalogEvidence } from '../../classification/catalog-evidence';
 import type { VerifiedActivationContext } from '../../classification/config-loader';
 
 const REVIEWED_FIELDS = [
-  'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
+  'ProductField1', 'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
   'ProductField20', 'ProductField21', 'ProductField22', 'ProductField23',
   'ProductField24', 'ProductField25', 'ProductField26', 'ProductField27',
   'ProductField28', 'ProductField29', 'ProductField30', 'ProductField32',
@@ -442,6 +442,7 @@ describe('classification config-store', () => {
     expect(classificationFiles).toContain('store/classification/catalog-evidence.json');
     expect(classificationFiles).toContain('store/classification/manifest.json');
     expect(classificationFiles).toContain('store/classification/product-types.json');
+    expect(classificationFiles).toContain('store/classification/categories.json');
     expect(classificationFiles).toContain('store/classification/attributes.json');
     expect(classificationFiles).toContain('store/classification/attribute-profiles.json');
     expect(classificationFiles).toContain('store/classification/mappings.json');
@@ -450,6 +451,6 @@ describe('classification config-store', () => {
     expect(classificationFiles).toContain('store/classification/guidance.json');
     expect(classificationFiles).toContain('store/classification/model-policies.json');
     expect(classificationFiles).toContain('store/classification/data-sharing.json');
-    expect(classificationFiles).toHaveLength(11);
+    expect(classificationFiles).toHaveLength(12);
   });
 });

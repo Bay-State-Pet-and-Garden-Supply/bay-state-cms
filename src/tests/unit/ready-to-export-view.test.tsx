@@ -44,6 +44,9 @@ function persistedSet(id: string, items: OnboardingWorkState[]) {
   return {
     changeSet: { id, workspaceId: '7', title: 'Onboarding batch', status: 'draft', baseCommit: '0'.repeat(40), approvedCommit: null, createdAt: '', updatedAt: '' },
     items: items.map(item => ({ id: `draft-${item.itemId}`, changeSetId: id, sku: item.upc, operation: 'create', draftJson: JSON.stringify({ itemId: item.itemId, upc: item.upc }), baseJson: null, validationStatus: 'pending' })),
+    linkedManifest: null,
+    linkedStatus: 'none' as const,
+    linkedComplete: false,
   };
 }
 function receipt(created: string[], rejected: Array<{ itemId: string; reason: string }> = [], changeSetId: string | null = 'cs-persisted'): workApi.CreateExportDraftsResponse {

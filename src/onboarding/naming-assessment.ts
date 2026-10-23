@@ -102,6 +102,35 @@ export function measurementValuePresentInTitle(title: string, value: string): bo
 }
 
 /**
+ * Canonical size-word equivalence (register convention): the distributor
+ * ships two-letter codes (SM/MD/LG/XL) while the register prints full words
+ * (Small/Medium/Large/X-Large/Giant). Either form satisfies the other —
+ * the gate compares meaning, not spelling.
+ */
+const SIZE_WORD_EQUIVALENTS: Record<string, string[]> = {
+  sm: ['sm', 'small'],
+  small: ['sm', 'small'],
+  md: ['md', 'medium'],
+  medium: ['md', 'medium'],
+  lg: ['lg', 'large'],
+  large: ['lg', 'large'],
+  xl: ['xl', 'x-large', 'xlarge'],
+  'x-large': ['xl', 'x-large', 'xlarge'],
+  xlarge: ['xl', 'x-large', 'xlarge'],
+  giant: ['giant'],
+};
+
+function sizeTokenPresentInTitle(title: string, value: string): boolean {
+  const key = value.trim().toLowerCase();
+  const variants = SIZE_WORD_EQUIVALENTS[key];
+  if (!variants) return measurementValuePresentInTitle(title, value);
+  return variants.some(variant =>
+    new RegExp(`\\b${escapeRegExpWord(variant)}\\b`, 'i').test(title),
+  );
+}
+
+
+/**
  * Classify a title-embedded protected token into a measurement axis.
  * Volume units are capacity first (a fluid-ounce size is capacity, not
  * weight); remaining number+unit tokens are weight/count, abbreviations
@@ -202,7 +231,10 @@ export function assessNamingInvariants(input: NamingAssessmentInput): NamingAsse
     } else {
       const representedCategories = new Set<string>();
       for (const token of tokens) {
-        const present = measurementValuePresentInTitle(title, token.value);
+        const category = token.axis.trim().toLowerCase().replace(/[\s_-]+/g, '');
+        const present = category === 'size'
+          ? sizeTokenPresentInTitle(title, token.value)
+          : measurementValuePresentInTitle(title, token.value);
         const refs = token.refs && token.refs.length > 0 ? token.refs : undefined;
         if (token.conflicted && !present) {
           findings.push({

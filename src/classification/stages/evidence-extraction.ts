@@ -4,162 +4,23 @@ import { extractProductEvidence, packagingOcrDataToEvidence } from '../product-e
 import type { NormalizedEvidenceInput, EvidenceInputField } from '../product-evidence-extractor';
 import { resolveBrand } from '../brand-resolution';
 import { CanonicalBrandEvidenceValueSchema } from '../../shared/schemas/classification';
-import { hashCanonicalJson } from '../../shared/stable-id';
 import { computeOcrExecutionDigest } from '../runtime-snapshot';
 import { getAuthoritativePackagingOcrStageOutput } from './packaging-ocr-stage';
 import type { ExecutionEvidenceProjectionMemberV2 } from '../../shared/schemas/cohorts';
 import type { ClassificationEvidence } from '../../shared/types';
 import * as crypto from 'node:crypto';
+import {
+  buildFrozenProjectionEntries,
+  buildManualEvidenceEntries,
+  frozenOcrModelParams,
+  isFrozenOcrEligible,
+  type FrozenEvidenceEntry,
+} from '../frozen-evidence-mapping';
 
 const now = () => new Date().toISOString();
 
 /**
- * Manual-evidence entries (parent #101, ticket #104 full set).
- *
- * Builds operator-manual evidence for the supplied fields ONLY (title,
- * brand, description, bullets, weight, dimensions, approved images; never
- * family-page facts, never synthesized copy). Every entry carries source
- * `operator_manual`, low reliability (manual transcription requires
- * Review), a NULL source URL, and attestation metadata. Pure helper —
- * unit-tested in isolation and wired into both the frozen and live
- * evidence paths below.
- */
-export interface ManualEvidenceEntryInput {
-  title?: string | null;
-  brand?: string | null;
-  description?: string | null;
-  bulletPoints?: string[] | null;
-  weight?: string | null;
-  dimensions?: string | null;
-  primaryImage?: string | null;
-  additionalImages?: string[] | null;
-  attestationId: string;
-  /**
-   * Caller-supplied per-field attribution (may carry nulls for unattributed
-   * distributor fields). Accepted but currently unused: emitted entries carry
-   * a constant operator-manual provenance marker instead.
-   */
-  fieldProvenance: Record<string, string | null>;
-  manualReferenceUrl: string | null;
-}
-
-export function buildManualEvidenceEntries(
-  input: ManualEvidenceEntryInput,
-): Array<Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>> {
-  const metadata = {
-    provenance: 'manual_evidence',
-    attestationId: input.attestationId,
-    fieldProvenance: 'user',
-    manualReferenceUrl: input.manualReferenceUrl,
-  };
-  const entries: Array<Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>> = [];
-  if (input.title && input.title.trim()) {
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'name',
-      snippet: input.title.slice(0, 300),
-      value: input.title,
-      metadata,
-    });
-  }
-  if (input.brand && input.brand.trim()) {
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'brand',
-      snippet: input.brand.slice(0, 300),
-      value: input.brand,
-      metadata,
-    });
-  }
-  if (input.description && input.description.trim()) {
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'description',
-      snippet: input.description.slice(0, 500),
-      value: input.description,
-      metadata,
-    });
-  }
-  for (const bullet of input.bulletPoints ?? []) {
-    if (!bullet || !String(bullet).trim()) continue;
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'bullet_point',
-      snippet: String(bullet).slice(0, 300),
-      value: String(bullet),
-      metadata,
-    });
-  }
-  if (input.weight && input.weight.trim()) {
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'weight',
-      snippet: input.weight.slice(0, 300),
-      value: input.weight,
-      metadata,
-    });
-  }
-  if (input.dimensions && input.dimensions.trim()) {
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'dimensions',
-      snippet: input.dimensions.slice(0, 300),
-      value: input.dimensions,
-      metadata,
-    });
-  }
-  // Operator-approved images only: submit-time rights approvals are
-  // enforced by the service and re-verified by the review gate. The URLs
-  // are operator-supplied evidence, never distributor candidates.
-  if (input.primaryImage && input.primaryImage.trim()) {
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'primary_image',
-      snippet: input.primaryImage.slice(0, 300),
-      value: input.primaryImage,
-      metadata,
-    });
-  }
-  for (const image of input.additionalImages ?? []) {
-    if (!image || !String(image).trim()) continue;
-    entries.push({
-      attributeId: null,
-      source: 'operator_manual',
-      reliability: 'low',
-      sourceUrl: null,
-      sourceField: 'additional_image',
-      snippet: String(image).slice(0, 300),
-      value: String(image),
-      metadata,
-    });
-  }
-  return entries;
-}
-
-/**
  * Prepared-cohort (frozen) evidence extraction (issue #30 PR3 M2, amendment 4).
- *
  * When `StageContext` carries the member's frozen execution-evidence
  * projection (`cohortFrozenEvidence`), this stage builds evidence ONLY from
  * the projection's `spreadsheetIdentity` + `extraction` fields — it must NOT
@@ -177,11 +38,10 @@ function executeFrozenEvidenceExtraction(
 ): StageResult {
   const evidence: ClassificationEvidence[] = [];
   const sku = input.sku;
-  const sourceUrl = frozen.sourceUrl;
   const ext = frozen.extraction;
   const identity = frozen.spreadsheetIdentity;
 
-  const push = (entry: Omit<ClassificationEvidence, 'id' | 'runId' | 'stageName' | 'productSku' | 'capturedAt'>): void => {
+  const push = (entry: FrozenEvidenceEntry): void => {
     evidence.push({
       ...entry,
       id: crypto.randomUUID(),
@@ -192,143 +52,14 @@ function executeFrozenEvidenceExtraction(
     } as ClassificationEvidence);
   };
 
-  // ── Spreadsheet identity (frozen spreadsheet hints) ────────────────────
-  push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'name', snippet: identity.name.slice(0, 300), value: identity.name, metadata: { provenance: 'spreadsheet_import' } });
-  if (identity.expectedName && identity.expectedName !== identity.name) {
-    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'expected_name', snippet: identity.expectedName.slice(0, 300), value: identity.expectedName, metadata: { provenance: 'spreadsheet_import', refinement: 'discovery_consolidation' } });
+  // ── Frozen own-SKU text evidence (issue #361): the shared frozen
+  //    projection mapping owns supplied-identity, distributor
+  //    merchandising, official-page field selection and
+  //    source/provenance labeling — the same meaning the read-only freeze
+  //    scan computes. This consumer only stamps execution bookkeeping.
+  for (const entry of buildFrozenProjectionEntries(frozen)) {
+    push(entry);
   }
-  if (identity.brandHint) {
-    push({ attributeId: null, source: 'spreadsheet', reliability: 'medium', sourceUrl: null, sourceField: 'brand', snippet: identity.brandHint.slice(0, 300), value: identity.brandHint, metadata: { provenance: 'spreadsheet_import' } });
-  }
-
-  // ── Normalized extraction fields (source-aware, Amendment A) ───────────
-  // Distributor-record sources emit ONLY identity fields (title/name, brand,
-  // weight, distributor SKU, MPN, whitelisted variant attributes) with source
-  // `distributor_record`, a NULL classification URL, and metadata carrying the
-  // sorted attempt/provider ids, generation, evidence hash, and per-field
-  // provenance. Description/bullets/search-keywords/copy are NEVER emitted
-  // for distributor sources, and nothing is ever labeled
-  // `official_product_page` for them.
-  // Parent #101 (manual-evidence route): operator-transcribed members emit
-  // ONLY operator-manual evidence (full set in ticket #104) with a NULL
-  // classification URL and the attestation id in metadata. The automated
-  // and distributor branches below are byte-identical for all non-manual
-  // members; the review gate re-verifies the attestation join.
-  const isManualEvidence = frozen.extractionMethod === 'manual_evidence_v1';
-  if (isManualEvidence) {
-    const manualExt = frozen.extraction as typeof frozen.extraction & {
-      manualEvidenceAttestationId?: string | null;
-      manualReferenceUrl?: string | null;
-    };
-    for (const entry of buildManualEvidenceEntries({
-      title: ext.title,
-      brand: ext.brand,
-      description: ext.description,
-      bulletPoints: ext.bulletPoints,
-      weight: ext.weight,
-      dimensions: (ext as { dimensions?: string | null }).dimensions ?? null,
-      primaryImage: ext.primaryImage,
-      additionalImages: ext.additionalImages,
-      attestationId: manualExt.manualEvidenceAttestationId ?? 'unknown',
-      fieldProvenance: ext.fieldProvenance ?? {},
-      manualReferenceUrl: manualExt.manualReferenceUrl ?? null,
-    })) {
-      push(entry);
-    }
-  }
-  const isDistributor = frozen.itemSourceType === 'distributor_record' || frozen.extractionSourceType === 'distributor_record';
-  if (!isManualEvidence && isDistributor) {
-    const distributorMetadata = {
-      provenance: 'distributor_record',
-      sourcingGenerationId: frozen.sourcingGenerationId ?? null,
-      acceptedEvidenceAttemptIds: frozen.acceptedEvidenceAttemptIds,
-      acceptedProviderIds: frozen.acceptedProviderIds,
-      distributorEvidenceHash: frozen.distributorEvidenceHash ?? null,
-      fieldProvenance: ext.fieldProvenance ?? {},
-    };
-    const distributorSource: ClassificationEvidence['source'] = 'distributor_record';
-    if (ext.title && ext.title.trim()) {
-      push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'name', snippet: ext.title.slice(0, 300), value: ext.title, metadata: distributorMetadata });
-    }
-    if (ext.brand && ext.brand.trim()) {
-      push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'brand', snippet: ext.brand.slice(0, 300), value: ext.brand, metadata: distributorMetadata });
-    }
-    if (ext.weight && ext.weight.trim()) {
-      push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'weight', snippet: ext.weight.slice(0, 300), value: ext.weight, metadata: distributorMetadata });
-    }
-    if (ext.distributorSku && ext.distributorSku.trim()) {
-      push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'distributor_sku', snippet: ext.distributorSku.slice(0, 300), value: ext.distributorSku, metadata: distributorMetadata });
-    }
-    if (ext.manufacturerPartNumber && ext.manufacturerPartNumber.trim()) {
-      push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'manufacturer_part_number', snippet: ext.manufacturerPartNumber.slice(0, 300), value: ext.manufacturerPartNumber, metadata: distributorMetadata });
-    }
-    for (const [key, rawVal] of Object.entries(ext.variantAttributes ?? {})) {
-      const value = String(rawVal ?? '').trim();
-      if (!value) continue;
-      push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: key, snippet: value.slice(0, 300), value, metadata: distributorMetadata });
-    }
-    // Amendment B merchandising fields (M5b-1): a VERIFIED v2 distributor
-    // member (`distributor_record_v2`) contributes the explicit merchandising
-    // fields with the same distributor provenance — description, each feature
-    // as bullet_point, distributor_category, dimensions, case_pack,
-    // unit_of_measure, ingredients. V1 members stay identity-only. Price,
-    // inventory, images, search keywords, claims inferred from copy, and
-    // arbitrary fields are NEVER emitted; the classification URL stays null;
-    // nothing is labeled `official_product_page`.
-    if (frozen.extractionMethod === 'distributor_record_v2') {
-      const merchMetadata = {
-        ...distributorMetadata,
-        merchandisingProvenance: (ext as { merchandisingProvenance?: Record<string, unknown> }).merchandisingProvenance ?? {},
-      };
-      if (ext.description && ext.description.trim()) {
-        push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'description', snippet: ext.description.slice(0, 500), value: ext.description, metadata: merchMetadata });
-      }
-      for (const bullet of ext.bulletPoints ?? []) {
-        if (!bullet || !String(bullet).trim()) continue;
-        push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: merchMetadata });
-      }
-      const merchScalars: Array<{ sourceField: string; value: string }> = [
-        { sourceField: 'distributor_category', value: (ext as { distributorCategory?: string | null }).distributorCategory ?? '' },
-        { sourceField: 'dimensions', value: (ext as { dimensions?: string | null }).dimensions ?? '' },
-        { sourceField: 'case_pack', value: (ext as { casePack?: string | null }).casePack ?? '' },
-        { sourceField: 'unit_of_measure', value: (ext as { unitOfMeasure?: string | null }).unitOfMeasure ?? '' },
-        { sourceField: 'ingredients', value: (ext as { ingredients?: string | null }).ingredients ?? '' },
-      ];
-      for (const item of merchScalars) {
-        const trimmed = item.value.trim();
-        if (!trimmed) continue;
-        push({ attributeId: null, source: distributorSource, reliability: 'medium', sourceUrl: null, sourceField: item.sourceField, snippet: trimmed.slice(0, 300), value: trimmed, metadata: merchMetadata });
-      }
-    }
-  } else if (!isManualEvidence) {
-  // Official-page branch: skipped for manual-evidence members (their only
-  // evidence is the operator-manual entries pushed above).
-  const pageSource: ClassificationEvidence['source'] = 'official_product_page';
-  if (ext.title && ext.title.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'name', snippet: ext.title.slice(0, 300), value: ext.title, metadata: { provenance: 'official_product_page' } });
-  }
-  if (ext.brand && ext.brand.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'brand', snippet: ext.brand.slice(0, 300), value: ext.brand, metadata: { provenance: 'official_product_page' } });
-  }
-  if (ext.weight && ext.weight.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'weight', snippet: ext.weight.slice(0, 300), value: ext.weight, metadata: { provenance: 'official_product_page' } });
-  }
-  if (ext.description && ext.description.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'description', snippet: ext.description.slice(0, 500), value: ext.description, metadata: { provenance: 'official_product_page' } });
-  }
-  for (const bullet of ext.bulletPoints) {
-    if (!bullet || !bullet.trim()) continue;
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: 'bullet_point', snippet: String(bullet).slice(0, 300), value: String(bullet), metadata: { provenance: 'official_product_page' } });
-  }
-  if (ext.searchKeywords && ext.searchKeywords.trim()) {
-    push({ attributeId: null, source: pageSource, reliability: 'low', sourceUrl, sourceField: 'search_keywords', snippet: ext.searchKeywords.slice(0, 300), value: ext.searchKeywords, metadata: { provenance: 'product_data' } });
-  }
-  for (const [key, rawVal] of Object.entries(ext.customFields)) {
-    const value = String(rawVal ?? '').trim();
-    if (!value) continue;
-    push({ attributeId: null, source: pageSource, reliability: 'medium', sourceUrl, sourceField: key, snippet: value.slice(0, 300), value, metadata: { provenance: 'product_data' } });
-  }
-  } // end official-page branch (skipped for manual members via !isManualEvidence above)
 
   // ── Canonical brand resolution from the FROZEN snapshot brands (parity
   //    with the non-cohort path; never a DB read). ────────────────────────
@@ -351,33 +82,21 @@ function executeFrozenEvidenceExtraction(
   }
 
   // ── FROZEN packaging OCR materialization (NO model call) ────────────────
-  // The stored OCR is trusted only when its recorded ocrInputHash matches the
-  // projection's own input set (recomputed from frozen fields — never a live
-  // onboarding_items read) AND its execution-authority digest is non-null AND
-  // equals the member runtime snapshot's plan/rule digest (PR3 hardening C / R4
-  // fail-closed): a stored OCR executed under a DIFFERENT authority (model
-  // policy / local-VLM route) is never materialized even when the input hash
-  // matches — provenance always follows the authority that produced it.
+  // Eligibility (input-hash binding + execution-authority digest) is the
+  // shared frozen-mapping predicate; conversion stays the shared
+  // `packagingOcrDataToEvidence` mapping. A stored OCR executed under a
+  // DIFFERENT authority (model policy / local-VLM route) is never
+  // materialized even when the input hash matches — provenance always
+  // follows the authority that produced it.
+  const expectedDigest = context.snapshot != null ? computeOcrExecutionDigest(context.snapshot) : null;
   const frozenOcr = ext.ocr;
-  const ocrInputHashMatches =
-    frozenOcr.packagingOcrData != null &&
-    hashCanonicalJson({
-      sourceUrl: frozen.sourceUrl,
-      extractionSourceUrl: frozen.extractionSourceUrl,
-      primaryImage: ext.primaryImage,
-      additionalImages: ext.additionalImages,
-    }) === frozenOcr.ocrInputHash;
-  const executionDigestMatches =
-    frozenOcr.ocrExecutionDigest != null &&
-    context.snapshot != null &&
-    computeOcrExecutionDigest(context.snapshot) === frozenOcr.ocrExecutionDigest;
-  if (frozenOcr.packagingOcrData && ocrInputHashMatches && executionDigestMatches) {
-    const modelCallIds = frozenOcr.packagingOcrData.metadata?.modelCallIds;
+  if (frozenOcr.packagingOcrData && isFrozenOcrEligible(frozen, expectedDigest)) {
+    const ocrParams = frozenOcrModelParams(frozen);
     const visualEvidence = packagingOcrDataToEvidence(frozenOcr.packagingOcrData, {
       runId: context.runId,
       sku,
-      model: frozenOcr.outcome?.model ?? 'unknown',
-      ...(Array.isArray(modelCallIds) && modelCallIds.length > 0 ? { modelCallIds } : {}),
+      model: ocrParams.model,
+      ...(ocrParams.modelCallIds ? { modelCallIds: ocrParams.modelCallIds } : {}),
     });
     evidence.push(...visualEvidence);
   }

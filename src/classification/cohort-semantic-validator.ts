@@ -375,34 +375,18 @@ export interface MemberLocalAttributesInput {
   attributeConfig: Array<{ id: string; isUniversal?: boolean }>;
   /** Universal attribute ids (type-independent applicability — exempt). */
   universalAttributeIds: Set<string> | string[];
-  /**
-   * The effective type's profile attribute ids resolved from the FROZEN
-   * snapshot (null only when there is no effective type). An effective type
-   * with a legitimately EMPTY profile passes an EMPTY set — every
-   * non-universal target is then not_applicable.
-   */
+  /** Profile attribute ids resolved from the frozen Category + Type pair. */
   profileAttributeIds?: Set<string> | null;
-  /**
-   * Profile-declared cardinality per attribute id (frozen). Unknown
-   * attributes default to 'single' per the profile schema; universal
-   * attributes outside the profile are never assumed single.
-   */
+  /** Profile-declared cardinality per attribute id (frozen). */
   cardinalityByAttributeId?: Map<string, 'single' | 'multiple'>;
-  /**
-   * PR9 review R1 (B4): the effective profile's FULL frozen entries keyed by
-   * attribute id — carries each attribute's `applicabilityConditions` (the
-   * profile membership check above only proves the attribute is IN the
-   * profile; a conditionally inapplicable profile member must still be
-   * blocked). null/undefined when there is no effective profile.
-   */
+  /** Frozen profile entries include configured applicability conditions. */
   profileEntriesByAttributeId?: Map<string, MemberLocalProfileEntry> | null;
-  /**
-   * PR9 review R1 (B4): the member's FROZEN/reviewed facts (from the
-   * immutable runtime snapshot) used to evaluate conditional applicability.
-   * Missing facts make a condition UNRESOLVED — fail closed.
-   */
+  /** Member's frozen/reviewed facts for conditional applicability. */
   reviewedFacts?: ReviewedFact[];
+  /** Missing/invalid pair and profile authority remain attributable. */
+  profileResolution?: { status: 'ready' | 'unresolved' | 'configuration_gap'; reason: string | null };
 }
+
 
 /**
  * member_local re-validation: every non-universal `field_assignment` target
@@ -428,6 +412,13 @@ export function validateMemberLocalAttributes(
   const attributeFor = (id: string) => input.attributeConfig.find(candidate => candidate.id === id);
   const isUniversal = (id: string) =>
     universal.has(id) || attributeFor(id)?.isUniversal === true;
+  if (input.profileResolution && input.profileResolution.status !== 'ready' && input.proposals.some(proposal => proposal.targetId && !isUniversal(proposal.targetId))) {
+    findings.push({
+      code: 'member_attribute_applicability',
+      memberSku,
+      message: `Frozen Attribute Profile resolution is ${input.profileResolution.status}: ${input.profileResolution.reason ?? 'no reason supplied'}`,
+    });
+  }
 
   // Cardinality re-check inputs: DISTINCT canonical values per target id. A
   // re-executed member (crash between pipeline completion and the atomic

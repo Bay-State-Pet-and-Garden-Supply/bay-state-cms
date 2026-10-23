@@ -1,5 +1,5 @@
 import type * as cheerio from 'cheerio';
-import type { ScrapedProductEvidence } from '../corpus-schema.js';
+import { isThirdPartyPriceSpecification, type ScrapedProductEvidence } from '../corpus-schema.js';
 import { computeEntityId } from '../url-policy.js';
 
 function isAceHardwareProductUrl(url: string): boolean {
@@ -39,7 +39,7 @@ export function parseAceHardwareProductHtml(url: string, $: cheerio.CheerioAPI):
     const val = $(el).is('dt')
       ? $(el).next('dd').text().trim()
       : $(el).find('td:last-child').text().trim();
-    if (key && val && key !== val) {
+    if (key && val && key !== val && !isThirdPartyPriceSpecification(key)) {
       specifications[key] = val;
     }
   });

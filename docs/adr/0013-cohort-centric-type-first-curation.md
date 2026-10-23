@@ -4,6 +4,8 @@ Onboarding acquires products item-centrically (Sourcing → Discovery → Extrac
 
 **Status**: accepted
 
+**Partial design supersession:** [ADR 0042](0042-evidence-first-item-local-onboarding.md) replaces cohort-owned completion/title/page authority and unrelated-member readiness barriers with item-owned authority. Frozen inputs, lease/CAS safety, review, and immutable historical records remain required; this note does not claim runtime cutover. [ADR 0041](0041-single-product-classification-contract.md) separately governs the canonical per-SKU classification.
+
 **Context**: the current pipeline computes sibling context with in-memory caches (`cohort-name-coordinator.ts`, `cohort-page-coordinator.ts`), recomputes family membership on every run instead of persisting it, and can curate one sibling while another is still producing Extraction/OCR evidence. Product Type is known to be the root semantic discriminator, but a newly inferred type cannot drive a full first-pass Curation until a human accepts it. Issue #30 targets: "Determine what a product is before determining which properties it should have."
 
 **Decision drivers**:

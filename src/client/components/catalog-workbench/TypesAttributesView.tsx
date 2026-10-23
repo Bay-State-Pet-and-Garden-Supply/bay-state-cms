@@ -147,7 +147,7 @@ export function TypesAttributesView() {
       </section>
 
       <p style={{ fontSize: 12, color: '#737373', borderTop: '1px solid var(--color-card-border, #E8E6D9)', paddingTop: 16, margin: 0 }}>
-        Editing Product Types, Attributes, and Mappings is available in Onboarding Settings.
+        Product Types, Attributes, and Mappings are managed by the active immutable taxonomy release and are read-only here.
       </p>
     </div>
   );

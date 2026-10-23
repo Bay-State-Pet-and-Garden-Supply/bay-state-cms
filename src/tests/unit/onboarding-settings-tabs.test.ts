@@ -83,7 +83,7 @@ describe2('OnboardingSettings cross-link to Store Settings taxonomy admin (P1)',
     window.history.replaceState(null, '', '/');
   });
 
-  it2('renders "Manage types, mappings & releases" link to ?view=settings&tab=types', async () => {
+  it2('renders the taxonomy management link to the release tab', async () => {
     const { OnboardingSettings } = await import('../../client/components/OnboardingSettings');
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -92,10 +92,25 @@ describe2('OnboardingSettings cross-link to Store Settings taxonomy admin (P1)',
       root.render(React.createElement(OnboardingSettings, { onBack: () => {} }));
     });
     const link = Array.from(container.querySelectorAll('a')).find(
-      (a) => a.getAttribute('href') === '/?view=settings&tab=types',
+      (a) => a.getAttribute('href') === '/?view=settings&tab=taxonomy-release',
     );
     expect2(link).toBeDefined();
-    expect2(link!.textContent).toContain('Manage types, mappings & releases');
+    expect2(link!.textContent).toContain('Manage taxonomy releases, types, mappings & health');
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+  it2('renders the classification back-link to onboarding curation', async () => {
+    const { SettingsClassificationTab } = await import('../../client/components/settings/SettingsClassificationTab');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(React.createElement(SettingsClassificationTab, { view: 'catalog-fields', children: null }));
+    });
+    const link = container.querySelector('a[href="/?view=onboarding&settingsTab=curation"]');
+    expect2(link).toBeDefined();
     await act(async () => {
       root.unmount();
     });

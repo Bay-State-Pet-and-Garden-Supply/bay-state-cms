@@ -83,12 +83,30 @@ export function autosaveDraft(
 ): { changeSetId: string; draftHash: string } {
   const approved = readProductFile(workspacePath, sku);
   const baseProduct = approved ?? createEmptyProduct(sku);
+  const activeChangeSet = findActiveChangeSet(workspaceId);
+  const activeItem = activeChangeSet
+    ? listChangeSetItems(activeChangeSet.id).find((item) => item.sku === sku && item.operation !== 'discarded')
+    : undefined;
+  const previousDraft = activeItem ? JSON.parse(activeItem.draftJson) as Product : null;
+  const previousCore = previousDraft?.core;
+  const immutablePrice = previousCore && Object.prototype.hasOwnProperty.call(previousCore, 'price')
+    ? previousCore.price
+    : baseProduct.core.price;
+  const immutableSalePrice = previousCore && Object.prototype.hasOwnProperty.call(previousCore, 'salePrice')
+    ? previousCore.salePrice
+    : baseProduct.core.salePrice;
   const now = new Date().toISOString();
   const draftProduct: Product = {
     ...baseProduct,
     ...draftChanges,
     status: operation === 'archive' ? 'archived' : (draftChanges.status ?? baseProduct.status),
-    core: { ...baseProduct.core, ...(draftChanges.core ?? {}) },
+    core: {
+      ...baseProduct.core,
+      ...(draftChanges.core ?? {}),
+      // Preserve existing onboarding values and ignore later price edits.
+      price: immutablePrice,
+      salePrice: immutableSalePrice,
+    },
     customFields: { ...baseProduct.customFields, ...(draftChanges.customFields ?? {}) },
     shopsite: { ...baseProduct.shopsite, ...(draftChanges.shopsite ?? {}) },
     metadata: {
@@ -103,7 +121,7 @@ export function autosaveDraft(
   const draftJsonStr = deterministicStringify(draftProduct);
 
   // Find or create active change set
-  let activeCs = findActiveChangeSet(workspaceId);
+  let activeCs = activeChangeSet;
   if (!activeCs) {
     const ws = findWorkspace();
     const baseCommit = ws?.baselineCommit ?? 'unknown';

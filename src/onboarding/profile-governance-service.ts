@@ -680,6 +680,9 @@ export function reviseProfileFromStructuredFeedback(input: {
   feedback: StructuredFeedback;
   notes?: string | null;
 }): ProfileGenerationRevision | null {
+  if (input.feedback.kind === 'text' && /price|cost|sale/i.test(input.feedback.field)) {
+    return null;
+  }
   const generation = findProfileGenerationById(input.generationId);
   if (!generation) return null;
 

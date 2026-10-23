@@ -1,5 +1,5 @@
 > [!NOTE] Superseded by Onboarding Hardening Plan M6 — see `docs/plans/onboarding-hardening-plan.md`.
-> **Partial supersession:** Deterministic worker/profile governance remains valid. Runtime LLM extraction and agent orchestration remain prohibited by ADR 0030/ADR 0033 — do not use this plan to reintroduce them.
+> **Partial supersession:** Deterministic worker/profile governance remains valid. Runtime LLM extraction and agent orchestration remain prohibited by ADR 0030/ADR 0033 — do not use this plan to reintroduce them. ADR 0043 supersedes any page-price extraction or override behavior described below.
 
 # Domain Extractor Profile Worker Plan
 
@@ -365,7 +365,7 @@ Implementation details:
 - Scores each field result:
   - Empty selector value → `fail`
   - `titleSelector` / `nameSelector` with `expectedName` → word overlap > 15% check; below threshold → `warning`
-  - `priceSelector` / `price` → numeric value check; missing → `warning`
+  - `priceSelector` / page `price` → ignored; price never contributes to profile health or replaces onboarding input (ADR 0043)
   - `imagesSelector` / `images` / `imageSelector` / `image` → non-empty image count check; zero → `warning`
 - Image validation: counts non-SVG image candidates; sets `primaryImageMatch` if any found.
 - Variant validation: if `variantSelectionStrategy` is present, returns `{ selected: true, variantTitle: "not yet implemented" }` (actual running in Phase 5).
@@ -394,10 +394,10 @@ docs/plans/domain-extractor-profile-worker-plan.md  — marks Phase 5 done
 Implementation details:
 
 - `routes/extract.ts` handles `POST /profile-runner/extract` with two runtimes:
-  - **static**: Uses `fetch()` with HTTP headers + Cheerio DOM parsing. Applies profile selectors (titleSelector, brandSelector, descriptionSelector, priceSelector, imagesSelector) via `$(selector).first().text().trim()`. Extracts JSON-LD from `<script type="application/ld+json">`, meta tags (og:*, product:*, description), and microdata as supplementary fallback sources. Collects image sources from imagesSelector elements using `collectImageSourcesFromElement` pattern, deduplicating and resolving to absolute URLs.
+  - **static**: Uses `fetch()` with HTTP headers + Cheerio DOM parsing. Applies profile selectors (titleSelector, brandSelector, descriptionSelector, imagesSelector) via `$(selector).first().text().trim()`. Extracts JSON-LD from `<script type="application/ld+json">`, meta tags (og:*, product:*, description), and microdata as supplementary fallback sources, excluding price fields per ADR 0043. Collects image sources from imagesSelector elements using `collectImageSourcesFromElement` pattern, deduplicating and resolving to absolute URLs.
   - **rendered**: Launches headless Playwright Chromium, blocks images/fonts/stylesheets/media/trackers, navigates with `waitUntil: 'domcontentloaded'` and 25s timeout, dwells 2s for dynamic content. Evaluates each selector via `page.evaluate()`. Extracts JSON-LD, meta tags, and embedded product data (window.productJSON, ShopifyAnalytics, __INITIAL_STATE__). Collects image candidates via `page.evaluate()` with full src/srcset/data-src attribute scanning.
 - Title is mandatory: if titleSelector returns empty and no JSON-LD/meta fallback provides one, returns `ok: false`.
-- Expected price overrides extracted price with provenance `"spreadsheet-import"`.
+- The onboarding price is the sole price source and stays unchanged. Page prices are never extracted or used (ADR 0043).
 - All errors surface in warnings; never throws uncaught errors.
 - Output passes through `ExtractionDataSchema.parse()` and `ExtractResponseSchema.parse()`.
 - Image source helpers are inlined (no import from Bun-only onboarding modules).

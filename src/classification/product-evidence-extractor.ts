@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { getVlmConfig } from '../onboarding/vlm-client';
 import { runPackagingOcrAttempt, mergeOcrResults, parseJsonFromVlmResponse } from '../onboarding/packaging-ocr';
 import { getLlmConfigForTask, callLlmForTaskWithProvenance } from '../onboarding/llm-client';
-import { redactTransportText } from './model-policy-gateway';
+import { redactImageUrl, redactTransportText } from './model-policy-gateway';
 import { MODEL_CALL_STATUS } from './model-operation-registry';
 import { recordTerminalPreflight } from '../db/repositories/classification-model-call-repo';
 import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
@@ -22,8 +22,9 @@ import type { ClassificationEvidence } from '../shared/types';
 import { CanonicalBrandEvidenceValueSchema } from '../shared/schemas/classification';
 import type { ModelPolicyConfigV2 } from '../shared/schemas/classification';
 import { PRESERVED_CONTENT_SNIPPET_CAP } from './preserved-content-tags';
-import type { PackagingOcrData, OcrAttemptOutcome } from '../shared/schemas/onboarding';
-export type { OcrAttemptOutcome };
+import type { PackagingOcrData, OcrAttemptOutcome, OcrImageDisposition } from '../shared/schemas/onboarding';
+import { isLoopbackHost } from '../ai/provider-connections';
+import { sha256Hex } from '../shared/stable-id';
 
 const now = () => new Date().toISOString();
 
@@ -68,6 +69,11 @@ export interface NormalizedEvidenceInput {
   primaryImage: string | null;
   /** Additional gallery image URLs or paths */
   additionalImages: string[];
+  /**
+   * Operator-selected OCR image refs (A2). Explicit selection wins over the
+   * default primary-plus-first-additional pair; empty = no selection.
+   */
+  ocrImageRefs?: string[];
   /** Source URL of the product page (null for catalog products) */
   sourceUrl: string | null;
   /** Existing category page names the product is assigned to */
@@ -431,7 +437,19 @@ export async function extractProductEvidence(
   const ocrResults: PackagingOcrData[] = [];
 
   const vlmConfig = getVlmConfig();
-  const canUseLocalVlm = vlmConfig?.enabled === true;
+  // A1 local-only fail-closed gate: the local VLM leg may only serve a
+  // loopback endpoint. A cloud/unreachable configured endpoint denies image
+  // transport outright (text-only disabled outcome) — image bytes never
+  // reach a remote model, and no remote-vision audit row is written.
+  const vlmHost = (() => {
+    try {
+      return new URL(vlmConfig?.baseUrl ?? '').hostname;
+    } catch {
+      return '';
+    }
+  })();
+  const imageGateDenied = vlmConfig?.enabled === true && !isLoopbackHost(vlmHost);
+  const canUseLocalVlm = vlmConfig?.enabled === true && !imageGateDenied;
   let dataPolicy: any = null;
   try {
     dataPolicy = context.snapshot
@@ -441,7 +459,7 @@ export async function extractProductEvidence(
     // Use defaults
   }
   const canUseCloudText = dataPolicy?.textPolicy === 'cloud_allowed';
-  const canUseCloudImages = dataPolicy?.imagePolicy === 'cloud_allowed';
+  const canUseCloudImages = dataPolicy?.imagePolicy === 'cloud_allowed' && !imageGateDenied;
 
   let localStatus: OcrAttemptOutcome['status'] = canUseLocalVlm ? 'skipped' : 'disabled';
   let cloudStatus: OcrAttemptOutcome['status'] = canUseCloudImages ? 'skipped' : 'disabled';
@@ -451,14 +469,27 @@ export async function extractProductEvidence(
   let localFailureReason: OcrAttemptOutcome['localFailureReason'] = null;
   let localAttempts = 0;
   let llmStatus: OcrAttemptOutcome['llmStatus'] = canUseCloudText ? 'skipped' : 'disabled';
+  // A1: one coded disposition row per attempted image (additive).
+  const imageDispositions: OcrImageDisposition[] = [];
+  let textlessImageSeen = false;
 
+  // A2: an explicit operator selection wins over the default
+  // primary-plus-first-additional pair; empty = no selection.
   const imageUrls: string[] = [];
-  if (input.primaryImage) imageUrls.push(input.primaryImage);
-  if (input.additionalImages && Array.isArray(input.additionalImages)) {
-    for (const img of input.additionalImages) {
+  const explicitRefs = (input.ocrImageRefs ?? []).filter(ref => ref && String(ref).trim());
+  if (explicitRefs.length > 0) {
+    for (const ref of explicitRefs) {
       if (imageUrls.length >= 2) break;
-      if (img && String(img).trim()) {
-        imageUrls.push(String(img));
+      imageUrls.push(String(ref));
+    }
+  } else {
+    if (input.primaryImage) imageUrls.push(input.primaryImage);
+    if (input.additionalImages && Array.isArray(input.additionalImages)) {
+      for (const img of input.additionalImages) {
+        if (imageUrls.length >= 2) break;
+        if (img && String(img).trim()) {
+          imageUrls.push(String(img));
+        }
       }
     }
   }
@@ -502,6 +533,10 @@ export async function extractProductEvidence(
 
     for (let i = 0; i < imageUrls.length; i++) {
       const imgUrl = imageUrls[i];
+      // Bounded, credential/query/fragment-stripped ref for debugging
+      // (never raw bytes/URLs, never userinfo credentials).
+      const imageRef = redactImageUrl(String(imgUrl)).slice(0, 160);
+      const imageSourceDigest = sha256Hex(String(imgUrl));
       // When run-bound but no compatible plan, skip every image (no transport,
       // no evidence from the model call).
       if (context.snapshot && !localModelCall) continue;
@@ -528,16 +563,62 @@ export async function extractProductEvidence(
           const ocrResult = attempt.data;
           if (hasOcrContent(ocrResult)) {
             ocrResults.push(ocrResult);
+            imageDispositions.push({
+              index: i,
+              status: 'succeeded',
+              reasonCode: null,
+              attempts: attempt.attempts,
+              imageBytesDigest: ocrResult.contentHash,
+              imageSourceDigest,
+              imageRef,
+              model: ocrResult.metadata?.model ?? null,
+              modelCallId: null,
+            });
             console.log(`[EvidenceExtraction] VLM OCR completed for image ${i + 1}/${imageUrls.length} of SKU ${sku}`);
           } else {
+            textlessImageSeen = true;
+            imageDispositions.push({
+              index: i,
+              status: 'no_legible_text',
+              reasonCode: null,
+              emptyContent: true,
+              attempts: attempt.attempts,
+              imageBytesDigest: ocrResult.contentHash,
+              imageSourceDigest,
+              imageRef,
+              model: ocrResult.metadata?.model ?? null,
+              modelCallId: null,
+            });
             console.warn(`[EvidenceExtraction] VLM OCR returned no text content for image ${i + 1}/${imageUrls.length} of SKU ${sku}`);
           }
         } else {
           localFailureReason = attempt.reasonCode;
           localAttempts = Math.max(localAttempts, attempt.attempts);
+          imageDispositions.push({
+            index: i,
+            status: 'failed',
+            reasonCode: attempt.reasonCode,
+            attempts: attempt.attempts,
+            imageBytesDigest: null,
+            imageSourceDigest,
+            imageRef,
+            model: null,
+            modelCallId: attempt.callId ?? null,
+          });
           console.warn(`[EvidenceExtraction] VLM OCR failed (${attempt.reasonCode}) for image ${i + 1}/${imageUrls.length} of SKU ${sku}: ${attempt.redactedMessage}`);
         }
       } catch (err: any) {
+        imageDispositions.push({
+          index: i,
+          status: 'failed',
+          reasonCode: 'transport_error',
+          attempts: 1,
+          imageBytesDigest: null,
+          imageSourceDigest,
+          imageRef,
+          model: null,
+          modelCallId: null,
+        });
         console.warn(`[EvidenceExtraction] VLM OCR failed for image ${i + 1}/${imageUrls.length} of SKU ${sku}: ${redactTransportText(err.message)}`);
       }
     }
@@ -560,6 +641,10 @@ export async function extractProductEvidence(
         evidence.push(...visualEvidence);
         console.log(`[EvidenceExtraction] Added ${visualEvidence.length} evidence entries from local packaging OCR`);
       }
+    } else if (textlessImageSeen && imageDispositions.every(d => d.status !== 'succeeded')) {
+      // A1: bytes loaded, VLM answered, no usable text on any image — the
+      // local leg distinguishes this from a transport/load failure.
+      localStatus = 'no_legible_text';
     }
   }
 
@@ -765,6 +850,8 @@ export async function extractProductEvidence(
     imageCount: imageUrls.length,
     ...(localFailureReason ? { localFailureReason } : {}),
     ...(localAttempts > 0 ? { attempts: localAttempts } : {}),
+    ...(imageDispositions.length > 0 ? { images: imageDispositions } : {}),
+    ...(imageGateDenied ? { imageGateDenied: true } : {}),
   };
 
   return { evidence, packagingOcrData, ocrOutcome };

@@ -85,14 +85,6 @@ function AlertMini() {
   );
 }
 
-function ClockMini() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
 
 function EyeMini() {
   return (
@@ -398,11 +390,13 @@ export function Onboarding() {
     if (file) void processUploadedFile(file);
   };
 
+
   const handleNextStep = async () => {
     if (!uploadMapping.upc || !uploadMapping.name) {
       alert('UPC and Product Name column mappings are required');
       return;
     }
+
 
     setLoadingBrands(true);
     try {
@@ -484,6 +478,7 @@ export function Onboarding() {
       return;
     }
 
+
     setLoading(true);
     setError('');
     try {
@@ -535,7 +530,7 @@ export function Onboarding() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: colors.mulchBrown }}>
             <span>
-              {completed} completed / {failed} failed
+              {completed} finished / {failed} need attention
               {skipped > 0 && ` / ${skipped} skipped`} ({total} total)
             </span>
             <span style={{ fontFamily: fonts.mono }}>{completedPercent + failedPercent}%</span>
@@ -549,9 +544,7 @@ export function Onboarding() {
       );
     }
 
-    // Epic #46 refinement: the operator work-state metrics — the same
-    // numbers the Batch Workspace tabs show. Needs Attention is emphasized
-    // when non-zero.
+    // Show the same progress counts used in the product-list views.
     const total = Math.max(totalItemCount(counts), 1);
     const approvedTotal = counts.approved + counts.ready_to_export + counts.completed;
     const pct = (v: number) => Math.round((v / total) * 100);
@@ -559,11 +552,11 @@ export function Onboarding() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 240 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem 0.625rem', fontSize: 12, color: colors.mulchBrown, alignItems: 'center' }}>
-          <span title="Processing — automation is working" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+          <span title="Working" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <GearMini /> {formatCount(counts.processing)}
           </span>
           <span
-            title="Needs Attention — products that need your judgment"
+            title="Needs attention"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -573,13 +566,10 @@ export function Onboarding() {
           >
             <AlertMini /> {formatCount(counts.needs_attention)}
           </span>
-          <span title="Waiting on Family — blocked on sibling readiness" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <ClockMini /> {formatCount(counts.waiting_on_family)}
-          </span>
-          <span title="Ready for Review — awaiting inspection" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+          <span title="Ready for review" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <EyeMini /> {formatCount(counts.ready_for_review)}
           </span>
-          <span title="Approved / Ready to Export / Completed" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: colors.seedlingGreen, fontWeight: 600 }}>
+          <span title="Done" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: colors.seedlingGreen, fontWeight: 600 }}>
             <CheckMini /> {formatCount(approvedTotal)}
           </span>
           {counts.skipped > 0 && (
@@ -592,7 +582,6 @@ export function Onboarding() {
         <div style={{ height: 6, width: '100%', background: colors.cardBorder, borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
           <div style={{ ...barStyle, width: `${pct(counts.needs_attention)}%`, background: colors.signetBurgundy }} />
           <div style={{ ...barStyle, width: `${pct(counts.processing)}%`, background: colors.mulchBrown }} />
-          <div style={{ ...barStyle, width: `${pct(counts.waiting_on_family)}%`, background: colors.mutedGold }} />
           <div style={{ ...barStyle, width: `${pct(counts.ready_for_review)}%`, background: colors.uniformGreen }} />
           <div style={{ ...barStyle, width: `${pct(approvedTotal)}%`, background: colors.seedlingGreen }} />
           {counts.skipped > 0 && <div style={{ ...barStyle, width: `${pct(counts.skipped)}%`, background: colors.cardBorder }} />}
@@ -603,19 +592,26 @@ export function Onboarding() {
 
   const statusLabel = (s: string) => {
     const labels: Record<string, string> = {
-      imported: 'Imported',
-      discovering: 'Searching sources...',
-      source_found: 'Source found',
-      source_confirmed: 'Confirmed',
-      extracting: 'Scraping page...',
-      extracted: 'Scraped',
-      needs_review: 'Needs review',
-      ready: 'Ready',
-      promoted: 'Promoted',
-      failed: 'Failed',
+      imported: 'Ready to begin',
+      discovering: 'Finding product details...',
+      source_found: 'Product information found',
+      source_confirmed: 'Product source confirmed',
+      extracting: 'Gathering product details...',
+      extracted: 'Details gathered',
+      needs_review: 'Needs your review',
+      ready: 'Ready for review',
+      promoted: 'Added to catalog',
+      failed: 'Needs attention',
       skipped: 'Skipped'
     };
-    return labels[s] ?? s;
+    return labels[s] ?? 'Needs attention';
+  };
+
+  const executionStateLabel = (state: string) => {
+    if (state === 'running') return 'Working';
+    if (state === 'paused') return 'Paused';
+    if (state === 'completed') return 'Complete';
+    return 'Needs attention';
   };
 
   const statusStyle = (s: string): React.CSSProperties => {
@@ -795,8 +791,8 @@ export function Onboarding() {
           </div>
         )}
         <ViewHeader
-          title="Product Onboarding"
-          description="Automatic acquisition — distributor lookups, official-site fallback, extraction, and family curation — with human review and bulk approval before export."
+          title="Add products"
+          description="Upload your product spreadsheet. Review each product before it is added to your catalog. Prices stay exactly as entered."
           actions={
             <>
               <button
@@ -809,7 +805,7 @@ export function Onboarding() {
                 <SettingsIcon /> Onboarding Settings
               </button>
               <button style={styles.primaryBtn} onClick={() => setShowUploadModal(true)}>
-                <PlusIcon /> Upload Weekly Spreadsheet
+                <PlusIcon /> Upload Product Spreadsheet
               </button>
             </>
           }
@@ -818,27 +814,27 @@ export function Onboarding() {
         {error && <div role="alert" style={{ color: colors.feedBagCream, background: colors.signetBurgundy, padding: 12, borderRadius: rounded.md, marginBottom: 20, fontSize: '0.875rem' }}>{error}</div>}
         {capabilitiesError && !error && (
           <div role="status" style={{ color: colors.mulchBrown, background: colors.feedBagCream, border: `1px solid ${colors.cardBorder}`, padding: 12, borderRadius: rounded.md, marginBottom: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <SettingsIcon /> Onboarding capabilities unavailable ({capabilitiesError}) — Sourcing engine treated as disabled.
+            <SettingsIcon /> Some product options are not available yet. Please ask the person who set up the app.
           </div>
         )}
 
         {batches.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 24px', background: colors.whiteSurface, border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.lg, boxShadow: '0 1px 3px rgba(33, 20, 20, 0.05)' }}>
-            <p style={{ fontSize: 16, color: colors.mulchBrown, margin: '0 0 16px', fontFamily: fonts.body }}>No onboarding batches uploaded yet.</p>
+            <p style={{ fontSize: 16, color: colors.mulchBrown, margin: '0 0 16px', fontFamily: fonts.body }}>No product spreadsheets uploaded yet.</p>
             <button onClick={() => setShowUploadModal(true)} style={{ ...styles.primaryBtn, margin: '0 auto' }}>
-              <PlusIcon /> Upload Spreadsheet to Start
+              <PlusIcon /> Upload your product spreadsheet
             </button>
           </div>
         ) : (
           <div style={{ borderRadius: rounded.lg, overflow: 'hidden', border: `1px solid ${colors.cardBorder}`, boxShadow: '0 1px 3px rgba(33, 20, 20, 0.05)' }}>
-            <table style={styles.table} aria-label="Onboarding Batches">
+            <table style={styles.table} aria-label="Product spreadsheets">
               <thead>
                 <tr>
-                  <th scope="col" style={styles.th}>Batch Name</th>
-                  <th scope="col" style={styles.th}>Filename</th>
-                  <th scope="col" style={styles.th}>Uploaded At</th>
+                  <th scope="col" style={styles.th}>Product list</th>
+                  <th scope="col" style={styles.th}>File name</th>
+                  <th scope="col" style={styles.th}>Uploaded</th>
                   <th scope="col" style={styles.th}>Status</th>
-                  <th scope="col" style={styles.th}>Progress</th>
+                  <th scope="col" style={styles.th}>Products</th>
                   <th scope="col" style={styles.th}>Actions</th>
                 </tr>
               </thead>
@@ -901,7 +897,7 @@ export function Onboarding() {
                               batch.executionState === 'completed' ? '#bae6fd' : colors.cardBorder
                             }`,
                           }}>
-                            {batch.executionState.toUpperCase()}
+                            {executionStateLabel(batch.executionState)}
                           </span>
                         )}
                       </div>
@@ -914,7 +910,7 @@ export function Onboarding() {
                         </span>
                         <button
                           type="button"
-                          aria-label={`Delete batch ${batch.name}`}
+                          aria-label={`Delete product list ${batch.name}`}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -1109,6 +1105,9 @@ export function Onboarding() {
                             <option value="">-- None --</option>
                             {uploadHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                           </select>
+                          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                            If you enter a price here, it stays exactly as entered. Product website prices are never used.
+                          </div>
                         </div>
 
                         <div style={styles.fieldGroup}>

@@ -1,7 +1,7 @@
 # ADR 0031: Wiring the Extraction Ladder into the Onboarding Page Extractor
 
 **Status:** Accepted (2026-08-24)
-**Supersedes:** none
+**Supersedes:** none. Price-extraction behavior described here is superseded by ADR 0043.
 **Related:** ADR 0030 (Agent Lab decommission — salvaged the deterministic extraction ladder as layers 1–4, production-unwired), ADR 0009 (browser tooling lives in the extraction worker)
 
 ## Context
@@ -17,11 +17,11 @@ The ladder contributes two things page-extractor lacks:
 
 **Enrichment, not replacement.** The ladder runs at TWO production entry points:
 
-1. **HTTP fast path** — `extractViaHttpDetailed` calls `applyLadderEnrichment` after its own layer merge (no-profile extractions and supplement-price lookups).
+1. **HTTP fast path** — `extractViaHttpDetailed` calls `applyLadderEnrichment` after its own layer merge (no-profile extractions; page-price lookups are disabled by ADR 0043).
 2. **Extraction-worker profile path — the production official-page route** — `doStaticExtract` and `doRenderedExtract` (`src/extraction-worker/routes/extract.ts`) call `applyLadderEnrichment` after profile values are assembled, reusing the HTML each handler already fetched (the rendered runner ships its captured DOM back as `renderedHtml`). There is no second fetch and profile execution remains single-authority (ADR 0009). The worker's `ExtractRequest.expected.upc` — forwarded by `runProfileExtraction` from `extractProductData(..., { gtin })`, which the onboarding worker populates from `item.upc` — feeds real identity classification.
 
 - Profile-Builder CSS profiles remain PRIMARY for domains with approved profiles; the ladder never overwrites a value any earlier layer produced.
-- The ladder fills only EMPTY fields (`title`, `brand`, `description`, `price`) from structured/platform signals — including JSON-LD brands nested under `WebPage.mainEntity` graphs — recording provenance under new `ladder-*` keys.
+- The ladder fills only EMPTY fields (`title`, `brand`, `description`) from structured/platform signals — including JSON-LD brands nested under `WebPage.mainEntity` graphs — recording provenance under new `ladder-*` keys. Page prices are excluded under ADR 0043.
 - Platform gallery images are appended to `additionalImages` (deduped, capped at 16); plain og:image/JSON-LD image handling is untouched to avoid changing primary-image selection.
 - `identityStatus` + `identityReasons` are attached additively to `ExtractionData` (new optional schema fields). They are diagnostics only — they gate nothing today.
 - `extractProductData`'s `expected` accepts an optional `gtin`; the onboarding worker passes `item.upc`, enabling real exact-match identity when a platform payload affirmatively proves single-variant state.
@@ -38,10 +38,10 @@ The ladder contributes two things page-extractor lacks:
 2. **Failure isolation** — each enrichment layer runs in its own try/catch; any failure degrades to "no enrichment" and can never fail extraction. `applyLadderEnrichment` additionally honors a NEVER-THROWS contract for `data` mutations (including the identity fields): even a frozen/sealed target only degrades enrichment — the returned outcome stays authoritative.
 3. **No new network by default** — zero additional requests unless `allowShopifyProductJson` is explicitly enabled.
 4. **Profile execution stays singular** — approved profiles continue to execute exclusively via the extraction worker (Crawlee/Camoufox, ADR 0009). We deliberately did NOT route profiles through the ladder's static-cheerio layer-4 seam: a second execution path with different rendering semantics would produce inconsistent results for the same profile. The seam remains available for future lightweight static validation probes.
-5. **Residual unenriched path (accepted):** the no-profile direct-Playwright fallback inside `extractProductData` remains UNENRICHED. It is only reachable for domains without an approved profile before the profile-required block, and enrichment there would widen the change surface without a production consumer today. Note also that on this path the legacy behavior of nulling `price` when no spreadsheet price exists is deliberately preserved — it predates the ladder and never interacts with ladder provenance.
+5. **Residual unenriched path (accepted):** the no-profile direct-Playwright fallback inside `extractProductData` remains UNENRICHED. It is only reachable for domains without an approved profile before the profile-required block, and enrichment there would widen the change surface without a production consumer today. It never extracts a page price; absent onboarding input remains absent from extraction data.
 
 ## Consequences
 
-- Platform-hosted catalogs (Next.js/Nuxt/WooCommerce storefronts) now get titles, brands, prices, descriptions, and variant-mapped galleries that heuristic parsing missed.
+- Platform-hosted catalogs (Next.js/Nuxt/WooCommerce storefronts) now get titles, brands, descriptions, and variant-mapped galleries that heuristic parsing missed. Page prices remain excluded under ADR 0043.
 - Extraction results carry machine-readable identity diagnostics, unblocking future routing (e.g., flagging `parent_product_only` pages for variant-aware handling).
 - The ladder module now has a production consumer; its test suite plus the new wiring tests guard both sides of the contract.

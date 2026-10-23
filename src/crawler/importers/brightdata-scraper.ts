@@ -1,4 +1,4 @@
-import { type ScrapedProductEvidence, ScrapedProductEvidenceSchema } from '../corpus-schema.js';
+import { isThirdPartyPriceSpecification, type ScrapedProductEvidence, ScrapedProductEvidenceSchema } from '../corpus-schema.js';
 import { computeEntityId } from '../url-policy.js';
 
 export interface BrightDataTriggerResponse {
@@ -137,7 +137,9 @@ export class BrightDataScraperClient {
     const rawSpecs = item.specifications || item.attributes;
     if (rawSpecs && typeof rawSpecs === 'object') {
       for (const [k, v] of Object.entries(rawSpecs)) {
-        if (typeof v === 'string' && v.trim()) specs[k.trim()] = v.trim();
+        if (typeof v === 'string' && v.trim() && !isThirdPartyPriceSpecification(k)) {
+          specs[k.trim()] = v.trim();
+        }
       }
     }
 

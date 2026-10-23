@@ -9,7 +9,10 @@ import { SchemaHealthView } from './catalog-workbench/SchemaHealthView';
 import { SettingsTabShell, SettingsTabPanel, type SettingsTabDef } from './settings/SettingsTabShell';
 import { SettingsClassificationTab } from './settings/SettingsClassificationTab';
 import { TaxonomyReleaseCard } from './settings/TaxonomyReleaseCard';
+import { ListingStandardsEditor } from './settings/ListingStandardsEditor';
 import { colors } from '../theme';
+import { ItemAcquisitionSettings } from './settings/ItemAcquisitionSettings';
+import { SecuritySettings } from './settings/SecuritySettings';
 
 /**
  * Store Settings (deep-linked via `?view=settings&tab=<id>`).
@@ -221,6 +224,8 @@ export function Settings({ onSelectProduct }: SettingsProps) {
           </button>
         </div>
       </div>
+      <ItemAcquisitionSettings />
+      <SecuritySettings />
       </SettingsTabPanel>
 
       {/* AI Routes Section — canonical global AI infrastructure surface */}
@@ -365,6 +370,7 @@ export function Settings({ onSelectProduct }: SettingsProps) {
       <SettingsTabPanel tabId="types" active={settingsTab}>
         <SettingsClassificationTab view="types-attributes" showBanner={false}>
           <TypesAttributesView />
+          <ListingStandardsEditor />
         </SettingsClassificationTab>
       </SettingsTabPanel>
 

@@ -157,7 +157,7 @@ describe('local harness bounded read', () => {
 
     const result = completion.result as unknown as {
       version: number;
-      observations: Array<{ kind: string; sourceUrl: string; artifactHash: string; incomplete: boolean }>;
+      observations: Array<{ kind: string; sourceUrl: string; artifactHash: string; incomplete: boolean; detail?: string }>;
       evidenceRefs: string[];
       gaps: string[];
       platform?: string;
@@ -174,6 +174,12 @@ describe('local harness bounded read', () => {
       expect(obs.sourceUrl).toMatch(/^https:\/\/brand\.example\//);
       expect(typeof obs.incomplete).toBe('boolean');
     }
+    const observedPageFields = result.observations
+      .filter((observation) => observation.kind === 'page_meta' || observation.kind === 'page_json_ld')
+      .map((observation) => observation.detail ?? '')
+      .join('\n');
+    expect(observedPageFields).not.toContain('54.99');
+    expect(observedPageFields).not.toContain('"price"');
     expect(result.platform).toBe('shopify');
     expect(result.evidenceRefs.length).toBe(2);
     expect(result.renderedBrowserRequired).toBe(false);

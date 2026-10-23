@@ -135,7 +135,7 @@ Complete reference of all documented ShopSite product database fields, sourced f
 | `Out Of Stock Limit` | `OutOfStockLimit` ✅ | Numeric | Null | Integer | Out of stock alert threshold |
 | `Weight` | `Weight` | Numeric | `0` | Integer or decimal | No units; consistent across all products |
 | `Taxable` | `Taxable` | Checkbox | `checked` | `checked` / `unchecked` | Sales tax calculation |
-| `Product Type` | `ProductType` (confirmed) | Restricted Text | `Tangible` | `Tangible`, `Download` | Physical vs digital |
+| `Product Type` | `ProductType` (confirmed) | Restricted Text | `Tangible` | `Tangible`, `Download` | Native fulfillment type (physical vs digital), not the classifier's canonical Product Type facet (`ProductField25`, `Facet - Product Type`). |
 | `Disable Product` | `ProductDisabled` | Checkbox | blank | blank / `checked` | Unpublished/seasonal product |
 | `Ground Shipping` | `GroundShipping` ✅ | Numeric | `0` | Numeric, no currency symbol | Per-product shipping cost |
 | `Second Day Shipping` | `SecondDayShipping` ✅ | Numeric | `0` | Numeric, no currency symbol | |

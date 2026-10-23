@@ -72,12 +72,15 @@ describe('Benchmark Evaluator', () => {
       );
     } else {
       if (proposedType) {
+        // Governed seed: hardened benchmark-prediction (#356) requires a
+        // complete canonical Product Classification pair; legacy
+        // `primary_product_type` rows are history, not predictions.
         db.run(
           `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-           VALUES (?, ?, ?, 'primary_product_type', ?, 0.9, 'accepted', ?)`,
-          [randomUUID(), run.id, sku, JSON.stringify(proposedType), now]
+           VALUES (?, ?, ?, 'product_classification', ?, 0.9, 'accepted', ?)`,
+          [randomUUID(), run.id, sku, JSON.stringify({ categoryId: 'fixture-category', productTypeId: proposedType }), now]
         );
-        const pid = db.query('SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type = ?').get(run.id, 'primary_product_type') as { id: string };
+        const pid = db.query('SELECT id FROM classification_proposals WHERE run_id = ? AND proposal_type = ?').get(run.id, 'product_classification') as { id: string };
         const decisionId = randomUUID();
         db.run(
           `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)

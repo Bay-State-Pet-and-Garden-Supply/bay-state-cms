@@ -145,16 +145,26 @@ export function buildPlanPreviewRows(preview: StoreManagerPreviewDescriptor): Ar
 /** Human-readable scope label for the pin chip. */
 export function formatScopeLabel(scope: StoreManagerResolvedScope | null): string | null {
   if (!scope) return null;
-  const kind = scope.resolved.kind.replace(/_/g, ' ');
-  return `${kind} · ${scope.resolved.displayName}`;
+  switch (scope.resolved.kind) {
+    case 'product_field':
+      return 'One product detail';
+    case 'change_set':
+      return 'Saved product changes';
+    case 'sku_set': {
+      const count = scope.resolved.itemCount ?? 0;
+      return `${count} selected product${count === 1 ? '' : 's'}`;
+    }
+    case 'onboarding_batch':
+      return 'Products from one import';
+    default:
+      return null;
+  }
 }
 
 /** Compact scope descriptors for the pin form. */
 export const SCOPE_KIND_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'product_field', label: 'ProductField' },
-  { value: 'change_set', label: 'Change Set' },
-  { value: 'sku_set', label: 'SKU set' },
-  { value: 'onboarding_batch', label: 'Onboarding batch' },
+  { value: 'product_field', label: 'A product detail' },
+  { value: 'sku_set', label: 'Selected products' },
 ];
 
 /** Bound text (deterministic truncation). */

@@ -2,29 +2,25 @@ import { readProductFile } from '../git/workspace-files';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
 import {
   countVisualProductEvidence,
-  findConfigSnapshotPageImportHash,
   findGateRunById,
   findLatestEvidenceExtractionOutputJson,
   findRuntimeSnapshotEvidenceExtractionRuleVersion,
   getAcceptedProposals,
+  getProposalsByRun,
   recordHistoryEvent,
 } from '../db/repositories/classification-run-repo';
-import { getCachedAttributeMappings } from '../db/repositories/classification-config-repo';
+import { getCachedAttributeMappings, getCachedClassificationOutputBindings } from '../db/repositories/classification-config-repo';
 import { createUpdateDraftWithItem } from '../db/repositories/change-set-repo';
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { loadRuntimeConfigAuthority, createRuntimeActivationContext } from './config-loader';
 import { authorityConfigHashMatches, getRuntimeSnapshotByHash, runtimeSnapshotHashMatchesConfig } from './runtime-snapshot';
-import { getActiveVerifiedPageIds } from '../shopsite/page-import-service';
-import { getActivePageImportHash } from '../db/repositories/page-repo';
-import { getEffectiveProposalTargetId, getEffectiveProposalValue, serializeAttributeValue } from './assignment-projection';
-import { pageNameFromPageValue } from '../shared/proposal-display';
+import { getActivePageImportHash, listVerifiedPageOptions } from '../db/repositories/page-repo';
+import { buildAssignmentProjection, createAssignmentProjectionAuthority } from './assignment-projection';
 import { computeProductHash } from './catalog-product-source';
 import { digestLoadedImageBytes } from '../onboarding/packaging-ocr';
 import { findConnection } from '../db/repositories/connection-repo';
 import { resolveProductImageUrl } from '../shopsite/url-utils';
 import type { Product } from '../shared/types';
-import { isSilentNarrowing } from './attribute-grounding-guards';
-import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 
 /**
  * A2: re-hash the image bytes behind the run's recorded OCR image refs and
@@ -122,7 +118,13 @@ export async function applyCatalogClassification(
     }
   }
 
-  const product = readProductFile(workspacePath, sku);
+  let product = readProductFile(workspacePath, sku);
+  if (!product) throw new Error(`Product not found for SKU: ${sku}`);
+
+  // Finish the only asynchronous check before the final source/config/page
+  // authority reads. No product or change-set write precedes these checks.
+  await verifyRunImageBytesUnchanged(workspacePath, workspaceId, sku, runId, product);
+  product = readProductFile(workspacePath, sku);
   if (!product) throw new Error(`Product not found for SKU: ${sku}`);
 
   // Source hash drift check — must use same hash function as classifier
@@ -156,179 +158,45 @@ export async function applyCatalogClassification(
   if (acceptedProposals.length === 0) {
     throw new Error('No accepted proposals to apply.');
   }
+  const currentRunProposals = getProposalsByRun(runId);
 
-  // Issue #354 pre-draft page-authority recheck: when the run carries accepted
-  // page proposals or removals, the frozen page import must still be active.
-  // A rotated import means accepted page identities are stale authority —
-  // fail attributably with no partial write instead of silently skipping or
-  // (worse) applying colliding IDs from the new import.
-  if (acceptedProposals.some(p => p.proposalType === 'category_page')) {
-    const frozenImportHash = run.config_snapshot_hash
-      ? findConfigSnapshotPageImportHash(workspaceId, String(run.config_snapshot_hash))
-      : null;
-    if (frozenImportHash) {
-      const activeHash = getActivePageImportHash(workspaceId);
-      if (activeHash !== frozenImportHash) {
-        throw new Error('Page import has changed since classification (page_decision_stale). Re-resolve page assignments against the active verified import before applying.');
-      }
-    }
-  }
-
-  // A2: re-verify image byte identity for image-backed runs. The run's
-  // evidence_extraction stage metadata carries per-image byte digests; the
-  // current bytes behind the same refs are re-hashed and any change/absence
-  // blocks the SKU (fresh run/review required). Title-only grounded values
-  // proceed unaffected.
-  await verifyRunImageBytesUnchanged(workspacePath, workspaceId, sku, runId, product);
-
-  const mappings = getCachedAttributeMappings(workspaceId);
-  // Issue #355: frozen mapping authority for the currency check below. Null
-  // when the run has no resolvable snapshot (legacy passthrough — no
-  // authority to compare, same as readiness).
   const frozenSnapshot = run.config_snapshot_hash
     ? getRuntimeSnapshotByHash(workspaceId, run.config_snapshot_hash)
     : null;
-  const frozenMappings = frozenSnapshot?.attributeMappings ?? null;
-  const appliedFields: string[] = [];
+  if (!frozenSnapshot) {
+    throw new Error('Classification snapshot authority is unavailable. Reclassify before applying.');
+  }
+  if (acceptedProposals.some(p => p.proposalType === 'category_page')) {
+    const frozenImportHash = frozenSnapshot.pageImportHash;
+    if (!frozenImportHash) throw new Error('Verified page authority is missing from the classification snapshot. Reclassify before applying.');
+    if (getActivePageImportHash(workspaceId) !== frozenImportHash) {
+      throw new Error('Page import has changed since classification (page_decision_stale). Re-resolve page assignments against the active verified import before applying.');
+    }
+  }
+
+  const mappings = getCachedAttributeMappings(workspaceId);
+  const verifiedPages = listVerifiedPageOptions(workspaceId);
+  const projection = buildAssignmentProjection(
+    acceptedProposals,
+    product.customFields ?? {},
+    product.core.productOnPages ?? [],
+    mappings,
+    new Set(verifiedPages.map(page => page.id)),
+    createAssignmentProjectionAuthority(frozenSnapshot, new Map(verifiedPages.map(page => [page.id, page.name])),
+      getCachedClassificationOutputBindings(workspaceId)),
+    { reviewedProposals: acceptedProposals, currentRunProposals },
+  );
+  if (projection.skipped.length > 0) {
+    throw new Error(`Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`);
+  }
+  const mergedCustomFields = { ...(product.customFields ?? {}) };
+  for (const field of projection.fields) mergedCustomFields[field.catalogField] = field.proposedValue;
+  const appliedFields = projection.fields.map(field => field.catalogField);
   const appliedPages: string[] = [];
   const skipped: Array<{ proposalId: string; reason: string }> = [];
-
-  // Apply field assignments
-  const mergedCustomFields = { ...(product.customFields || {}) };
-  for (const proposal of acceptedProposals) {
-    if (proposal.proposalType !== 'field_assignment') continue;
-    // Effective reviewed target/value win over the immutable prediction.
-    const targetId = getEffectiveProposalTargetId(proposal);
-    if (!targetId) continue;
-    // ADR 0041 / issue #349: classification application preserves existing
-    // identity — protected targets (including protected revised targets)
-    // never write. A revised/historical Brand proposal cannot authorize a
-    // protected write; refuse attributably instead of applying it.
-    if (isProtectedTargetId(targetId, mappings) || isProtectedTargetId(proposal.targetId, mappings)) {
-      const refusal = protectedTargetRefusal(targetId ?? proposal.targetId);
-      skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
-      continue;
-    }
-
-    const mapping = mappings.find(m => m.attributeId === targetId);
-    if (!mapping) {
-      skipped.push({ proposalId: proposal.id, reason: 'No attribute mapping found' });
-      continue;
-    }
-    if (mapping.isStale) {
-      skipped.push({ proposalId: proposal.id, reason: 'Attribute mapping is stale' });
-      continue;
-    }
-    if (!mapping.catalogField) {
-      skipped.push({ proposalId: proposal.id, reason: 'No catalog field in mapping' });
-      continue;
-    }
-    // Issue #355: a semantic target cannot reroute into Brand, identity,
-    // operational, or native fulfillment data through its mapping. The
-    // resolved catalog field is checked — not just the attribute target —
-    // so a mapping that points flavor (or any non-Brand attribute) at the
-    // Brand slot or a native slot refuses attributably instead of writing.
-    if (isProtectedCatalogField(mapping.catalogField, targetId, mappings)) {
-      const refusal = protectedTargetRefusal(mapping.catalogField);
-      skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
-      continue;
-    }
-    // Issue #355: the live mapping must still match the run's frozen mapping
-    // authority — a re-pointed field or changed serialization since review
-    // cannot replay a frozen accepted value into another field or format.
-    // Mismatch refuses attributably with no write for that proposal.
-    const frozenMapping = frozenMappings?.find(m => m.attributeId === targetId);
-    if (frozenMappings && (!frozenMapping
-      || frozenMapping.catalogField !== mapping.catalogField
-      || deterministicStringify(frozenMapping.serialization ?? null) !== deterministicStringify(mapping.serialization ?? null))) {
-      skipped.push({ proposalId: proposal.id, reason: 'Mapping changed since classification (mapping_changed). Re-review under the current mapping before applying.' });
-      continue;
-    }
-    const effectiveValue = getEffectiveProposalValue(proposal);
-    const value = serializeAttributeValue(effectiveValue, mapping.serialization);
-    // P1 #9 apply-time no-narrowing: a PREDICTED single value can never
-    // silently replace an existing multi-value slot (e.g. Salmon|Venison|Lamb
-    // → Salmon) — skipped visibly. An EXPLICIT reviewed revised value is
-    // human intent (issue #353 targeted multi-value removal), so it bypasses
-    // the guard; an explicit null clears via the gate below.
-    if (!proposal.hasRevisedValue && isSilentNarrowing(product.customFields?.[mapping.catalogField] ?? null, value)) {
-      skipped.push({ proposalId: proposal.id, reason: 'No-narrowing guard: existing multi-value slot survives; intentional reduction needs a separate explicit edit' });
-      continue;
-    }
-    if (value || (proposal.hasRevisedValue && effectiveValue === null)) {
-      mergedCustomFields[mapping.catalogField] = value;
-      appliedFields.push(mapping.catalogField);
-    }
-  }
-  // Apply page assignments and reviewed removals. The identity of every
-  // accepted page MUST be verified in the currently active import. Name-only
-  // or out-of-import identities are skipped visibly and never serialized
-  // into ProductOnPages. An accepted explicit removal (null target + null
-  // value, issue #353) removes the PROPOSED page from the existing set while
-  // preserving every other assignment — including Brand/non-taxonomy pages,
-  // which are outside classifier ownership and never removal targets
-  // (refused at review; defense-in-depth skips them here too).
-  const verifiedPageIds = getActiveVerifiedPageIds(workspaceId);
-  const additionalPages: string[] = [];
-  const removedPages: string[] = [];
-  for (const proposal of acceptedProposals) {
-    if (proposal.proposalType !== 'category_page') continue;
-    const targetId = getEffectiveProposalTargetId(proposal);
-    const pv = getEffectiveProposalValue(proposal) as Record<string, unknown> | undefined;
-    if (!targetId && pv == null && proposal.hasRevisedValue && proposal.hasRevisedTargetId) {
-      // Reviewed removal: the PROPOSED (before) value names the assignment
-      // to drop. Brand pages can never be removed — skip visibly.
-      const beforeName = pageNameFromPageValue(proposal.proposedValue);
-      if (!beforeName) {
-        skipped.push({ proposalId: proposal.id, reason: 'Page removal names no existing assignment' });
-        continue;
-      }
-      if (isBrandPageProposal(beforeName)) {
-        const refusal = protectedTargetRefusal(proposal.targetId);
-        skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
-        continue;
-      }
-      if (!removedPages.includes(beforeName)) removedPages.push(beforeName);
-      continue;
-    }
-    if (!targetId) continue;
-    // Display name comes from the value only — never the Page ID (the target
-    // is the stable identity for new proposals).
-    const pageName = pageNameFromPageValue(pv);
-    const pageId = pv?.pageId ? String(pv.pageId) : null;
-    if (!pageId || !verifiedPageIds.has(pageId)) {
-      skipped.push({
-        proposalId: proposal.id,
-        reason: 'Page identity unverified (name-only or not in the active verified import)',
-      });
-      continue;
-    }
-    if (!pageName) {
-      // A verified page without a display name is a visible skip; the Page ID
-      // must never be serialized as a page name.
-      skipped.push({ proposalId: proposal.id, reason: 'Page display name missing' });
-      continue;
-    }
-    if (isBrandPageProposal(pageName)) {
-      const refusal = protectedTargetRefusal(targetId);
-      skipped.push({ proposalId: proposal.id, reason: `${refusal.code}: ${refusal.reason}` });
-      continue;
-    }
-    if (!additionalPages.includes(pageName)) {
-      additionalPages.push(pageName);
-    }
-  }
-
-  // Merge into first-class core.productOnPages: accepted additions join,
-  // accepted reviewed removals leave (only the named taxonomy assignment —
-  // every other existing page survives, Brand pages included). Any stale
-  // ProductOnPages fragment in preserved state is dropped — the codec
-  // serializes core.productOnPages to DTD-compliant XML at export.
-  const removedSet = new Set(removedPages);
-  const mergedPages = [...(product.core.productOnPages ?? [])].filter(p => !removedSet.has(p));
-  for (const pageName of additionalPages) {
-    if (!mergedPages.includes(pageName)) mergedPages.push(pageName);
-  }
+  const additionalPages = projection.pages.additions.map(page => page.pageName);
+  const removedPages = projection.pages.removed;
+  const mergedPages = projection.pages.final;
   const remainingUnknownElements = { ...(product.shopsite?.preserved?.unknownElements ?? {}) };
   delete remainingUnknownElements['ProductOnPages'];
 

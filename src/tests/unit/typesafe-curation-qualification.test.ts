@@ -477,26 +477,29 @@ describe('Issue #302: TypeSafe Jev Curation Qualification and Release', () => {
         expect(pageRes.source).toBe('typesafe');
       }
 
-      // 6. Review & correction by operator
+      // 6. Review & correction by operator. The pre-review capture reads the
+      // immutable canonical pair (`product_classification` carrying the full
+      // {categoryId, productTypeId} pair) — never reviewer decisions, never
+      // a bare legacy `primary_product_type` string.
       getDb().run(
         `INSERT INTO classification_proposals
          (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-         VALUES ('prop-qual-1', ?, 'SKU-QUAL-FULL-01', 'primary_product_type', 'primary_product_type', ?, 0.94, 'pending', ?)`,
-        [run.id, JSON.stringify('dog_food_dry'), new Date().toISOString()],
+         VALUES ('prop-qual-1', ?, 'SKU-QUAL-FULL-01', 'product_classification', 'dog_food_dry', ?, 0.94, 'pending', ?)`,
+        [run.id, JSON.stringify({ categoryId: 'dog_food', productTypeId: 'dog_food_dry', matchedWords: [] }), new Date().toISOString()],
       );
 
       getDb().run(
         `INSERT INTO classification_proposal_decisions (
            id, proposal_id, decision, reviewer_id, revised_value_json, created_at
          ) VALUES (?, ?, 'accepted', 'store-manager', ?, ?)`,
-        ['dec-1', 'prop-qual-1', JSON.stringify('dog_food_dry'), new Date().toISOString()],
+        ['dec-1', 'prop-qual-1', JSON.stringify({ categoryId: 'dog_food', productTypeId: 'dog_food_dry', matchedWords: [] }), new Date().toISOString()],
       );
 
       const decisionRow = getDb().query(
         `SELECT * FROM classification_proposal_decisions WHERE id = ?`,
       ).get('dec-1') as any;
       expect(decisionRow.decision).toBe('accepted');
-      expect(JSON.parse(decisionRow.revised_value_json)).toBe('dog_food_dry');
+      expect(JSON.parse(decisionRow.revised_value_json)).toEqual({ categoryId: 'dog_food', productTypeId: 'dog_food_dry', matchedWords: [] });
 
       // 7. Immutable pre-review capture (never reads reviewer decisions)
       completeRun(run.id, 'completed');

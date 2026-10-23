@@ -15,10 +15,11 @@
  * test:db — never group it with cohort-freeze/cohort-worker (a pre-existing
  * bun worker-mode hang).
  */
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { initDb, closeDb, getDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
@@ -29,6 +30,10 @@ import {
   completeSourcingWithDecision,
   updateItemStageStatus,
   resetItemsForRetry,
+  updateItemExtractionData,
+  updateItemCurationData,
+  advanceCurationToReview,
+  completeReviewStage,
 } from '../../db/repositories/onboarding-item-repo';
 import {
   startSourcingGeneration,
@@ -75,7 +80,25 @@ import { overrideCohortCurationFlags, resetCohortCurationFlagsOverride } from '.
 import { promoteItems } from '../../onboarding/draft-promoter';
 import { prepareItemsForPromotion } from './helpers/seed-promotion-approval';
 import type { Workspace } from '../../shared/types';
-import type { ClassificationConfig } from '../../shared/schemas/classification';
+import {
+  ClassificationFocusedFileNames,
+  ClassificationManifestV2Schema,
+  type ClassificationConfig,
+} from '../../shared/schemas/classification';
+import { generateCandidate, buildFocusedFiles, type BayStateSeed } from '../../classification/config-generator';
+import { scanCatalogEvidence, renderCatalogEvidence } from '../../classification/catalog-evidence';
+import { computeClassificationBundleHash } from '../../classification/config-validation';
+import { canonicalJsonFileString, sha256Hex } from '../../shared/stable-id';
+import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { getRun, getProposalsByRun, getEvidenceByRun } from '../../db/repositories/classification-run-repo';
+import { getRuntimeSnapshotByHash, snapshotHash } from '../../classification/runtime-snapshot';
+import { submitProposalDecisions } from '../../classification/proposal-review-service';
+import { markReviewed, getReviewState, approveAndAdvanceItems } from '../../db/repositories/onboarding-review-repo';
+import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
+import { listVerifiedPageOptions, assignProductToPageId } from '../../db/repositories/page-repo';
+import { listChangeSetItems } from '../../db/repositories/change-set-repo';
+import { readProductFile, writeProductFile } from '../../git/workspace-files';
+import { ProductSchema, type Product } from '../../shared/schemas/product';
 
 // ─── Fixture transports (no network) ───────────────────────────────────────────
 
@@ -1090,6 +1113,226 @@ describe('Default-On Sourcing full-chain E2E (MF)', () => {
     const tamperedItem = findItemById(item.id)!;
     const tamperedCuration = await curateItemWithPipeline(tamperedItem, wsPath, workspaceId);
     expect(tamperedCuration.curatedDescription).toBeNull();
+  });
+
+  // Actual consumer proof: the curator creates the run and every proposal.
+  // Listing identity, commerce, media and verified manual page placement are
+  // separately supplied prerequisites, never classification output or bypasses.
+  // Phase one deliberately does not require the later #358 PF24/PF25 writer.
+  test('16c. supplied-SKU curation survives real proposal review and approval into a protected local draft', async () => {
+    overrideCohortCurationFlags({ cohortCurationV2Enabled: false, cohortShadowOnly: false });
+    const sku = '012345678907';
+    const title = 'Acme Dry Dog Food Chicken 5 LB';
+    const now = new Date().toISOString();
+    const original: Product = {
+      schemaVersion: 1, id: 'existing-curation-consumer', sku, status: 'active',
+      core: {
+        name: title, price: '19.95', salePrice: null, description: 'Chicken dry dog food kibble.',
+        inventory: { quantityOnHand: 5, lowStockThreshold: null, outOfStockLimit: null },
+        availability: 'instock', weight: '5 LB', taxable: true,
+        media: { primary: 'products/images/acme/chicken.jpg', additional: [] },
+        seo: { fileName: 'acme-chicken.html', searchKeywords: null, googleProductCategory: null },
+        productOnPages: [],
+      },
+      customFields: {
+        ProductField16: 'Acme', ProductField23: 'Beef', ProductField28: 'Nylon',
+        ProductField6: '6.25', ProductField31: 'Existing product category',
+        ProductField32: 'Unverified protected slot',
+      },
+      shopsite: {
+        productId: 'existing-shopsite-id', productGuid: null, xmlVersion: '15.0',
+        lastPulledAt: null, lastRemoteHash: null, lastSyncedAt: null,
+        source: { dbname: 'products', uniqueName: 'SKU' },
+        preserved: { unknownElements: { ProductType: 'Tangible' }, advancedBlocks: {}, rawAttributes: {} },
+      },
+      metadata: { createdAt: now, updatedAt: now, archivedAt: null },
+    };
+    writeProductFile(wsPath, original);
+
+    // Generate one coherent ACTIVE config from actual local catalog evidence.
+    // The curator itself captures/persists its runtime snapshot; this fixture
+    // never patches that snapshot or seeds a classification run/proposal.
+    const xmlFields = ['ProductField23', 'ProductField28', 'ProductField24', 'ProductField25'];
+    fs.writeFileSync(path.join(wsPath, 'store', 'field-registry.json'), JSON.stringify({ entries: xmlFields.map(xmlField => ({ xmlField })) }));
+    const evidence = await scanCatalogEvidence(wsPath);
+    const artifactContent = renderCatalogEvidence(evidence);
+    fs.writeFileSync(path.join(wsPath, 'store', 'classification', 'catalog-evidence.json'), artifactContent);
+    const disabledFeature = { state: 'disabled' as const, qualificationReceiptDigest: null, activatedBy: null, activatedAt: null };
+    const seed: BayStateSeed = {
+      name: 'Actual onboarding consumer', revision: 'onboarding-consumer-v1', createdAt: now,
+      categories: [
+        { id: 'dog-food', name: 'Dog Food', description: null },
+        { id: 'dog-toys', name: 'Dog Toys', description: null },
+      ],
+      productTypes: [
+        { id: 'dog-food-dry', name: 'Dry Dog Food', description: 'Dry dog food kibble.', categoryId: 'dog-food', websiteValues: { category: 'QA/test-only Dog Food', productType: 'QA/test-only Dry Dog Food' } },
+        { id: 'dog-toy', name: 'Dog Toy', description: 'Dog toy.', categoryId: 'dog-toys', websiteValues: { category: 'QA/test-only Dog Toys', productType: 'QA/test-only Dog Toy' } },
+      ],
+      classificationOutputBindings: [
+        { role: 'category', catalogField: 'ProductField24', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+        { role: 'product-type', catalogField: 'ProductField25', serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+      ],
+      attributes: [
+        { ...V1_CONFIG.attributes[0], allowedValues: ['Chicken', 'Beef'], isUniversal: false },
+        { ...V1_CONFIG.attributes[0], id: 'material', name: 'Material', group: 'Material', allowedValues: ['Rubber', 'Nylon'], valueAliases: [], isUniversal: false },
+      ],
+      profileTemplates: [
+        { id: 'food-profile', name: 'Food', productTypeIds: ['dog-food-dry'], attributes: [{ attributeId: 'flavor', required: true, cardinality: 'single' }] },
+        { id: 'toy-profile', name: 'Toy', productTypeIds: ['dog-toy'], attributes: [{ attributeId: 'material', required: true, cardinality: 'single' }] },
+      ],
+      mappings: [
+        { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+        { id: 'material-map', attributeId: 'material', catalogField: 'ProductField28', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+      ],
+      curationTargets: [
+        { id: 'type', kind: 'product_type', label: 'Product Classification', enabled: true, mandatory: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: true, sortOrder: 0 },
+        { id: 'flavor-target', kind: 'product_field', label: 'Flavor', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, sortOrder: 1 },
+        { id: 'material-target', kind: 'product_field', label: 'Material', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'material', catalogField: 'ProductField28', optionSource: 'configured', required: false, sortOrder: 2 },
+      ],
+      brands: [], guidance: [],
+      modelPolicy: {
+        ...V1_CONFIG.modelPolicy, defaultModel: 'offline-fixture', providerLocalities: { ollama: 'local' },
+        mlFeatures: { productionRetrieval: disabledFeature, pageReranking: disabledFeature, confidenceCalibration: disabledFeature, productionEmbeddings: disabledFeature },
+      },
+      dataSharing: { ...V1_CONFIG.dataSharing, sensitiveDataFiltering: true },
+    };
+    const { bundle } = generateCandidate(seed, evidence);
+    const focusedFiles = buildFocusedFiles(bundle);
+    for (const [name, content] of Object.entries(focusedFiles)) {
+      fs.writeFileSync(path.join(wsPath, 'store', 'classification', name), content);
+    }
+    execFileSync('git', ['init', '-b', 'main'], { cwd: wsPath, stdio: 'ignore' });
+    execFileSync('git', ['add', '-A'], { cwd: wsPath, stdio: 'ignore' });
+    execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-m', 'Fixture catalog authority'], { cwd: wsPath, stdio: 'ignore' });
+    const sourceCatalogCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wsPath, encoding: 'utf8' }).trim();
+    const manifestInput = {
+      ...bundle.manifest, activeRevision: seed.revision, lifecycle: 'active' as const,
+      hasUnresolvedSafetyFindings: false, migrationProvenance: { kind: 'reviewed_generation' as const },
+      sourceCatalogCommit, catalogEvidenceHash: sha256Hex(artifactContent),
+      fileVersions: Object.fromEntries(ClassificationFocusedFileNames.map(name => [name, sha256Hex(focusedFiles[name])])),
+    };
+    const manifest = ClassificationManifestV2Schema.parse({ ...manifestInput, bundleHash: computeClassificationBundleHash(manifestInput) });
+    fs.writeFileSync(path.join(wsPath, 'store', 'classification', 'manifest.json'), canonicalJsonFileString(manifest));
+    upsertConfigSnapshot(workspaceId, { ...bundle, manifest });
+    syncConfigToCache(workspaceId, { ...bundle, manifest } as unknown as ClassificationConfig);
+
+    activatePageImportFromRecords({
+      workspaceId, sourceHash: sha256Hex('actual-onboarding-food-page'), parserFormatVersion: 'pages-xml-1', activatedBy: 'fixture',
+      records: [{ identity: { kind: 'exported_guid', key: 'actual-food-page', status: 'verified' }, name: 'Dog Food Dry', parentRef: null, availability: 'available' }],
+    });
+    const foodPage = listVerifiedPageOptions(workspaceId).find(page => page.name === 'Dog Food Dry');
+    if (!foodPage) throw new Error('fixture verified Category Page missing');
+    const batch = createBatch({ workspaceId, name: 'Actual curation', fileName: 'actual.csv', totalItems: 2 });
+    const [item, sibling] = insertItems(batch.id, [
+      { upc: sku, name: title, brandHint: 'Acme', price: '19.95', rowNumber: 1 },
+      { upc: '012345678908', name: 'Rubber Dog Toy 5 LB', rowNumber: 2 },
+    ], 'prepare_listing');
+    for (const [row, description] of [[item, 'Chicken dry dog food kibble.'], [sibling, 'Rubber dog toy.']] as const) {
+      updateItemExtractionData(row.id, JSON.stringify({
+        title: row.name, brand: row.brandHint, description, bulletPoints: [],
+        primaryImage: 'products/images/acme/chicken.jpg', additionalImages: [],
+        price: row.price, weight: '5 LB', dimensions: null, seoFileName: null, searchKeywords: null,
+        packagingTitle: null, packagingOcrData: null, customFields: {},
+        sourceUrl: `https://fixture.example.test/products/${row.upc}`, confidence: 0.95,
+        fieldProvenance: { title: 'json-ld', description: 'json-ld' },
+      }));
+    }
+    // Verified manual placement is an independent listing prerequisite, not
+    // an invented classification Page proposal or a disabled Pages gate.
+    assignProductToPageId(sku, foodPage.id, foodPage.name);
+
+    // Fake only the genuine external transport. No classifier, repository or
+    // pipeline mocks; helper calls cannot escape to a live model/acquisition.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(async () => { throw new Error('Offline fixture transport: no live requests'); }) as unknown as typeof fetch;
+    try {
+      const siblingCuration = await curateItemWithPipeline(findItemById(sibling.id)!, wsPath, workspaceId);
+      if (!siblingCuration.classificationRunId) throw new Error('sibling curator produced no run');
+      const siblingProposals = getProposalsByRun(siblingCuration.classificationRunId);
+      const siblingPair = siblingProposals.find(proposal => proposal.proposalType === 'product_classification');
+      expect(siblingPair?.proposedValue).toMatchObject({ categoryId: 'dog-toys', productTypeId: 'dog-toy' });
+      expect(siblingProposals.find(proposal => proposal.targetId === 'material')?.proposedValue).toBe('Rubber');
+      expect(siblingProposals.some(proposal => proposal.targetId === 'flavor')).toBe(false);
+      if (!siblingPair) throw new Error('brandless sibling must classify from its own supplied facts');
+      expect(submitProposalDecisions({
+        workspaceId, productSku: sibling.upc, runId: siblingCuration.classificationRunId,
+        sourceKind: 'onboarding', onboardingItemId: sibling.id,
+        decisions: siblingProposals.map(proposal => ({ proposalId: proposal.id, decision: proposal.proposalType === 'reviewable_abstention' ? 'rejected' as const : 'accepted' as const })),
+      }).ok).toBe(true);
+
+      const curation = await curateItemWithPipeline(findItemById(item.id)!, wsPath, workspaceId);
+      if (!curation.classificationRunId) throw new Error('curator produced no persisted run');
+      updateItemCurationData(item.id, JSON.stringify(curation));
+      const run = getRun(curation.classificationRunId);
+      if (!run) throw new Error('curator run was not persisted');
+      expect(['completed', 'completed_with_abstentions']).toContain(run.status);
+      if (!run?.configSnapshotHash) throw new Error('curator run lacks frozen authority');
+      const frozen = getRuntimeSnapshotByHash(workspaceId, run.configSnapshotHash);
+      if (!frozen) throw new Error('curator runtime snapshot was not persisted');
+      expect(snapshotHash(frozen)).toBe(run.configSnapshotHash);
+      expect(frozen.configAuthorityKind).toBe('v2');
+      expect(frozen.configSnapshotRef.hash).toBe(manifest.bundleHash);
+      expect(frozen.productTypes.find(type => type.id === 'dog-food-dry')?.attributeProfileId).toBe('dog-food-dry-profile');
+      expect(frozen.attributeProfiles.find(profile => profile.id === 'dog-food-dry-profile')?.attributes).toEqual([
+        expect.objectContaining({ attributeId: 'flavor', required: true, cardinality: 'single' }),
+      ]);
+      const proposals = getProposalsByRun(run.id);
+      const pair = proposals.find(proposal => proposal.proposalType === 'product_classification');
+      const flavor = proposals.find(proposal => proposal.proposalType === 'field_assignment' && proposal.targetId === 'flavor');
+      expect(pair).toMatchObject({ status: 'pending', proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' } });
+      expect(flavor).toMatchObject({ status: 'pending', proposedValue: 'Chicken' });
+      expect(proposals.filter(proposal => proposal.proposalType === 'field_assignment').map(proposal => proposal.targetId)).toEqual(['flavor']);
+      expect(proposals.some(proposal => proposal.targetId === 'brand')).toBe(false);
+      const ownEvidence = getEvidenceByRun(run.id);
+      expect(ownEvidence.length).toBeGreaterThan(0);
+      expect(ownEvidence.every(entry => entry.productSku === sku)).toBe(true);
+      expect(ownEvidence.some(entry => JSON.stringify(entry.value ?? null).includes('Rubber'))).toBe(false);
+
+      // Required profile output exists while the first-pass pair is pending.
+      // Persist real decisions, followed by durable review and atomic approval.
+      const reviewed = submitProposalDecisions({
+        workspaceId, productSku: sku, runId: run.id, sourceKind: 'onboarding', onboardingItemId: item.id,
+        decisions: proposals.map(proposal => ({ proposalId: proposal.id, decision: proposal.proposalType === 'reviewable_abstention' ? 'rejected' as const : 'accepted' as const })),
+      });
+      expect(reviewed.ok).toBe(true);
+      expect(getProposalsByRun(run.id).find(proposal => proposal.id === pair?.id)?.status).toBe('accepted');
+      expect(getProposalsByRun(run.id).find(proposal => proposal.id === flavor?.id)?.status).toBe('accepted');
+      updateItemStageStatus(item.id, 'completed');
+      expect(advanceCurationToReview(item.id)).toBe(true);
+      markReviewed({ itemId: item.id, batchId: batch.id, reviewedBy: 'fixture-reviewer' });
+      completeReviewStage(item.id);
+      const approval = approveAndAdvanceItems({
+        itemIds: [item.id], batchId: batch.id, approvedBy: 'fixture-reviewer',
+        requestHash: hashCanonicalJson({ itemId: item.id, runId: run.id }),
+      });
+      expect(approval.rejected).toEqual([]);
+      expect(approval.approved).toEqual([item.id]);
+      expect(getReviewState(item.id)).toMatchObject({ reviewedBy: 'fixture-reviewer', approvedBy: 'fixture-reviewer', reviewInvalidatedAt: null });
+      expect(getReviewState(item.id)?.approvedAt).not.toBeNull();
+
+      const promoted = await promoteItems(workspaceId, wsPath, batch.id, [item.id]);
+      expect(promoted.failures).toEqual([]);
+      expect(promoted.count).toBe(1);
+      if (!promoted.changeSetId) throw new Error('promotion produced no local change set');
+      const drafts = listChangeSetItems(promoted.changeSetId);
+      expect(drafts).toHaveLength(1);
+      expect(drafts[0]).toMatchObject({ sku, operation: 'update' });
+      const draft = ProductSchema.parse(JSON.parse(drafts[0].draftJson));
+      expect(draft.customFields.ProductField23).toBe('Chicken');
+      expect(draft.customFields.ProductField28).toBe('Nylon'); // never sibling Rubber
+      expect(draft.customFields).toMatchObject({
+        ProductField16: 'Acme', ProductField6: '6.25',
+        ProductField31: 'Existing product category', ProductField32: 'Unverified protected slot',
+      });
+      expect(draft.shopsite.preserved.unknownElements.ProductType).toBe('Tangible');
+      expect(draft.core).toMatchObject({ name: title, price: '19.95', description: 'Chicken dry dog food kibble.' });
+      expect(draft.core.media.primary).toBe('products/images/acme/chicken.jpg');
+      expect(draft.core.productOnPages).toEqual(['Dog Food Dry']);
+      expect(draft.sku).toBe(sku);
+      expect(readProductFile(wsPath, sku)?.customFields.ProductField23).toBe('Beef');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   // 17. Kill switch behavior.

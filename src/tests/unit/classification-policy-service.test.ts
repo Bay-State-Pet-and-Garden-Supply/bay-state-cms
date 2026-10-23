@@ -29,7 +29,7 @@ import type { CatalogEvidence } from '../../classification/catalog-evidence';
 import type { VerifiedActivationContext } from '../../classification/config-loader';
 
 const REVIEWED_FIELDS = [
-  'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
+  'ProductField1', 'ProductField16', 'ProductField17', 'ProductField18', 'ProductField19',
   'ProductField20', 'ProductField21', 'ProductField22', 'ProductField23',
   'ProductField24', 'ProductField25', 'ProductField26', 'ProductField27',
   'ProductField28', 'ProductField29', 'ProductField30', 'ProductField32',
@@ -233,6 +233,59 @@ describe('classification policy service (issue #296)', () => {
     expect(validPreview.previewToken).toBeDefined();
     expect(validPreview.dataSharingEffects.length).toBeGreaterThan(0);
   });
+  it('previews a separately authorized writer without inheriting global judgment sharing', () => {
+    const preview = previewClassificationPolicy(root, {
+      expectedBaseBundleHash: baseBundleHash,
+      stageOverrides: {},
+      textDataSharing: 'local_only',
+      copyGeneration: {
+        provider: 'conn-openai',
+        model: 'gpt-4o-mini',
+        textDataSharing: 'cloud_allowed',
+      },
+    });
+    expect(preview.valid).toBe(true);
+    expect(preview.diff.copyGeneration.to).toEqual({
+      provider: 'conn-openai',
+      model: 'gpt-4o-mini',
+      textDataSharing: 'cloud_allowed',
+    });
+    expect(preview.dataSharingEffects).toEqual(expect.arrayContaining([
+      expect.stringContaining('separate cloud_allowed authority'),
+    ]));
+    expect(preview.previewToken).toBeDefined();
+  });
+
+  it('rejects TypeSafe and missing copy-writer connections instead of substituting a judgment route', () => {
+    const typeSafe = previewClassificationPolicy(root, {
+      expectedBaseBundleHash: baseBundleHash,
+      stageOverrides: {},
+      copyGeneration: {
+        provider: 'conn-typesafe',
+        model: 'jev-1.13.0',
+        textDataSharing: 'cloud_allowed',
+      },
+    });
+    expect(typeSafe.valid).toBe(false);
+    expect(typeSafe.validationErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('cannot serve as the grounded-copy text writer'),
+    ]));
+
+    const missing = previewClassificationPolicy(root, {
+      expectedBaseBundleHash: baseBundleHash,
+      stageOverrides: {},
+      copyGeneration: {
+        provider: 'missing-writer',
+        model: 'some-model',
+        textDataSharing: 'cloud_allowed',
+      },
+    });
+    expect(missing.valid).toBe(false);
+    expect(missing.validationErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('no default or judgment provider is substituted'),
+    ]));
+  });
+
 
   it('allows preview for all three stages with TypeSafe Jev (#297/#298/#299)', () => {
     // Valid preview for primary_product_type_proposal with Jev

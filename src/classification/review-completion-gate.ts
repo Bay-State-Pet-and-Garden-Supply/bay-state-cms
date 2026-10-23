@@ -1,4 +1,4 @@
-import { findAcceptedPairDecision, listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById } from '../db/repositories/classification-run-repo';
+import { listGatePageProposalsByRun, listGateProposalsByRun, listAcceptedVisualGateRows, listDecisionEvidenceIds, listVisualEvidenceByIds, findGateRunById, getEvidenceByRun, getRun, getProposalsByRun, getStageResults } from '../db/repositories/classification-run-repo';
 import {
   getManualEvidenceAttestation,
   isManualEvidenceAttestationActive,
@@ -6,15 +6,21 @@ import {
   verifyManualEvidenceAttestationHash,
 } from '../db/repositories/onboarding-manual-evidence-repo';
 import { findLatestExtractionGateRow } from '../db/repositories/onboarding-extraction-repo';
-import { findCurationDataJsonById } from '../db/repositories/onboarding-item-repo';
-import { findCohortParentGateRow } from '../db/repositories/classification-cohort-run-repo';
+import { findCurationDataJsonById, findItemById } from '../db/repositories/onboarding-item-repo';
 import {
   buildManualEvidenceFieldValues,
   isManualFieldValueInherited,
 } from '../onboarding/manual-evidence-eligibility';
+import { currentListingEvidenceHashes } from './listing-evidence-currentness';
+import { evaluateListingEvidenceGate, evaluateListingCompletenessGate } from './listing-evidence-gate';
+import { loadItemListingReadiness } from './item-listing-readiness';
+import { findBatchById } from '../db/repositories/onboarding-batch-repo';
+import { getCurrentItemEvidenceView } from '../onboarding/item-evidence';
+import { validateLiveItemExecutionCurrentness } from './item-execution-currentness';
+import { modelPolicyViewFromConfig } from '../onboarding/model-policy-snapshot';
+import { acceptedItemNameSpans, type NameEvidenceText } from './name-candidates';
 import { getRuntimeSnapshotByHash } from './runtime-snapshot';
-import { getCategoryIdFromValue, getProductTypeIdFromValue } from './assignment-projection';
-import { isUniversalAttribute } from './applicability-evaluator';
+import { evaluateCanonicalReadiness } from './classification-readiness';
 import {
   CohortSemanticValidationSchema,
   CorrectedCategoryPageRecordSchema,
@@ -22,102 +28,164 @@ import {
   PageDecisionStatusRecordSchema,
 } from '../shared/schemas/onboarding';
 import { getActivePageImportHash, listVerifiedPageOptions } from '../db/repositories/page-repo';
+import { sha256Hex } from '../shared/stable-id';
+import { NameDecisionSchema } from '../shared/schemas/onboarding';
+import { hashNameInput, NAME_NORMALIZATION_VERSION } from './name-decision';
+/**
+ * Resolve policy context only through the item's exact owning batch. An
+ * unreadable or missing item/batch is unavailable; never substitute the
+ * unrelated active workspace.
+ */
+export function workspacePolicyContextForItem(itemId: string): { workspacePath?: string; workspaceId?: string } | undefined {
+  try {
+    const item = findItemById(itemId);
+    if (!item) return undefined;
+    const batch = findBatchById(item.batchId);
+    if (!batch || !batch.workspaceId) return undefined;
+    return { workspaceId: batch.workspaceId };
+  } catch {
+    return undefined;
+  }
+}
 
 export type ReviewCompletionGateResult =
   | { ok: true; proposalCount: number }
   | { ok: false; code: string; reason: string };
-
-/**
- * Fail-closed classification-gating check shared by both gates (issue #350).
- *
- * When a run is bound to a resolvable M4+ runtime snapshot that enables a
- * classification curation target, review may only complete if a reviewed
- * (accepted) canonical Category + Product Type pair exists — either as an
- * accepted pair decision in the same run or as a compatible reviewed fact
- * carried in the snapshot. An incomplete pair blocks with a precise code.
- * Pair-gated field assignments (any non-universal attribute) must never pass
- * review without a reviewed pair.
- *
- * Legacy runs (unresolvable or absent config snapshot) skip the check.
- */
-function assertReviewedProductTypeForRun(options: {
-  runId: string;
-  workspaceId: string;
-  configSnapshotHash: string | null;
-  reviewableProposals: Array<{ id: string; proposalType: string; targetId: string | null }>;
-}): ReviewCompletionGateResult | null {
-  const { runId, workspaceId, configSnapshotHash } = options;
-
-  // Snapshot is the only place that proves the config's gating intent.
-  const snapshot = configSnapshotHash
-    ? getRuntimeSnapshotByHash(workspaceId, configSnapshotHash)
-    : null;
-  if (!snapshot) return null;
-
-  const typeTargetEnabled = snapshot.curationTargets.some(
-    target => target.kind === 'product_type' && (target.enabled || target.mandatory),
-  );
-  if (!typeTargetEnabled) return null;
-  // In-run accepted canonical pair decision (ADR 0041: legacy
-  // `primary_product_type` rows are history-only, never gate authority).
-  const pairDecision = findAcceptedPairDecision(runId);
-  const acceptedRow = pairDecision ? {
-    proposal_type: pairDecision.proposalType, target_id: pairDecision.targetId,
-    proposed_value_json: pairDecision.proposedValueJson,
-    revised_value_json: pairDecision.revisedValueJson, revised_target_id: pairDecision.revisedTargetId,
-    has_revised_value: pairDecision.hasRevisedValue ? 1 : 0,
-    has_revised_target: pairDecision.hasRevisedTarget ? 1 : 0,
-  } : undefined;
-  const reviewedPairFact = snapshot.reviewedFacts.some(
-    // ADR 0041: legacy `primary_product_type` facts are history-only.
-    fact => fact.proposalType === 'product_classification',
-  );
-  if (acceptedRow ?? reviewedPairFact) {
-    // Presence alone is not enough: the pair must be complete.
-    if (reviewedPairFact && !acceptedRow) return null;
-    if (acceptedRow) {
-      let parsed: unknown;
-      try {
-        const raw = acceptedRow.has_revised_value ? acceptedRow.revised_value_json : acceptedRow.proposed_value_json;
-        parsed = raw ? JSON.parse(raw) : null;
-      } catch { parsed = null; }
-      const categoryId = getCategoryIdFromValue(parsed);
-      const typeId = acceptedRow.has_revised_target && acceptedRow.revised_target_id
-        ? acceptedRow.revised_target_id
-        : getProductTypeIdFromValue(parsed) ?? acceptedRow.target_id;
-      if (categoryId && typeId) return null;
-      return {
-        ok: false,
-        code: 'classification_incomplete',
-        reason: 'Review requires an accepted Category + Product Type pair; the current acceptance addresses only one member.',
-      };
-    }
-    return null;
-  }
-
-  // Any non-universal field assignment in this run is pair-gated. Unknown
-  // attributes fail closed.
-  const gatedFieldProposal = options.reviewableProposals.some(proposal => {
-    if (proposal.proposalType !== 'field_assignment') return false;
-    const attribute = snapshot.attributes.find(candidate => candidate.id === proposal.targetId);
-    if (!attribute) return true;
-    return !isUniversalAttribute(attribute);
-  });
-  if (!gatedFieldProposal) return null;
-
-  return {
-    ok: false,
-    code: 'type_gated_without_reviewed_type',
-    reason: 'Type-gated attribute proposals cannot complete review without a reviewed (accepted) Product Classification.',
-  };
-}
-
 
 export interface ReviewCompletionGateInput {
   workspaceId: string;
   onboardingItemId: string;
   productSku: string;
   activeRunId: string;
+}
+
+/**
+ * Listing-evidence review backstop (issue #366). Read-only, fail-closed:
+ * interprets the persisted `listingEvidenceValidation` record through the
+ * single server-owned evaluator. Returns null when no record is present
+ * (legacy grandfather) or when the record is current and passed.
+ * Recomputes CURRENT hashes from live state so consequential edits
+ * invalidate via mismatch. Exported for isolated unit testing and reuse
+ * at every release path.
+ */
+export function validateListingEvidenceForReview(itemId: string, policyContext?: { workspacePath?: string; workspaceId?: string }): ReviewCompletionGateResult | null {
+  const item = findItemById(itemId);
+  const batch = item ? findBatchById(item.batchId) : null;
+  if (!item || !batch || (policyContext?.workspaceId && policyContext.workspaceId !== batch.workspaceId)) {
+    return { ok: false, code: 'listing_evidence_workspace_unavailable', reason: 'The item’s owning workspace is unavailable; review readiness cannot be established.' };
+  }
+  const effectiveContext = { workspaceId: batch.workspaceId };
+  const curationJson = findCurationDataJsonById(itemId);
+  if (!curationJson) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    const value: unknown = JSON.parse(String(curationJson));
+    if (!value || typeof value !== 'object') return null;
+    parsed = value as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (parsed.listingEvidenceValidation === undefined || parsed.listingEvidenceValidation === null) return null;
+  const current = currentListingEvidenceHashes(itemId, parsed, effectiveContext);
+  const gate = evaluateListingEvidenceGate({
+    curationData: parsed,
+    currentListingHash: current.listingHash,
+    currentEvidenceHash: current.evidenceHash,
+    currentModelPolicyDigest: current.modelPolicyDigest,
+    currentRequiredFields: current.requiredFields,
+    currentSourceAuthority: current.sourceAuthority,
+  });
+  if (gate.ok) return null;
+  return { ok: false, code: gate.code, reason: gate.reason };
+}
+
+/**
+ * Rebuild current name spans exclusively from the item's accepted evidence
+ * snapshot, bound to the exact workspace/batch/SKU and committed run receipt.
+ */
+export function currentNameEligibleSpans(itemId: string, parsed: Record<string, unknown>): NameEvidenceText[] | null {
+  const item = findItemById(itemId);
+  if (!item) return null;
+  const batch = findBatchById(item.batchId);
+  if (!batch) return null;
+  const runId = typeof parsed.classificationRunId === 'string' ? parsed.classificationRunId : null;
+  const receipt = parsed.itemExecutionCurrentness;
+  if (!runId || !receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return null;
+  const currentness = receipt as Record<string, unknown>;
+  if (currentness.classificationRunId !== runId) return null;
+  const run = getRun(runId);
+  if (
+    !run ||
+    run.workspaceId !== batch.workspaceId ||
+    run.onboardingItemId !== item.id ||
+    run.productSku !== item.upc ||
+    run.cohortRunId !== null ||
+    !['completed', 'completed_with_abstentions'].includes(run.status)
+  ) {
+    return null;
+  }
+  const view = getCurrentItemEvidenceView(batch.workspaceId, itemId);
+  const evidence = view.evidence;
+  if (
+    view.status !== 'accepted' ||
+    !evidence ||
+    evidence.workspaceId !== batch.workspaceId ||
+    evidence.batchId !== item.batchId ||
+    evidence.itemId !== item.id ||
+    evidence.sku !== item.upc ||
+    currentness.evidenceId !== evidence.id ||
+    currentness.evidenceRevision !== evidence.revision ||
+    currentness.evidenceHash !== evidence.evidenceHash ||
+    currentness.inputHash !== evidence.inputHash ||
+    currentness.sourceStateHash !== evidence.sourceStateHash ||
+    currentness.authorityHash !== evidence.authorityHash
+  ) {
+    return null;
+  }
+  const eligible = acceptedItemNameSpans(evidence);
+  return eligible.conflictingBrands.length === 0 ? eligible.spans : null;
+}
+
+/**
+ * Evidence-backed name review backstop (issue #365). Read-only and
+ * fail-closed when a name decision is present: the record must parse against
+ * NameDecisionSchema and match the current accepted own-item evidence spans,
+ * committed run receipt, and projected title. Missing accepted evidence or
+ * stale/malformed decision data refuses review readiness.
+ */
+export function validateNameDecisionForReview(itemId: string): ReviewCompletionGateResult | null {
+  const curationJson = findCurationDataJsonById(itemId);
+  if (!curationJson) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    const value: unknown = JSON.parse(String(curationJson));
+    if (!value || typeof value !== 'object') return null;
+    parsed = value as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const raw = parsed.nameDecision;
+  if (raw === undefined || raw === null) return null;
+  const decision = NameDecisionSchema.safeParse(raw);
+  if (!decision.success) {
+    return { ok: false, code: 'name_decision_malformed', reason: 'Committed name decision is malformed; the item cannot be review-ready (re-run naming).' };
+  }
+  const title = typeof parsed.curatedTitle === 'string' ? parsed.curatedTitle : null;
+  if (!title || sha256Hex(title) !== decision.data.titleHash || title !== decision.data.selectedTitle) {
+    return { ok: false, code: 'name_decision_stale', reason: 'Committed name decision no longer matches the curated title; the item cannot be review-ready (re-run naming).' };
+  }
+  const spans = currentNameEligibleSpans(itemId, parsed);
+  if (spans === null) {
+    return { ok: false, code: 'name_evidence_unavailable', reason: 'Current accepted item evidence is unavailable; the item cannot be review-ready.' };
+  }
+  const current = hashNameInput(spans);
+  if (current !== decision.data.inputHash) {
+    return { ok: false, code: 'name_decision_stale', reason: 'Committed name decision is stale against current eligible evidence; the item cannot be review-ready (re-run naming).' };
+  }
+  if (decision.data.normalizationVersion !== NAME_NORMALIZATION_VERSION) {
+    return { ok: false, code: 'name_decision_stale', reason: 'Committed name decision was built under a superseded normalization version; the item cannot be review-ready (re-run naming).' };
+  }
+  return null;
 }
 
 /**
@@ -350,6 +418,26 @@ export function validateReviewCompletionGate(
       reason: `Classification run has status "${run.status}". Only completed runs can be reviewed.`,
     };
   }
+  const committedCurationJson = findCurationDataJsonById(input.onboardingItemId);
+  let committedCuration: Record<string, unknown> | null = null;
+  if (!committedCurationJson) {
+    return { ok: false, code: 'classification_authority_missing', reason: 'Current item curation data is unavailable.' };
+  }
+  try {
+    const parsed: unknown = JSON.parse(String(committedCurationJson));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      committedCuration = parsed as Record<string, unknown>;
+    }
+  } catch {
+    return { ok: false, code: 'semantic_validation_blocked', reason: 'Curation data is corrupt; the item cannot be review-ready.' };
+  }
+  if (committedCuration?.classificationRunId !== input.activeRunId) {
+    return {
+      ok: false,
+      code: 'classification_authority_missing',
+      reason: 'The classification run is not the current run recorded for this item.',
+    };
+  }
 
   // Parent #101 (manual-evidence route, ticket #103 thin slice): a manual
   // extraction row without an ACTIVE attestation join can never complete
@@ -358,26 +446,9 @@ export function validateReviewCompletionGate(
   const manualEvidenceGate = validateManualEvidenceForReview(input.onboardingItemId);
   if (manualEvidenceGate) return manualEvidenceGate;
 
-  // PR9 C3 (issue #30, DECISION-C) + review round 2 (R2-A): the cohort
-  // SEMANTIC validation gate. Two distinct paths:
-  //
-  // 1. ACTIVE COHORT CHILD (`cohort_run_id` non-null) — STRICT gate. A child
-  //    can be reviewed ONLY when (b) the committed projection references
-  //    THIS child run, (c) the parent run exists in the same workspace, (d)
-  //    the parent is NOT superseded (a superseded parent's children are
-  //    historical — never reviewable), (e) the parent is in a terminal
-  //    reviewable state (completed / completed_with_abstentions /
-  //    completed_with_member_failures — a running/freezing parent means the
-  //    post-loop Brand validation has not finished, so the child is never
-  //    reviewable while the parent is in flight), and (f/g) the committed
-  //    `semanticValidation` parses against the EXACT shared schema and is
-  //    `passed` (blocked → refuse with the first finding; MISSING or
-  //    malformed → fail closed, never review-ready — the surface helper's
-  //    documented contract treats missing/malformed as corruption).
-  //
-  // 2. LEGACY (`cohort_run_id` null) — EXACTLY today's behavior: an absent
-  //    semanticValidation key proceeds, a `blocked` status refuses, and
-  //    corrupt curation JSON fails closed (byte-identical).
+  // Persisted semantic validation is item-local. A blocked result refuses;
+  // missing cohort-wide summaries never import parent completion status or
+  // sibling outcomes into this item's review gate.
   if (run.cohort_run_id === null) {
     // ── Legacy path (byte-identical pre-R2 behavior) ──
     {
@@ -449,53 +520,7 @@ export function validateReviewCompletionGate(
       };
     }
 
-    // (c) The parent run must exist and belong to the same workspace.
-    const cohortParent = findCohortParentGateRow(run.cohort_run_id);
-    const parentRun = cohortParent ? { id: cohortParent.id, status: cohortParent.status, workspace_id: cohortParent.workspaceId } : undefined;
-    if (!parentRun) {
-      return {
-        ok: false,
-        code: 'parent_not_found',
-        reason: `Cohort parent run ${run.cohort_run_id} not found.`,
-      };
-    }
-    if (parentRun.workspace_id !== input.workspaceId) {
-      return {
-        ok: false,
-        code: 'workspace_mismatch',
-        reason: `Cohort parent run ${parentRun.id} belongs to a different workspace.`,
-      };
-    }
-
-    // (d) A superseded parent's completed children are historical — never
-    // reviewable (the parent's outputs are no longer the live revision).
-    if (parentRun.status === 'superseded') {
-      return {
-        ok: false,
-        code: 'parent_superseded',
-        reason:
-          `Cohort parent run ${parentRun.id} was superseded; its completed children are historical ` +
-          'and cannot be reviewed.',
-      };
-    }
-
-    // (e) A running/freezing parent is in flight (post-loop Brand validation
-    // happens AFTER member completion) — a child is never reviewable until
-    // the parent reaches a terminal reviewable state.
-    const PARENT_REVIEWABLE_STATUSES = new Set([
-      'completed',
-      'completed_with_abstentions',
-      'completed_with_member_failures',
-    ]);
-    if (!PARENT_REVIEWABLE_STATUSES.has(parentRun.status)) {
-      return {
-        ok: false,
-        code: 'parent_not_completed',
-        reason:
-          `Cohort parent run ${parentRun.id} has status "${parentRun.status}"; a child cannot be ` +
-          'reviewed while its parent is in flight.',
-      };
-    }
+    // Parent status and membership are not part of this item's review authority.
 
     // (f/g) The committed semanticValidation must parse against the EXACT
     // shared schema; missing or malformed data fails closed (never
@@ -740,7 +765,21 @@ export function validateReviewCompletionGate(
   // them would permanently bar review whenever SKU-local evidence
   // withholds (the correct #351 semantic). Only decision-eligible
   // proposals block as pending.
-  const missingDecisions = proposals.filter(p => p.proposal_type !== 'reviewable_abstention' && !p.has_decision);
+  const pendingOrStale = proposals.filter(
+    proposal =>
+      proposal.proposal_type !== 'reviewable_abstention'
+      && (proposal.status === 'pending' || proposal.status === 'stale'),
+  );
+  if (pendingOrStale.length > 0) {
+    return {
+      ok: false,
+      code: 'pending_proposals',
+      reason: `Classification run has ${pendingOrStale.length} pending or stale proposal(s) that require review.`,
+    };
+  }
+  const missingDecisions = proposals.filter(
+    proposal => proposal.proposal_type !== 'reviewable_abstention' && !proposal.has_decision,
+  );
   if (missingDecisions.length > 0) {
     return {
       ok: false,
@@ -749,17 +788,13 @@ export function validateReviewCompletionGate(
     };
   }
 
-  const typeGate = assertReviewedProductTypeForRun({
-    runId: input.activeRunId,
+  const canonicalReadiness = evaluateCanonicalReadiness({
     workspaceId: input.workspaceId,
-    configSnapshotHash: run.config_snapshot_hash,
-    reviewableProposals: proposals.map(p => ({
-      id: p.id,
-      proposalType: p.proposal_type,
-      targetId: p.target_id,
-    })),
+    runId: input.activeRunId,
   });
-  if (typeGate) return typeGate;
+  if (!canonicalReadiness.ok) {
+    return { ok: false, code: canonicalReadiness.code, reason: canonicalReadiness.reason };
+  }
 
   // ── Universal Category Page assignment requirement ──
   // Checked LAST so run-integrity, semantic, decision, and type gates keep
@@ -794,10 +829,68 @@ export function validateReviewCompletionGate(
     curationData: universalPagesCuration,
   });
   if (universalPagesGate) return universalPagesGate;
-
+  // Issue #365: name-decision backstop via the single server-owned
+  // span rebuild. Checked with the listing gate LAST so run-integrity,
+  // semantic, decision, and type gates keep their established precedence.
+  // Grandfathers legacy rows (absent record passes); a present record must
+  // be parsable and current (titleHash + inputHash).
+  const nameGate = validateNameDecisionForReview(input.onboardingItemId);
+  if (nameGate) return nameGate;
+  // Issue #366: listing-evidence gate via the single server-owned
+  // evaluator. Checked LAST with the pages backstop so run-integrity,
+  // semantic, decision, and type gates keep their established precedence.
+  // Grandfathers legacy rows (absent record passes); a present record must
+  // be current and passed. Gap 5: live workspace policy context is always
+  // supplied (resolved from the owning batch) so removal/rotation stales
+  // the record instead of disabling the check.
+  const listingGate = validateListingEvidenceForReview(input.onboardingItemId, workspacePolicyContextForItem(input.onboardingItemId));
+  if (listingGate) return listingGate;
+  const listingReadiness = loadItemListingReadiness(input.workspaceId, input.onboardingItemId);
+  const liveItem = findItemById(input.onboardingItemId);
+  const liveRun = getRun(input.activeRunId);
+  const runtimeSnapshot = run.config_snapshot_hash
+    ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash)
+    : null;
+  const livePolicy = runtimeSnapshot?.modelPolicy
+    ? modelPolicyViewFromConfig(runtimeSnapshot.modelPolicy, runtimeSnapshot.snapshotHash)
+    : null;
+  if (
+    !liveItem ||
+    !liveRun ||
+    !runtimeSnapshot ||
+    !livePolicy ||
+    !run.config_snapshot_hash ||
+    !liveRun.configSnapshotHash ||
+    !listingReadiness.evidence ||
+    !validateLiveItemExecutionCurrentness({
+      workspaceId: input.workspaceId,
+      item: liveItem,
+      run: liveRun,
+      evidence: listingReadiness.evidence,
+      configSnapshotId: liveRun.configSnapshotId,
+      configSnapshotHash: liveRun.configSnapshotHash,
+      runtimeSnapshotHash: runtimeSnapshot.snapshotHash,
+      policyDigest: livePolicy.policyDigest,
+      classificationEvidence: getEvidenceByRun(liveRun.id),
+      proposals: getProposalsByRun(liveRun.id),
+      stageResults: getStageResults(liveRun.id).map(stage => ({
+        stage_name: String(stage.stage_name),
+        output_json: typeof stage.output_json === 'string' ? stage.output_json : null,
+      })),
+    })
+  ) {
+    return {
+      ok: false,
+      code: 'item_execution_currentness_stale',
+      reason: 'The item execution receipt is missing or stale against the current input, evidence, run output, or policy.',
+    };
+  }
+  const completenessGate = evaluateListingCompletenessGate(listingReadiness.evaluation);
+  if (!completenessGate.ok) {
+    return { ok: false, code: completenessGate.code, reason: completenessGate.reason };
+  }
   return { ok: true, proposalCount: proposals.length };
 }
-
 // ─── Catalog Product Review Completion Gate ──────────────────────────────────
 
 export interface CatalogReviewCompletionGateInput {
@@ -868,17 +961,13 @@ export function validateCatalogReviewCompletionGate(
     };
   }
 
-  const typeGate = assertReviewedProductTypeForRun({
-    runId: input.runId,
+  const canonicalReadiness = evaluateCanonicalReadiness({
     workspaceId: input.workspaceId,
-    configSnapshotHash: run.config_snapshot_hash,
-    reviewableProposals: reviewableProposals.map(p => ({
-      id: p.id,
-      proposalType: p.proposal_type,
-      targetId: p.target_id,
-    })),
+    runId: input.runId,
   });
-  if (typeGate) return typeGate;
+  if (!canonicalReadiness.ok) {
+    return { ok: false, code: canonicalReadiness.code, reason: canonicalReadiness.reason };
+  }
 
   // A3: every accepted image-backed proposal must cite supporting same-run
   // OCR evidence explicitly in the reviewer decision evidenceIds, with a

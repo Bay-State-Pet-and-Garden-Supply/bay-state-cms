@@ -1,10 +1,28 @@
 import type { ExtractionData } from '../shared/schemas/onboarding';
+import { matchOfficialPageIdentity, type OfficialPageIdentityResult } from './official-page-identity';
 
 export interface ValidationResult {
   valid: boolean;
   status: 'ok' | 'blocked' | 'offline' | 'mismatch';
   reason: string | null;
   confidence: number;
+  /** Name-first official-page identity outcome, present when identity inputs were assessed. */
+  identity?: OfficialPageIdentityResult;
+}
+
+export interface ExtractionIdentityExpectation {
+  name: string;
+  brandHint?: string | null;
+  domain?: string | null;
+  /** Register UPC — page-observed GTINs corroborate or contradict; absence is ordinary. */
+  upc?: string | null;
+  /** GTIN observed on the extracted page (product-level). Contradiction fails closed. */
+  barcode?: string | null;
+  /** Operator-selected variant key from the confirmation decision (stale-selection guard). */
+  selectedVariantKey?: string | null;
+  /** Variant key + label observed on the extracted page. */
+  extractedVariantKey?: string | null;
+  extractedVariantLabel?: string | null;
 }
 
 // Common English stop words to filter out before word overlap calculation
@@ -54,7 +72,7 @@ function extractDomain(urlOrHost: string): string {
  */
 export function validateExtraction(
   extracted: Partial<ExtractionData>,
-  expected: { name: string; brandHint?: string | null; domain?: string | null }
+  expected: ExtractionIdentityExpectation
 ): ValidationResult {
   const title = (extracted.title ?? '').trim();
   const url = (extracted.sourceUrl ?? '').toLowerCase();
@@ -171,6 +189,47 @@ export function validateExtraction(
     };
   }
 
+  // 5. Name-first identity revalidation (ADR 0040): the page heading must
+  // still identify the same register name/variant. Runs after the cheap
+  // word-overlap screen so ordinary mismatches keep their existing reason.
+  const identity = matchOfficialPageIdentity({
+    registerName: expected.name,
+    registerUpc: expected.upc ?? null,
+    brandHint: expected.brandHint ?? null,
+    pageName: title,
+    pageBrand: extracted.brand ?? null,
+    pageKind: 'product',
+    variants: [],
+    observedGtins: expected.barcode ? [expected.barcode] : [],
+  });
+  if (expected.selectedVariantKey && expected.selectedVariantKey !== expected.extractedVariantKey) {
+    return {
+      valid: false,
+      status: 'mismatch',
+      reason: `stale_selection: confirmed variant "${expected.selectedVariantKey}" but page now shows "${expected.extractedVariantKey}" (${expected.extractedVariantLabel ?? 'unlabeled'})`,
+      confidence: 0,
+      identity,
+    };
+  }
+  if (identity.outcome === 'reject_conflict') {
+    return {
+      valid: false,
+      status: 'mismatch',
+      reason: `identity_conflict: ${identity.reasons.join(', ')}`,
+      confidence: 0,
+      identity,
+    };
+  }
+  if (identity.outcome === 'needs_operator') {
+    return {
+      valid: false,
+      status: 'mismatch',
+      reason: `identity needs operator review: ${identity.reasons.join(', ') || 'ambiguous'}`,
+      confidence: overlapRatio,
+      identity,
+    };
+  }
+
   // Calculate a match confidence score based on overlap and brand inclusion
   let confidence = overlapRatio;
   if (brandInTitle || isOnBrandDomain) {
@@ -182,5 +241,6 @@ export function validateExtraction(
     status: 'ok',
     reason: null,
     confidence: Math.round(confidence * 100) / 100,
+    identity,
   };
 }

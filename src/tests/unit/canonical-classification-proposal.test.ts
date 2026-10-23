@@ -13,7 +13,6 @@ import {
   isApprovedClassificationPair,
   resolveClassificationResult,
 } from '../../classification/product-classification';
-import { isProtectedTargetId } from '../../classification/classification-ownership';
 
 const BUNDLE: any = {
   productTypes: [
@@ -37,6 +36,7 @@ describe('canonical pair proposal (issue #350)', () => {
     expect(proposal.targetId).toBe('dog-food-dry');
     expect(proposal.proposedValue).toEqual({ categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: [] });
     expect(isApprovedClassificationPair({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }, BUNDLE)).toBe(true);
+    expect(JSON.stringify(proposal.proposedValue)).not.toContain('brand');
   });
 
   it('an unresolved component yields an explicit unresolved outcome, never a forced label', () => {
@@ -53,13 +53,4 @@ describe('canonical pair proposal (issue #350)', () => {
     }
   });
 
-  it('the pair never carries a protected target', () => {
-    const proposal = buildClassificationProposal({
-      runId: 'run-1', sku: 'SKU-1',
-      categoryId: 'dog-food', productTypeId: 'dog-food-dry',
-      confidence: 0.9, evidenceIds: [],
-    });
-    expect(isProtectedTargetId(proposal.targetId)).toBe(false);
-    expect(JSON.stringify(proposal.proposedValue)).not.toContain('brand');
-  });
 });

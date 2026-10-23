@@ -26,6 +26,10 @@ import {
 } from '../../onboarding/vlm-circuit-breaker';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import {
+  clearHealthCache,
+  getCachedConnectionHealthReport,
+} from '../../ai/connection-health-monitor';
+import {
   overrideOcrStageFlags,
   resetOcrStageFlagsOverride,
 } from '../../classification/ocr-stage-flags';
@@ -127,6 +131,7 @@ beforeEach(() => {
   initDb(path.join(tmpDir, '.baystate-cms', 'app.db'));
   runMigrations();
   resetCircuitBreakers();
+  clearHealthCache();
 });
 
 afterEach(() => {
@@ -925,5 +930,532 @@ describe('runPackagingOcrAttempt — cloud VLM endpoints and locality discipline
       .all(String(run.id)) as Record<string, unknown>[];
     expect(calls.length).toBe(1);
     expect(calls[0].status).toBe('policy_denied');
+  });
+});
+
+// ─── issue #333: cloud-quota fallback to the enabled local route ─────────────
+
+describe('runPackagingOcrAttempt — cloud-quota local fallback (issue #333)', () => {
+  it('default-path OCR returns ok:true via the enabled local route after a 429 from the cloud primary', async () => {
+    // Cloud primary with NO fallback; images permitted to cloud so the
+    // dispatcher attempts the primary and receives the quota failure.
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: null,
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    // Enabled local route — the same working Ollama route frozen plans prefer.
+    seedLegacyVlm();
+
+    // Mock transports: cloud 429s on quota; the local Ollama-native
+    // endpoint answers with real-shape OCR JSON.
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        return new Response(
+          JSON.stringify({ error: { message: 'You exceeded your current quota.', type: 'insufficient_quota' } }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response(
+        JSON.stringify({ message: { content: '{"productName":"Quota Fallback Kibble","species":["Dog"]}' } }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      // No caller overrides: the default non-run-bound dispatcher path.
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-QUOTA-FALLBACK' }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.productName).toBe('Quota Fallback Kibble');
+      expect(result.data.species).toEqual(['Dog']);
+      expect(result.data.metadata?.model).toContain('qwen2.5vl');
+      // Attributable outcome, not just a log line.
+      expect(result.data.metadata?.parser).toContain('cloud_quota_fallback');
+      expect(result.attempts).toBe(1);
+      // Operator-visible alert: the quota condition pins onto the
+      // dashboard-rendered per-connection health surface.
+      const alert = getCachedConnectionHealthReport('openai-cloud');
+      expect(alert).not.toBeNull();
+      expect(alert?.status).toBe('misconfigured');
+      expect(alert?.errorMessage).toContain('HTTP 429');
+      expect(alert?.errorMessage).toContain('top up cloud credits');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('pins no alert on the happy path (cloud primary succeeds)', async () => {
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: null,
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    seedLegacyVlm();
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"productName":"Cloud Kibble","species":["Dog"]}' } }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-QUOTA-HAPPY' }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // Trace stays quiet: no fallback parser note, no pinned alert.
+      expect(result.data.metadata?.parser ?? '').not.toContain('cloud_quota_fallback');
+      expect(getCachedConnectionHealthReport('openai-cloud')).toBeNull();
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('429 with NO local route still pins the alert and throws an actionable 429', async () => {
+    // Same cloud primary, no configured fallback — but the legacy local row
+    // is DISABLED, so no local rescue exists. The throw must still carry the
+    // pinned alert (independent of fallback eligibility).
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: null,
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    // Disabled local row: `resolveEnabledLocalVlmTarget` finds nothing.
+    upsertApiKey('ollama_vlm', 'disabled', LEGACY_BASE, LEGACY_MODEL);
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        return new Response(
+          JSON.stringify({ error: { message: 'You exceeded your current quota.', type: 'insufficient_quota' } }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('unexpected local transport call', { status: 500 });
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-QUOTA-NOLOCAL' }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reasonCode).toBe('http_error');
+      expect(result.httpStatus).toBe(429);
+      expect(result.redactedMessage).toContain('Cloud quota exhausted (HTTP 429)');
+      // Alert pinned even though the throw lets the 429 surface: actionable,
+      // not just a log line.
+      const alert = getCachedConnectionHealthReport('openai-cloud');
+      expect(alert).not.toBeNull();
+      expect(alert?.status).toBe('misconfigured');
+      expect(alert?.errorMessage).toContain('HTTP 429');
+      expect(alert?.errorMessage).toContain('top up cloud credits');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('429 with a CONFIGURED dispatcher fallback still pins the alert, served from the fallback', async () => {
+    // Cloud primary + configured cloud fallback: the dispatcher serves the
+    // fallback itself (200), so `callVlmWithDispatcher` returns via its
+    // success path — the alert must still pin on the 429 itself, not on the
+    // fallback outcome.
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertProviderConnection({
+      id: 'deepseek-cloud',
+      label: 'DeepSeek Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      credential: 'sk-test-deepseek-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.deepseek.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: { connectionId: 'deepseek-cloud', modelId: 'deepseek-chat' },
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    seedLegacyVlm();
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        return new Response(
+          JSON.stringify({ error: { message: 'You exceeded your current quota.', type: 'insufficient_quota' } }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      // Configured fallback answers with real-shape OCR JSON.
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"productName":"Configured Fallback Kibble","species":["Dog"]}' } }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      clearHealthCache('deepseek-cloud');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-QUOTA-CONFIGURED-FB' }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.productName).toBe('Configured Fallback Kibble');
+      // The dispatcher-owned fallback carries no local-fallback parser note…
+      expect(result.data.metadata?.parser ?? '').not.toContain('cloud_quota_fallback');
+      // …but the primary's 429 still pins the actionable alert.
+      const alert = getCachedConnectionHealthReport('openai-cloud');
+      expect(alert).not.toBeNull();
+      expect(alert?.status).toBe('misconfigured');
+      expect(alert?.errorMessage).toContain('HTTP 429');
+      expect(alert?.errorMessage).toContain('top up cloud credits');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('primary 429 + fallback 503 still pins the quota alert (boundary before fallback outcome)', async () => {
+    // The dispatcher throws only the fallback error; the primary 429 must
+    // survive as `cause` so the alert pins at the primary-error boundary
+    // before fallback-outcome branching.
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertProviderConnection({
+      id: 'deepseek-cloud',
+      label: 'DeepSeek Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      credential: 'sk-test-deepseek-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.deepseek.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: { connectionId: 'deepseek-cloud', modelId: 'deepseek-chat' },
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    seedLegacyVlm();
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        return new Response(
+          JSON.stringify({ error: { message: 'You exceeded your current quota.', type: 'insufficient_quota' } }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ error: { message: 'Service unavailable' } }), {
+        status: 503,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      clearHealthCache('deepseek-cloud');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-QUOTA-FB-503' }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      // The surfaced throw is the fallback's 503 (classified as-is by the
+      // pre-existing `classifyVlmError` paren form — out of scope here); the
+      // point is the PRIMARY 429 still pins the quota alert.
+      expect(result.redactedMessage).toContain('503');
+      // The quota alert pins on the PRIMARY 429 even though the surfaced
+      // throw is the fallback's 503.
+      const alert = getCachedConnectionHealthReport('openai-cloud');
+      expect(alert).not.toBeNull();
+      expect(alert?.status).toBe('misconfigured');
+      expect(alert?.errorMessage).toContain('HTTP 429');
+      expect(alert?.errorMessage).toContain('top up cloud credits');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('primary timeout served via fallback pins NO quota alert (cause-checked)', async () => {
+    // Primary times out (availability, no status); the configured fallback
+    // serves OCR fine. Success must NOT pin "Cloud quota exhausted".
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertProviderConnection({
+      id: 'deepseek-cloud',
+      label: 'DeepSeek Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      credential: 'sk-test-deepseek-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.deepseek.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: { connectionId: 'deepseek-cloud', modelId: 'deepseek-chat' },
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    seedLegacyVlm();
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        throw new Error('fetch failed: Timed out (2000ms)');
+      }
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"productName":"Timeout Fallback Kibble","species":["Dog"]}' } }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      clearHealthCache('deepseek-cloud');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-TIMEOUT-FB' }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.productName).toBe('Timeout Fallback Kibble');
+      expect(getCachedConnectionHealthReport('openai-cloud')).toBeNull();
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('primary 503 + fallback 429 pins NO quota alert on the primary (primary-only attribution)', async () => {
+    // The P2 misattribution: the fallback's own 429 must not pin "quota
+    // exhausted" against a primary that actually failed 503. The thrown
+    // fallback error carries the preserved primary status (503), so the
+    // boundary rethrows with no pin — and the surfaced status is the
+    // fallback's own 429, classified as-is.
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertProviderConnection({
+      id: 'deepseek-cloud',
+      label: 'DeepSeek Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com/v1',
+      credential: 'sk-test-deepseek-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.deepseek.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: { connectionId: 'deepseek-cloud', modelId: 'deepseek-chat' },
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    seedLegacyVlm();
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        return new Response(JSON.stringify({ error: { message: 'Service unavailable' } }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(
+        JSON.stringify({ error: { message: 'You exceeded your current quota.', type: 'insufficient_quota' } }),
+        { status: 429, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      clearHealthCache('deepseek-cloud');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-P503-F429' }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reasonCode).toBe('http_error');
+      expect(result.httpStatus).toBe(429);
+      // Attribution: the 429 belongs to the FALLBACK, so the primary carries
+      // no quota pin. The fallback's own 429 is surfaced by the throw
+      // (classified as before); the alert surface stays quiet.
+      expect(getCachedConnectionHealthReport('openai-cloud')).toBeNull();
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it('primary 429 + System One fallback rejection still pins the quota alert (primary cause preserved)', async () => {
+    // The P2 lost-cause defect: the dispatcher REJECTS the System One
+    // fallback (typed-judgment connections never serve vision) after a real
+    // primary 429. The rejection must preserve the primary cause + status so
+    // the boundary still pins the alert — and the rethrow still surfaces the
+    // rejection reason, not the 429.
+    upsertProviderConnection({
+      id: 'openai-cloud',
+      label: 'OpenAI Cloud',
+      transport: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      credential: 'sk-test-quota-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.openai.com',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertProviderConnection({
+      id: 'typesafe-jev-test',
+      label: 'TypeSafe Jev Test',
+      transport: 'systemone',
+      baseUrl: 'https://api.typesafe.ai/v1',
+      credential: 'sk-test-jev-key',
+      trustZone: 'cloud',
+      approvedHost: 'api.typesafe.ai',
+      approvedPort: 443,
+      enabled: true,
+      connectTimeoutMs: 2000,
+      inferenceTimeoutMs: 60000,
+    });
+    upsertWorkloadRoute('visionOcr', {
+      primary: { connectionId: 'openai-cloud', modelId: 'gpt-4o' },
+      fallback: { connectionId: 'typesafe-jev-test', modelId: 'jev-choice' },
+      textDataSharing: 'cloud_allowed',
+      imageDataSharing: 'cloud_allowed',
+      terminalBehavior: 'heuristic',
+    });
+    seedLegacyVlm();
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('api.openai.com')) {
+        return new Response(
+          JSON.stringify({ error: { message: 'You exceeded your current quota.', type: 'insufficient_quota' } }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('unexpected fallback transport call', { status: 500 });
+    }) as unknown as typeof fetch;
+    try {
+      clearHealthCache('openai-cloud');
+      clearHealthCache('typesafe-jev-test');
+      const result = await runPackagingOcrAttempt(makeParams({ sku: 'SKU-P429-S1REJECT' }));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      // The surfaced throw is the System One rejection (policy denial), not
+      // the primary 429 — the primary cause survives only for the alert.
+      expect(result.reasonCode).toBe('transport_error');
+      expect(result.redactedMessage).toContain('typed-judgment');
+      const alert = getCachedConnectionHealthReport('openai-cloud');
+      expect(alert).not.toBeNull();
+      expect(alert?.status).toBe('misconfigured');
+      expect(alert?.errorMessage).toContain('HTTP 429');
+      expect(alert?.errorMessage).toContain('top up cloud credits');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
   });
 });

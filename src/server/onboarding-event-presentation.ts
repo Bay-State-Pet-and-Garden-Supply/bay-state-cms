@@ -91,7 +91,6 @@ function classifyReasonCode(event: OnboardingEvent): LiveActivityReasonCode {
   if (/\bfailed\b|\berror\b/.test(haystack)) return 'failed';
   if (/profile_blocked|profile-required|no_healthy_profile/.test(haystack)) return 'profile_blocked';
   if (/conflict|needs_input/.test(haystack)) return 'conflict_found';
-  if (/family_barrier|waiting_on_family|on_family_hold/.test(haystack)) return 'family_barrier';
   if (/domain_release|domain_released/.test(haystack)) return 'domain_released';
   if (/reviewed/.test(haystack)) return 'reviewed';
   if (/approv/.test(haystack)) return 'approval_recorded';
@@ -114,8 +113,6 @@ function templateSummary(eventType: OnboardingEvent['type'], reason: LiveActivit
           return 'An item needs a decision to resolve conflicting evidence.';
         case 'profile_blocked':
           return 'An item is waiting for a healthy extractor profile.';
-        case 'family_barrier':
-          return 'An item is waiting on its family group.';
         case 'advanced':
           return 'An item moved to its next stage.';
         case 'claimed':

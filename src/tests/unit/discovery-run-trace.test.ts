@@ -67,6 +67,7 @@ const STRONG_SIGNALS: VerificationResult['signals'] = {
   variantResolved: false,
   canonicalMatchesCandidate: true,
   pageTitle: 'Brand Product',
+  pageHeading: 'Brand Product',
   titleNameOverlap: 0.85,
 };
 
@@ -79,6 +80,7 @@ function strongVerification(candidate: InsertSourceData): VerificationResult {
     hasStrongProof: true,
     extractedGtins: [],
     decisionReason: 'UPC match + title overlap',
+    observedIdentity: { pageName: 'Brand Product', pageBrand: null, pageKind: 'product', variants: [], observedGtins: [], artifactRef: null, coverageComplete: true },
   };
 }
 
@@ -91,6 +93,7 @@ function weakVerification(candidate: InsertSourceData): VerificationResult {
     hasStrongProof: false,
     extractedGtins: [],
     decisionReason: 'no identity proof on retailer page',
+    observedIdentity: { pageName: 'Brand Product', pageBrand: null, pageKind: 'product', variants: [], observedGtins: [], artifactRef: null, coverageComplete: true },
   };
 }
 
@@ -208,6 +211,50 @@ describe('discovery run traceability (epic #46 follow-up)', () => {
     expect(after.stageStatus).toBe('completed');
     expect(after.sourceUrl).toBeNull();
   });
+  test('identity-blocked strong proof does not claim authority failure', async () => {
+    // DEV-0015 shape: strong GTIN proof on the mapped official domain, but the
+    // matcher rejects — the parked reason must name gates, not authority.
+    const [item] = insertItems(batchId, [{ upc: 'UPC-2B', name: 'WOOF PUPSICLE LAVENDER XL', rowNumber: 1, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
+    upsertBrandSite('BrandX', 'brand.example.com');
+    discoverImpl = async () => ({
+      candidates: [CANDIDATE],
+      consolidatedName: 'WOOF PUPSICLE LAVENDER XL',
+      noDomainMapped: false,
+    });
+    verifyImpl = async (candidates: InsertSourceData[]) => candidates.map((c) => ({
+      ...strongVerification(c),
+      observedIdentity: {
+        ...strongVerification(c).observedIdentity,
+        pageName: 'Pupsicle', // product_line_mismatch vs register line
+        variants: [{ key: 'sm', label: 'Small' }, { key: 'lg', label: 'Large' }],
+      },
+    }));
+
+    await runWorkerOnce();
+
+    const run = getLatestDiscoveryRunForItem(item.id);
+    expect(run!.outcome).toBe('needs_input_candidates');
+    expect(run!.outcome_message).not.toContain('authority: auto-accept');
+    expect(run!.outcome_message).toContain('gates:');
+    expect(run!.outcome_message).toContain('BLOCKED:');
+  });
+
+  test('off-domain strong proof still reports authority denial', async () => {
+    // Genuine authority fail: strong proof on a domain with no brand mapping.
+    const [item] = insertItems(batchId, [{ upc: 'UPC-2C', name: 'Other Product', rowNumber: 1, stage: 'discovery', brandHint: 'Unmapped' }], 'discovery', 1);
+    discoverImpl = async () => ({
+      candidates: [{ ...CANDIDATE, url: 'https://other.example/product', domain: 'other.example' }],
+      consolidatedName: 'Other Product',
+      noDomainMapped: false,
+    });
+    verifyImpl = async (candidates: InsertSourceData[]) => candidates.map(strongVerification);
+
+    await runWorkerOnce();
+
+    const run = getLatestDiscoveryRunForItem(item.id);
+    expect(run!.outcome).toBe('needs_input_candidates');
+    expect(run!.outcome_message).toContain('authority: auto-accept');
+  });
 
   test('no-domain-mapped brand parks with needs_input_setup outcome', async () => {
     const [item] = insertItems(batchId, [{ upc: 'UPC-3', name: 'No Domain Item', rowNumber: 1, stage: 'discovery' }], 'discovery', 1);
@@ -254,7 +301,7 @@ describe('discovery run traceability (epic #46 follow-up)', () => {
     // raise `UNIQUE constraint failed: onboarding_discovery_runs.item_id` and
     // mark the item failed. `createDiscoveryRun` must supersede the stale run
     // first, preserving the old row as a failed audit trace.
-    const [item] = insertItems(batchId, [{ upc: 'UPC-7', name: 'Retry Item', rowNumber: 1, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
+    const [item] = insertItems(batchId, [{ upc: 'UPC-7', name: 'Brand Product', rowNumber: 1, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
     // Map BrandX → brand.example.com so the candidate passes the ADR 0017
     // authority gate and the run completes deterministic-ally with
     // auto_selected (the gate outcome itself is covered by
@@ -263,12 +310,12 @@ describe('discovery run traceability (epic #46 follow-up)', () => {
     const staleId = createDiscoveryRun(item.id, {
       trigger: 'automatic',
       upc: 'UPC-7',
-      name: 'Retry Item',
+      name: 'Brand Product',
       brandHint: 'BrandX',
     });
     discoverImpl = async () => ({
       candidates: [CANDIDATE],
-      consolidatedName: 'Retry Item',
+      consolidatedName: 'Brand Product',
       noDomainMapped: false,
     });
     verifyImpl = async (candidates: InsertSourceData[]) => candidates.map(strongVerification);
@@ -298,8 +345,8 @@ describe('discovery run traceability (epic #46 follow-up)', () => {
     // Both items carry a mapped brand so the authority gate auto-accepts
     // (see brand-authority-gate.test.ts for the gate itself).
     upsertBrandSite('BrandX', 'brand.example.com');
-    insertItems(batchId, [{ upc: 'UPC-5', name: 'A', rowNumber: 1, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
-    insertItems(batchId, [{ upc: 'UPC-6', name: 'B', rowNumber: 2, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
+    insertItems(batchId, [{ upc: 'UPC-5', name: 'Brand Product', rowNumber: 1, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
+    insertItems(batchId, [{ upc: 'UPC-6', name: 'Brand Product', rowNumber: 2, stage: 'discovery', brandHint: 'BrandX' }], 'discovery', 1);
     discoverImpl = async () => ({
       candidates: [CANDIDATE],
       consolidatedName: null,

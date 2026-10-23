@@ -95,8 +95,24 @@ function parseStrictScriptJson(text, limits) {
   } catch {
     throw new Tier0AnalyzerError('invalid_input', 'script content is not strict JSON');
   }
+  removePagePriceFields(value);
   const nodeCount = countJsonNodes(value, limits);
   return { value, nodeCount };
+}
+
+function removePagePriceFields(value) {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) removePagePriceFields(item);
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    if (/(?:price|cost|sale)/i.test(key)) {
+      delete value[key];
+    } else {
+      removePagePriceFields(value[key]);
+    }
+  }
 }
 
 function countJsonNodes(value, limits) {
@@ -584,6 +600,7 @@ function metaEntryOf(el) {
   // Attribute values decode entities, matching HTML parsing semantics.
   const name = decodeEntities(el.attrs.name ?? el.attrs.property ?? '');
   if (!name) return null;
+  if (/(?:price|cost|sale)/i.test(name)) return null;
   return `${name}=${decodeEntities(el.attrs.content ?? '')}`;
 }
 
@@ -623,7 +640,7 @@ function readScriptSurface(state, capture, elements) {
         maxNodes: state.budget.maxJsonNodesVisited,
       });
       state.domSignals.jsonLd = true;
-      pushObservation(state, capture, 'page_json_ld', `JSON-LD block (${parsed.nodeCount} nodes): ${block.inner}`);
+      pushObservation(state, capture, 'page_json_ld', `JSON-LD block (${parsed.nodeCount} nodes): ${JSON.stringify(parsed.value)}`);
     } catch {
       state.gaps.push('a JSON-LD block was not strict JSON or exceeded bounds; skipped without evaluation');
     }

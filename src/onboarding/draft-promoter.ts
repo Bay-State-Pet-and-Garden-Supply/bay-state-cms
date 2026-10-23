@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { getDb } from '../db/connection';
 import { findWorkspace } from '../db/repositories/workspace-repo';
 import { findBatchById, isBatchComplete, setBatchArchived } from '../db/repositories/onboarding-batch-repo';
-import { listItemsByBatch, completePromotionStage, findItemById } from '../db/repositories/onboarding-item-repo';
+import { listItemsByBatch, completePromotionStage, findItemById, type OnboardingItemWithEntryPolicy } from '../db/repositories/onboarding-item-repo';
 import { createChangeSet, upsertChangeSetItem, listNonDiscardedChangeSetDrafts } from '../db/repositories/change-set-repo';
 import { listCatalogProductsForSnapshot } from '../db/repositories/product-index-repo';
 import { resolveBaseFileName } from '../shopsite/file-name';
@@ -20,9 +20,8 @@ import {
 import { extractProtectedTokens } from './title-prompt-template';
 
 
-import { getCohortMembers } from '../db/repositories/curation-cohort-repo';
 import { getReviewState, type OnboardingReviewState } from '../db/repositories/onboarding-review-repo';
-import { clearProductPages, assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions } from '../db/repositories/page-repo';
+import { assignProductToPageId, getProductPageAssignments, listVerifiedPageOptions, getActivePageImportHash, removeProductFromVerifiedPage } from '../db/repositories/page-repo';
 import { readProductFile } from '../git/workspace-files';
 import { normalizeFileName, slugifyFileName, uniquifyFileNames, FILE_NAME_EXTENSION } from '../shopsite/file-name';
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
@@ -30,8 +29,10 @@ import {
   getAcceptedProposals,
   getValidatedOnboardingRun,
   recordHistoryEvent,
+  getEvidenceByRun,
+  getProposalsByRun,
+  getStageResults,
 } from '../db/repositories/classification-run-repo';
-import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
 import {
   getCurrentGenerationAcceptedAttemptIds,
 } from '../db/repositories/onboarding-acceptance-repo';
@@ -61,29 +62,31 @@ import {
 import { verifyDistributorImageryForItem } from './distributor-imagery';
 import { DeterministicNetworkGate } from './image-verification/network-gate';
 import { canonicalizeUrl, isUsableImageSource } from './image-utils';
-
 const imageGate = new DeterministicNetworkGate();
+
 import { SourcingDecisionV2Schema } from '../shared/schemas/onboarding';
-import { getCohortRunById,
-  listDependenciesForProposal,
-} from '../db/repositories/classification-cohort-run-repo';
+import { listDependenciesForProposal } from '../db/repositories/classification-cohort-run-repo';
 import { getRuntimeSnapshotByHash } from '../classification/runtime-snapshot';
-import { validatePromotionGate, resolvePromotionEffectiveTypeId, computeExecutionAuthorityHash, computeReviewedAuthorityHash } from '../classification/promotion-gate';
-import type { CohortRun } from '../shared/schemas/cohorts';
+import { validatePromotionGate, resolvePromotionEffectiveTypeId } from '../classification/promotion-gate';
 import type { OnboardingItem } from '../shared/schemas/onboarding';
+import { loadItemListingReadiness } from '../classification/item-listing-readiness';
+import { getCurrentItemEvidenceView } from './item-evidence';
+import { evaluateListingCompletenessGate } from '../classification/listing-evidence-gate';
+import { modelPolicyViewFromConfig } from './model-policy-snapshot';
+import { validateLiveItemExecutionCurrentness } from '../classification/item-execution-currentness';
+import type { Product, ProductImageProvenance } from '../shared/schemas/product';
 import type { ClassificationProposal } from '../shared/schemas/classification';
-import { getCachedAttributeMappings, getCachedBrands } from '../db/repositories/classification-config-repo';
+import type { ClassificationRunRow } from '../db/repositories/classification-run-repo';
+import { getCachedAttributeMappings, getCachedClassificationOutputBindings, getCachedBrands } from '../db/repositories/classification-config-repo';
 import type { AttributeMappingConfig } from '../shared/schemas/classification';
 import { resolveBrand } from '../classification/brand-resolution';
-import { getPageIdentityId, pageNameFromPageValue } from '../shared/proposal-display';
+import { extractPageNamesFromBlock } from '../shopsite/product-codec';
 import {
   getEffectivePrimaryProductTypeId,
-  getEffectiveProposalTargetId,
-  getEffectiveProposalValue,
-  serializeAttributeValue,
+  buildAssignmentProjection,
+  createAssignmentProjectionAuthority,
 } from '../classification/assignment-projection';
-import type { Product } from '../shared/types';
-import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from '../classification/classification-ownership';
+import { isProtectedCatalogField } from '../classification/classification-ownership';
 import { evaluateCanonicalReadiness } from '../classification/classification-readiness';
 
 /**
@@ -134,6 +137,7 @@ function slugify(text: string): string {
 interface ProcessedImageResult {
   primaryImage: string | null;
   additionalImages: string[];
+  imageProvenance: ProductImageProvenance[];
 }
 
 /**
@@ -149,17 +153,11 @@ async function downloadAndProcessImages(
   imageStem: string,
   primaryUrl: string | null,
   additionalUrls: string[],
+  resolveImageRights?: (sourceUrl: string) => { approvalId: string; authorityHash: string } | null,
 ): Promise<ProcessedImageResult> {
   const imagesDir = path.join(workspacePath, 'products', 'images', brandFolder);
-  if (!fs.existsSync(imagesDir)) {
-    fs.mkdirSync(imagesDir, { recursive: true });
-  }
-
-  const result: ProcessedImageResult = {
-    primaryImage: null,
-    additionalImages: [],
-  };
-
+  if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+  const result: ProcessedImageResult = { primaryImage: null, additionalImages: [], imageProvenance: [] };
   // Build deduplicated candidate list across primary and additionals
   const seenCanonical = new Set<string>();
   const seenContentHashes = new Set<string>();
@@ -174,23 +172,18 @@ async function downloadAndProcessImages(
   }
 
   for (const rawCandidate of candidatePool) {
-    if (!rawCandidate || typeof rawCandidate !== 'string') continue;
     const trimmed = rawCandidate.trim();
     if (!trimmed) continue;
 
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (/^https?:\/\//i.test(trimmed)) {
       if (!isUsableImageSource(trimmed)) continue;
       const canonKey = canonicalizeUrl(trimmed);
       if (seenCanonical.has(canonKey)) continue;
       seenCanonical.add(canonKey);
-
-      // Upgrade BigCommerce stencil URLs to high-res 1280x1280
-      let targetUrl = trimmed;
-      if (targetUrl.includes('/images/stencil/')) {
-        targetUrl = targetUrl.replace(/\/images\/stencil\/(?:\d+x\d+|original)\//i, '/images/stencil/1280x1280/');
-      }
-      allUrls.push(targetUrl);
+      allUrls.push(trimmed);
     } else {
+      // Already-processed relative paths (test fixtures, prior-promotion
+      // carry-over): keep them verbatim as the commerce image reference.
       const canonKey = canonicalizeUrl(trimmed);
       if (seenCanonical.has(canonKey)) continue;
       seenCanonical.add(canonKey);
@@ -292,6 +285,19 @@ async function downloadAndProcessImages(
       } else {
         result.additionalImages.push(relativePath);
       }
+      const rights = resolveImageRights?.(url) ?? null;
+      if (rights) {
+        result.imageProvenance.push({
+          localPath: relativePath,
+          sourceUrl: url,
+          contentHash: createHash('sha256').update(resizedBuffer).digest('hex'),
+          rightsApprovalId: rights.approvalId,
+          rightsAuthorityHash: rights.authorityHash,
+        });
+      }
+      // No accepted rights for this source URL: the image still becomes the
+      // commerce reference, but no provenance is minted — downstream rights
+      // checks fail closed instead of trusting a synthesized approval.
     } catch (err) {
       console.error(`[DraftPromoter] Error downloading image ${url}:`, err);
     }
@@ -310,7 +316,8 @@ async function downloadAndProcessImages(
  * P2, preserved), and phase (c) re-runs the same computation inside the
  * transaction as the FINAL authority (failure recording). Deterministic and
  * cheap — the DB state is re-read on every invocation.
- * Legacy items (no run pointer) pass with `ok: true` and empty proposals.
+ * Historical items without a run pointer have no classification authority;
+ * embedded proposal history is never an executable promotion fallback.
  * Issue #106 C3: for run-pointer (pipeline) items the filename ownership
  * snapshot is REQUIRED — a null snapshot fails closed with
  * `naming_snapshot_missing` instead of silently skipping the ownership
@@ -319,7 +326,7 @@ async function downloadAndProcessImages(
  */
 // fallow-ignore-next-line unused-export — exported as the phase-c recheck test seam
 export function computePromotionGate(
-  item: OnboardingItem,
+  item: OnboardingItem | OnboardingItemWithEntryPolicy,
   workspaceId: string,
   namingSnapshot: FilenameOwnershipSnapshot | null = null,
 ): {
@@ -342,26 +349,49 @@ export function computePromotionGate(
     }
   }
   const activeRunId = activeRun?.id ?? null;
-  // Accepted-only: a valid run contributes only proposals whose latest live
-  // decision is 'accepted' (never deferred/rejected/pending/decisionless).
-  const activeProposals = activeRunId
-    ? getAcceptedProposals(item.upc, activeRunId)
-    : (item.curationData?.classificationProposals || []).filter(
-        (p: any) => p.status === 'accepted',
-      );
-  const parentRun: CohortRun | null = activeRun?.cohortRunId
-    ? getCohortRunById(activeRun.cohortRunId)
-    : null;
-  // PR11 review R2 (P1): the frozen runtime snapshot of the child run carries
-  // provenance-compatible REVIEWED facts — the second reviewed-authority
-  // source (the cohort executor's `getEffectiveCurationTypeForSnapshot` uses
-  // the same facts for member-local Curation). Loaded by the caller; the gate
-  // stays pure.
+  // Accepted-only: a valid item-local run contributes only live accepted proposals.
+  const activeProposals = activeRunId ? getAcceptedProposals(item.upc, activeRunId) : [];
   const snapshot =
     activeRun && activeRun.configSnapshotHash
       ? getRuntimeSnapshotByHash(workspaceId, activeRun.configSnapshotHash)
       : null;
-  const effectiveTypeId = resolvePromotionEffectiveTypeId(parentRun, activeProposals, snapshot);
+  if ((activeRun || activeProposals.length > 0) && !snapshot) {
+    return { ok: false, reason: 'Classification snapshot authority is unavailable. Reclassify before promotion.', activeRun, activeProposals };
+  }
+  if (snapshot) {
+    const verifiedPages = listVerifiedPageOptions(workspaceId);
+    if (activeProposals.some(proposal => proposal.proposalType === 'category_page')) {
+      const frozenImportHash = snapshot.pageImportHash;
+      if (!frozenImportHash || frozenImportHash !== getActivePageImportHash(workspaceId)) {
+        return { ok: false, reason: 'Page import authority changed or is unavailable (page_decision_stale). Re-review before promotion.', activeRun, activeProposals };
+      }
+    }
+    const projection = buildAssignmentProjection(activeProposals, {}, [], getCachedAttributeMappings(workspaceId),
+      new Set(verifiedPages.map(page => page.id)), createAssignmentProjectionAuthority(
+        snapshot, new Map(verifiedPages.map(page => [page.id, page.name])), getCachedClassificationOutputBindings(workspaceId),
+      ));
+    if (projection.skipped.length > 0) {
+      return {
+        ok: false,
+        reason: `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`,
+        activeRun,
+        activeProposals,
+      };
+    }
+  }
+  // Classification value readiness precedes the promotion gate: a missing or
+  // unresolved pair/profile value refuses with its own precise reason
+  // (pair_unresolved, required_values_missing) instead of collapsing into a
+  // generic gate refusal or listing_completeness_unavailable.
+  if (snapshot && activeRun && (activeRun.status === 'completed' || activeRun.status === 'completed_with_abstentions')) {
+    const classificationReadiness = evaluateCanonicalReadiness({ workspaceId, runId: activeRun.id });
+    if (process.env.DRAFT_PROMOTER_DEBUG && !classificationReadiness.ok) {
+      console.log(`[debug-readiness-block] ${item.upc}: ${classificationReadiness.code}: ${classificationReadiness.reason}`);
+    }
+    if (!classificationReadiness.ok) {
+      return { ok: false, reason: `${classificationReadiness.code}: ${classificationReadiness.reason}`, activeRun, activeProposals };
+    }
+  }
   // Ticket #124: an unresolved Listing Evidence Gap refuses promotion
   // BEFORE any image side effects (phase-a gate), mirroring the approve
   // guard. Tolerant of minimal DBs without the gaps table.
@@ -380,53 +410,26 @@ export function computePromotionGate(
   } catch {
     // Minimal DBs without the gaps table: no gap can be open.
   }
-  // PR12 C2 (DECISION-A): the CURRENT authority value-hashes recomputed from
-  // the SAME inputs the target comparison uses — the parent run's current
-  // execution type id + confidence (the `getCohortRunById` row carries
-  // `productTypeConfidence`) for the execution kind, and the reviewed
-  // resolution for the reviewed kind. A stamped dependency value hash that
-  // differs (e.g. a confidence drift under the same target id, or a
-  // re-resolved reviewed authority) stales the proposal even when the target
-  // id still matches.
-  const currentAuthorityHashes = {
-    execution: computeExecutionAuthorityHash(
-      parentRun?.executionProductTypeId ?? null,
-      parentRun?.productTypeConfidence ?? null,
-    ),
-    reviewed: computeReviewedAuthorityHash(effectiveTypeId),
-  };
   const gate = validatePromotionGate({
     workspaceId,
     itemId: item.id,
     productSku: item.upc,
     curationData: item.curationData ?? null,
     activeRun,
-    parentRun,
-    effectiveTypeId,
+    parentRun: null,
+    effectiveTypeId: resolvePromotionEffectiveTypeId(null, activeProposals, snapshot),
     acceptedProposals: activeProposals,
     dependencyLookup: (proposalId: string) => listDependenciesForProposal(proposalId),
-    currentAuthorityHashes,
-    // e09 B3 (P11): CURRENT verified Page identities of the active import —
-    // an accepted category_page proposal that no longer resolves into this
-    // set refuses the item before any draft write. Legacy items (no run
-    // pointer) never reach the check inside the gate.
-    verifiedPageIds: new Set(listVerifiedPageOptions(workspaceId).map(page => page.id)),
   });
   if (!gate.ok) {
-    return {
-      ok: gate.ok,
-      reason: gate.reason,
-      activeRun,
-      activeProposals,
-    };
+    return { ok: false, reason: gate.reason, activeRun, activeProposals };
   }
-
   // Milestone E (item 9): a distributor-source item may draft ONLY while its
   // materialized extraction still matches the sourcing authority — a stale,
   // superseded, or tampered materialization can never draft even after
-  // Review. Mirrors the materializer's read-only authority checks: extraction
-  // row source type/generation/hash, current (non-superseded) generation,
-  // and accepted-attempt set equality.
+  // Review. Runs BEFORE listing completeness so a broken materialization
+  // reports its own actionable reason instead of a generic stale listing.
+  // Non-distributor items always pass (official path unchanged).
   const distributorGate = checkDistributorPromotionProvenance(item, workspaceId);
   if (!distributorGate.ok) {
     return {
@@ -436,17 +439,60 @@ export function computePromotionGate(
       activeProposals,
     };
   }
+  const listingReadiness = loadItemListingReadiness(workspaceId, item.id);
+  if (process.env.DRAFT_PROMOTER_DEBUG && listingReadiness.evaluation.status === 'unavailable') {
+    console.log(`[debug-readiness] ${item.upc}: ${listingReadiness.evaluation.reasons.join(' | ')}`);
+  }
+  const listingGate = evaluateListingCompletenessGate(listingReadiness.evaluation);
+  if (!listingGate.ok) {
+    return { ok: false, reason: `${listingGate.code}: ${listingGate.reason}`, activeRun, activeProposals };
+  }
+  const currentnessPolicy = snapshot?.modelPolicy
+    ? modelPolicyViewFromConfig(
+        snapshot.modelPolicy as unknown as Parameters<typeof modelPolicyViewFromConfig>[0],
+        snapshot.snapshotHash,
+      )
+    : null;
+  if (
+    !activeRun ||
+    !activeRun.configSnapshotHash ||
+    !snapshot ||
+    !currentnessPolicy ||
+    !listingReadiness.evidence ||
+    !validateLiveItemExecutionCurrentness({
+      workspaceId,
+      item: 'inputRevision' in item
+        ? { id: item.id, batchId: item.batchId, upc: item.upc, inputRevision: item.inputRevision, curationData: item.curationData ?? null }
+        : { id: item.id, batchId: item.batchId, upc: item.upc, inputRevision: '', curationData: item.curationData ?? null },
+      run: activeRun,
+      evidence: listingReadiness.evidence,
+      configSnapshotId: activeRun.configSnapshotId,
+      configSnapshotHash: activeRun.configSnapshotHash,
+      runtimeSnapshotHash: snapshot.snapshotHash,
+      policyDigest: currentnessPolicy.policyDigest,
+      classificationEvidence: getEvidenceByRun(activeRun.id),
+      proposals: getProposalsByRun(activeRun.id),
+      stageResults: getStageResults(activeRun.id).map(stage => ({
+        stage_name: String(stage.stage_name),
+        output_json: typeof stage.output_json === 'string' ? stage.output_json : null,
+      })),
+    })
+  ) {
+    return {
+      ok: false,
+      reason: 'item_execution_currentness_stale: the frozen item input, evidence, classification output, or policy changed; reclassify before promotion',
+      activeRun,
+      activeProposals,
+    };
+  }
 
-  // Issue #106 SEQUENCE 2a: naming-invariant gate — the non-bypassable
-  // guarantee point runs in phase (a) (before image side effects) AND in
-  // phase (c) (final authority), because both phases share this function.
-  // Assesses the ACTUAL FINAL draft title (never 'applied' metadata).
-  // Legacy compat (PR11 C4 byte-identical): items with no classification
-  // run pointer promote exactly as before — the naming guarantee applies
-  // only to run-pointer (pipeline) items, mirroring validatePromotionGate's
-  // legacy passthrough.
+
+  // Issue #106 SEQUENCE 2a: naming invariants remain non-bypassable before
+  // image side effects and at final authority. The gate above refuses items
+  // without a current classification run; this condition only narrows the
+  // pointer for TypeScript.
   if (runPointer) {
-    const namingInput = buildNamingAssessmentInput(item, workspaceId, activeRun?.cohortRunId ?? null);
+    const namingInput = buildNamingAssessmentInput(item, workspaceId);
     const naming = assessNamingInvariants(namingInput);
     if (!naming.ok) {
       const codes = [...new Set(naming.findings.map((f) => (f.axis ? `${f.code}(${f.axis})` : f.code)))];
@@ -476,10 +522,9 @@ export function computePromotionGate(
     }
   }
 
-  // Issue #354: shared canonical readiness (pair + profile + required values)
-  // for run-pointer items — the same result catalog apply enforces. Legacy
-  // items (no run) skip: no classification ran, nothing to resolve. Runs in
-  // BOTH phases since both share this function (phase-c is the final recheck).
+  // Issue #354: the same canonical pair/profile/required-value result used by
+  // catalog apply is checked in both phases. Missing or legacy run authority
+  // was already refused by the shared promotion gate above.
   if (runPointer && activeRunId) {
     const readiness = evaluateCanonicalReadiness({ workspaceId, runId: activeRunId });
     if (!readiness.ok) {
@@ -1015,9 +1060,11 @@ export function buildNamingAssessmentBase(
       const lowered = cleanAxis.toLowerCase();
       // Color/flavor/formula are NOT measurement: color is governed by the
       // multicolor rule below, and taste attributes never hold a listing.
-      // Capacity + size/weight/count/pack + other declared custom axes are
-      // distinguishing measurement tokens.
-      if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula') continue;
+      // Distributor case-pack counts are fulfillment data, not the
+      // shopper-visible sell unit (we buy bulk, sell individual) — a pack
+      // count never holds a listing either. Size/weight/count/capacity and
+      // other declared custom axes remain distinguishing measurement tokens.
+      if (lowered === 'color' || lowered === 'flavor' || lowered === 'formula' || lowered === 'packcount' || lowered === 'pack') continue;
       tokens.push({
         axis: cleanAxis,
         value: value.trim(),
@@ -1069,90 +1116,47 @@ export function buildNamingAssessmentBase(
 }
 
 /**
- * Layer frozen-cohort context over an assessment base (issue #106):
- * sibling final titles + member structured colors for the family rule.
- * Best-effort: lookup failures yield empty sets. Shared by the promotion
- * gate (via classification run → cohort run) and the Review preview (via
- * the item's active candidate cohort).
+ * Item-local naming overlay (cohort authority removed): no sibling/family
+ * titles are borrowed across items. Returns the base input with empty
+ * cohort-derived context so promotion and Review assess the same evidence.
  */
 export function overlayCohortNamingContext(
   base: Omit<NamingAssessmentInput, 'siblingTitles' | 'familyColors'> & { structuredColors: string[] },
   item: OnboardingItem,
   cohortId: string | null,
 ): NamingAssessmentInput {
+  void item;
+  void cohortId;
   const { structuredColors, ...baseInput } = base;
-  // Issue #106 C1: structured family counts DISTINCT RAW values, not
-  // word-split vocabulary hits — a single multi-word structured color
-  // (e.g. distributor "Navy Blue") is one family member, never two.
-  // Word-splitting (knownColorsAcross) is for free-text title scanning;
-  // structured variant/extraction/OCR colors are already atomic values.
-  const distinctRawColors = (values: string[]): string[] => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const v of values) {
-      const trimmed = v?.trim();
-      if (!trimmed) continue;
-      const key = trimmed.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(trimmed);
-      }
-    }
-    return out;
-  };
-  let familyColors = distinctRawColors(structuredColors);
-  let siblingTitles: string[] = [];
-  if (cohortId) {
-    try {
-      {
-        const memberColors: string[] = [...structuredColors];
-        for (const member of getCohortMembers(cohortId)) {
-          if (member.onboardingItemId === item.id) continue;
-          const sib = findItemById(member.onboardingItemId);
-          if (!sib) continue;
-          const sibExt = (sib.extractionData ?? {}) as Record<string, any>;
-          const sibCur = (sib.curationData ?? {}) as Record<string, any>;
-          const sibTitle =
-            (typeof sibCur.curatedTitle === 'string' && sibCur.curatedTitle) ||
-            (typeof sibExt.title === 'string' && sibExt.title) ||
-            sib.name ||
-            '';
-          if (sibTitle.trim()) siblingTitles.push(sibTitle);
-          const sibAttrs = sibExt.variantAttributes;
-          if (sibAttrs && typeof sibAttrs === 'object' && typeof sibAttrs.color === 'string' && sibAttrs.color.trim()) {
-            memberColors.push(sibAttrs.color);
-          }
-          if (typeof sibExt.color === 'string' && sibExt.color.trim()) memberColors.push(sibExt.color);
-        }
-        familyColors = distinctRawColors(memberColors);
-      }
-    } catch {
-      siblingTitles = [];
+  const seen = new Set<string>();
+  const familyColors: string[] = [];
+  for (const value of structuredColors) {
+    const trimmed = value?.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      familyColors.push(trimmed);
     }
   }
-
-  return { ...baseInput, familyColors, siblingTitles };
+  return { ...baseInput, familyColors, siblingTitles: [] };
 }
 
 /**
- * Full S1a assessment input: base + frozen-cohort overlay resolved through
- * the item's classification run → cohort run (issue #106). Never throws.
+ * Build an item's naming assessment from its own extraction and curation
+ * values. Sibling titles and family colors are not release authority.
  */
-export function buildNamingAssessmentInput(
-  item: OnboardingItem,
-  workspaceId: string,
-  cohortRunId: string | null = null,
-): NamingAssessmentInput {
-  const base = buildNamingAssessmentBase(item, workspaceId);
-  let cohortId: string | null = null;
-  if (cohortRunId) {
-    try {
-      cohortId = getCohortRunById(cohortRunId)?.cohortId ?? null;
-    } catch {
-      cohortId = null;
-    }
+export function buildNamingAssessmentInput(item: OnboardingItem, workspaceId: string): NamingAssessmentInput {
+  const { structuredColors, ...baseInput } = buildNamingAssessmentBase(item, workspaceId);
+  const seen = new Set<string>();
+  const familyColors: string[] = [];
+  for (const color of structuredColors) {
+    const normalized = color.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    familyColors.push(color.trim());
   }
-  return overlayCohortNamingContext(base, item, cohortId);
+  return { ...baseInput, familyColors, siblingTitles: [] };
 }
 
 /**
@@ -1559,6 +1563,20 @@ export async function prepareDraftPromotion(
     }
 
     try {
+      // Image-rights provenance (reviewer P1): resolve each downloaded source
+      // URL against the item's CURRENT accepted evidence. Only URLs with an
+      // accepted rights-bearing image fact get a provenance entry carrying the
+      // REAL approvalId/authorityHash — never a synthesized approval. URLs
+      // without accepted rights still download, but downstream rights checks
+      // fail closed on the missing binding.
+      const acceptedEvidence = getCurrentItemEvidenceView(workspaceId, item.id).evidence;
+      const resolveImageRights = (sourceUrl: string): { approvalId: string; authorityHash: string } | null => {
+        const fact = acceptedEvidence?.facts.find((entry) =>
+          /image|photo|media/i.test(entry.field) && entry.value.trim() === sourceUrl && entry.rights
+          && entry.rights.assetUrl === sourceUrl,
+        );
+        return fact?.rights ? { approvalId: fact.rights.approvalId, authorityHash: fact.rights.authorityHash } : null;
+      };
       const processed = await downloadAndProcessImages(
         workspacePath,
         item.upc,
@@ -1566,11 +1584,12 @@ export async function prepareDraftPromotion(
         imageStem,
         downloaderPrimary,
         downloaderAdditional.filter((u) => u !== downloaderPrimary),
+        resolveImageRights,
       );
       processedImagesMap.set(item.id, processed);
     } catch (err) {
       console.error(`[DraftPromoter] Failed to download and process images for item ${item.upc}:`, err);
-      processedImagesMap.set(item.id, { primaryImage: null, additionalImages: [] });
+      processedImagesMap.set(item.id, { primaryImage: null, additionalImages: [], imageProvenance: [] });
     }
   }
 
@@ -1686,13 +1705,9 @@ export async function prepareDraftPromotion(
         (isDistributorSource && !verifiedV2Distributor ? null : extractionData.description) ||
         null;
 
-      // Construct core product details with price fallback and cleanup.
-      // Price comes ONLY from spreadsheet/manual authority for distributor
-      // sources — extraction price (null by contract, present only in a
-      // tampered payload that the deep-compare gate already rejects) can
-      // never reach a distributor draft.
-      const rawPrice = item.price || (isDistributorSource ? null : extractionData.price) || null;
-      const cleanPrice = rawPrice ? rawPrice.replace(/[$\s,]/g, '') : null;
+      // Input Price Authority (ADR 0043): carry the onboarding value exactly.
+      // Never normalize it, consult a page, or use a fallback.
+      const inputPrice = item.price ?? null;
 
       const processed = processedImagesMap.get(item.id);
       const primaryImage = processed?.primaryImage || null;
@@ -1700,7 +1715,7 @@ export async function prepareDraftPromotion(
 
       const coreProduct = {
         name: finalTitle,
-        price: cleanPrice,
+        price: inputPrice,
         salePrice: null,
         description: draftDescription,
         inventory: {
@@ -1730,21 +1745,9 @@ export async function prepareDraftPromotion(
         productOnPages: [] as string[],
       };
 
-      // --- Apply accepted classification proposals ---
-      // Build custom fields from accepted field assignment proposals
+      // Accepted classification changes are interpreted by the same module
+      // as approved preview and catalog application; persistence stays here.
       const classificationCustomFields: Record<string, string> = {};
-      const classificationPageNames: string[] = [];
-      const classificationPageProposals: Array<{ pageId: string | null; pageName: string }> = [];
-      // Accepted page proposals whose identity is not verified in the active
-      // import. Visible and non-blocking: they are never serialized into
-      // ProductOnPages, but they do not block the rest of the draft.
-      const skippedPageRefs: Array<{ proposalId: string; pageName: string }> = [];
-      // story: e04s02 — stale/missing field mappings are visible and non-blocking: field is dropped, history records skippedFields
-      const skippedFieldRefs: Array<{ proposalId: string; attributeId: string; reason: 'stale_mapping' | 'missing_mapping' | 'empty_catalog_field' | 'protected_target_refused' }> = [];
-      // ADR 0041 / issue #349: attributable refusals for protected targets.
-      const classificationRefusals: Array<{ proposalId: string; code: string; reason: string }> = [];
-      let acceptedProductType: string | null = null;
-
       // ── PR11 Promotion gate (semantic / parent-currentness / stale) ────
       // Deterministic per-item fail-closed check AFTER the run-pointer
       // validation and BEFORE any proposal/draft work (the SAME computation
@@ -1767,124 +1770,63 @@ export async function prepareDraftPromotion(
       }
       const activeProposals = gateInfo.activeProposals;
 
-      // Only identities verified in the currently active Page import are
-      // serializable, and the verified catalog is the DISPLAY-NAME authority:
-      // a verified Page ID always resolves to the verified page's canonical
-      // name (never the proposal's variant text, never the raw Page ID).
-      // Without an active import the set is empty — fail closed.
-      const verifiedPageOptions = listVerifiedPageOptions(batch.workspaceId);
-      const verifiedPageIds = new Set(verifiedPageOptions.map(p => p.id));
-      const verifiedNameById = new Map(verifiedPageOptions.map(p => [p.id, p.name]));
-      // #142: semantic promotion slots resolve through the workspace's
-      // active Attribute Mappings; physical slots are fallback-only.
+      const verifiedPageOptions = listVerifiedPageOptions(workspaceId);
+      const verifiedPageIds = new Set(verifiedPageOptions.map(page => page.id));
+      const verifiedNameById = new Map(verifiedPageOptions.map(page => [page.id, page.name]));
       const mappings = getCachedAttributeMappings(workspaceId);
       const brandCatalogField = resolveBrandCatalogField(mappings);
       const arrivalDateCatalogField = resolveArrivalDateCatalogField(mappings);
-      if (activeProposals.length > 0) {
-        for (const proposal of activeProposals) {
-          // Effective reviewed target/value win over the immutable prediction.
-          const targetId = getEffectiveProposalTargetId(proposal);
-          if (proposal.proposalType === 'field_assignment' && targetId) {
-            // ADR 0041 / issue #349: classification never writes Brand or
-            // other Protected Product Data — including via revised targets.
-            // A revised/historical Brand proposal cannot authorize a
-            // protected write; refuse attributably instead of applying it.
-            if (isProtectedTargetId(targetId, mappings) || isProtectedTargetId(proposal.targetId, mappings)) {
-              const refusal = protectedTargetRefusal(targetId ?? proposal.targetId);
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'protected_target_refused' });
-              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
-              continue;
-            }
-            const mapping = mappings.find(m => m.attributeId === targetId);
-            if (!mapping) {
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'missing_mapping' });
-            } else if (mapping.isStale) {
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'stale_mapping' });
-            } else if (!mapping.catalogField) {
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'empty_catalog_field' });
-            } else if (isProtectedCatalogField(mapping.catalogField, targetId, mappings)) {
-              // Issue #355: the resolved catalog field is Brand/identity/
-              // operational/native data — refuse attributably, never reroute.
-              const refusal = protectedTargetRefusal(mapping.catalogField);
-              skippedFieldRefs.push({ proposalId: proposal.id, attributeId: targetId, reason: 'protected_target_refused' });
-              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
-            } else {
-              const value = getEffectiveProposalValue(proposal);
-              const str = serializeAttributeValue(value, mapping.serialization);
-              if (str || (proposal.hasRevisedValue && value === null)) {
-                classificationCustomFields[mapping.catalogField] = str;
-              }
-            }
-          } else if (proposal.proposalType === 'category_page' && targetId) {
-            const pageId = getPageIdentityId(proposal);
-            const pageName = pageNameFromPageValue(getEffectiveProposalValue(proposal));
-            // Issue #353: Brand pages are outside classifier ownership —
-            // never promote one, even if review missed it (refused at review;
-            // defense-in-depth skip here). Existing Brand placement lives
-            // outside the classification draft, never inside it.
-            if (isBrandPageProposal(pageName)) {
-              const refusal = protectedTargetRefusal(targetId);
-              skippedPageRefs.push({ proposalId: proposal.id, pageName: pageName ?? '' });
-              classificationRefusals.push({ proposalId: proposal.id, code: refusal.code, reason: refusal.reason });
-              continue;
-            }
-            if (!pageId || !verifiedPageIds.has(pageId)) {
-              skippedPageRefs.push({ proposalId: proposal.id, pageName: pageName ?? '' });
-              continue;
-            }
-            // The verified catalog is the display-name authority: a verified
-            // Page ID with a missing/unusable proposal name still resolves to
-            // the verified page's canonical name. The Page ID is NEVER
-            // serialized as a page name.
-            const verifiedName = verifiedNameById.get(pageId) ?? '';
-            if (!verifiedName) {
-              skippedPageRefs.push({
-                proposalId: proposal.id,
-                pageName: `[page ${pageId} missing display name]`,
-              });
-              continue;
-            }
-            classificationPageNames.push(verifiedName);
-            classificationPageProposals.push({ pageId, pageName: verifiedName });
-          } else if (proposal.proposalType === 'product_classification') {
-            // ADR 0041: legacy `primary_product_type` rows are history-only.
-            acceptedProductType = getEffectivePrimaryProductTypeId(proposal);
-          }
-        }
+      const frozenSnapshot = gateInfo.activeRun?.configSnapshotHash
+        ? getRuntimeSnapshotByHash(workspaceId, gateInfo.activeRun.configSnapshotHash) : null;
+      const currentPageAssignments = getProductPageAssignments(item.upc);
+      const preserved = existingApproved?.shopsite.preserved;
+      const preservedPageNames = [
+        ...Object.entries(preserved?.advancedBlocks ?? {})
+          .filter(([name]) => name.toLowerCase() === 'productonpages')
+          .map(([, block]) => String(block)),
+        ...Object.entries(preserved?.unknownElements ?? {})
+          .filter(([name]) => name.toLowerCase() === 'productonpages')
+          .map(([, block]) => String(block)),
+      ].flatMap(extractPageNamesFromBlock);
+      const currentPageNames = [...new Set([
+        ...(existingApproved?.core.productOnPages ?? []),
+        ...currentPageAssignments.flatMap(page => {
+          if (!page.pageId || !verifiedPageIds.has(page.pageId)) return [];
+          const verifiedName = verifiedNameById.get(page.pageId);
+          return verifiedName?.trim() ? [verifiedName] : [];
+        }),
+        ...preservedPageNames,
+      ])];
+      const projection = buildAssignmentProjection(
+        activeProposals,
+        existingApproved?.customFields ?? {},
+        currentPageNames,
+        mappings,
+        verifiedPageIds,
+        createAssignmentProjectionAuthority(frozenSnapshot, verifiedNameById, getCachedClassificationOutputBindings(workspaceId)),
+      );
+      if (projection.skipped.length > 0) {
+        const errMsg = `Classification projection refused: ${projection.skipped.map(refusal => `${refusal.proposalId}: ${refusal.reason}`).join('; ')}`;
+        completePromotionStage(item.id, false, errMsg);
+        failures.push({ itemId: item.id, error: errMsg });
+        continue;
       }
+      for (const field of projection.fields) classificationCustomFields[field.catalogField] = field.proposedValue;
+      const classificationPageNames = projection.pages.final;
+      const removedPageIds = new Set(projection.pages.removals.map(page => page.pageId));
+      const classificationPageProposals = [
+        ...currentPageAssignments.filter(page => page.pageId && verifiedPageIds.has(page.pageId)
+          && !removedPageIds.has(page.pageId) && classificationPageNames.includes(page.pageName)),
+        ...verifiedPageOptions.filter(page => classificationPageNames.includes(page.name)
+          && !removedPageIds.has(page.id)).map(page => ({ pageId: page.id, pageName: page.name })),
+        ...projection.pages.additions,
+      ];
+      const acceptedProductType = activeProposals.find(proposal => proposal.proposalType === 'product_classification');
 
-
-      // Explicit/manual persisted page assignments are the fallback if we still
-      // have nothing. Only verified identities qualify; the display name again
-      // comes from the verified catalog. Name-only rows are review context and
-      // are tracked as skipped — they never satisfy the mandatory Pages gate.
+      // Listing readiness still requires an existing verified page. Classification
+      // only adds/removes reviewed taxonomy pages; all other placements survive.
       if (classificationPageProposals.length === 0) {
-        try {
-          const dbPages = getProductPageAssignments(item.upc);
-          for (const p of dbPages) {
-            if (p.pageName) {
-              if (p.pageId && verifiedPageIds.has(p.pageId)) {
-                const verifiedName = verifiedNameById.get(p.pageId) ?? p.pageName;
-                classificationPageNames.push(verifiedName);
-                classificationPageProposals.push({ pageId: p.pageId, pageName: verifiedName });
-              } else {
-                skippedPageRefs.push({ proposalId: `db:${p.pageName}`, pageName: p.pageName });
-              }
-            }
-          }
-        } catch { /* ignore */ }
-      }
-
-      // Mandatory Pages gate (fail closed): at least one VERIFIED page
-      // assignment is required. Unverified accepted proposals and name-only
-      // manual rows are visible skips (reported in the failure payload) but
-      // they never satisfy the gate — a product must never promote with zero
-      // verified Category Page assignments.
-      if (classificationPageProposals.length === 0) {
-        const errMsg = skippedPageRefs.length > 0
-          ? 'No verified page assignments exist for this item (accepted page proposals were unverified or lacked a usable display name)'
-          : 'No accepted product page proposals or manual page assignments exist for this item';
-        console.warn(`[DraftPromoter] Skipping item ${item.name} (${item.upc}) - ${errMsg}`);
+        const errMsg = 'No verified page assignments remain after reviewed classification changes.';
         completePromotionStage(item.id, false, errMsg);
         failures.push({ itemId: item.id, error: errMsg });
         continue;
@@ -1904,7 +1846,7 @@ export async function prepareDraftPromotion(
       // classification slot — stamp only into a mapped slot, never the
       // fallback. No `arrival_date` mapping = no stamp (visible gap, not a
       // misrouted write).
-      if (!existingApproved && !isProtectedCatalogField(arrivalDateCatalogField, 'arrival_date', mappings)) {
+      if (!existingApproved && !isProtectedCatalogField(arrivalDateCatalogField, ARRIVAL_DATE_ATTRIBUTE_ID, mappings)) {
         const d = new Date();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
@@ -1997,22 +1939,25 @@ export async function prepareDraftPromotion(
           createdAt: existingApproved?.metadata?.createdAt || now,
           updatedAt: now,
           archivedAt: null,
+          // Reviewer P1: persist the downloader's real rights bindings with
+          // the final media so change-set approval can verify exact accepted
+          // receipts. Entries exist only for source URLs with accepted
+          // rights-bearing image facts; anything else fails closed downstream.
+          ...((processed?.imageProvenance?.length ?? 0) > 0 ? { imageProvenance: processed!.imageProvenance } : {}),
         },
       };
 
-      // ── First-class Category Page assignments (#142) ─────────────────
-      // Write ONLY the verified assignments (they carry the verified
-      // catalog's display names) directly to core.productOnPages, deduped.
-      // Never re-read unverified/name-only DB rows: an unchecked persisted
-      // name must not reach productOnPages. The codec serializes this array
-      // to DTD-compliant ProductOnPages XML at export — no XML strings here.
-      const pageNames: string[] = [];
-      for (const pp of classificationPageProposals) {
-        if (pp.pageName && !pageNames.includes(pp.pageName)) {
-          pageNames.push(pp.pageName);
-        }
-      }
-      coreProduct.productOnPages = pageNames;
+      // Preserve every existing placement except the explicit reviewed
+      // taxonomy removals. The codec owns ProductOnPages serialization.
+      coreProduct.productOnPages = classificationPageNames;
+      const draftPreserved = product.shopsite.preserved;
+      product.shopsite.preserved = {
+        ...draftPreserved,
+        unknownElements: Object.fromEntries(Object.entries(draftPreserved.unknownElements ?? {})
+          .filter(([name]) => name.toLowerCase() !== 'productonpages')),
+        advancedBlocks: Object.fromEntries(Object.entries(draftPreserved.advancedBlocks ?? {})
+          .filter(([name]) => name.toLowerCase() !== 'productonpages')),
+      };
 
       // Persist the originating item on receipt-created catalog drafts. This
       // is record linkage (not a receipt-derived success projection), retained
@@ -2043,6 +1988,7 @@ export async function prepareDraftPromotion(
         draftJson: draftJsonStr,
         baseJson: baseJsonStr,
         draftHash,
+        classificationRunId: gateInfo.activeRun?.id,
       });
 
       // Issue #106 SEQUENCE 1c/2d: persist the naming audit atomically with
@@ -2050,9 +1996,7 @@ export async function prepareDraftPromotion(
       // record + snapshot ref, replayable without provenance objects in
       // string custom fields. Audit never blocks promotion.
       try {
-        const auditInput = buildNamingAssessmentInput(
-          freshItem ?? item, workspaceId, gateInfo.activeRun?.cohortRunId ?? null,
-        );
+        const auditInput = buildNamingAssessmentInput(freshItem ?? item, workspaceId);
         const auditAssessment = assessNamingInvariants(auditInput);
         const namingAudit = {
           version: 1,
@@ -2073,30 +2017,23 @@ export async function prepareDraftPromotion(
         // Audit persistence never blocks promotion.
       }
 
-      // Assign product to verified pages from classification proposals.
-      // Every proposal in classificationPageProposals has a verified identity
-      // (name-only rows were filtered above and recorded as skipped).
-      const finalPages = classificationPageNames;
-      if (finalPages.length > 0) {
-        clearProductPages(item.upc);
-
-        for (const pp of classificationPageProposals) {
-          if (pp.pageId) {
-            assignProductToPageId(item.upc, pp.pageId, pp.pageName);
-          }
-        }
+      // Persist only the reviewed delta; never clear unrelated/manual or
+      // Brand assignments as a side effect of classification promotion.
+      for (const page of projection.pages.removals) {
+        removeProductFromVerifiedPage(item.upc, page.pageId, page.pageName);
+      }
+      for (const page of projection.pages.additions) {
+        assignProductToPageId(item.upc, page.pageId, page.pageName);
       }
 
       // Record classification history for the promotion action
       try {
         recordHistoryEvent(workspaceId, item.upc, 'promotion', {
           acceptedProposalCount: classificationPageNames.length + Object.keys(classificationCustomFields).length,
-          acceptedProductType,
+          acceptedProductType: acceptedProductType ? getEffectivePrimaryProductTypeId(acceptedProductType) : null,
           appliedFields: Object.keys(classificationCustomFields),
-          appliedPages: classificationPageNames,
-          skippedPages: skippedPageRefs.map(s => s.pageName),
-          skippedFields: skippedFieldRefs.map(s => `${s.attributeId}:${s.reason}`),
-          refusedProtected: classificationRefusals.map(s => `${s.proposalId}:${s.code}`),
+          appliedPages: projection.pages.additions.map(page => page.pageName),
+          removedPages: projection.pages.removed,
         } as Record<string, unknown>);
       } catch {
         // Non-blocking

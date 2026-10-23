@@ -13,6 +13,7 @@ import {
   findCanonicalCollisions,
   validateCanonicalValue,
 } from './controlled-value-identity';
+import { isApprovedCanonicalClassificationBinding, isCanonicalClassificationAttributeId } from './classification-ownership';
 
 export type ClassificationConfigFindingSeverity = 'error' | 'warning';
 
@@ -76,6 +77,20 @@ export interface ClassificationConfigValidationReport {
 }
 
 type MappingV2 = ClassificationConfigBundleV2['attributeMappings'][number];
+
+function addCanonicalPairAttributeFinding(
+  findings: ClassificationConfigFinding[],
+  path: string,
+  attributeId: string,
+): void {
+  if (!isCanonicalClassificationAttributeId(attributeId)) return;
+  findings.push({
+    severity: 'error',
+    code: 'canonical_pair_attribute_retired',
+    path,
+    message: `Attribute "${attributeId}" is reserved for the single canonical Product Classification pair.`,
+  });
+}
 
 /**
  * Content digest of the exact unresolved-migration finding list so the
@@ -573,6 +588,67 @@ export function validateClassificationConfigBundle(
       });
     }
   });
+  const websitePairs = new Map<string, number>();
+  const websiteCategoryByCategoryId = new Map<string, string>();
+  config.productTypes.forEach((type, index) => {
+    const values = type.websiteValues;
+    const path = `$.productTypes[${index}].websiteValues`;
+    if (!values) {
+      findings.push({
+        severity: 'warning',
+        code: 'missing_website_classification_mapping',
+        path,
+        message: `Product Type "${type.id}" has no approved website classification mapping; core website projection remains unavailable until governed values are assigned.`,
+      });
+      return;
+    }
+    if (!values.category.trim() || !values.productType.trim()) {
+      findings.push({
+        severity: 'error',
+        code: 'invalid_website_classification_mapping',
+        path,
+        message: `Product Type "${type.id}" must have non-empty website Category and Product Type values.`,
+      });
+      return;
+    }
+
+    const pairKey = JSON.stringify([values.category, values.productType]);
+    const priorIndex = websitePairs.get(pairKey);
+    if (priorIndex !== undefined) {
+      findings.push({
+        severity: 'error',
+        code: 'duplicate_website_classification_mapping',
+        path,
+        message: `Product Type "${type.id}" duplicates the website mapping at productTypes[${priorIndex}].`,
+      });
+    } else {
+      websitePairs.set(pairKey, index);
+    }
+
+    const categoryId = type.categoryId;
+    if (categoryId) {
+      // Website categories may legitimately be finer than canonical
+      // categories: one internal Category (e.g. `dog`) can span multiple
+      // website Category values (`Dog Treats` vs `Dog Toys`), each proven by
+      // live storefront facet values. The schema places websiteValues on the
+      // Product Type (not the Category) precisely because they vary per type,
+      // and no consumer performs a website→internal category reverse lookup
+      // (pair-level duplicate detection below remains an error and is the
+      // real ambiguity guard). Keep this as a warning so genuine
+      // misconfigurations stay visible without blocking valid taxonomies.
+      const priorWebsiteCategory = websiteCategoryByCategoryId.get(categoryId);
+      if (priorWebsiteCategory !== undefined && priorWebsiteCategory !== values.category) {
+        findings.push({
+          severity: 'warning',
+          code: 'inconsistent_website_category_mapping',
+          path: `${path}.category`,
+          message: `Product Type "${type.id}" maps Category "${categoryId}" to website Category "${values.category}", differing from "${priorWebsiteCategory}" used by another type in the same Category. Verify both website values are intentional.`,
+        });
+      } else {
+        websiteCategoryByCategoryId.set(categoryId, values.category);
+      }
+    }
+  });
 
   config.productTypes.forEach((type, index) => {
     const profileEntry = type.attributeProfileId ? profiles.get(type.attributeProfileId) : undefined;
@@ -597,6 +673,7 @@ export function validateClassificationConfigBundle(
     if (type.invariantAttributes) {
       const invariantEntries = Object.entries(type.invariantAttributes);
       for (const [attrId, rawVal] of invariantEntries) {
+        addCanonicalPairAttributeFinding(findings, `$.productTypes[${index}].invariantAttributes.${attrId}`, attrId);
         const attrRecord = attributes.get(attrId);
         if (!attrRecord) {
           findings.push({
@@ -656,6 +733,7 @@ export function validateClassificationConfigBundle(
   });
 
   config.attributes.forEach((attribute, index) => {
+    addCanonicalPairAttributeFinding(findings, `$.attributes[${index}].id`, attribute.id);
     if (attribute.valueMode === 'measured' && !attribute.canonicalUnit) {
       findings.push({
         severity: 'error',
@@ -856,6 +934,7 @@ export function validateClassificationConfigBundle(
         });
       }
       localAttributes.add(profileAttribute.attributeId);
+      addCanonicalPairAttributeFinding(findings, `${basePath}.attributeId`, profileAttribute.attributeId);
       const attribute = attributes.get(profileAttribute.attributeId)?.entry;
       if (!attribute) {
         findings.push({
@@ -1009,6 +1088,7 @@ export function validateClassificationConfigBundle(
   const mappedCatalogFields = new Map<string, number>();
   const attestedFields = options.catalogFields ? new Set(options.catalogFields) : null;
   config.attributeMappings.forEach((mapping, index) => {
+    addCanonicalPairAttributeFinding(findings, `$.attributeMappings[${index}].attributeId`, mapping.attributeId);
     const priorAttribute = mappedAttributes.get(mapping.attributeId);
     if (priorAttribute !== undefined) {
       findings.push({
@@ -1098,6 +1178,55 @@ export function validateClassificationConfigBundle(
     }
   });
 
+  const outputBindings = config.classificationOutputBindings ?? [];
+  const outputBindingRoles = new Set<string>();
+  const outputBindingFields = new Set<string>();
+  if (outputBindings.length === 1) {
+    findings.push({
+      severity: 'error',
+      code: 'canonical_output_binding_incomplete',
+      path: '$.classificationOutputBindings',
+      message: 'Category and Product Type output bindings must be configured together.',
+    });
+  }
+  outputBindings.forEach((binding, index) => {
+    const basePath = `$.classificationOutputBindings[${index}]`;
+    if (outputBindingRoles.has(binding.role)) {
+      findings.push({
+        severity: 'error',
+        code: 'duplicate_canonical_output_role',
+        path: `${basePath}.role`,
+        message: `Canonical output role "${binding.role}" is configured more than once.`,
+      });
+    }
+    outputBindingRoles.add(binding.role);
+    if (!isApprovedCanonicalClassificationBinding(binding.role, binding.catalogField, config.attributeMappings)) {
+      findings.push({
+        severity: 'error',
+        code: 'canonical_output_binding_unapproved',
+        path: `${basePath}.catalogField`,
+        message: `Catalog Field "${binding.catalogField}" is not the approved destination for canonical ${binding.role}.`,
+      });
+    }
+    if (outputBindingFields.has(binding.catalogField) || mappedCatalogFields.has(binding.catalogField)) {
+      findings.push({
+        severity: 'error',
+        code: 'duplicate_canonical_output_field',
+        path: `${basePath}.catalogField`,
+        message: `Catalog Field "${binding.catalogField}" is already assigned to another output role.`,
+      });
+    }
+    outputBindingFields.add(binding.catalogField);
+    if (attestedFields && !attestedFields.has(binding.catalogField)) {
+      findings.push({
+        severity: 'error',
+        code: 'catalog_field_unattested',
+        path: `${basePath}.catalogField`,
+        message: `Catalog Field "${binding.catalogField}" is not present in the supplied catalog attestation.`,
+      });
+    }
+  });
+
   const verifiedPageIds = options.verifiedPageIds ? new Set(options.verifiedPageIds) : null;
   const effectiveProductFieldAttributes = new Map<string, number>();
   const effectiveProductFieldCatalogFields = new Map<string, number>();
@@ -1106,6 +1235,7 @@ export function validateClassificationConfigBundle(
     const effective = isEffectiveTarget(target);
     if (target.kind === 'product_field') {
       if (effective && target.attributeId) {
+        addCanonicalPairAttributeFinding(findings, `${basePath}.attributeId`, target.attributeId);
         const priorAttributeTarget = effectiveProductFieldAttributes.get(target.attributeId);
         if (priorAttributeTarget !== undefined) {
           findings.push({
@@ -1406,6 +1536,34 @@ export function validateClassificationConfigBundle(
         code: 'provider_locality_conflict',
         path: `$.modelPolicy.providerLocalities.${provider}`,
         message: `Provider "${provider}" is declared "${locality}" but the policy requires local-only text processing.`,
+      });
+    }
+  }
+  const copyGeneration = config.modelPolicy.copyGeneration;
+  if (copyGeneration) {
+    const provider = copyGeneration.provider;
+    const locality = config.modelPolicy.providerLocalities[provider];
+    const routePath = '$.modelPolicy.copyGeneration';
+    if (!locality) {
+      findings.push({
+        severity: 'error',
+        code: 'copy_generation_locality_undeclared',
+        path: `$.modelPolicy.providerLocalities.${provider}`,
+        message: `Grounded-copy provider "${provider}" requires an explicit locality declaration.`,
+      });
+    } else if ((copyGeneration.textDataSharing === 'local_only' || copyGeneration.textDataSharing === 'this_device_only') && locality !== 'local') {
+      findings.push({
+        severity: 'error',
+        code: 'copy_generation_locality_conflict',
+        path: `${routePath}.textDataSharing`,
+        message: `Grounded-copy sharing "${copyGeneration.textDataSharing}" permits only a local provider; "${provider}" is declared "${locality}".`,
+      });
+    } else if (copyGeneration.textDataSharing === 'trusted_lan_allowed' && locality !== 'local' && locality !== 'trusted_lan') {
+      findings.push({
+        severity: 'error',
+        code: 'copy_generation_locality_conflict',
+        path: `${routePath}.textDataSharing`,
+        message: `Grounded-copy sharing trusted_lan_allowed permits local or trusted_lan providers; "${provider}" is declared "${locality}".`,
       });
     }
   }

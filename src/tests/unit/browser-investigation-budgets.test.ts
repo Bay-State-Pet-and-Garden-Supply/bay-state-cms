@@ -32,6 +32,7 @@ describe('pre-launch budget preview', () => {
       modelInputBytesTotal: 0,
       modelOutputTokensTotal: 0,
       imageAttachmentsTotal: 0,
+      redirects: 0,
     });
   });
 

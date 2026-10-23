@@ -50,6 +50,7 @@ import type {
 
 } from '../shared/schemas/extraction-worker';
 import type {
+  CanonicalClassificationReadinessResult,
   ClassificationProposalDecision,
   CurationTargetConfig,
   ProposalDecisionInput,
@@ -87,10 +88,16 @@ async function request<T>(path: string, options?: RequestInit, base: string = AP
   });
   const data = await res.json();
   if (!res.ok) {
+    // Prefer the server's human-readable `message` (e.g. the legacy-run
+    // re-run directive) over the machine `error`/`code` so the operator
+    // sees the actionable resolution, never a bare code.
+    const serverMessage = (data as any).message;
     const errorObj = (data as any).error;
-    const errMsg = typeof errorObj === 'object' && errorObj && 'message' in errorObj
-      ? errorObj.message
-      : errorObj || `HTTP ${res.status}`;
+    const errMsg = typeof serverMessage === 'string' && serverMessage.length > 0
+      ? serverMessage
+      : typeof errorObj === 'object' && errorObj && 'message' in errorObj
+        ? errorObj.message
+        : errorObj || `HTTP ${res.status}`;
     const code = typeof (data as any).code === 'string' ? (data as any).code : null;
     throw new OnboardingApiError(errMsg, res.status, code, data);
   }
@@ -521,12 +528,14 @@ export interface SemanticValidationPayload {
 }
 
 export interface VariantResolutionClientView {
-  id: string; status: string; candidates: Array<{ variantKey: string; title: string; sku?: string | null; gtin?: string | null; price?: string | null; available: boolean; image?: string | null; options?: Array<{axis:string;value:string}>; deepLink: string }>; identityMatrixHash: string; platform: string; selectedVariantKey?: string | null; decisionOrigin?: string | null;
+  id: string; status: string; candidates: Array<{ variantKey: string; title: string; sku?: string | null; gtin?: string | null; available: boolean; image?: string | null; options?: Array<{axis:string;value:string}>; deepLink: string }>; identityMatrixHash: string; platform: string; selectedVariantKey?: string | null; decisionOrigin?: string | null;
 }
 export interface ItemDetailResponse {
   item: OnboardingItem;
   sources: OnboardingSource[];
   extraction: ExtractionData | null;
+  /** Server-computed result from the active classification run's frozen authority. */
+  classificationReadiness?: CanonicalClassificationReadinessResult | null;
   variantResolution?: VariantResolutionClientView | null;
   evidenceAttempts?: DistributorEvidenceAttemptView[];
   /** Sourcing generations for the item (ADR 0014 audit view). */
@@ -596,12 +605,17 @@ export async function retryItem(itemId: string): Promise<{ success: boolean }> {
   });
 }
 
-export async function selectSource(itemId: string, sourceId: string): Promise<{ success: boolean }> {
+export async function selectSource(itemId: string, sourceId: string, opts?: { expectedUpdatedAt?: string | null; expectedDiscoveryRunId?: string | null; attestedProductAndVariant?: boolean }): Promise<{ success: boolean }> {
+  // Issue #364: the route requires both currentness fields (400 when absent)
+  // plus the explicit visible-page attestation — always send the keys so a
+  // missing value fails closed server-side instead of silently skipping the
+  // staleness/attestation check.
   return request<{ success: boolean }>(`/items/${itemId}/select-source`, {
     method: 'POST',
-    body: JSON.stringify({ sourceId }),
+    body: JSON.stringify({ sourceId, expectedUpdatedAt: opts?.expectedUpdatedAt ?? null, expectedDiscoveryRunId: opts?.expectedDiscoveryRunId ?? null, attestedProductAndVariant: opts?.attestedProductAndVariant ?? false }),
   });
 }
+
 export async function selectVariant(itemId: string, req: { resolutionId: string; identityMatrixHash: string; variantKey: string }): Promise<{ success: boolean; sourceUrl?: string }> {
   return request<{ success: boolean; sourceUrl?: string }>(`/items/${itemId}/select-variant`, { method: 'POST', body: JSON.stringify(req) });
 }
@@ -1662,6 +1676,63 @@ export async function getPreparationGap(itemId: string): Promise<{ gap: Preparat
 
 export function generateGapIdempotencyKey(): string {
   return `gap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export interface ListingEvidenceVerifyView {
+  itemId: string;
+  expectedRevision: string | null;
+  expectedEvidenceHash: string;
+  record: {
+    listingHash: string;
+    evidenceHash: string;
+    status: string;
+    findings: string[];
+    claims: Array<{
+      id: string;
+      field: 'title' | 'description' | 'variant';
+      text: string;
+      claimHash: string;
+      material: boolean;
+      verdict: 'supported' | 'contradicted' | 'insufficient' | 'unavailable' | 'stale';
+      producer: 'deterministic' | 'typesafe' | 'operator_verified' | 'unavailable' | 'stale';
+      evidenceConsidered: string[];
+      modelCallId: string | null;
+      reason: string | null;
+    }>;
+  };
+}
+
+export async function getListingEvidenceVerifyState(itemId: string): Promise<ListingEvidenceVerifyView> {
+  return request<ListingEvidenceVerifyView>(`/items/${encodeURIComponent(itemId)}/listing-evidence-verify`);
+}
+
+export function generateListingVerifyActionToken(): string {
+  return `verify-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export async function submitListingEvidenceVerify(
+  itemId: string,
+  input: {
+    claimIds: string[];
+    observation: string;
+    provenance: string;
+    expectedEvidenceHash: string;
+    expectedRevision: string;
+  },
+  opts?: { actionToken?: string },
+): Promise<{
+  itemId: string;
+  receiptId: string;
+  replay: boolean;
+  resolvedClaimIds: string[];
+  aggregateStatus: string;
+  record: ListingEvidenceVerifyView['record'];
+}> {
+  return request(`/items/${encodeURIComponent(itemId)}/listing-evidence-verify`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': opts?.actionToken ?? generateListingVerifyActionToken() },
+    body: JSON.stringify(input),
+  });
 }
 
 export async function submitGapCorrection(

@@ -15,6 +15,7 @@ import type {
   AttributeEvidencePolicy,
   AttributeProfileConfigV2,
   AttributeMappingConfigV2,
+  CanonicalClassificationOutputBindingV2,
   BrandConfigV2,
   Cardinality,
   ClassificationConfigBundleV2,
@@ -115,6 +116,8 @@ export interface BayStateSeed {
     description: string | null;
     /** Approved canonical Category for this type (issue #350). */
     categoryId?: string;
+    websiteValues?: ProductTypeConfigV2['websiteValues'];
+    invariantAttributes?: ProductTypeConfigV2['invariantAttributes'];
     oldIdAliases?: string[];
   }>;
   /** Approved canonical Categories (issue #350). */
@@ -122,6 +125,7 @@ export interface BayStateSeed {
   attributes: BayStateSeedAttribute[];
   profileTemplates: BayStateSeedProfileTemplate[];
   mappings: BayStateSeedMapping[];
+  classificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
   curationTargets: CurationTargetConfigV2[];
   brands: BrandConfigV2[];
   guidance: GuidanceConfigV2[];
@@ -173,7 +177,12 @@ export function buildFocusedFiles(bundle: Omit<ClassificationConfigBundleV2, 'ma
     'categories.json': canonicalJsonFileString(CategoriesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.categories })),
     'attributes.json': canonicalJsonFileString(AttributesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributes })),
     'attribute-profiles.json': canonicalJsonFileString(AttributeProfilesFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeProfiles })),
-    'mappings.json': canonicalJsonFileString(AttributeMappingsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.attributeMappings })),
+    'mappings.json': canonicalJsonFileString(AttributeMappingsFileV2Schema.parse({
+      schemaVersion: 2,
+      bundleOrigin: bundle.bundleOrigin,
+      entries: bundle.attributeMappings,
+      classificationOutputBindings: bundle.classificationOutputBindings ?? [],
+    })),
     'curation-targets.json': canonicalJsonFileString(CurationTargetsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.curationTargets })),
     'brands.json': canonicalJsonFileString(BrandsFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.brands })),
     'guidance.json': canonicalJsonFileString(GuidanceFileV2Schema.parse({ schemaVersion: 2, bundleOrigin: bundle.bundleOrigin, entries: bundle.guidance })),
@@ -303,13 +312,12 @@ export function generateCandidate(seed: BayStateSeed, evidence: CatalogEvidence)
       id: type.id,
       name: type.name,
       description: type.description,
+      categoryId: type.categoryId ?? null,
       attributeProfileId: hasProfile ? `${type.id}-profile` : null,
       oldIdAliases: type.oldIdAliases ?? [],
-      // Issue #350: approved canonical Category per type. Absent here means
-      // the seed has no mapping — validation below reports the gap; the
-      // generator never invents a category.
-      categoryId: type.categoryId ?? null,
-      invariantAttributes: (type as any).invariantAttributes ?? {},
+      // Website values are explicit owner authority, never inferred from ids.
+      ...(type.websiteValues ? { websiteValues: type.websiteValues } : {}),
+      invariantAttributes: type.invariantAttributes ?? {},
     };
   });
 
@@ -362,6 +370,7 @@ export function generateCandidate(seed: BayStateSeed, evidence: CatalogEvidence)
     attributes,
     attributeProfiles: profiles,
     attributeMappings: mappings,
+    classificationOutputBindings: seed.classificationOutputBindings ?? [],
     curationTargets,
     brands: seed.brands,
     guidance: seed.guidance,

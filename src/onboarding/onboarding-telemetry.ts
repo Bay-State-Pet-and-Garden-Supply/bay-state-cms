@@ -21,10 +21,7 @@ import {
   listReviewStates,
   type OnboardingReviewState,
 } from '../db/repositories/onboarding-review-repo';
-import {
-  listCohortsByBatch,
-  listCohortsByWorkspace,
-} from '../db/repositories/curation-cohort-repo';
+import { listCohortsByBatch } from '../db/repositories/curation-cohort-repo';
 import { listCohortRunsByCohort } from '../db/repositories/classification-cohort-run-repo';
 import { toCanonicalStage } from '../shared/onboarding-stage-vocabulary';
 
@@ -149,14 +146,12 @@ interface Aggregated {
   attentionCount: number;
   attentionByReason: Map<string, number>;
   profileBlockCount: number;
-  waitingFamilyCount: number;
   readyForReviewCount: number;
   reviewedCount: number;
   approvedCount: number;
   invalidatedCount: number;
   cohortSuccess: number;
   cohortFailure: number;
-  readyCohortDurationsMs: number[];
   promotedSkuStatuses: Map<string, string>;
   earliestBatchStartMs: number | null;
 }
@@ -171,14 +166,12 @@ function emptyAggregate(): Aggregated {
     attentionCount: 0,
     attentionByReason: new Map(),
     profileBlockCount: 0,
-    waitingFamilyCount: 0,
     readyForReviewCount: 0,
     reviewedCount: 0,
     approvedCount: 0,
     invalidatedCount: 0,
     cohortSuccess: 0,
     cohortFailure: 0,
-    readyCohortDurationsMs: [],
     promotedSkuStatuses: new Map(),
     earliestBatchStartMs: null,
   };
@@ -211,7 +204,6 @@ function aggregateBatch(slices: BatchSlice[], workspaceId: string): Aggregated {
           agg.profileBlockCount += 1;
         }
       }
-      if (state.category === 'waiting_on_family') agg.waitingFamilyCount += 1;
     }
 
     for (const row of slice.reviewStates.values()) {
@@ -229,21 +221,6 @@ function aggregateBatch(slices: BatchSlice[], workspaceId: string): Aggregated {
     }
   }
 
-  // Family wait duration: ready cohorts' (ready ≈ updated_at) - created_at.
-  // `updateCohortStatus('ready')` writes updated_at, so for cohorts currently
-  // `ready` this is the deterministic ready-time approximation (a refresh
-  // that leaves a waiting cohort touching updated_at is the documented drift).
-  const cohortRows = slices.length === 1 && slices[0]
-    ? listCohortsByBatch(slices[0].batchId)
-    : listCohortsByWorkspace(workspaceId);
-  for (const cohort of cohortRows) {
-    if (cohort.status !== 'ready') continue;
-    const createdMs = toEpochMs(cohort.createdAt);
-    const readyMs = toEpochMs(cohort.updatedAt);
-    if (createdMs !== null && readyMs !== null && readyMs > createdMs) {
-      agg.readyCohortDurationsMs.push(readyMs - createdMs);
-    }
-  }
 
   // Promoted items' change-set statuses (batch export success denominator),
   // scoped to THIS workspace (epic #46 fix 3): identical SKUs in other
@@ -339,17 +316,6 @@ function buildMetrics(
     : metric(null, 'operations', 'not_available',
       'Domain-release operations are recorded per workspace/domain, not per batch');
 
-  // Family waits.
-  const familiesWaiting = metric(agg.waitingFamilyCount, 'items', 'exact');
-  const waitDurations = agg.readyCohortDurationsMs;
-  const familyWaitDuration = waitDurations.length > 0
-    ? metric(
-        waitDurations.reduce((sum, ms) => sum + ms, 0) / waitDurations.length / 3_600_000,
-        'hours',
-        'approximation',
-        `Mean wait across ${waitDurations.length} ready cohort(s); ready time approximated as the cohort's final updated_at`,
-      )
-    : metric(null, 'hours', 'not_available', 'No cohort has reached the ready state yet');
 
   // Cohort Curation success.
   const cohortRuns = agg.cohortSuccess + agg.cohortFailure;
@@ -453,10 +419,10 @@ function buildMetrics(
     const baseWhere = scope === 'batch' && batchId ? "workspace_id = ? AND batch_id = ?" : "workspace_id = ?";
     const params: any[] = scope === 'batch' && batchId ? [workspaceId, batchId] : [workspaceId];
     const rows = db.query(`SELECT operation, details_json as detailsJson FROM onboarding_operation_receipts WHERE ${baseWhere}`).all(...params) as Array<{operation:string, detailsJson:string|null}>;
-    let aAttempts = rows.filter(r=>r.operation==='approve').length;
-    let eAttempts = rows.filter(r=>r.operation==='export').length;
-    let aSuccess = 0, aReject = 0, aReplays = 0, aConflicts = 0, aInterrupted = 0;
-    let eSuccess = 0, eReject = 0, eConflicts = 0, eInterrupted = 0, eReplays = 0;
+    const aAttempts = rows.filter(r=>r.operation==='approve').length;
+    const eAttempts = rows.filter(r=>r.operation==='export').length;
+    let aSuccess = 0, aReject = 0, aInterrupted = 0;
+    let eSuccess = 0, eReject = 0, eInterrupted = 0;
     for (const r of rows) {
       if (r.detailsJson === null) {
         if (r.operation === 'approve') aInterrupted += 1;
@@ -472,7 +438,9 @@ function buildMetrics(
           if (typeof d.successCount === 'number') eSuccess += d.successCount;
           if (typeof d.rejectedCount === 'number') eReject += d.rejectedCount;
         }
-      } catch {}
+      } catch {
+        // Ignore malformed receipt details; the receipt itself still counts.
+      }
     }
     approvalAttempts = metric(aAttempts, 'count', 'exact', 'Count of approve receipts (batch-scoped when batchId given)');
     approvalReplays = metric(null, 'count', 'not_available', 'Replays require durable replay marker (not persisted in receipt details)');
@@ -493,7 +461,7 @@ function buildMetrics(
     approvalConflicts = metric(null, 'count', 'not_available', 'Receipt table unavailable');
     approvalInterruptedReceipts = metric(null, 'count', 'not_available', 'Receipt table unavailable');
     exportDraftAttempts = metric(null, 'count', 'not_available', 'Receipt table unavailable');
-    exportDraftReplays = metric(null, 'count', 'not_available', 'Receipt table unavailable');
+    exportDraftReplays = metric(null, 'count', 'not_available', 'Export replays require durable replay marker (not persisted)');
     var approvalSuccessCount = metric(null, 'count', 'not_available', 'Receipt table unavailable');
     var approvalRejectCount = metric(null, 'count', 'not_available', 'Receipt table unavailable');
     var exportSuccessCount = metric(null, 'count', 'not_available', 'Receipt table unavailable');
@@ -520,7 +488,9 @@ function buildMetrics(
             codeCounts.set(c, (codeCounts.get(c) ?? 0) + 1);
           }
         }
-      } catch {}
+      } catch {
+        // Ignore malformed normalized identity records in this aggregate.
+      }
     }
     const breakdown = [...codeCounts.entries()].map(([k,v])=>({key:k, value:v, share: null})).sort((a,b)=>b.value-a.value);
     const totalTransformations = [...codeCounts.values()].reduce((sum, n) => sum + n, 0);
@@ -536,15 +506,6 @@ function buildMetrics(
   // Derive review queue payload/latency from available instrumentation if present, else not_available honestly
   const reviewQueuePayloadSize = metric(null, 'bytes', 'not_available', 'Review queue payload requires request-size instrumentation window');
   const reviewQueueLoadLatencyMs = metric(null, 'ms', 'not_available', 'Review queue load latency requires timing histogram window');
-  // Ensure newly added approval/export detailed counts are available via earlier var hoisting (may be null if receipt table unavailable)
-  // Provide fallbacks if var not set due to scope
-  const _approvalSuccessCount = typeof approvalSuccessCount !== 'undefined' ? approvalSuccessCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
-  const _approvalRejectCount = typeof approvalRejectCount !== 'undefined' ? approvalRejectCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
-  const _exportSuccessCount = typeof exportSuccessCount !== 'undefined' ? exportSuccessCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
-  const _exportRejectCount = typeof exportRejectCount !== 'undefined' ? exportRejectCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
-  const _exportConflictCount = typeof exportConflictCount !== 'undefined' ? exportConflictCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
-  const _exportInterruptedCount = typeof exportInterruptedCount !== 'undefined' ? exportInterruptedCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
-  const _exportInterruptedReceipts = typeof exportInterruptedCount !== 'undefined' ? exportInterruptedCount : metric(null, 'count', 'not_available', 'Receipt table unavailable');
   return {
     automationToReviewRate: automation,
     attentionVolume: attention,
@@ -554,8 +515,6 @@ function buildMetrics(
     productsRequiringOfficialSite: officialSite,
     extractorProfileBlockRate: profileBlockRate,
     extractorProfileDomainUnblockCount: domainUnblockCount,
-    familiesWaitingCount: familiesWaiting,
-    familyWaitDurationHours: familyWaitDuration,
     cohortCurationSuccessRate: cohortSuccessRate,
     productsReadyForReview: productsReadyForReview,
     reviewThroughputProductsPerMinute: throughput,
@@ -574,18 +533,18 @@ function buildMetrics(
     workStateScannedRows,
     projectionDegradationCount,
     approvalAttempts,
-    approvalSuccessCount: _approvalSuccessCount,
-    approvalRejectCount: _approvalRejectCount,
+    approvalSuccessCount,
+    approvalRejectCount,
     approvalReplays,
     approvalConflicts,
     approvalInterruptedReceipts,
     exportDraftAttempts,
-    exportSuccessCount: _exportSuccessCount,
-    exportRejectCount: _exportRejectCount,
-    exportConflictCount: _exportConflictCount,
-    exportInterruptedCount: _exportInterruptedCount,
+    exportSuccessCount,
+    exportRejectCount,
+    exportConflictCount,
+    exportInterruptedCount,
     exportDraftReplays,
-    exportInterruptedReceipts: _exportInterruptedReceipts,
+    exportInterruptedReceipts: exportInterruptedCount,
     importNormalizationCounts,
     lossyLegacyRows,
   };

@@ -38,6 +38,7 @@ describe('bay-state-v6 — archived rejected proposal', () => {
   it('is absent from application release discovery (not activatable)', () => {
     expect(fs.existsSync(path.join(REAL_RELEASES_ROOT, 'bay-state-v6'))).toBe(false);
     expect(fs.readdirSync(REAL_RELEASES_ROOT).sort()).toEqual([
+      'bay-state-v10',
       'bay-state-v3',
       'bay-state-v4',
       'bay-state-v5',

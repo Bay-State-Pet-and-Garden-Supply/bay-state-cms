@@ -190,10 +190,9 @@ export function resolveSingleHunk(
   }
   const hunk = chosen.h;
 
-  // Held-aside cases (#257): new products resolve via the explicit import
-  // workflow; reconcile holds only linked fields (unrelated fields on the
-  // same product stay resolvable); unavailable page assignments hold accepts
-  // but stay explicitly rejectable so local assignments are never silently
+  // Held cases: new products must be added through onboarding; reconcile
+  // holds only linked fields; unavailable page assignments hold accepts but
+  // stay explicitly rejectable so local assignments are never silently
   // corrupted.
   const reconciledForHold =
     (drift.status as string) === 'in_reconcile'
@@ -209,7 +208,7 @@ export function resolveSingleHunk(
   } else if (held) {
     const reasonMsg =
       held === 'new_product'
-        ? `Hunk for SKU "${drift.sku}" is held: genuinely new remote products import via POST /api/drift/${drift.id}/import-new (confirmed:true), not per-hunk accept.`
+        ? `This product is not in your catalog. Add it through onboarding so its price comes from your input.`
         : held === 'in_reconcile'
           ? `Hunk for field "${field}" on SKU "${drift.sku}" is held: it is linked to reconcile change set ${drift.reconcileChangeSetId ?? 'unknown'}. Approve, discard, or reopen the reconcile to settle it; unrelated fields stay resolvable.`
           : `Hunk for field "${field}" on SKU "${drift.sku}" is held: unavailable page assignments resolve explicitly, never by silent overwrite — the remote page has no stable live-store identity. Reject to keep local, or reconcile for manual merge.`;
@@ -342,7 +341,7 @@ export function resolveSingleHunk(
     fail(400, `Remote product for SKU "${drift.sku}" is unreadable; re-check drift.`);
   }
   if (!baselineProduct) {
-    fail(409, `Hunk for SKU "${drift.sku}" is held: genuinely new remote products import via POST /api/drift/${drift.id}/import-new (confirmed:true), not per-hunk accept.`);
+    fail(409, `This product is not in your catalog. Add it through onboarding so its price comes from your input.`);
   }
 
   const merged = applySingleFieldHunk(baselineProduct!, remoteProduct!, field);

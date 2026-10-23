@@ -26,11 +26,11 @@ route.get('/change-sets', (c) => {
  */
 route.get('/change-sets/:id', (c) => {
   const id = c.req.param('id');
-  const { changeSet, items } = getChangeSetDetail(id);
+  const { changeSet, items, linkedManifest, linkedStatus, linkedComplete } = getChangeSetDetail(id);
   if (!changeSet) {
     return c.json({ error: 'Change set not found' }, 404);
   }
-  return c.json({ changeSet, items });
+  return c.json({ changeSet, items, linkedManifest, linkedStatus, linkedComplete });
 });
 
 /**
@@ -59,14 +59,17 @@ route.post('/change-sets/:id/approve', (c) => {
       success: true,
       commitHash: result.commitHash,
       errors: result.errors,
+      ...(result.warnings && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
     });
   }
 
+  const incomplete = result.errors.some((e) => /incomplete|retry recovery|export stays blocked/i.test(e));
   return c.json({
     success: false,
     error: result.errors.join('; '),
     errors: result.errors,
-  }, result.errors.length > 0 ? 400 : 500);
+    ...(incomplete ? { incomplete: true } : {}),
+  }, incomplete ? 409 : (result.errors.length > 0 ? 400 : 500));
 });
 
 /**

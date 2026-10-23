@@ -593,7 +593,6 @@ export interface VariantUrlInput {
   mpn?: string | null;
   brand?: string | null;
   variantTokens?: string[];
-  price?: number | null;
 }
 
 /**

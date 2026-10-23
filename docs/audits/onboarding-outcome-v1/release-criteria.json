@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "PROPOSED_PENDING_FIT_AND_OPERATOR_APPROVAL_BEFORE_UNSEAL",
+  "numerical_values_are": "PROPOSAL_PENDING_FIT; none measured, mandated by spec, or qualified",
+  "criteria": [
+    {"area":"artifact_and_row_accounting","proposed":"100% of N rows accounted in both arms; zero hash mismatch, leaked component, unlabeled required decision, truncation or overwrite","denominator":"N original rows"},
+    {"area":"review_completeness","proposed":"100% of H holdout rows reviewed; all applicable omission/family decisions have outcomes","denominator":"H; applicable decisions"},
+    {"area":"exact_resolution","proposed":"candidate correct yield not below baseline; improvement claim requires paired component-bootstrap 95% lower bound candidate-minus-baseline > 0","denominator":"N; G; answered rows"},
+    {"area":"retrieval","proposed":"candidate coverage at least baseline","denominator":"G; additionally N"},
+    {"area":"source_authority_safety","proposed":"zero wrong exact-item/variant confirmations and zero unauthorized authority acceptances","denominator":"S; all accepted-source decisions"},
+    {"area":"claims_and_omissions","proposed":"zero unsupported/contradicted final included claims and zero approved non-waivable omissions","denominator":"C; approved omissions"},
+    {"area":"type_completion","proposed":"for each supported declared type candidate correct-complete rate not below baseline; unsupported type unqualified","denominator":"T_t"},
+    {"area":"false_blocks","proposed":"candidate rate no greater than baseline","denominator":"independently ready rows"},
+    {"area":"family","proposed":"zero harmful merges; 100% exact-group precision; group and pairwise recall no worse than baseline when supported","denominator":"proposed groups; F and frozen pair universe"},
+    {"area":"preservation_publication","proposed":"100% applicable operations preserve main/PF7/native/unrelated data absent reviewed diff; 100% attempted approved groups publish completely; zero false success","denominator":"applicable operations; attempted groups"},
+    {"area":"recovery","proposed":"4/4 local durability interruption scenarios recover or honestly refuse; remote partial/unknown reconciled before success","denominator":"four proposed local scenarios; remote attempts"},
+    {"area":"operator_effort","proposed":"active seconds per correctly reviewed listing no greater than baseline; savings requires preregistered component interval","denominator":"correctly reviewed listings"},
+    {"area":"latency_cost","proposed":"candidate P95 / baseline P95 <= 1.00 and observed total cost ratio <= 1.00 for comparable work; otherwise N/A/unqualified","denominator":"all-row P95; observed comparable cost"},
+    {"area":"uncertainty_analysis","proposed":"10,000 component-bootstrap replicates and preregistered seed; insufficient support blocks","denominator":"family-aware components"}
+  ],
+  "decision": {"PASS":"Every applicable criterion, existing capability gate and canary prerequisite met.","FAIL":"Observed violation of a preregistered criterion.","BLOCKED":"Required evidence, support, authorization, comparability, receipt or prerequisite missing."},
+  "blocking_codes": ["BLOCKED_REAL_DATA_PROVENANCE", "BLOCKED_POPULATION_SUPPORT", "BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE", "BLOCKED_EQUAL_INPUTS", "BLOCKED_LABELS_OR_REVIEW", "BLOCKED_METRIC_CAPTURE", "BLOCKED_EXISTING_CAPABILITY_RECEIPT", "BLOCKED_CANDIDATE_FREEZE", "BLOCKED_BUDGET_OR_MODEL_POLICY", "BLOCKED_NATIVE_OR_CATALOG_EVIDENCE", "BLOCKED_STORE_AUTHORIZATION_OR_CANARY", "BLOCKED_INSUFFICIENT_SUPPORT", "BLOCKED_COMPARABILITY", "BLOCKED_UNKNOWN_COST", "BLOCKED_PREREQUISITE"]
+}

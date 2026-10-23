@@ -281,7 +281,6 @@ export const ExtractRequestSchema = z.object({
     /** Exact known platform variant ID for identity matching (T4, optional). */
     platformVariantId: z.string().optional(),
     spreadsheetHints: SpreadsheetHintSchema.default(() => ({})),
-    price: z.string().nullable().default(null),
   }),
   /** Optional variant selection receipt forwarded from job-queue for stale-safe extraction (M4). */
   variantSelection: VariantSelectionInputSchema.optional(),

@@ -106,7 +106,7 @@ describe('Shopify variant url resolver scoring', () => {
       rawName: 'HonestChew Antler Lavender Small',
       expectedName: 'HonestChew Antler',
       brandHint: 'HonestChew',
-      price: 19.99,
+      price: 999.99,
     };
     const hints = new Set(['lavender', 'small']);
     const varNameTokens = new Set(['lavender', 'small']);
@@ -116,7 +116,7 @@ describe('Shopify variant url resolver scoring', () => {
     expect(score).toBeGreaterThan(120);
     expect(matchedSignals).toContain('option-exact:lavender');
     expect(matchedSignals).toContain('option-exact:small');
-    expect(matchedSignals).toContain('price-exact');
+    expect(matchedSignals.some((signal) => signal.startsWith('price-'))).toBe(false);
   });
 });
 

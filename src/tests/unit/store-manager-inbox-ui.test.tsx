@@ -36,8 +36,8 @@ function makeItem(overrides: Partial<StoreManagerInboxItem>): StoreManagerInboxI
     kind: 'high_severity_catalog_issues',
     dedupeKey: 'high_severity_catalog_issues:catalog:v1',
     severity: 'critical',
-    title: 'High-severity catalog issues',
-    summary: '3 blocker issue(s).',
+    title: 'Product details need attention',
+    summary: '3 product details need attention across 3 products.',
     scope: { kind: 'catalog' },
     count: 3,
     sourceRefs: [],
@@ -64,8 +64,8 @@ function makeNotification(overrides: Partial<StoreManagerNotification>): StoreMa
     ruleVersion: 1,
     fingerprint: 'b'.repeat(64),
     severity: 'critical',
-    title: 'Critical catalog issues increased',
-    message: 'Critical catalog issues increased from 1 to 3.',
+    title: 'More product details need attention',
+    message: 'The number of product details needing attention increased from 1 to 3.',
     inboxItemId: null,
     sourceRunId: null,
     sequence: 1,
@@ -137,7 +137,7 @@ describe('ManagerInbox UI', () => {
   it('renders the empty state when no findings exist', async () => {
     const { root, host } = await render(<ManagerInbox open onClose={() => {}} notifications={[]} eventStatus="live" />);
     await act(async () => { await Promise.resolve(); });
-    expect(host.textContent).toContain('No open findings');
+    expect(host.querySelectorAll('article')).toHaveLength(0);
     await act(async () => { root.unmount(); });
   });
 
@@ -148,20 +148,20 @@ describe('ManagerInbox UI', () => {
     api.fetchStoreManagerInbox.mockResolvedValue({
       items: [
         makeItem({ id: 'critical-1', severity: 'critical', lifecycle: 'open', lastSeenAt: new Date().toISOString() }),
-        makeItem({ id: 'info-1', severity: 'info', lifecycle: 'acknowledged', kind: 'proposals_awaiting_review', dedupeKey: 'proposals_awaiting_review:catalog:v1', title: 'Proposals awaiting review', lastSeenAt: new Date().toISOString() }),
+        makeItem({ id: 'info-1', severity: 'info', lifecycle: 'acknowledged', kind: 'proposals_awaiting_review', dedupeKey: 'proposals_awaiting_review:catalog:v1', title: 'Suggested changes are ready', lastSeenAt: new Date().toISOString() }),
       ],
       openCount: 1,
     });
     const { host, root } = await render(<ManagerInbox open onClose={() => {}} notifications={[]} eventStatus="live" />);
     await act(async () => { await Promise.resolve(); });
-    expect(host.textContent).toContain('High-severity catalog issues');
-    expect(host.textContent).toContain('Proposals awaiting review');
-    // Acknowledged items show no Acknowledge button.
-    expect(host.textContent).toContain('Acknowledged');
+    expect(host.textContent).not.toMatch(/high-severity|blocker|catalog-health|proposals|sync job/i);
+    // Seen items show no "Mark as seen" button.
+    const seenButtons = Array.from(host.querySelectorAll('button')).filter((button) => button.textContent === 'Mark as seen');
+    expect(seenButtons).toHaveLength(1);
     await act(async () => { root.unmount(); });
   });
 
-  it('marks an item read via the API only on operator click (no action on open)', async () => {
+  it('marks an item as seen only after the manager clicks the action', async () => {
     const api = (await import('../../client/store-manager-api')) as unknown as {
       fetchStoreManagerInbox: ReturnType<typeof vi.fn>;
       acknowledgeStoreManagerInboxItem: ReturnType<typeof vi.fn>;
@@ -171,12 +171,12 @@ describe('ManagerInbox UI', () => {
     const { host, root } = await render(<ManagerInbox open onClose={() => {}} notifications={[]} eventStatus="live" />);
     await act(async () => { await Promise.resolve(); });
     // Opening the item (revalidation) must NOT acknowledge it.
-    const itemCard = host.querySelector('[aria-label*="High-severity catalog issues"]') as HTMLElement;
+    const itemCard = host.querySelector('article') as HTMLElement;
     await act(async () => { itemCard.click(); });
     await act(async () => { await Promise.resolve(); });
     expect(api.acknowledgeStoreManagerInboxItem).not.toHaveBeenCalled();
-    // Operator click on Acknowledge calls the API.
-    const ackButtons = Array.from(host.querySelectorAll('button')).filter((b) => b.textContent === 'Acknowledge');
+    // Operator click on Mark as seen calls the API.
+    const ackButtons = Array.from(host.querySelectorAll('button')).filter((b) => b.textContent === 'Mark as seen');
     expect(ackButtons.length).toBe(1);
     await act(async () => { ackButtons[0].click(); });
     await act(async () => { await Promise.resolve(); });
@@ -184,17 +184,22 @@ describe('ManagerInbox UI', () => {
     await act(async () => { root.unmount(); });
   });
 
-  it('shows the deterministic command prefill chip without executing anything', async () => {
+  it('offers a plain-language help action without exposing internal commands', async () => {
     const api = (await import('../../client/store-manager-api')) as unknown as {
       fetchStoreManagerInbox: ReturnType<typeof vi.fn>;
       fetchStoreManagerInboxItem: ReturnType<typeof vi.fn>;
     };
     api.fetchStoreManagerInbox.mockResolvedValue({ items: [makeItem({ id: 'prefill-1', kind: 'proposals_awaiting_review' })], openCount: 1 });
     api.fetchStoreManagerInboxItem.mockResolvedValue({ item: makeItem({ id: 'prefill-1', kind: 'proposals_awaiting_review' }), current: null, isCurrent: false });
-    const { host, root } = await render(<ManagerInbox open onClose={() => {}} notifications={[]} eventStatus="live" />);
+    const onAskManager = vi.fn();
+    const { host, root } = await render(<ManagerInbox open onClose={() => {}} notifications={[]} eventStatus="live" onAskManager={onAskManager} />);
     await act(async () => { await Promise.resolve(); });
-    expect(host.textContent).toContain('/proposals');
-    // No auto-execution happened.
+    expect(host.textContent).not.toContain('/proposals');
+    const helpButton = Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.includes('Ask for help'));
+    expect(helpButton).toBeDefined();
+    expect(api.fetchStoreManagerInboxItem).not.toHaveBeenCalled();
+    await act(async () => { (helpButton as HTMLButtonElement).click(); });
+    expect(onAskManager).toHaveBeenCalledWith('/proposals');
     expect(api.fetchStoreManagerInboxItem).not.toHaveBeenCalled();
     await act(async () => { root.unmount(); });
   });
@@ -208,7 +213,7 @@ describe('ManagerInbox UI', () => {
     api.fetchStoreManagerInboxItem.mockResolvedValue({ item: makeItem({ id: 'stale-1' }), current: null, isCurrent: false });
     const { host, root } = await render(<ManagerInbox open onClose={() => {}} notifications={[]} eventStatus="live" />);
     await act(async () => { await Promise.resolve(); });
-    const itemCard = host.querySelector('[aria-label*="High-severity catalog issues"]') as HTMLElement;
+    const itemCard = host.querySelector('article') as HTMLElement;
     await act(async () => { itemCard.click(); });
     await act(async () => { await Promise.resolve(); });
     expect(host.textContent).toContain('out of date');

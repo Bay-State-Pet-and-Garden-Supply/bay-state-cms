@@ -1,32 +1,132 @@
 /**
- * Issue #350 slice 6 — canonical pair workflow seam (TDD).
+ * Issue #356/#357 — reviewed-projection consumer regression proof.
  *
- * Proves the basic canonical-pair workflow at the confirmed workflow seam
- * using public interfaces only: run (shared composition) → persisted
- * proposals → reviewer decisions → local draft contents. Covers the
- * complete pair, a partial/unresolved core result, and non-classification
- * field preservation. Isolated persistence; deterministic adapters.
+ * Replaces the old #350 projection-half placeholder with real consumer proof
+ * at the approved run → proposals → reviewer decisions → approved preview →
+ * actual local draft seam, for BOTH catalog and onboarding consumers.
+ *
+ * Certified slot semantics (docs/audits/extra-fields-certification-2026-10-15):
+ * PF23 = Facet-Flavor, PF28 = Facet-Material, PF16 = Brand, PF6 = MAP Pricing.
+ *
+ * The catalog proof starts at classifyCatalogProduct with supplied text and a
+ * genuinely activated v2 bundle/profile, then reviews persisted proposals and
+ * observes the approved preview and repository draft (no proposal seeding).
+ *
+ * Case 1 (the #357 before-state): an accepted Flavor→Material correction
+ * ("Rubber") must land in the MATERIAL slot (PF28) in preview AND in the
+ * local draft — never the original Flavor slot (PF23). Fails on old main
+ * where preview resolves the mapping on the immutable original target.
+ *
+ * Case 2: revised clears / removals, pending-vs-approved semantics, and
+ * unchanged unrelated data, observed on the real final local draft.
+ *
+ * Case 3: protected / unknown / pricing role refusal and stale
+ * mapping/source atomicity — no partial product/change-set mutation.
+ *
+ * Public interfaces only; isolated SQLite + temp Git workspaces;
+ * deterministic adapters (no model/store calls, no internal classifier
+ * mocks, no raw-SQL behavioral assertions). Pending supplements stay
+ * provisional and never enter approved application.
+ * Certified website Category and Product Type mappings are asserted in both
+ * local consumer workflows below; neither identifier is written as a label.
  */
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { Hono } from 'hono';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { initDb, getDb } from '../../db/connection';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { initDb, getDb, closeDb } from '../../db/connection';
+import type { Database } from '../../db/driver';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
-import { createConfigSnapshot, getCachedAttributeMappings, syncConfigToCache } from '../../db/repositories/classification-config-repo';
-import { buildRuntimeSnapshot, persistRuntimeSnapshot } from '../../classification/runtime-snapshot';
+import {
+  createConfigSnapshot,
+  getCachedAttributeMappings,
+  getCachedClassificationOutputBindings,
+  syncConfigToCache,
+  upsertConfigSnapshot,
+} from '../../db/repositories/classification-config-repo';
+import {
+  buildRuntimeSnapshot,
+  persistRuntimeSnapshot,
+  snapshotHash,
+  getRuntimeSnapshotByHash,
+} from '../../classification/runtime-snapshot';
+import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import { processProductTypeTarget } from '../../classification/curation-target-processor';
+import type { ResolvedTarget } from '../../classification/curation-target-resolver';
+import type { StageInput, StageContext } from '../../classification/types';
 import { submitProposalDecisions } from '../../classification/proposal-review-service';
-import { buildAssignmentProjection } from '../../classification/assignment-projection';
-import { setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
-import { saveClassificationConfig, loadClassificationConfig } from '../../classification/config-loader';
-import { createRun as createRepositoryRun, completeRun, getAcceptedProposals } from '../../db/repositories/classification-run-repo';
-import type { ClassificationEvidence } from '../../shared/types';
+import {
+  buildAssignmentProjection,
+  createAssignmentProjectionAuthority,
+} from '../../classification/assignment-projection';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from '../../classification/effective-proposal';
+import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
+import { productDraftProjectionStage } from '../../classification/stages/draft-projection';
+import { classifyCatalogProduct } from '../../classification/catalog-product-classifier';
+import catalogClassificationRoutes from '../../server/routes/catalog-classification-routes';
+import onboardingRoutes from '../../server/routes/onboarding-routes';
+import { generateCandidate, type BayStateSeed } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
+import { previewCandidate, activateBundle } from '../../classification/config-store';
+import { scanCatalogEvidence, renderCatalogEvidence, verifyCatalogEvidenceTreeIntegrity } from '../../classification/catalog-evidence';
+import { updateFieldMetadata } from '../../server/services/field-metadata-service';
+import { applyCatalogClassification } from '../../classification/catalog-product-application';
+import { writeProductFile, readProductFile } from '../../git/workspace-files';
+import { listChangeSetItems, listChangeSets } from '../../db/repositories/change-set-repo';
+import { isTaxonomyFrozen, setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
+import {
+  saveClassificationConfig,
+  loadClassificationConfig,
+  loadRuntimeConfigAuthority,
+  createRuntimeActivationContext,
+} from '../../classification/config-loader';
+import {
+  createRun as createRepositoryRun,
+  completeRun,
+  getAcceptedProposals,
+  getProposalsByRun,
+  getEvidenceByRun,
+  getRun,
+} from '../../db/repositories/classification-run-repo';
+import { computeProductHash } from '../../classification/catalog-product-source';
+import { createBatch } from '../../db/repositories/onboarding-batch-repo';
+import { insertItems } from '../../db/repositories/onboarding-item-repo';
+import { markReviewed, markApproved } from '../../db/repositories/onboarding-review-repo';
+import { evaluateCanonicalReadiness } from '../../classification/classification-readiness';
+import { validateReviewCompletionGate } from '../../classification/review-completion-gate';
+import { promoteItems, computePromotionGate } from '../../onboarding/draft-promoter';
+import { findItemById } from '../../db/repositories/onboarding-item-repo';
+import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
+import { listVerifiedPageOptions } from '../../db/repositories/page-repo';
+import { captureVerifiedPageSnapshot, toPageSnapshotState } from '../../classification/page-snapshot';
+import type {
+  ClassificationConfig,
+  ClassificationProposal,
+} from '../../shared/schemas/classification';
+import type { Product } from '../../shared/schemas/product';
 
 const WS_ID = 'ws-canonical-pair-seam';
 
-function configFixture(): any {
+// Certified slots: PF23 Facet-Flavor, PF28 Facet-Material, PF16 Brand,
+// PF6 MAP Pricing (docs/audits/extra-fields-certification-2026-10-15).
+const FLAVOR_FIELD = 'ProductField23';
+const MATERIAL_FIELD = 'ProductField28';
+const COLOR_FIELD = 'ProductField29';
+const CATEGORY_FIELD = 'ProductField24';
+const PRODUCT_TYPE_FIELD = 'ProductField25';
+const BRAND_FIELD = 'ProductField16';
+const PRICING_FIELD = 'ProductField6';
+
+const canonicalOutputBindings: NonNullable<BayStateSeed['classificationOutputBindings']> = [
+  { role: 'category', catalogField: CATEGORY_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+  { role: 'product-type', catalogField: PRODUCT_TYPE_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' }, isStale: false },
+];
+
+function configFixture(): ClassificationConfig {
   const now = '2026-08-01T12:00:00.000Z';
   return {
     manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: now, updatedAt: now, fileVersions: {} },
@@ -35,131 +135,1710 @@ function configFixture(): any {
     ],
     attributes: [
       { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Chicken'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Food' },
+      { id: 'material', name: 'Material', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Rubber'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Material' },
     ],
     attributeProfiles: [],
     attributeMappings: [
-      { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
+      { id: 'flavor-map', attributeId: 'flavor', catalogField: FLAVOR_FIELD, serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
+      { id: 'material-map', attributeId: 'material', catalogField: MATERIAL_FIELD, serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
     ],
     curationTargets: [
       { id: 'pt', kind: 'product_type', label: 'Primary Product Type', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
-      { id: 'ft', kind: 'product_field', label: 'Flavor', enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23', optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
+      { id: 'ft', kind: 'product_field', label: 'Flavor', enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: FLAVOR_FIELD, optionSource: 'configured', required: false, mandatory: false, sortOrder: 1 },
+      { id: 'mt', kind: 'product_field', label: 'Material', enabled: true, selectionMode: 'single', attributeId: 'material', catalogField: MATERIAL_FIELD, optionSource: 'configured', required: false, mandatory: false, sortOrder: 2 },
     ],
     brands: [], guidance: [],
     modelPolicy: { defaultProvider: 'ollama', defaultModel: '', stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only' },
     dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
-  };
+  } satisfies ClassificationConfig;
 }
 
 let workspacePath: string;
 
 beforeEach(() => {
-  setTaxonomyFreezeForTests(false);
+  setTaxonomyFreezeForTests(true);
+  expect(isTaxonomyFrozen()).toBe(true);
   workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'canonical-pair-seam-'));
   fs.mkdirSync(path.join(workspacePath, '.baystate-cms'), { recursive: true });
   fs.mkdirSync(path.join(workspacePath, 'store', 'classification'), { recursive: true });
   initDb(path.join(workspacePath, '.baystate-cms', 'app.db'));
   runMigrations();
   insertWorkspace({ id: WS_ID, name: 'seam', workspacePath, gitPath: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), bootstrapStatus: 'complete', baselineCommit: null });
-  // v1 legacy path carries no categories; the pair decision resolves the
-  // category only where the snapshot mapping exists. This seam test drives
-  // the pair builder + correction paths directly (slices 2-3) and the
-  // full run path below through the shared composition.
-  saveClassificationConfig(workspacePath, configFixture());
-  syncConfigToCache(WS_ID, loadClassificationConfig(workspacePath));
+  persistLegacyConfigFixture(configFixture());
 });
 
-describe('canonical pair workflow seam (issue #350)', () => {
-  it('a decided type with an approved mapping produces a pair proposal through the shared composition', async () => {
+afterEach(() => {
+  try {
+    closeDb();
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+  } finally {
+    setTaxonomyFreezeForTests(true);
+    expect(isTaxonomyFrozen()).toBe(true);
+  }
+});
+
+function persistLegacyConfigFixture(config: ClassificationConfig): void {
+  const wasFrozen = isTaxonomyFrozen();
+  expect(wasFrozen).toBe(true);
+  setTaxonomyFreezeForTests(false);
+  try {
+    saveClassificationConfig(workspacePath, config);
+    syncConfigToCache(WS_ID, loadClassificationConfig(workspacePath));
+  } finally {
+    setTaxonomyFreezeForTests(wasFrozen);
+  }
+  expect(isTaxonomyFrozen()).toBe(true);
+}
+
+interface SnapshotRef {
+  id: string;
+  hash: string;
+}
+
+/**
+ * Capture the run's frozen authority coherently: build the snapshot with its
+ * resolved pair mapping, recompute the embedded hash over the captured view,
+ * and persist that same captured snapshot. The run then executes against the
+ * persisted coherent snapshot — never a patched-then-rebuilt mix where the
+ * persisted base lacks the executed mapping.
+ */
+function persistCoherentSnapshot(sku: string, config: ClassificationConfig, ref: SnapshotRef): SnapshotRef & { snapshot: RuntimeClassificationSnapshot } {
+  const now = new Date().toISOString();
+  const pages = captureVerifiedPageSnapshot(WS_ID);
+  const product = readProductFile(workspacePath, sku);
+  const base = buildRuntimeSnapshot({
+    workspaceId: WS_ID, workspacePath, productSku: sku, config,
+    configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: now },
+    sourceProductHash: product ? computeProductHash(product) : null,
+    pages: toPageSnapshotState(pages),
+    pageImportId: pages.pageImportId, pageImportHash: pages.pageImportHash,
+    productPageNames: product?.core.productOnPages ?? [],
+  });
+  const captured: RuntimeClassificationSnapshot = {
+    ...base,
+    categories: [{ id: 'dog-food', name: 'Dog Food' }],
+    productTypes: base.productTypes.map(type => ({ ...type, categoryId: 'dog-food' })),
+  };
+  captured.snapshotHash = snapshotHash(captured);
+  const persisted = persistRuntimeSnapshot(captured);
+  return { ...persisted, snapshot: captured };
+}
+async function persistGovernedOnboardingSnapshot(sku: string, product: Product, seedOverrides?: {
+  attributes?: Array<{ id: string; name: string; allowedValues: string[] }>;
+  mappings?: Array<{ id: string; attributeId: string; catalogField: string }>;
+  curationTargets?: Array<{ id: string; attributeId: string; catalogField: string; label: string; sortOrder: number }>;
+  profileAttributes?: Array<{ attributeId: string; required: boolean; cardinality: 'single'; applicabilityConditions?: never[] | Array<{ operator: 'equals'; attributeId: string; value: string; factSource: 'accepted_reviewed' }> }>;
+}): Promise<SnapshotRef & { snapshot: RuntimeClassificationSnapshot }> {
+  writeProductFile(workspacePath, product);
+  for (const [xmlField, label] of [
+    [FLAVOR_FIELD, 'Facet-Flavor'],
+    [MATERIAL_FIELD, 'Facet-Material'],
+    [COLOR_FIELD, 'Facet-Color'],
+    ['ProductField17', 'Facet-Species'],
+    [CATEGORY_FIELD, 'Facet - Category'],
+    [PRODUCT_TYPE_FIELD, 'Facet - Product Type'],
+    [BRAND_FIELD, 'Brand'],
+    [PRICING_FIELD, 'MAP Pricing'],
+  ]) {
+    updateFieldMetadata({ id: WS_ID, workspacePath }, xmlField, { label });
+  }
+  const git = (...args: string[]) => execFileSync('git', args, {
+    cwd: workspacePath,
+    encoding: 'utf-8',
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+  }).trim();
+  git('init', '-b', 'main');
+  git('config', '--local', 'user.name', 'Onboarding Fixture');
+  git('config', '--local', 'user.email', 'onboarding@example.test');
+  git('config', '--local', 'core.hooksPath', '/dev/null');
+  git('config', '--local', 'commit.gpgsign', 'false');
+  git('add', 'products', 'store/field-registry.json');
+  git('commit', '-m', 'Seed onboarding catalog evidence');
+  const sourceCatalogCommit = git('rev-parse', 'HEAD');
+  const seed: BayStateSeed = {
+    ...BayStatePetGardenSeed,
+    name: 'Onboarding canonical fixture',
+    revision: 'onboarding-canonical-v2',
+    categories: [{ id: 'dog-food', name: 'Dog Food', description: null }],
+    productTypes: [{
+      id: 'dog-food-dry', name: 'Dry Dog Food', description: null, categoryId: 'dog-food',
+      websiteValues: { category: 'QA Category: dog-food', productType: 'QA Product Type: dog-food-dry' },
+    }],
+    classificationOutputBindings: canonicalOutputBindings,
+    attributes: (seedOverrides?.attributes ?? [
+      { id: 'flavor', name: 'Flavor', allowedValues: ['Chicken'] },
+      { id: 'material', name: 'Material', allowedValues: ['Rubber'] },
+    ]).map((attribute): BayStateSeed['attributes'][number] => ({
+      ...attribute,
+      description: null,
+      valueMode: 'controlled',
+      canonicalUnit: null,
+      valueAliases: [],
+      visualEvidenceEligibility: 'ineligible',
+      isClaim: false,
+      isCompositionAttribute: false,
+      group: null,
+      isUniversal: false,
+      evidencePolicy: {
+        directEvidenceRequired: true,
+        forbidAbsenceInference: true,
+        allowedSources: ['catalog_product'],
+        allowVisualEvidence: false,
+        allowThirdPartyEvidence: false,
+        thirdPartyEvidenceApproval: null,
+        manualReviewRequired: true,
+      },
+    })),
+    profileTemplates: [{
+      id: 'dog-food-dry-profile',
+      name: 'Dry Dog Food',
+      productTypeIds: ['dog-food-dry'],
+      attributes: (seedOverrides?.profileAttributes ?? [
+        { attributeId: 'flavor', required: false, cardinality: 'single' as const },
+        { attributeId: 'material', required: false, cardinality: 'single' as const },
+      ]) as BayStateSeed['profileTemplates'][number]['attributes'],
+    }],
+    mappings: (seedOverrides?.mappings ?? [
+      { id: 'flavor-map', attributeId: 'flavor', catalogField: FLAVOR_FIELD },
+      { id: 'material-map', attributeId: 'material', catalogField: MATERIAL_FIELD },
+    ]).map(mapping => ({ ...mapping, serialization: { kind: 'scalar', prefix: '', suffix: '' } as const })),
+    curationTargets: [
+      { ...pairTypeTarget().config, required: true, mandatory: true },
+      ...((seedOverrides?.curationTargets ?? [
+        { id: 'ft', attributeId: 'flavor', catalogField: FLAVOR_FIELD, label: 'Flavor', sortOrder: 1 },
+        { id: 'mt', attributeId: 'material', catalogField: MATERIAL_FIELD, label: 'Material', sortOrder: 2 },
+      ]).map(target => ({ ...target, kind: 'product_field' as const, enabled: true, mandatory: false, selectionMode: 'single' as const, optionSource: 'configured' as const, required: false }))),
+    ],
+    brands: [],
+    guidance: [],
+  };
+  const catalogEvidence = await scanCatalogEvidence(workspacePath, WS_ID);
+  const artifact = renderCatalogEvidence(catalogEvidence);
+  const evidenceHash = createHash('sha256').update(artifact).digest('hex');
+  const candidate = generateCandidate(seed, catalogEvidence);
+  const preview = previewCandidate(candidate.bundle, workspacePath, { catalogEvidence: artifact });
+  if (!preview.hash) throw new Error(JSON.stringify(preview.report.findings));
+  const candidateHash = preview.hash;
+  const priorFreeze = isTaxonomyFrozen();
+  expect(priorFreeze).toBe(true);
+  await (async () => {
+    setTaxonomyFreezeForTests(false);
+    try {
+      return await activateBundle(candidateHash, null, {
+        workspacePath,
+        workspaceId: WS_ID,
+        sourceCatalogCommit,
+        catalogEvidenceHash: evidenceHash,
+        activationContext: {
+          ...createRuntimeActivationContext(workspacePath, WS_ID),
+          verifyCatalogEvidenceTree: hash => verifyCatalogEvidenceTreeIntegrity(workspacePath, hash, WS_ID),
+        },
+      });
+    } finally {
+      setTaxonomyFreezeForTests(priorFreeze);
+    }
+  })();
+  expect(isTaxonomyFrozen()).toBe(true);
+  const authority = loadRuntimeConfigAuthority(workspacePath, createRuntimeActivationContext(workspacePath, WS_ID));
+  if (authority.kind !== 'v2') throw new Error('Onboarding fixture did not activate v2 authority');
+  const configRef = upsertConfigSnapshot(WS_ID, authority.bundle, sourceCatalogCommit);
+  const pages = captureVerifiedPageSnapshot(WS_ID);
+  const base = buildRuntimeSnapshot({
+    workspaceId: WS_ID,
+    workspacePath,
+    productSku: sku,
+    authority,
+    configSnapshotRef: {
+      id: configRef.id,
+      hash: configRef.hash,
+      sourceCommit: sourceCatalogCommit,
+      createdAt: new Date().toISOString(),
+    },
+    sourceProductHash: computeProductHash(product),
+    catalogEvidenceHash: evidenceHash,
+    pages: toPageSnapshotState(pages),
+    pageImportId: pages.pageImportId,
+    pageImportHash: pages.pageImportHash,
+    productPageNames: product.core.productOnPages ?? [],
+  });
+  const persisted = persistRuntimeSnapshot(base);
+  return { ...persisted, snapshot: base };
+}
+
+
+function seedFieldProposal(db: Database, runId: string, sku: string, id: string, targetId: string, value: unknown, now: string): void {
+  db.run(
+    `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+    [id, runId, sku, 'field_assignment', targetId, JSON.stringify(value), 0.9, 'pending', now],
+  );
+}
+function seedPairProposal(db: Database, runId: string, sku: string, now: string): void {
+  db.run(
+    `INSERT INTO classification_proposals
+     (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
+     VALUES (?, ?, ?, 'product_classification', ?, ?, 0.95, 'pending', ?)`,
+    ['prop-ob-pair', runId, sku, 'dog-food-dry', JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }), now],
+  );
+}
+
+
+function seedPageProposal(db: Database, runId: string, sku: string, id: string, targetId: string, value: unknown, now: string): void {
+  db.run(
+    `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
+    [id, runId, sku, 'category_page', targetId, JSON.stringify(value), 0.9, 'pending', now],
+  );
+}
+
+interface DraftProductOptions {
+  customFields?: Record<string, string>;
+  productOnPages?: string[];
+  name?: string;
+}
+
+function baseProduct(sku: string, now: string, overrides: DraftProductOptions = {}): Product {
+  return {
+    schemaVersion: 1, id: `p-${sku}`, sku, status: 'active',
+    core: {
+      name: overrides.name ?? 'Acme Chicken Dinner', price: '9.99', salePrice: null, description: 'Yummy kibble',
+      inventory: { quantityOnHand: 5, lowStockThreshold: null, outOfStockLimit: null }, availability: 'instock',
+      weight: '5 lb', taxable: true, media: { primary: 'products/x/primary.jpg', additional: ['products/x/alt.jpg'] },
+      seo: { fileName: 'acme.html', searchKeywords: 'k', googleProductCategory: null },
+      productOnPages: overrides.productOnPages ?? ['Old Page'],
+    },
+    customFields: overrides.customFields ?? { [BRAND_FIELD]: 'Acme', [FLAVOR_FIELD]: 'Beef', [MATERIAL_FIELD]: 'Nylon' },
+    shopsite: { productId: null, productGuid: null, xmlVersion: '15.0', lastPulledAt: null, lastRemoteHash: null, lastSyncedAt: null, source: { dbname: 'products', uniqueName: 'SKU' }, preserved: { unknownElements: {}, advancedBlocks: {}, rawAttributes: {} } },
+    metadata: { createdAt: now, updatedAt: now, archivedAt: null },
+  };
+}
+
+interface DraftAssertionView {
+  customFields: Record<string, string>;
+  core: { name: string; price: string; productOnPages?: string[] };
+  sku: string;
+}
+
+function readDraftView(changeSetId: string): DraftAssertionView {
+  const items = listChangeSetItems(changeSetId);
+  expect(items).toHaveLength(1);
+  const parsed: unknown = JSON.parse(items[0].draftJson);
+  if (!parsed || typeof parsed !== 'object') throw new Error('draft JSON is not an object');
+  if (!('customFields' in parsed) || !('core' in parsed) || !('sku' in parsed)) {
+    throw new Error('draft JSON lacks customFields/core/sku');
+  }
+  const customFields: unknown = parsed.customFields;
+  const core: unknown = parsed.core;
+  const sku: unknown = parsed.sku;
+  if (!customFields || typeof customFields !== 'object') throw new Error('draft customFields is not an object');
+  if (!core || typeof core !== 'object' || !('name' in core) || !('price' in core)) {
+    throw new Error('draft core lacks name/price');
+  }
+  const name: unknown = core.name;
+  const price: unknown = core.price;
+  if (typeof name !== 'string' || typeof price !== 'string' || typeof sku !== 'string') {
+    throw new Error('draft name/price/sku are not strings');
+  }
+  const pages: unknown = 'productOnPages' in core ? core.productOnPages : undefined;
+  return {
+    customFields: customFields as Record<string, string>,
+    core: { name, price, productOnPages: Array.isArray(pages) ? (pages as string[]) : undefined },
+    sku,
+  };
+}
+
+function pairTypeTarget(): ResolvedTarget {
+  return {
+    config: { id: 'pt', kind: 'product_type', label: 'Primary Product Type', enabled: true, mandatory: false, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, sortOrder: 0 },
+    options: [{ value: 'dog-food-dry', label: 'Dry Dog Food' }],
+  } satisfies ResolvedTarget;
+}
+
+function pairSnapshotContext(runId: string, ref: SnapshotRef, snapshot: RuntimeClassificationSnapshot): StageContext {
+  return {
+    workspacePath, workspaceId: WS_ID, runId,
+    configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
+    snapshot,
+  };
+}
+describe('canonical classification from supplied facts to reviewed catalog draft', () => {
+  it('classifies the own-SKU pair and profile attributes, then drafts only reviewed changes', async () => {
+    const sku = 'SKU-ACTUAL-CATALOG';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now, {
+      name: 'Acme Red Rubber Dog Toys',
+      customFields: {
+        [BRAND_FIELD]: 'Acme', [FLAVOR_FIELD]: 'Beef',
+        [MATERIAL_FIELD]: 'Nylon', [COLOR_FIELD]: 'Blue',
+        [CATEGORY_FIELD]: 'Old Category', [PRODUCT_TYPE_FIELD]: 'Old Product Type',
+        [PRICING_FIELD]: '12.50', ProductField99: 'opaque custom value',
+      },
+      productOnPages: ['Old Page', 'Brand - Acme'],
+    });
+    product.core.description = 'Dog Toys made of Rubber. Color: Red.';
+    // Supplied text is sufficient; no OCR/image discovery or model transport.
+    product.core.media = { primary: null, additional: [] };
+    product.shopsite.preserved = {
+      unknownElements: { ProductType: 'Tangible', VendorExtension: 'opaque native value' },
+      advancedBlocks: { VendorBlock: '<VendorBlock keep="yes"/>' },
+      rawAttributes: { vendorFlag: 'keep' },
+    };
+    writeProductFile(workspacePath, product);
+
+    // R1 metadata and its R2 attestation are written through the real owner.
+    for (const [xmlField, label] of [
+      [MATERIAL_FIELD, 'Facet-Material'], [COLOR_FIELD, 'Facet-Color'],
+      [CATEGORY_FIELD, 'Facet - Category'], [PRODUCT_TYPE_FIELD, 'Facet - Product Type'],
+      [BRAND_FIELD, 'Brand'], [PRICING_FIELD, 'MAP Pricing'],
+    ]) {
+      updateFieldMetadata({ id: WS_ID, workspacePath }, xmlField, { label });
+    }
+    // All Git identity/configuration is confined to this temporary repository.
+    const git = (...args: string[]) => execFileSync('git', args, {
+      cwd: workspacePath, encoding: 'utf-8',
+      env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+    }).trim();
+    git('init', '-b', 'main');
+    git('config', '--local', 'user.name', 'Workflow Fixture');
+    git('config', '--local', 'user.email', 'workflow@example.test');
+    git('config', '--local', 'core.hooksPath', '/dev/null');
+    git('config', '--local', 'commit.gpgsign', 'false');
+    git('add', 'products', 'store/field-registry.json');
+    git('commit', '-m', 'Seed supplied catalog facts and certified fields');
+    const sourceCatalogCommit = git('rev-parse', 'HEAD');
+
+    const seed: BayStateSeed = {
+      ...BayStatePetGardenSeed,
+      name: 'Catalog workflow fixture', revision: 'catalog-workflow-v2',
+      categories: [{ id: 'dog', name: 'Dog', description: null }],
+      productTypes: [{
+        id: 'dog-toys', name: 'Dog Toys', description: null, categoryId: 'dog',
+        websiteValues: { category: 'QA Canine Goods', productType: 'QA Dog Toy' },
+      }],
+      attributes: [
+        { id: 'material', name: 'Material', allowedValues: ['Rubber'] },
+        { id: 'color', name: 'Color', allowedValues: ['Red'] },
+      ].map((attribute): BayStateSeed['attributes'][number] => ({
+        ...attribute, description: null, valueMode: 'controlled', canonicalUnit: null,
+        valueAliases: [], visualEvidenceEligibility: 'ineligible',
+        isClaim: false, isCompositionAttribute: false, group: null, isUniversal: false,
+        evidencePolicy: {
+          directEvidenceRequired: true, forbidAbsenceInference: true,
+          allowedSources: ['catalog_product'], allowVisualEvidence: false,
+          allowThirdPartyEvidence: false, thirdPartyEvidenceApproval: null, manualReviewRequired: true,
+        },
+      })),
+      profileTemplates: [{
+        id: 'toys', name: 'Toy attributes', productTypeIds: ['dog-toys'],
+        attributes: [
+          { attributeId: 'material', required: true, cardinality: 'single' },
+          { attributeId: 'color', required: false, cardinality: 'single' },
+        ],
+      }],
+      mappings: [
+        { id: 'material-map', attributeId: 'material', catalogField: MATERIAL_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+        { id: 'color-map', attributeId: 'color', catalogField: COLOR_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+      ],
+      classificationOutputBindings: canonicalOutputBindings,
+      curationTargets: [
+        { ...pairTypeTarget().config, required: true, mandatory: true },
+        { id: 'mt', kind: 'product_field', label: 'Material', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'material', catalogField: MATERIAL_FIELD, optionSource: 'configured', required: false, sortOrder: 1 },
+        { id: 'ct', kind: 'product_field', label: 'Color', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'color', catalogField: COLOR_FIELD, optionSource: 'configured', required: false, sortOrder: 2 },
+      ],
+      brands: [], guidance: [],
+    };
+    const catalogEvidence = await scanCatalogEvidence(workspacePath, WS_ID);
+    const artifact = renderCatalogEvidence(catalogEvidence);
+    const evidenceHash = createHash('sha256').update(artifact).digest('hex');
+    const candidate = generateCandidate(seed, catalogEvidence);
+    const preview = previewCandidate(candidate.bundle, workspacePath, { catalogEvidence: artifact });
+    if (!preview.hash) throw new Error(JSON.stringify(preview.report.findings));
+    const priorFreeze = isTaxonomyFrozen();
+    expect(priorFreeze).toBe(true);
+    const activation = await (async () => {
+      setTaxonomyFreezeForTests(false);
+      try {
+        return await activateBundle(preview.hash!, null, {
+          workspacePath, workspaceId: WS_ID, sourceCatalogCommit, catalogEvidenceHash: evidenceHash,
+          activationContext: {
+            ...createRuntimeActivationContext(workspacePath, WS_ID),
+            verifyCatalogEvidenceTree: hash => verifyCatalogEvidenceTreeIntegrity(workspacePath, hash, WS_ID),
+          },
+        });
+      } finally {
+        setTaxonomyFreezeForTests(priorFreeze);
+      }
+    })();
+    expect(isTaxonomyFrozen()).toBe(true);
+    const authority = loadRuntimeConfigAuthority(workspacePath, createRuntimeActivationContext(workspacePath, WS_ID));
+    expect(authority.kind).toBe('v2');
+
+    // This is the production entrypoint: it captures/persists its own frozen
+    // authority and creates all evidence/proposals through the real pipeline.
+    const classified = await classifyCatalogProduct(WS_ID, workspacePath, product);
+    expect(classified.error).toBeUndefined();
+    expect(classified.success).toBe(true);
+    const run = getRun(classified.runId);
+    if (!run?.configSnapshotHash) throw new Error('Classifier did not persist frozen authority');
+    const snapshot = getRuntimeSnapshotByHash(WS_ID, run.configSnapshotHash);
+    if (!snapshot) throw new Error('Frozen runtime snapshot was not persisted');
+    expect(snapshot.schemaVersion).toBe(2);
+    expect(snapshot.configAuthorityKind).toBe('v2');
+    expect(snapshot.configSnapshotRef.hash).toBe(activation.hash);
+    expect(snapshot.snapshotHash).toBe(run.configSnapshotHash);
+    expect(snapshotHash(snapshot)).toBe(run.configSnapshotHash);
+    expect(snapshot.sourceProductHash).toBe(computeProductHash(product));
+    expect(snapshot.productTypes.find(type => type.id === 'dog-toys')).toMatchObject({
+      categoryId: 'dog', attributeProfileId: 'dog-toys-profile',
+    });
+
+    const proposals = getProposalsByRun(run.id);
+    const pairs = proposals.filter(proposal => proposal.proposalType === 'product_classification');
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].proposedValue).toMatchObject({ categoryId: 'dog', productTypeId: 'dog-toys' });
+    const material = proposals.find(proposal => proposal.proposalType === 'field_assignment' && proposal.targetId === 'material');
+    const color = proposals.find(proposal => proposal.proposalType === 'field_assignment' && proposal.targetId === 'color');
+    if (!material || !color) throw new Error('Same-pass profile attribute proposals are missing');
+    expect(material.proposedValue).toBe('Rubber');
+    expect(color.proposedValue).toBe('Red');
+    expect(material.status).toBe('pending');
+    expect(color.status).toBe('pending');
+    expect(proposals.some(proposal => proposal.targetId === 'brand' || proposal.targetId === BRAND_FIELD)).toBe(false);
+    const evidence = getEvidenceByRun(run.id);
+    expect(evidence.some(record => record.source === 'catalog_product' && record.productSku === sku && record.snippet?.includes('Rubber'))).toBe(true);
+    expect((material.supportingEvidenceIds ?? []).some(id => evidence.some(record => record.id === id && record.productSku === sku))).toBe(true);
+
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [pairs[0], material].map(proposal => ({ proposalId: proposal.id, decision: 'accepted' as const })),
+    });
+    expect(reviewed.ok).toBe(true);
+    const accepted = getAcceptedProposals(sku, run.id);
+    expect(accepted.map(proposal => proposal.id).sort()).toEqual([pairs[0].id, material.id].sort());
+    expect(getProposalsByRun(run.id).find(proposal => proposal.id === color.id)?.status).toBe('pending');
+    const stagePreview = await productDraftProjectionStage.execute({
+      sku, evidence: getEvidenceByRun(run.id), acceptedProposals: accepted,
+      allProposals: getProposalsByRun(run.id),
+    }, {
+      workspacePath, workspaceId: WS_ID, configSnapshotRef: snapshot.configSnapshotRef,
+      snapshot, runId: run.id,
+    });
+    expect(stagePreview.status).toBe('succeeded');
+    if (stagePreview.status !== 'succeeded') throw new Error('Reviewed canonical pair preview was refused');
+    expect(stagePreview.output.metadata?.projection).toMatchObject({
+      fieldAssignments: {
+        [CATEGORY_FIELD]: 'QA Canine Goods',
+        [PRODUCT_TYPE_FIELD]: 'QA Dog Toy',
+      },
+    });
+
+
+    const previewApp = new Hono();
+    previewApp.route('/api', catalogClassificationRoutes);
+    const previewResponse = await previewApp.request(`/api/products/${encodeURIComponent(sku)}/classification`);
+    expect(previewResponse.status).toBe(200);
+    const previewDetail = await previewResponse.json();
+    expect(previewDetail.draftProjection.projection.provisionalFieldAssignments[COLOR_FIELD]).toBe('Red');
+    expect(previewDetail.draftProjection.projection.fieldAssignments[COLOR_FIELD]).toBeUndefined();
+    // The shared approved-only preview excludes the unreviewed Red proposal.
+    const approved = buildAssignmentProjection(
+      accepted, product.customFields, product.core.productOnPages ?? [], getCachedAttributeMappings(WS_ID),
+      new Set(), {
+        attributes: snapshot.attributes,
+        frozenMappings: snapshot.attributeMappings,
+        currentClassificationOutputBindings: getCachedClassificationOutputBindings(WS_ID),
+        frozenClassificationOutputBindings: snapshot.classificationOutputBindings ?? [],
+        categories: snapshot.categories,
+        productTypes: snapshot.productTypes,
+      },
+    );
+    expect(approved.skipped).toEqual([]);
+    expect(approved.fields.find(field => field.catalogField === MATERIAL_FIELD)?.proposedValue).toBe('Rubber');
+    expect(approved.fields.find(field => field.catalogField === CATEGORY_FIELD)?.proposedValue).toBe('QA Canine Goods');
+    expect(approved.fields.find(field => field.catalogField === PRODUCT_TYPE_FIELD)?.proposedValue).toBe('QA Dog Toy');
+    const applied = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
+    expect(approved.fields.some(field => field.catalogField === CATEGORY_FIELD)).toBe(true);
+    expect(approved.fields.some(field => field.catalogField === PRODUCT_TYPE_FIELD)).toBe(true);
+    expect(applied.appliedFields).toContain(MATERIAL_FIELD);
+    expect(applied.appliedFields).not.toContain(COLOR_FIELD);
+    expect(applied.appliedFields).toContain(CATEGORY_FIELD);
+    expect(applied.appliedFields).toContain(PRODUCT_TYPE_FIELD);
+    expect(applied.skipped).toEqual([]);
+    const items = listChangeSetItems(applied.changeSetId);
+    expect(items).toHaveLength(1);
+    const draft = JSON.parse(items[0].draftJson) as Product;
+    const projectedMaterial = approved.fields.find(field => field.catalogField === MATERIAL_FIELD);
+    if (!projectedMaterial?.proposedValue) throw new Error('approved projection lacks a material value');
+    expect(draft.customFields[MATERIAL_FIELD]).toBe(projectedMaterial.proposedValue);
+    expect(draft.customFields[CATEGORY_FIELD]).toBe('QA Canine Goods');
+    expect(draft.customFields[PRODUCT_TYPE_FIELD]).toBe('QA Dog Toy');
+    expect(draft.customFields[COLOR_FIELD]).toBe('Blue');
+    for (const field of [BRAND_FIELD, FLAVOR_FIELD, PRICING_FIELD, 'ProductField99']) {
+      expect(draft.customFields[field]).toBe(product.customFields[field]);
+    }
+    expect(draft.core).toEqual(product.core);
+    expect(draft.shopsite).toEqual(product.shopsite);
+    expect(draft.sku).toBe(sku);
+    expect(draft.status).toBe(product.status);
+    // Local change-set only: the repository source product is untouched.
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+  });
+
+  it('refuses an accepted canonical pair when frozen and current core field bindings are absent', async () => {
+    const sku = 'SKU-PAIR-WITHOUT-BINDINGS';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    writeProductFile(workspacePath, product);
     const config = configFixture();
     const ref = createConfigSnapshot(WS_ID, config);
-    const snapshot: any = {
-      ...buildRuntimeSnapshot({ workspaceId: WS_ID, workspacePath, productSku: 'SKU-PAIR', config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: null }),
-      categories: [{ id: 'dog-food', name: 'Dog Food' }],
-      productTypes: [{ id: 'dog-food-dry', name: 'Dry Dog Food', categoryId: 'dog-food' }],
-    };
-    const target: any = {
-      config: { id: 'pt', kind: 'product_type', label: 'Primary Product Type', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
-      options: [{ value: 'dog-food-dry', label: 'Dry Dog Food' }],
-    };
-    const evidence: ClassificationEvidence[] = [{
-      id: 'ev-1', runId: 'run-pair', stageName: 'evidence_extraction', productSku: 'SKU-PAIR',
-      attributeId: null, source: 'official_product_page', reliability: 'high', sourceUrl: null,
-      sourceField: 'description', snippet: 'Dry Dog Food chicken kibble', value: 'Dry Dog Food chicken kibble',
-      metadata: {}, capturedAt: new Date().toISOString(),
-    } as ClassificationEvidence];
-    const result = await processProductTypeTarget(target, { sku: 'SKU-PAIR', evidence, acceptedProposals: [], allProposals: [] }, {
-      workspacePath, workspaceId: WS_ID, runId: 'run-pair',
-      configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
-      snapshot,
-    } as any);
-    expect(result.proposals).toHaveLength(1);
-    expect(result.proposals[0].proposalType).toBe('product_classification');
-    expect(result.proposals[0].proposedValue).toEqual({ categoryId: 'dog-food', productTypeId: 'dog-food-dry', matchedWords: expect.anything() });
+    const persisted = persistCoherentSnapshot(sku, config, ref);
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, {
+      sourceKind: 'catalog_product',
+      sourceProductHash: persisted.snapshot.sourceProductHash,
+    });
+    seedPairProposal(getDb(), run.id, sku, now);
+    completeRun(run.id, 'completed');
+
+    const pair = getProposalsByRun(run.id).find(proposal => proposal.proposalType === 'product_classification');
+    if (!pair) throw new Error('Canonical pair proposal was not persisted');
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID,
+      productSku: sku,
+      runId: run.id,
+      sourceKind: 'catalog_product',
+      decisions: [{ proposalId: pair.id, decision: 'accepted' }],
+    });
+    expect(reviewed.ok).toBe(true);
+
+    const draftsBefore = listChangeSets(WS_ID);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id))
+      .rejects.toThrow(/Classification projection refused/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
   });
 
   it('empty evidence abstains on both components — never a forced label', async () => {
     const config = configFixture();
     const ref = createConfigSnapshot(WS_ID, config);
-    const snapshot: any = {
-      ...buildRuntimeSnapshot({ workspaceId: WS_ID, workspacePath, productSku: 'SKU-EMPTY', config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() }, sourceProductHash: null }),
-      categories: [{ id: 'dog-food', name: 'Dog Food' }],
-      productTypes: [{ id: 'dog-food-dry', name: 'Dry Dog Food', categoryId: 'dog-food' }],
-    };
-    const target: any = {
-      config: { id: 'pt', kind: 'product_type', label: 'Primary Product Type', enabled: true, selectionMode: 'single', attributeId: null, catalogField: null, optionSource: 'configured', required: false, mandatory: false, sortOrder: 0 },
-      options: [{ value: 'dog-food-dry', label: 'Dry Dog Food' }],
-    };
-    const result = await processProductTypeTarget(target, { sku: 'SKU-EMPTY', evidence: [], acceptedProposals: [], allProposals: [] }, {
-      workspacePath, workspaceId: WS_ID, runId: 'run-empty',
-      configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: new Date().toISOString() },
-      snapshot,
-    } as any);
+    const persisted = persistCoherentSnapshot('SKU-EMPTY', config, ref);
+    const snapshot = getRuntimeSnapshotByHash(WS_ID, persisted.hash);
+    if (!snapshot) throw new Error('Frozen snapshot was not persisted');
+    const input: StageInput = { sku: 'SKU-EMPTY', evidence: [], acceptedProposals: [], allProposals: [] };
+    const result = await processProductTypeTarget(
+      pairTypeTarget(), input,
+      pairSnapshotContext('run-empty', ref, snapshot),
+    );
     expect(result.proposals).toEqual([]);
   });
+});
 
-  it('decisions → draft: accepted pair applies owned change; draft preserves the rest', async () => {
-    const sku = 'SKU-PAIR-DRAFT';
+describe('issue #356 frozen applicability projection gate', () => {
+  it('refuses a stale accepted Species value under the corrected pair while retaining applicable independent fields', async () => {
     const now = new Date().toISOString();
+    const sku = 'SKU-STALE-SPECIES-PROJECTION';
     const config = configFixture();
-    const ref = createConfigSnapshot(WS_ID, config);
-    const base = buildRuntimeSnapshot({ workspaceId: WS_ID, workspacePath, productSku: sku, config, configSnapshotRef: { id: ref.id, hash: ref.hash, sourceCommit: null, createdAt: now }, sourceProductHash: null });
-    const snapshot: any = {
-      ...base,
-      categories: [{ id: 'dog-food', name: 'Dog Food' }],
-      productTypes: [{ id: 'dog-food-dry', name: 'Dry Dog Food', categoryId: 'dog-food' }],
+    const species = {
+      id: 'species', name: 'Species', description: null, valueMode: 'controlled' as const,
+      canonicalUnit: null, allowedValues: ['Dog'], valueAliases: [], visualEvidenceEligibility: 'eligible' as const,
+      isClaim: false, isCompositionAttribute: false, group: null,
     };
-    persistRuntimeSnapshot(base);
-    const run = createRepositoryRun(WS_ID, sku, ref.id, base.snapshotHash, { sourceKind: 'catalog_product' });
+    const universal = { ...species, id: 'color', name: 'Color', allowedValues: ['Blue'], isUniversal: true };
+    const colorMapping = {
+      id: 'color-map', attributeId: 'color', catalogField: COLOR_FIELD,
+      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false,
+    };
+    const speciesMapping = {
+      id: 'species-map', attributeId: 'species', catalogField: 'ProductField17',
+      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false,
+    };
+    const persisted = persistCoherentSnapshot(sku, config, createConfigSnapshot(WS_ID, config));
+    const baseSnapshot = persisted.snapshot;
+    const snapshot = {
+      ...baseSnapshot,
+      configAuthorityKind: 'v2' as const,
+      classificationOutputBindings: canonicalOutputBindings,
+      attributes: [...baseSnapshot.attributes, species, universal],
+      attributeMappings: [...getCachedAttributeMappings(WS_ID), speciesMapping, colorMapping],
+      productTypes: [{
+        ...baseSnapshot.productTypes[0]!,
+        attributeProfileId: 'species-profile',
+        websiteValues: { category: 'QA Canine Goods', productType: 'QA Dog Toy' },
+      }],
+      attributeProfiles: [{
+        id: 'species-profile', productTypeId: 'dog-food-dry', name: 'Species profile',
+        attributes: [
+          { attributeId: 'material', required: false, cardinality: 'single' as const, applicabilityConditions: [], constraints: {}, confidenceThresholds: {}, valueAliases: [] },
+          { attributeId: 'species', required: false, cardinality: 'single' as const,
+            applicabilityConditions: [{ operator: 'equals', attributeId: 'material', value: 'Wood' }], constraints: {}, confidenceThresholds: {}, valueAliases: [] },
+          { attributeId: 'color', required: false, cardinality: 'single' as const,
+            applicabilityConditions: [{ operator: 'equals', attributeId: 'material', value: 'Wood' }], constraints: {}, confidenceThresholds: {}, valueAliases: [] },
+        ],
+      }],
+    } satisfies RuntimeClassificationSnapshot;
+    const proposals: ClassificationProposal[] = [
+      {
+        id: 'pair', runId: 'run', productSku: sku, proposalType: 'product_classification', targetId: 'dog-food-dry',
+        proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' }, confidence: 1, status: 'accepted',
+        isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: now, currentDecisionId: 'pair-decision',
+        evidenceIds: [],
+      },
+      {
+        id: 'material', runId: 'run', productSku: sku, proposalType: 'field_assignment', targetId: 'material',
+        proposedValue: 'Rubber', confidence: 1, status: 'accepted', isBulkAcceptable: false, isStale: false,
+        stalenessReason: null, createdAt: now, currentDecisionId: 'material-decision',
+        evidenceIds: [],
+      },
+      {
+        id: 'species', runId: 'run', productSku: sku, proposalType: 'field_assignment', targetId: 'species',
+        proposedValue: 'Dog', confidence: 1, status: 'accepted', isBulkAcceptable: false, isStale: false,
+        stalenessReason: null, createdAt: now, currentDecisionId: 'species-decision',
+        evidenceIds: [],
+      },
+      {
+        id: 'color', runId: 'run', productSku: sku, proposalType: 'field_assignment', targetId: 'color',
+        proposedValue: 'Blue', confidence: 1, status: 'accepted', isBulkAcceptable: false, isStale: false,
+        stalenessReason: null, createdAt: now, currentDecisionId: 'color-decision',
+        evidenceIds: [],
+      },
+    ];
+    const plan = resolveAttributeProfilePlan(snapshot, { categoryId: 'dog-food', productTypeId: 'dog-food-dry' }, [{
+      proposalId: 'material', decisionId: 'material-decision', runId: 'run', workspaceId: WS_ID, productSku: sku,
+      proposalType: 'field_assignment', targetId: 'material', value: 'Rubber',
+      configSnapshotHash: snapshot.configSnapshotRef.hash, sourceHash: snapshot.sourceProductHash, createdAt: now,
+    }]);
+    expect(plan.entries.find(entry => entry.attribute.id === 'species')?.applicability.state).toBe('not_applicable');
+    expect(plan.entries.find(entry => entry.attribute.id === 'color')?.applicability.state).toBe('not_applicable');
+    const projection = buildAssignmentProjection(
+      proposals, {}, [], [...getCachedAttributeMappings(WS_ID), speciesMapping, colorMapping], new Set(),
+      createAssignmentProjectionAuthority(snapshot, undefined, canonicalOutputBindings),
+    );
+    expect(projection.fields.map(field => field.catalogField)).toContain(MATERIAL_FIELD);
+    expect(projection.fields.map(field => field.catalogField)).not.toContain('ProductField17');
+    expect(projection.fields.map(field => field.catalogField)).not.toContain(COLOR_FIELD);
+    expect(projection.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'species', targetId: 'species', reason: expect.stringContaining('Applicability condition is not satisfied') }),
+      expect.objectContaining({ proposalId: 'color', targetId: 'color', reason: expect.stringContaining('Applicability condition is not satisfied') }),
+    ]);
+    const product = baseProduct(sku, now, {
+      customFields: { [MATERIAL_FIELD]: 'Nylon', ProductField17: 'Dog', [COLOR_FIELD]: 'Blue' },
+    });
+    writeProductFile(workspacePath, product);
+    const stage = await productDraftProjectionStage.execute(
+      { sku, evidence: [], acceptedProposals: proposals, allProposals: proposals },
+      pairSnapshotContext('run', persisted, snapshot),
+    );
+    expect(stage.status).toBe('abstained');
+    if (stage.status !== 'abstained' || !stage.output) throw new Error('Applicability refusal should remain visible in the preview');
+    expect(stage.output.metadata?.projection).toMatchObject({
+      fieldAssignments: {},
+      selectionMode: 'refused',
+    });
+    expect(readProductFile(workspacePath, sku)?.customFields).toEqual(product.customFields);
+  });
+});
+
+describe('issue #356 compatible reviewed pair projection', () => {
+  it('projects the same-SKU compatible reviewed pair and its frozen Attribute Profile', async () => {
+    const sku = 'SKU-CARRIED-REVIEWED-PAIR';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product);
+    const reviewedFacts: RuntimeClassificationSnapshot['reviewedFacts'] = [{
+      proposalId: 'prior-pair',
+      decisionId: 'prior-pair-decision',
+      runId: 'prior-run',
+      workspaceId: WS_ID,
+      productSku: sku,
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      value: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+      configSnapshotHash: persisted.snapshot.configSnapshotRef.hash,
+      sourceHash: persisted.snapshot.sourceProductHash,
+      createdAt: now,
+    }];
+    const snapshot = { ...persisted.snapshot, reviewedFacts };
+    const materialProposal: ClassificationProposal = {
+      id: 'current-material',
+      runId: 'current-run',
+      productSku: sku,
+      proposalType: 'field_assignment',
+      targetId: 'material',
+      proposedValue: 'Rubber',
+      confidence: 1,
+      status: 'accepted',
+      isBulkAcceptable: false,
+      isStale: false,
+      stalenessReason: null,
+      createdAt: now,
+      currentDecisionId: 'current-material-decision',
+      evidenceIds: [],
+    };
+
+    const projection = buildAssignmentProjection(
+      [materialProposal],
+      product.customFields,
+      product.core.productOnPages ?? [],
+      getCachedAttributeMappings(WS_ID),
+      new Set(),
+      createAssignmentProjectionAuthority(snapshot, undefined, getCachedClassificationOutputBindings(WS_ID)),
+    );
+
+    expect(projection.skipped).toEqual([]);
+    expect(projection.fields.map(field => field.catalogField)).toContain(MATERIAL_FIELD);
+    expect(projection.fields.find(field => field.catalogField === MATERIAL_FIELD)?.proposedValue).toBe('Rubber');
+    expect(projection.fields.map(field => field.catalogField)).toContain(CATEGORY_FIELD);
+    expect(projection.fields.find(field => field.catalogField === CATEGORY_FIELD)?.proposedValue).toBe('QA Category: dog-food');
+    expect(projection.fields.map(field => field.catalogField)).toContain(PRODUCT_TYPE_FIELD);
+    expect(projection.fields.find(field => field.catalogField === PRODUCT_TYPE_FIELD)?.proposedValue).toBe('QA Product Type: dog-food-dry');
+  });
+  it('rejecting a new pair invalidates carried pair authority for readiness and local drafts', async () => {
+    const sku = 'SKU-REJECTED-CARRIED-PAIR';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product);
+    const reviewedFacts: RuntimeClassificationSnapshot['reviewedFacts'] = [{
+      proposalId: 'prior-pair',
+      decisionId: 'prior-pair-decision',
+      runId: 'prior-run',
+      workspaceId: WS_ID,
+      productSku: sku,
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      value: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+      configSnapshotHash: persisted.snapshot.configSnapshotRef.hash,
+      sourceHash: persisted.snapshot.sourceProductHash,
+      createdAt: now,
+    }];
+    const snapshotWithPrior: RuntimeClassificationSnapshot = {
+      ...persisted.snapshot,
+      attributes: persisted.snapshot.attributes.map(attribute =>
+        attribute.id === 'material' ? { ...attribute, isUniversal: true } : attribute,
+      ),
+      reviewedFacts,
+      snapshotHash: '',
+    };
+    snapshotWithPrior.snapshotHash = snapshotHash(snapshotWithPrior);
+    const snapshotRef = persistRuntimeSnapshot(snapshotWithPrior);
+    const run = createRepositoryRun(WS_ID, sku, snapshotRef.id, snapshotRef.hash, {
+      sourceKind: 'catalog_product', sourceProductHash: snapshotWithPrior.sourceProductHash,
+    });
     const db = getDb();
-    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
-      ['prop-pair', run.id, sku, 'product_classification', 'dog-food-dry', JSON.stringify({ categoryId: 'dog-food', productTypeId: 'dog-food-dry' }), 0.9, 'pending', now]);
-    db.run(`INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at) VALUES (?,?,?,?,?,?,?,?,?)`,
-      ['prop-flavor', run.id, sku, 'field_assignment', 'flavor', '"Chicken"', 0.9, 'pending', now]);
+    seedPairProposal(db, run.id, sku, now);
+    seedFieldProposal(db, run.id, sku, 'current-material', 'material', 'Rubber', now);
+    completeRun(run.id, 'completed');
+    const materialDecision = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'current-material', decision: 'accepted' }],
+    });
+    expect(materialDecision.ok, JSON.stringify(materialDecision)).toBe(true);
+    const pairRejection = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-ob-pair', decision: 'rejected' }],
+    });
+    expect(pairRejection.ok, JSON.stringify(pairRejection)).toBe(true);
+    expect(getAcceptedProposals(sku, run.id).map(proposal => proposal.id)).toContain('current-material');
+
+    expect(evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id })).toMatchObject({
+      ok: false, code: 'pair_unresolved',
+    });
+    const previewApp = new Hono();
+    previewApp.route('/api', catalogClassificationRoutes);
+    const previewResponse = await previewApp.request(`/api/products/${encodeURIComponent(sku)}/classification`);
+    expect(previewResponse.status).toBe(200);
+    const previewDetail = await previewResponse.json();
+    expect(previewDetail.draftProjection.status).toBe('abstained');
+    expect(previewDetail.draftProjection.projection.fieldAssignments).toEqual({});
+    expect(previewDetail.draftProjection.projection.refusals).toContainEqual(
+      expect.objectContaining({ proposalId: 'prop-ob-pair', reason: expect.stringContaining('rejected') }),
+    );
+
+    const draftsBefore = listChangeSets(WS_ID);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id))
+      .rejects.toThrow(/Classification projection refused:.*rejected/i);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+  });
+});
+
+describe('issue #357 reviewed-projection parity: Flavor→Material correction (catalog)', () => {
+  it('preview and local draft agree on the corrected destination — Rubber lands in PF28, never PF23', async () => {
+    const sku = 'SKU-FLAVOR-MATERIAL';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product);
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, {
+      sourceKind: 'catalog_product', sourceProductHash: persisted.snapshot.sourceProductHash,
+    });
+    const db = getDb();
+    seedPairProposal(db, run.id, sku, now);
+    seedFieldProposal(db, run.id, sku, 'prop-flavor', 'flavor', 'Chicken', now);
     completeRun(run.id, 'completed');
 
-    const accepted = submitProposalDecisions({
+    // Reviewer corrects the Flavor proposal to Material/Rubber (the observed
+    // #357 before-state), while accepting the canonical pair that selects the frozen profile.
+    const reviewed = submitProposalDecisions({
       workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
       decisions: [
-        { proposalId: 'prop-pair', decision: 'accepted' },
-        { proposalId: 'prop-flavor', decision: 'accepted' },
+        { proposalId: 'prop-ob-pair', decision: 'accepted' },
+        { proposalId: 'prop-flavor', decision: 'accepted', revisedTargetId: 'material', revisedValue: 'Rubber' },
       ],
     });
-    expect(accepted.ok).toBe(true);
-    expect(getAcceptedProposals(sku, run.id).map(p => p.proposalType).sort()).toEqual(['field_assignment', 'product_classification']);
+    expect(reviewed.ok).toBe(true);
 
-    // Draft projection through the shared assignment contract (the same
-    // serializer the catalog application uses): the accepted pair + flavor
-    // project to their established slots; existing Brand and page state are
-    // untouched by classification. (Full applyCatalogClassification is
-    // environmentally broken by unrelated main-branch churn — missing
-    // packaging-ocr/url-utils exports — so this seam proves the projection
-    // half; the apply half re-enables once that churn lands.)
+    const accepted: ClassificationProposal[] = getAcceptedProposals(sku, run.id);
+    expect(accepted).toHaveLength(2);
+    const acceptedField = accepted.find(proposal => proposal.proposalType === 'field_assignment');
+    if (!acceptedField) throw new Error('Corrected field proposal was not accepted');
+    expect(getEffectiveProposalTargetId(acceptedField)).toBe('material');
+    expect(getEffectiveProposalValue(acceptedField)).toBe('Rubber');
+
+    const mappings = getCachedAttributeMappings(WS_ID);
+
+    // Approved preview (generic projector): corrected destination parity —
+    // Rubber projects to PF28 (Material), and PF23 (Flavor) is untouched.
+    const projection = buildAssignmentProjection(
+      accepted, product.customFields, product.core.productOnPages ?? [], mappings, new Set(),
+      createAssignmentProjectionAuthority(persisted.snapshot, undefined, getCachedClassificationOutputBindings(WS_ID)),
+    );
+    expect(projection.skipped).toEqual([]);
+    const projectedByField: Record<string, string> = {};
+    for (const field of projection.fields) projectedByField[field.catalogField] = field.proposedValue ?? '';
+    expect(projectedByField[MATERIAL_FIELD]).toBe('Rubber');
+    expect(FLAVOR_FIELD in projectedByField).toBe(false);
+    expect(projection.skipped.map(s => s.targetId)).not.toContain('brand');
+
+    // The catalog Review detail recomputes the preview from persisted current
+    // decisions and the run's captured authority, rather than returning the
+    // pre-review provisional stage output.
+    const app = new Hono();
+    app.route('/api', catalogClassificationRoutes);
+    const response = await app.request(`/api/products/${encodeURIComponent(sku)}/classification`);
+    expect(response.status).toBe(200);
+    const detail = await response.json();
+    const draftPreview = detail.draftProjection;
+    expect(draftPreview.status).toBe('succeeded');
+    const stageProjection = draftPreview.projection;
+    expect(stageProjection.fieldAssignments[MATERIAL_FIELD]).toBe('Rubber');
+    expect(FLAVOR_FIELD in stageProjection.fieldAssignments).toBe(false);
+    // Actual local draft: the change-set product carries Rubber in PF28,
+    // PF23 keeps its existing value, Brand and the rest survive.
+    const result = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
+    expect(result.appliedFields).toEqual(expect.arrayContaining([MATERIAL_FIELD, CATEGORY_FIELD, PRODUCT_TYPE_FIELD]));
+    expect(result.appliedFields).not.toContain(FLAVOR_FIELD);
+    const draft = readDraftView(result.changeSetId);
+    expect(draft.customFields[MATERIAL_FIELD]).toBe('Rubber');
+    expect(draft.customFields[FLAVOR_FIELD]).toBe('Beef');
+    expect(draft.customFields[CATEGORY_FIELD]).toBe('QA Category: dog-food');
+    expect(draft.customFields[PRODUCT_TYPE_FIELD]).toBe('QA Product Type: dog-food-dry');
+    expect(draft.customFields[BRAND_FIELD]).toBe('Acme');
+    expect(draft.core.name).toBe('Acme Chicken Dinner');
+    expect(draft.core.price).toBe('9.99');
+    expect(draft.sku).toBe(sku);
+  });
+});
+
+describe('accepted classification clears and page removals (catalog)', () => {
+
+  it('accepted clears and page removals apply; pending supplements stay provisional and never enter the draft', async () => {
+    const sku = 'SKU-CLEAR-REMOVE';
+    const now = new Date().toISOString();
+    activatePageImportFromRecords({
+      workspaceId: WS_ID, sourceHash: createHash('sha256').update(sku).digest('hex'),
+      parserFormatVersion: 'pages-xml-1', activatedBy: 'test',
+      records: [{ identity: { kind: 'exported_guid', key: 'old-page', status: 'verified' }, name: 'Old Page', parentRef: null, availability: 'available' }],
+    });
+    const oldPage = listVerifiedPageOptions(WS_ID).find(page => page.name === 'Old Page');
+    if (!oldPage) throw new Error('Verified removal page was not imported');
+    const product = baseProduct(sku, now, {
+      customFields: { [BRAND_FIELD]: 'Acme', [FLAVOR_FIELD]: 'Chicken', [MATERIAL_FIELD]: 'Nylon' },
+      productOnPages: ['Old Page', 'Brand - Acme'],
+    });
+    writeProductFile(workspacePath, product);
+    const config = configFixture();
+    const ref = createConfigSnapshot(WS_ID, config);
+    const persisted = persistCoherentSnapshot(sku, config, ref);
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, { sourceKind: 'catalog_product', sourceProductHash: persisted.snapshot.sourceProductHash });
+    const db = getDb();
+    seedFieldProposal(db, run.id, sku, 'prop-clear', 'flavor', 'Chicken', now);
+    seedFieldProposal(db, run.id, sku, 'prop-pending', 'material', 'Rubber', now);
+    seedPageProposal(db, run.id, sku, 'prop-page', oldPage.id, { pageId: oldPage.id, pageName: oldPage.name }, now);
+    completeRun(run.id, 'completed');
+
+    // Explicit reviewed clear (null value, same target) + reviewed page
+    // removal (null target + null value). The material proposal stays
+    // pending — provisional only.
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-clear', decision: 'accepted', revisedValue: null },
+        { proposalId: 'prop-page', decision: 'accepted', revisedTargetId: null, revisedValue: null },
+      ],
+    });
+    expect(reviewed.ok).toBe(true);
+
+    const accepted: ClassificationProposal[] = getAcceptedProposals(sku, run.id);
+    expect(accepted.map(p => p.id).sort()).toEqual(['prop-clear', 'prop-page']);
+
+    // The approved projection carries the clear; the pending Rubber
+    // supplement never enters approved application.
     const mappings = getCachedAttributeMappings(WS_ID);
     const projection = buildAssignmentProjection(
-      getAcceptedProposals(sku, run.id), { ProductField16: 'Acme', ProductField23: 'Beef' }, ['Old Page'], mappings,
+      accepted, product.customFields, product.core.productOnPages ?? [], mappings, new Set([oldPage.id]),
+      { attributes: persisted.snapshot.attributes, frozenMappings: persisted.snapshot.attributeMappings,
+        verifiedPageNames: new Map([[oldPage.id, oldPage.name]]) },
     );
-    const byField = new Map(projection.fields.map(f => [f.catalogField, f]));
-    expect(byField.get('ProductField23')?.proposedValue).toBe('Chicken');
-    expect(projection.skipped.map(s => s.targetId)).not.toContain('brand');
+    expect(projection.skipped).toEqual([]);
+    expect(projection.pages.final).toEqual(['Brand - Acme']);
+    expect(projection.fields.some(field => field.catalogField === MATERIAL_FIELD)).toBe(false);
+    const projectedByField: Record<string, string> = {};
+    for (const field of projection.fields) projectedByField[field.catalogField] = field.proposedValue ?? '';
+    expect(projectedByField[FLAVOR_FIELD]).toBe('');
+
+    const result = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
+    const draft = readDraftView(result.changeSetId);
+    expect(draft.customFields[FLAVOR_FIELD]).toBe('');
+    expect(draft.customFields[MATERIAL_FIELD]).toBe('Nylon');
+    expect(draft.customFields[BRAND_FIELD]).toBe('Acme');
+    expect(draft.core.productOnPages).toEqual(['Brand - Acme']);
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+  });
+
+  it('protected/unknown/pricing revised targets refuse; stale mapping or source fails atomically with no partial write', async () => {
+    const sku = 'SKU-REFUSE-STALE';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    writeProductFile(workspacePath, product);
+    const config = configFixture();
+    const ref = createConfigSnapshot(WS_ID, config);
+    const persisted = persistCoherentSnapshot(sku, config, ref);
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, { sourceKind: 'catalog_product', sourceProductHash: persisted.snapshot.sourceProductHash });
+    const db = getDb();
+    seedFieldProposal(db, run.id, sku, 'prop-flavor', 'flavor', 'Chicken', now);
+    completeRun(run.id, 'completed');
+
+    // Protected revised targets (Brand, pricing slot) refuse at review.
+    const protectedTargets = ['brand', BRAND_FIELD, PRICING_FIELD];
+    for (const revisedTargetId of protectedTargets) {
+      const refused = submitProposalDecisions({
+        workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+        decisions: [{ proposalId: 'prop-flavor', decision: 'accepted', revisedTargetId, revisedValue: 'X' }],
+      });
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.code).toBe('protected_target_refused');
+    }
+    // Unknown revised target: frozen validation refuses (not in the run's
+    // frozen taxonomy) — never a silent write.
+    const unknown = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-flavor', decision: 'accepted', revisedTargetId: 'no-such-attribute', revisedValue: 'X' }],
+    });
+    expect(unknown.ok).toBe(false);
+
+    // Accept cleanly, then drift the live destination/serialization. A
+    // projection refusal blocks the entire local draft (no partial write).
+    const clean = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-flavor', decision: 'accepted' }],
+    });
+    expect(clean.ok).toBe(true);
+    const repointed = configFixture();
+    repointed.attributeMappings.find(mapping => mapping.attributeId === 'flavor')!.catalogField = 'ProductField24';
+    syncConfigToCache(WS_ID, repointed);
+    const draftsBefore = listChangeSets(WS_ID);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id)).rejects.toThrow(/Classification projection refused/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+
+    // Serialization-only drift is also refused even with the same certified slot.
+    const reserialized = configFixture();
+    reserialized.attributeMappings.find(mapping => mapping.attributeId === 'flavor')!.serialization.prefix = 'Flavor: ';
+    syncConfigToCache(WS_ID, reserialized);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id)).rejects.toThrow(/mapping_changed/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    syncConfigToCache(WS_ID, config);
+
+    // Stale SOURCE: a product edit after review refuses the whole apply
+    // atomically — the drifted run throws before any change set is written.
+    const sku2 = 'SKU-SOURCE-DRIFT';
+    const product2 = baseProduct(sku2, now);
+    writeProductFile(workspacePath, product2);
+    const persisted2 = persistCoherentSnapshot(sku2, config, ref);
+    const run2 = createRepositoryRun(WS_ID, sku2, persisted2.id, persisted2.hash, { sourceKind: 'catalog_product', sourceProductHash: persisted2.snapshot.sourceProductHash });
+    seedFieldProposal(getDb(), run2.id, sku2, 'prop-f2', 'material', 'Rubber', now);
+    completeRun(run2.id, 'completed');
+    const accept2 = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku2, runId: run2.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-f2', decision: 'accepted' }],
+    });
+    expect(accept2.ok).toBe(true);
+    // Drift the source after the hash was recorded.
+    const drifted = baseProduct(sku2, now, { name: 'Tampered Name' });
+    writeProductFile(workspacePath, drifted);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku2, run2.id)).rejects.toThrow(/changed since classification/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    expect(readProductFile(workspacePath, sku2)).toEqual(drifted);
+  });
+});
+
+describe('issue #357 reviewed-projection parity: onboarding consumer', () => {
+  it('an accepted Flavor→Material correction promotes Rubber into PF28 through the real onboarding draft path', async () => {
+    const sku = 'SKU-ONBOARD-357';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now, {
+      name: 'Acme Dry Dog Food Chicken',
+      productOnPages: ['Old Page', 'Brand - Acme'],
+      customFields: {
+        [BRAND_FIELD]: 'Acme',
+        [FLAVOR_FIELD]: 'Chicken',
+        [MATERIAL_FIELD]: 'Nylon',
+        [CATEGORY_FIELD]: 'Old Category',
+        [PRODUCT_TYPE_FIELD]: 'Old Product Type',
+        [PRICING_FIELD]: '9.99',
+      },
+    });
+
+    // Onboarding item with a verified page (mandatory Pages gate) and a
+    // title carrying both brand and measurement evidence (naming gate).
+    const batch = createBatch({ workspaceId: WS_ID, name: 'Onboard 357', fileName: 'promo-357.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{
+      upc: sku, name: 'Acme Rubber Chew 5 LB', price: '9.99', brandHint: 'Acme', rowNumber: 1,
+    }]);
+    const odb = getDb();
+    // A real supplied workspace image satisfies the separate listing-media
+    // requirement without a model call or a live image download.
+    const imageDir = path.join(workspacePath, 'products', 'images', 'acme');
+    fs.mkdirSync(imageDir, { recursive: true });
+    fs.writeFileSync(path.join(imageDir, 'rubber-chew.png'), Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1kAAAAASUVORK5CYII=', 'base64',
+    ));
+    const extractionData = {
+      title: 'Acme Rubber Chew 5 LB', brand: 'Acme', description: 'Tough rubber chew.',
+      bulletPoints: [], primaryImage: 'acme/rubber-chew.png', additionalImages: [], price: '9.99',
+      weight: '5 LB', dimensions: null, seoFileName: null, searchKeywords: null,
+      packagingTitle: null, packagingOcrData: null, customFields: {},
+      sourceUrl: `https://example.test/${sku}`, confidence: 0.9, fieldProvenance: { title: 'json-ld' },
+    };
+    const key = `vp-357-${sku}`;
+    activatePageImportFromRecords({
+      workspaceId: WS_ID,
+      sourceHash: createHash('sha256').update(key).digest('hex'),
+      parserFormatVersion: 'pages-xml-1',
+      records: [
+        { identity: { kind: 'exported_guid', key, status: 'verified' }, name: 'Toys', parentRef: null, availability: 'available' },
+        { identity: { kind: 'exported_guid', key: `old-${key}`, status: 'verified' }, name: 'Old Page', parentRef: null, availability: 'available' },
+      ],
+      activatedBy: 'test',
+    });
+    const verified = listVerifiedPageOptions(WS_ID).find(p => p.name === 'Toys');
+    const oldPage = listVerifiedPageOptions(WS_ID).find(p => p.name === 'Old Page');
+    if (!verified || !oldPage) throw new Error('verified onboarding page fixture not created');
+
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product);
+    expect(isTaxonomyFrozen()).toBe(true);
+    expect(persisted.snapshot.schemaVersion).toBe(2);
+    expect(persisted.snapshot.configAuthorityKind).toBe('v2');
+    expect(persisted.snapshot.productTypes.find(type => type.id === 'dog-food-dry')).toMatchObject({
+      categoryId: 'dog-food',
+      attributeProfileId: 'dog-food-dry-profile',
+    });
+
+    // Onboarding run linked to the item; proposals carry the frozen
+    // authority of the persisted coherent snapshot.
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, { onboardingItemId: item.id, sourceKind: 'onboarding' });
+    seedPairProposal(odb, run.id, sku, now);
+    seedFieldProposal(odb, run.id, sku, 'prop-ob-flavor', 'flavor', 'Chicken', now);
+    seedFieldProposal(odb, run.id, sku, 'prop-ob-clear', 'flavor', 'Chicken', now);
+    seedFieldProposal(odb, run.id, sku, 'prop-ob-pending', 'material', 'Nylon', now);
+    seedPageProposal(odb, run.id, sku, 'prop-ob-page', verified.id, { pageId: verified.id, pageName: 'Toys' }, now);
+    seedPageProposal(odb, run.id, sku, 'prop-ob-remove', oldPage.id, { pageId: oldPage.id, pageName: 'Old Page' }, now);
+    completeRun(run.id, 'completed');
+
+    for (const revisedTargetId of ['brand', 'does-not-exist']) {
+      const refused = submitProposalDecisions({
+        workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'onboarding', onboardingItemId: item.id,
+        decisions: [{
+          proposalId: 'prop-ob-flavor', decision: 'accepted',
+          revisedTargetId, revisedValue: 'Not a classification value',
+        }],
+      });
+      expect(refused.ok).toBe(false);
+    }
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'onboarding', onboardingItemId: item.id,
+      decisions: [
+        { proposalId: 'prop-ob-pair', decision: 'accepted' },
+        { proposalId: 'prop-ob-flavor', decision: 'accepted', revisedTargetId: 'material', revisedValue: 'Rubber' },
+        { proposalId: 'prop-ob-clear', decision: 'accepted', revisedValue: null },
+        { proposalId: 'prop-ob-page', decision: 'accepted' },
+        { proposalId: 'prop-ob-pending', decision: 'rejected' },
+        { proposalId: 'prop-ob-remove', decision: 'accepted', revisedTargetId: null, revisedValue: null },
+      ],
+    });
+    expect(reviewed.ok).toBe(true);
+
+    odb.query(
+      `UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?`,
+    ).run(
+      JSON.stringify(extractionData),
+      JSON.stringify({
+        curatedTitle: 'Acme Rubber Chew 5 LB', titleSource: 'web',
+        curatedWeight: '5 LB', curationMethod: 'manual', curatedAt: now,
+        classificationRunId: run.id, suggestedPages: ['Toys'],
+      }),
+      item.id,
+    );
+    const app = new Hono();
+    app.route('/api', onboardingRoutes);
+    const response = await app.request(`/api/onboarding/items/${encodeURIComponent(item.id)}`);
+    expect(response.status).toBe(200);
+    const detail = await response.json();
+    const preview = detail.item.curationData.classificationDraftProjection;
+    expect(preview.status).toBe('succeeded');
+    expect(preview.projection.fieldAssignments[MATERIAL_FIELD]).toBe('Rubber');
+    expect(preview.projection.fieldAssignments[FLAVOR_FIELD]).toBe('');
+    expect(preview.projection.pageAssignments).toContain('Toys');
+    expect(preview.projection.removedPages).toContain('Old Page');
+    expect(preview.projection.provisionalFieldAssignments[MATERIAL_FIELD]).toBeUndefined();
+    const reviewGate = validateReviewCompletionGate({
+      workspaceId: WS_ID, onboardingItemId: item.id, productSku: sku, activeRunId: run.id,
+    });
+    expect(reviewGate.ok).toBe(true);
+    markReviewed({ itemId: item.id, batchId: batch.id, reviewedBy: 'seam-test' });
+    markApproved({ itemId: item.id, batchId: batch.id, approvedBy: 'seam-test' });
+    const draftsBeforeStaleImport = listChangeSets(WS_ID);
+    activatePageImportFromRecords({
+      workspaceId: WS_ID,
+      sourceHash: createHash('sha256').update(`${key}-stale-import`).digest('hex'),
+      parserFormatVersion: 'pages-xml-1',
+      records: [{
+        identity: { kind: 'exported_guid', key: `stale-${key}`, status: 'verified' },
+        name: 'Toys', parentRef: null, availability: 'available',
+      }],
+      activatedBy: 'test',
+    });
+    const stalePromotion = await promoteItems(WS_ID, workspacePath, batch.id, [item.id]);
+    expect(stalePromotion.count).toBe(0);
+    expect(stalePromotion.failures).toHaveLength(1);
+    expect(stalePromotion.failures[0]!.error).toContain('Page import authority changed');
+    expect(listChangeSets(WS_ID)).toEqual(draftsBeforeStaleImport);
+    odb.query(
+      `UPDATE onboarding_items SET stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?`,
+    ).run(item.id);
+    activatePageImportFromRecords({
+      workspaceId: WS_ID,
+      sourceHash: createHash('sha256').update(key).digest('hex'),
+      parserFormatVersion: 'pages-xml-1',
+      records: [
+        { identity: { kind: 'exported_guid', key, status: 'verified' }, name: 'Toys', parentRef: null, availability: 'available' },
+        { identity: { kind: 'exported_guid', key: `old-${key}`, status: 'verified' }, name: 'Old Page', parentRef: null, availability: 'available' },
+      ],
+      activatedBy: 'test',
+    });
+
+    const result = await promoteItems(WS_ID, workspacePath, batch.id, [item.id]);
+    expect(result.failures).toEqual([]);
+    expect(result.count).toBe(1);
+    if (!result.changeSetId) throw new Error('promotion produced no change set');
+    const draft = readDraftView(result.changeSetId);
+    // Corrected destination parity: Rubber in PF28; the accepted Flavor
+    // clear and page removal apply, pending Nylon is excluded, and unrelated
+    // Brand/listing data remain unchanged.
+    expect(draft.customFields[FLAVOR_FIELD]).toBe('');
+    expect(draft.customFields[MATERIAL_FIELD]).toBe('Rubber');
+    expect(draft.customFields[CATEGORY_FIELD]).toBe('QA Category: dog-food');
+    expect(draft.customFields[PRODUCT_TYPE_FIELD]).toBe('QA Product Type: dog-food-dry');
+    expect(draft.customFields[BRAND_FIELD]).toBe('Acme');
+    expect(draft.core.productOnPages).toEqual(['Brand - Acme', 'Toys']);
+    expect(draft.core.price).toBe('9.99');
+    const promoted = JSON.parse(listChangeSetItems(result.changeSetId)[0].draftJson) as Product;
+    expect(promoted.core.media.primary).toBe('acme/rubber-chew.png');
+});
+});
+
+describe('issue #356 conditional chain gating: material conditions species', () => {
+  // Certified slots only (extra-fields certification 2026-10-15): the chain
+  // premise is material→PF28, the conditioned species is species→PF17, and
+  // the downstream chain member is color→PF29. Uncertified slots (e.g. PF30)
+  // are protected and would refuse for the wrong reason.
+  const PREMISE_FIELD = MATERIAL_FIELD;
+  const SPECIES_FIELD = 'ProductField17';
+  const CHAIN_COLOR_FIELD = COLOR_FIELD;
+  // The base fixture already owns flavor/material; use the governed species +
+  // color identities so the chain premise/dependent triple exercises real
+  // certified bindings.
+  const PREMISE_ATTR = 'material';
+  const CHAIN_SPECIES_ATTR = 'species';
+  const CHAIN_COLOR_ATTR = 'color';
+  async function chainSetup(sku: string, now: string, product: Product): Promise<{ snapshot: RuntimeClassificationSnapshot; runId: string }> {
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product, {
+      attributes: [
+        { id: 'flavor', name: 'Flavor', allowedValues: ['Chicken'] },
+        { id: 'material', name: 'Material', allowedValues: ['Rubber', 'Nylon'] },
+        { id: 'species', name: 'Species', allowedValues: ['Dog'] },
+        { id: 'color', name: 'Color', allowedValues: ['Red'] },
+      ],
+      mappings: [
+        { id: 'flavor-map', attributeId: 'flavor', catalogField: FLAVOR_FIELD },
+        { id: 'material-map', attributeId: 'material', catalogField: PREMISE_FIELD },
+        { id: 'species-map', attributeId: 'species', catalogField: SPECIES_FIELD },
+        { id: 'color-map', attributeId: 'color', catalogField: CHAIN_COLOR_FIELD },
+      ],
+      curationTargets: [
+        { id: 'ft', attributeId: 'flavor', catalogField: FLAVOR_FIELD, label: 'Flavor', sortOrder: 1 },
+        { id: 'mt', attributeId: 'material', catalogField: PREMISE_FIELD, label: 'Material', sortOrder: 2 },
+        { id: 'spt', attributeId: 'species', catalogField: SPECIES_FIELD, label: 'Species', sortOrder: 3 },
+        { id: 'cct', attributeId: 'color', catalogField: CHAIN_COLOR_FIELD, label: 'Color', sortOrder: 4 },
+      ],
+      profileAttributes: [
+        { attributeId: 'flavor', required: false, cardinality: 'single' },
+        { attributeId: 'material', required: true, cardinality: 'single' },
+        { attributeId: 'species', required: false, cardinality: 'single', applicabilityConditions: [{ operator: 'equals', attributeId: 'material', value: 'Rubber', factSource: 'accepted_reviewed' }] },
+        { attributeId: 'color', required: false, cardinality: 'single', applicabilityConditions: [{ operator: 'equals', attributeId: 'species', value: 'Dog', factSource: 'accepted_reviewed' }] },
+      ],
+    });
+    const snapshot = persisted.snapshot;
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, {
+      sourceKind: 'catalog_product', sourceProductHash: snapshot.sourceProductHash,
+    });
+    const db = getDb();
+    seedPairProposal(db, run.id, sku, now);
+    // Nylon is the non-qualifying premise every conditional chain member
+    // resolves against.
+    seedFieldProposal(db, run.id, sku, 'chain-premise', PREMISE_ATTR, 'Nylon', now);
+    seedFieldProposal(db, run.id, sku, 'chain-species', CHAIN_SPECIES_ATTR, 'Dog', now);
+    seedFieldProposal(db, run.id, sku, 'chain-color', CHAIN_COLOR_ATTR, 'Red', now);
+    completeRun(run.id, 'completed');
+    return { snapshot, runId: run.id };
+  }
+  it('refused chain under a non-qualifying premise; a qualifying correction projects the full chain', async () => {
+    const now = new Date().toISOString();
+    const sku = 'SKU-CONDITIONAL-CHAIN-GATE';
+    const product = baseProduct(sku, now, { customFields: { [BRAND_FIELD]: 'Acme' } });
+    const { snapshot, runId } = await chainSetup(sku, now, product);
+    const run = { id: runId };
+    const firstReviewed = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-ob-pair', decision: 'accepted' },
+        { proposalId: 'chain-premise', decision: 'accepted' },
+        { proposalId: 'chain-species', decision: 'accepted' },
+        { proposalId: 'chain-color', decision: 'accepted' },
+      ],
+    });
+    expect(firstReviewed.ok, JSON.stringify(firstReviewed)).toBe(true);
+    expect(evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id })).toMatchObject({ ok: false, code: 'required_values_missing' });
+    const mappings = getCachedAttributeMappings(WS_ID);
+    const firstAccepted = getAcceptedProposals(sku, run.id);
+    const refused = buildAssignmentProjection(
+      firstAccepted, product.customFields, product.core.productOnPages ?? [], mappings,
+      new Set(), createAssignmentProjectionAuthority(snapshot, undefined, canonicalOutputBindings),
+      { reviewedProposals: firstAccepted, currentRunProposals: getProposalsByRun(run.id) },
+    );
+    expect(refused.skipped.map(entry => entry.proposalId).sort()).toEqual(['chain-color', 'chain-species']);
+    expect(refused.skipped.find(entry => entry.proposalId === 'chain-species')?.reason).toMatch(/not satisfied|condition is not/i);
+    expect(refused.fields.map(field => field.catalogField)).toContain(PREMISE_FIELD);
+    expect(refused.fields.map(field => field.catalogField)).not.toContain(SPECIES_FIELD);
+    expect(refused.fields.map(field => field.catalogField)).not.toContain(CHAIN_COLOR_FIELD);
+    // Correct the premise to the qualifying value. The refused dependent
+    // names the withdrawn premise: without the corrected chain equality
+    // semantics this surfaces as a generic stale/value refusal.
+    const premiseDecisionId = getAcceptedProposals(sku, run.id).find(proposal => proposal.id === 'chain-premise')?.currentDecisionId;
+    const corrected = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'chain-premise', decision: 'accepted', revisedValue: 'Rubber', ...(premiseDecisionId ? { expectedRevisionId: premiseDecisionId } : {}) }],
+    });
+    expect(corrected.ok, JSON.stringify(corrected)).toBe(true);
+    expect(evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id })).toMatchObject({ ok: true, code: 'ready' });
+    const accepted = getAcceptedProposals(sku, run.id);
+    const qualifying = buildAssignmentProjection(
+      accepted, product.customFields, product.core.productOnPages ?? [], mappings,
+      new Set(), createAssignmentProjectionAuthority(snapshot, undefined, canonicalOutputBindings),
+      { reviewedProposals: accepted, currentRunProposals: getProposalsByRun(run.id) },
+    );
+    expect(qualifying.skipped).toEqual([]);
+    const qualifyingByField: Record<string, string> = {};
+    for (const field of qualifying.fields) qualifyingByField[field.catalogField] = field.proposedValue;
+    expect(qualifyingByField[PREMISE_FIELD]).toBe('Rubber');
+    expect(qualifyingByField[SPECIES_FIELD]).toBe('Dog');
+    expect(qualifyingByField[CHAIN_COLOR_FIELD]).toBe('Red');
+    const qualifyingDraft = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
+    const qualifyingView = readDraftView(qualifyingDraft.changeSetId);
+    expect(qualifyingView.customFields[PREMISE_FIELD]).toBe('Rubber');
+    expect(qualifyingView.customFields[SPECIES_FIELD]).toBe('Dog');
+    expect(qualifyingView.customFields[CHAIN_COLOR_FIELD]).toBe('Red');
+    // Correct the premise to the non-qualifying value. The refused dependent
+    // names the withdrawn premise: without the corrected chain equality
+    // semantics this surfaces as a generic stale/value refusal.
+    const backDecisionId = getAcceptedProposals(sku, run.id).find(proposal => proposal.id === 'chain-premise')?.currentDecisionId;
+    const recorrected = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'chain-premise', decision: 'accepted', revisedValue: 'Nylon', ...(backDecisionId ? { expectedRevisionId: backDecisionId } : {}) }],
+    });
+    expect(recorrected.ok, JSON.stringify(recorrected)).toBe(true);
+    const afterBack = getAcceptedProposals(sku, run.id);
+    const refusedBack = buildAssignmentProjection(
+      afterBack, product.customFields, product.core.productOnPages ?? [], mappings,
+      new Set(), createAssignmentProjectionAuthority(snapshot, undefined, canonicalOutputBindings),
+      { reviewedProposals: afterBack, currentRunProposals: getProposalsByRun(run.id) },
+    );
+    expect(refusedBack.skipped.map(entry => entry.proposalId).sort()).toEqual(['chain-color', 'chain-species']);
+    expect(refusedBack.skipped.find(entry => entry.proposalId === 'chain-species')?.reason).toMatch(/not satisfied|condition is not/i);
+    expect(refusedBack.fields.map(field => field.catalogField)).toContain(PREMISE_FIELD);
+    expect(refusedBack.fields.map(field => field.catalogField)).not.toContain(SPECIES_FIELD);
+    expect(refusedBack.fields.map(field => field.catalogField)).not.toContain(CHAIN_COLOR_FIELD);
+    expect(evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id })).toMatchObject({ ok: false, code: 'required_values_missing' });
+    const previewApp = new Hono();
+    previewApp.route('/api', catalogClassificationRoutes);
+    const previewResponse = await previewApp.request(`/api/products/${encodeURIComponent(sku)}/classification`);
+    expect(previewResponse.status).toBe(200);
+    const previewDetail = await previewResponse.json();
+    expect(previewDetail.draftProjection.projection.fieldAssignments[CHAIN_COLOR_FIELD]).toBeUndefined();
+    expect(previewDetail.draftProjection.projection.refusals.map((refusal: { proposalId: string }) => refusal.proposalId).sort())
+      .toEqual(['chain-color', 'chain-species']);
+    const draftsBefore = listChangeSets(WS_ID);
+    await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id))
+      .rejects.toThrow(/Classification projection refused/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+  });
+});
+
+describe('issue #356 pair-correction invalidation stales type-gated dependents, preserves independent premises', () => {
+  it('pair correction to the narrow type stales material+species while the independent flavor premise survives', async () => {
+    const sku = 'SKU-PAIR-REFRESH-PREMISE';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now);
+    writeProductFile(workspacePath, product);
+    for (const [xmlField, label] of [
+      [FLAVOR_FIELD, 'Facet-Flavor'],
+      [MATERIAL_FIELD, 'Facet-Material'],
+      [COLOR_FIELD, 'Facet-Color'],
+      ['ProductField17', 'Facet-Species'],
+      [CATEGORY_FIELD, 'Facet - Category'],
+      [PRODUCT_TYPE_FIELD, 'Facet - Product Type'],
+      [BRAND_FIELD, 'Brand'],
+      [PRICING_FIELD, 'MAP Pricing'],
+    ]) {
+      updateFieldMetadata({ id: WS_ID, workspacePath }, xmlField, { label });
+    }
+    const git = (...args: string[]) => execFileSync('git', args, {
+      cwd: workspacePath, encoding: 'utf-8',
+      env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+    }).trim();
+    git('init', '-b', 'main');
+    git('config', '--local', 'user.name', 'Pair Fixture');
+    git('config', '--local', 'user.email', 'pair@example.test');
+    git('config', '--local', 'core.hooksPath', '/dev/null');
+    git('config', '--local', 'commit.gpgsign', 'false');
+    git('add', 'products', 'store/field-registry.json');
+    git('commit', '-m', 'Seed pair catalog facts');
+    const sourceCatalogCommit = git('rev-parse', 'HEAD');
+    const seed: BayStateSeed = {
+      ...BayStatePetGardenSeed,
+      name: 'Pair refresh fixture', revision: 'pair-refresh-v2',
+      categories: [{ id: 'dog-food', name: 'Dog Food', description: null }],
+      productTypes: [
+        { id: 'dog-food-dry', name: 'Dry Dog Food', description: null, categoryId: 'dog-food', websiteValues: { category: 'QA Canine Goods', productType: 'QA Dog Toy' } },
+        { id: 'dog-toys', name: 'Dog Toys', description: null, categoryId: 'dog-food', websiteValues: { category: 'QA Canine Goods', productType: 'QA Pup Toy' } },
+      ],
+      classificationOutputBindings: canonicalOutputBindings,
+      attributes: [
+        { id: 'flavor', name: 'Flavor', allowedValues: ['Chicken'] },
+        { id: 'material', name: 'Material', allowedValues: ['Rubber', 'Nylon'] },
+        { id: 'species', name: 'Species', allowedValues: ['Dog'] },
+      ].map((attribute): BayStateSeed['attributes'][number] => ({
+        ...attribute, description: null, valueMode: 'controlled', canonicalUnit: null, valueAliases: [],
+        visualEvidenceEligibility: 'ineligible', isClaim: false, isCompositionAttribute: false, group: null,
+        isUniversal: attribute.id === 'flavor',
+        evidencePolicy: { directEvidenceRequired: true, forbidAbsenceInference: true, allowedSources: ['catalog_product'], allowVisualEvidence: false, allowThirdPartyEvidence: false, thirdPartyEvidenceApproval: null, manualReviewRequired: true },
+      })),
+      profileTemplates: [
+        { id: 'wide-profile', name: 'Wide', productTypeIds: ['dog-food-dry'], attributes: [
+          { attributeId: 'flavor', required: false, cardinality: 'single' },
+          { attributeId: 'material', required: true, cardinality: 'single' },
+          { attributeId: 'species', required: true, cardinality: 'single', applicabilityConditions: [{ operator: 'equals', attributeId: 'material', value: 'Rubber', factSource: 'accepted_reviewed' }] },
+        ] },
+        { id: 'narrow-profile', name: 'Narrow', productTypeIds: ['dog-toys'], attributes: [
+          { attributeId: 'flavor', required: false, cardinality: 'single' },
+        ] },
+      ],
+      mappings: [
+        { id: 'flavor-map', attributeId: 'flavor', catalogField: FLAVOR_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+        { id: 'material-map', attributeId: 'material', catalogField: MATERIAL_FIELD, serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+        { id: 'species-map', attributeId: 'species', catalogField: 'ProductField17', serialization: { kind: 'scalar', prefix: '', suffix: '' } },
+      ],
+      curationTargets: [
+        { ...pairTypeTarget().config, required: true, mandatory: true },
+        { id: 'ft', kind: 'product_field', label: 'Flavor', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'flavor', catalogField: FLAVOR_FIELD, optionSource: 'configured', required: false, sortOrder: 1 },
+        { id: 'mt', kind: 'product_field', label: 'Material', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'material', catalogField: MATERIAL_FIELD, optionSource: 'configured', required: false, sortOrder: 2 },
+        { id: 'spt', kind: 'product_field', label: 'Species', enabled: true, mandatory: false, selectionMode: 'single', attributeId: 'species', catalogField: 'ProductField17', optionSource: 'configured', required: false, sortOrder: 3 },
+      ],
+      brands: [], guidance: [],
+    };
+    const catalogEvidence = await scanCatalogEvidence(workspacePath, WS_ID);
+    const artifact = renderCatalogEvidence(catalogEvidence);
+    const evidenceHash = createHash('sha256').update(artifact).digest('hex');
+    const candidate = generateCandidate(seed, catalogEvidence);
+    const preview = previewCandidate(candidate.bundle, workspacePath, { catalogEvidence: artifact });
+    if (!preview.hash) throw new Error(JSON.stringify(preview.report.findings));
+    const priorFreeze = isTaxonomyFrozen();
+    expect(priorFreeze).toBe(true);
+    await (async () => {
+      setTaxonomyFreezeForTests(false);
+      try {
+        return await activateBundle(preview.hash!, null, { workspacePath, workspaceId: WS_ID, sourceCatalogCommit, catalogEvidenceHash: evidenceHash,
+          activationContext: { ...createRuntimeActivationContext(workspacePath, WS_ID), verifyCatalogEvidenceTree: hash => verifyCatalogEvidenceTreeIntegrity(workspacePath, hash, WS_ID) } });
+      } finally {
+        setTaxonomyFreezeForTests(priorFreeze);
+      }
+    })();
+    expect(isTaxonomyFrozen()).toBe(true);
+    const authority = loadRuntimeConfigAuthority(workspacePath, createRuntimeActivationContext(workspacePath, WS_ID));
+    if (authority.kind !== 'v2') throw new Error('Pair fixture did not activate v2 authority');
+    const configRef = upsertConfigSnapshot(WS_ID, authority.bundle, sourceCatalogCommit);
+    const pages = captureVerifiedPageSnapshot(WS_ID);
+    const snapshot = buildRuntimeSnapshot({ workspaceId: WS_ID, workspacePath, productSku: sku, authority,
+      configSnapshotRef: { id: configRef.id, hash: configRef.hash, sourceCommit: sourceCatalogCommit, createdAt: new Date().toISOString() },
+      sourceProductHash: computeProductHash(product), catalogEvidenceHash: evidenceHash, pages: toPageSnapshotState(pages),
+      pageImportId: pages.pageImportId, pageImportHash: pages.pageImportHash, productPageNames: product.core.productOnPages ?? [] });
+    const snapshotRef = persistRuntimeSnapshot(snapshot);
+    const run = createRepositoryRun(WS_ID, sku, snapshotRef.id, snapshotRef.hash, {
+      sourceKind: 'catalog_product', sourceProductHash: snapshot.sourceProductHash,
+    });
+    const db = getDb();
+    seedPairProposal(db, run.id, sku, now);
+    // Material is the conditional premise; flavor is profiled but
+    // unconditional, so correcting the pair stales exactly the premise.
+    seedFieldProposal(db, run.id, sku, 'premise-material', 'material', 'Rubber', now);
+    seedFieldProposal(db, run.id, sku, 'independent-flavor', 'flavor', 'Chicken', now);
+    seedFieldProposal(db, run.id, sku, 'dependent-species', 'species', 'Dog', now);
+    completeRun(run.id, 'completed');
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [
+        { proposalId: 'prop-ob-pair', decision: 'accepted' },
+        { proposalId: 'premise-material', decision: 'accepted' },
+        { proposalId: 'independent-flavor', decision: 'accepted' },
+        { proposalId: 'dependent-species', decision: 'accepted' },
+      ],
+    });
+    expect(reviewed.ok, JSON.stringify(reviewed)).toBe(true);
+    expect(evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id })).toMatchObject({ ok: true, code: 'ready' });
+    // Correct the pair to the narrow type: only the pair-addressed stale
+    // rule (material+species, flavor-independent) stales the dependents.
+    const pairDecisionId = getAcceptedProposals(sku, run.id).find(proposal => proposal.id === 'prop-ob-pair')?.currentDecisionId;
+    const corrected = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+      decisions: [{ proposalId: 'prop-ob-pair', decision: 'accepted', revisedTargetId: 'dog-toys', revisedValue: { categoryId: 'dog-food', productTypeId: 'dog-toys' }, ...(pairDecisionId ? { expectedRevisionId: pairDecisionId } : {}) }],
+    });
+    expect(corrected.ok, JSON.stringify(corrected)).toBe(true);
+    const afterCorrection = getProposalsByRun(run.id);
+    expect(afterCorrection.find(proposal => proposal.id === 'premise-material')?.status).toBe('stale');
+    expect(afterCorrection.find(proposal => proposal.id === 'dependent-species')?.status).toBe('stale');
+    expect(afterCorrection.find(proposal => proposal.id === 'independent-flavor')?.status).toBe('accepted');
+    // Readiness reflects the narrowed pair: the accepted flavor premise
+    // survives under the corrected type while the staled values carry no
+    // draft authority.
+    expect(evaluateCanonicalReadiness({ workspaceId: WS_ID, runId: run.id })).toMatchObject({ ok: true, code: 'ready' });
+    const accepted = getAcceptedProposals(sku, run.id);
+    const projection = buildAssignmentProjection(
+      accepted, product.customFields, product.core.productOnPages ?? [], getCachedAttributeMappings(WS_ID),
+      new Set(), createAssignmentProjectionAuthority(snapshot, undefined, getCachedClassificationOutputBindings(WS_ID)),
+      { reviewedProposals: accepted, currentRunProposals: getProposalsByRun(run.id) },
+    );
+    expect(projection.skipped.map(entry => entry.proposalId)).not.toContain('dependent-species');
+    expect(projection.fields.map(field => field.catalogField)).not.toContain('ProductField17');
+    expect(projection.skipped).toEqual([]);
+    const result = await applyCatalogClassification(workspacePath, WS_ID, sku, run.id);
+    const draft = readDraftView(result.changeSetId);
+    expect(draft.customFields[FLAVOR_FIELD]).toBe('Chicken');
+    expect(draft.customFields['ProductField17' as string] ?? '').toBe('');
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
+  });
+});
+
+describe('issue #356 projection refusal fail-closed: not_applicable and unknown', () => {
+  it.each([['not_applicable' as const, 'Rubber'], ['unknown' as const, 'Nylon']])(
+    'refuses an accepted %s attribute in preview and draft while an explicit null clear still applies (%s)',
+    async (state, materialValue) => {
+      const now = new Date().toISOString();
+      const sku = `SKU-PROJECTION-REFUSAL-${state.toUpperCase()}`;
+      const product = baseProduct(sku, now, { customFields: { [BRAND_FIELD]: 'Acme', [MATERIAL_FIELD]: 'Nylon' } });
+      // Genuine v2 authority via the governed onboarding seed. Certified
+      // pairs only: flavor→PF23, material→PF28, color→PF29.
+      // not_applicable: material is conditioned on an unsatisfiable flavor
+      // value while flavor=Chicken is accepted. unknown: material is
+      // conditioned on color, for which no fact is ever accepted.
+      const persisted = await persistGovernedOnboardingSnapshot(sku, product, {
+        attributes: [
+          { id: 'flavor', name: 'Flavor', allowedValues: ['Chicken', 'Beef'] },
+          { id: 'material', name: 'Material', allowedValues: ['Rubber', 'Nylon'] },
+          { id: 'color', name: 'Color', allowedValues: ['Red'] },
+        ],
+        mappings: [
+          { id: 'flavor-map', attributeId: 'flavor', catalogField: FLAVOR_FIELD },
+          { id: 'material-map', attributeId: 'material', catalogField: MATERIAL_FIELD },
+          { id: 'color-map', attributeId: 'color', catalogField: COLOR_FIELD },
+        ],
+        curationTargets: [
+          { id: 'ft', attributeId: 'flavor', catalogField: FLAVOR_FIELD, label: 'Flavor', sortOrder: 1 },
+          { id: 'mt', attributeId: 'material', catalogField: MATERIAL_FIELD, label: 'Material', sortOrder: 2 },
+          { id: 'ct', attributeId: 'color', catalogField: COLOR_FIELD, label: 'Color', sortOrder: 3 },
+        ],
+        profileAttributes: state === 'not_applicable'
+          ? [
+            { attributeId: 'flavor', required: false, cardinality: 'single' },
+            { attributeId: 'material', required: false, cardinality: 'single', applicabilityConditions: [{ operator: 'equals', attributeId: 'flavor', value: 'Beef', factSource: 'accepted_reviewed' }] },
+            { attributeId: 'color', required: false, cardinality: 'single' },
+          ]
+          : [
+            { attributeId: 'flavor', required: false, cardinality: 'single' },
+            { attributeId: 'material', required: false, cardinality: 'single', applicabilityConditions: [{ operator: 'equals', attributeId: 'color', value: 'Red', factSource: 'accepted_reviewed' }] },
+            { attributeId: 'color', required: false, cardinality: 'single' },
+          ],
+      });
+      const snapshot = persisted.snapshot;
+      const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, {
+        sourceKind: 'catalog_product', sourceProductHash: snapshot.sourceProductHash,
+      });
+      const db = getDb();
+      seedPairProposal(db, run.id, sku, now);
+      seedFieldProposal(db, run.id, sku, 'premise-flavor', 'flavor', 'Chicken', now);
+      seedFieldProposal(db, run.id, sku, 'refused-attr', 'material', materialValue, now);
+      completeRun(run.id, 'completed');
+      const reviewed = submitProposalDecisions({
+        workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+        decisions: [
+          { proposalId: 'prop-ob-pair', decision: 'accepted' },
+          { proposalId: 'premise-flavor', decision: 'accepted' },
+          { proposalId: 'refused-attr', decision: 'accepted' },
+        ],
+      });
+      expect(reviewed.ok, JSON.stringify(reviewed)).toBe(true);
+      const accepted = getAcceptedProposals(sku, run.id);
+      const mappings = getCachedAttributeMappings(WS_ID);
+      const projection = buildAssignmentProjection(
+        accepted, product.customFields, product.core.productOnPages ?? [], mappings,
+        new Set(), createAssignmentProjectionAuthority(snapshot, undefined, canonicalOutputBindings),
+        { reviewedProposals: accepted, currentRunProposals: getProposalsByRun(run.id) },
+      );
+      const refused = projection.skipped.find(entry => entry.proposalId === 'refused-attr');
+      expect(refused?.reason).toMatch(new RegExp(`applicability is ${state}`));
+      expect(projection.fields.map(field => field.catalogField)).not.toContain(MATERIAL_FIELD);
+      const previewApp = new Hono();
+      previewApp.route('/api', catalogClassificationRoutes);
+      const previewResponse = await previewApp.request(`/api/products/${encodeURIComponent(sku)}/classification`);
+      expect(previewResponse.status).toBe(200);
+      const previewDetail = await previewResponse.json();
+      expect(previewDetail.draftProjection.projection.refusals.map((entry: { proposalId: string }) => entry.proposalId)).toContain('refused-attr');
+      expect(previewDetail.draftProjection.projection.fieldAssignments[MATERIAL_FIELD]).toBeUndefined();
+      const draftsBefore = listChangeSets(WS_ID);
+      await expect(applyCatalogClassification(workspacePath, WS_ID, sku, run.id)).rejects.toThrow(/Classification projection refused/);
+      expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+      expect(readProductFile(workspacePath, sku)).toEqual(product);
+      // Explicit-clear exception: the same frozen state still removes the
+      // slot rather than assigning it.
+      const acceptedDecisionId = getAcceptedProposals(sku, run.id).find(proposal => proposal.id === 'refused-attr')?.currentDecisionId;
+      const cleared = submitProposalDecisions({
+        workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'catalog_product',
+        decisions: [{ proposalId: 'refused-attr', decision: 'accepted', revisedValue: null, ...(acceptedDecisionId ? { expectedRevisionId: acceptedDecisionId } : {}) }],
+      });
+      expect(cleared.ok, JSON.stringify(cleared)).toBe(true);
+      const clearedAccepted = getAcceptedProposals(sku, run.id);
+      const clearedProjection = buildAssignmentProjection(
+        clearedAccepted, { ...product.customFields, [MATERIAL_FIELD]: 'Existing' }, product.core.productOnPages ?? [], mappings,
+        new Set(), createAssignmentProjectionAuthority(snapshot, undefined, canonicalOutputBindings),
+        { reviewedProposals: clearedAccepted, currentRunProposals: getProposalsByRun(run.id) },
+      );
+      expect(clearedProjection.skipped.map(entry => entry.proposalId)).not.toContain('refused-attr');
+      expect(clearedProjection.fields.find(field => field.catalogField === MATERIAL_FIELD)?.proposedValue).toBe('');
+    },
+  );
+});
+
+describe('issue #356 onboarding promotion refusal path (computePromotionGate/promoteItems)', () => {
+  it('refuses promotion when a not_applicable attribute is accepted, without markReviewed/markApproved', async () => {
+    const sku = 'SKU-ONBOARD-REFUSAL';
+    const now = new Date().toISOString();
+    const product = baseProduct(sku, now, {
+      name: 'Acme Rubber Chew 5 LB',
+      customFields: {
+        [BRAND_FIELD]: 'Acme', [FLAVOR_FIELD]: 'Chicken', [MATERIAL_FIELD]: 'Nylon',
+        [CATEGORY_FIELD]: 'Old Category', [PRODUCT_TYPE_FIELD]: 'Old Product Type', [PRICING_FIELD]: '9.99',
+      },
+    });
+    const batch = createBatch({ workspaceId: WS_ID, name: 'Onboard refusal', fileName: 'refusal.csv', totalItems: 1 });
+    const [item] = insertItems(batch.id, [{ upc: sku, name: 'Acme Rubber Chew 5 LB', price: '9.99', brandHint: 'Acme', rowNumber: 1 }]);
+    const imageDir = path.join(workspacePath, 'products', 'images', 'acme');
+    fs.mkdirSync(imageDir, { recursive: true });
+    fs.writeFileSync(path.join(imageDir, 'rubber-chew.png'), Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1kAAAAASUVORK5CYII=', 'base64',
+    ));
+    const odb = getDb();
+    odb.query(
+      `UPDATE onboarding_items SET extraction_data_json = ?, curation_data_json = ?, stage = 'promotion', stage_status = 'pending', status = 'ready' WHERE id = ?`,
+    ).run(
+      JSON.stringify({
+        title: 'Acme Rubber Chew 5 LB', brand: 'Acme', description: 'Tough rubber chew.',
+        bulletPoints: [], primaryImage: 'acme/rubber-chew.png', additionalImages: [], price: '9.99',
+        weight: '5 LB', dimensions: null, seoFileName: null, searchKeywords: null,
+        packagingTitle: null, packagingOcrData: null, customFields: {},
+        sourceUrl: `https://example.test/${sku}`, confidence: 0.9, fieldProvenance: { title: 'json-ld' },
+      }),
+      JSON.stringify({
+        curatedTitle: 'Acme Rubber Chew 5 LB', titleSource: 'web',
+        curatedWeight: '5 LB', curationMethod: 'manual', curatedAt: now,
+        suggestedPages: ['Toys'],
+      }),
+      item.id,
+    );
+    // Widened values and the refusal profile ride the governed seed so the
+    // run executes against the persisted snapshot — never a post-hoc
+    // snapshot mutation that desyncs run.configSnapshotRef.
+    const persisted = await persistGovernedOnboardingSnapshot(sku, product, {
+      attributes: [
+        { id: 'flavor', name: 'Flavor', allowedValues: ['Chicken', 'Beef'] },
+        { id: 'material', name: 'Material', allowedValues: ['Rubber', 'Nylon'] },
+      ],
+      profileAttributes: [
+        { attributeId: 'flavor', required: false, cardinality: 'single' },
+        { attributeId: 'material', required: false, cardinality: 'single', applicabilityConditions: [{ operator: 'equals', attributeId: 'flavor', value: 'Beef', factSource: 'accepted_reviewed' }] },
+      ],
+    });
+    const snapshot = persisted.snapshot;
+    const run = createRepositoryRun(WS_ID, sku, persisted.id, persisted.hash, {
+      sourceKind: 'onboarding', onboardingItemId: item.id, sourceProductHash: snapshot.sourceProductHash,
+    } as never);
+    seedPairProposal(odb, run.id, sku, now);
+    seedFieldProposal(odb, run.id, sku, 'premise-flavor', 'flavor', 'Chicken', now);
+    seedFieldProposal(odb, run.id, sku, 'refusal-material', 'material', 'Rubber', now);
+    completeRun(run.id, 'completed');
+    const reviewed = submitProposalDecisions({
+      workspaceId: WS_ID, productSku: sku, runId: run.id, sourceKind: 'onboarding', onboardingItemId: item.id,
+      decisions: [
+        { proposalId: 'prop-ob-pair', decision: 'accepted' },
+        { proposalId: 'premise-flavor', decision: 'accepted' },
+        { proposalId: 'refusal-material', decision: 'accepted' },
+      ],
+    });
+    expect(reviewed.ok, JSON.stringify(reviewed)).toBe(true);
+    odb.query(`UPDATE onboarding_items SET curation_data_json = ? WHERE id = ?`).run(
+      JSON.stringify({
+        curatedTitle: 'Acme Rubber Chew 5 LB', titleSource: 'web',
+        curatedWeight: '5 LB', curationMethod: 'manual', curatedAt: now,
+        classificationRunId: run.id, suggestedPages: ['Toys'],
+      }),
+      item.id,
+    );
+    // Refusal surfaces before any review/approval gate: neither markReviewed
+    // nor markApproved is required for the promotion caller to refuse.
+    const gate = computePromotionGate(findItemById(item.id)!, WS_ID, null);
+    expect(gate.ok).toBe(false);
+    expect(gate.reason).toMatch(/Classification projection refused/);
+    const draftsBefore = listChangeSets(WS_ID);
+    const promotion = await promoteItems(WS_ID, workspacePath, batch.id, [item.id]);
+    expect(promotion.count).toBe(0);
+    expect(promotion.failures).toHaveLength(1);
+    expect(promotion.failures[0]!.error).toMatch(/Classification projection refused/);
+    expect(listChangeSets(WS_ID)).toEqual(draftsBefore);
+    expect(readProductFile(workspacePath, sku)).toEqual(product);
   });
 });

@@ -1,0 +1,40 @@
+{
+"activation": "OFF \u2014 activation is explicitly NOT granted by this policy. Requires: (1) sealed-holdout run authorized + passing, (2) reviewed singleton AND cohort canaries with authentic operator verification, (3) routing/data-sharing approval of the evaluated pins, (4) disable-to-unresolved/manual-rollback verification, recorded in the qualification report and approved by the store manager. No paid calls, no store writes were made.",
+"effectivePolicyHash": "snap-naming-listing-qualification-offline",
+"fittedOn": "naming-listing-dev-v1 (dev corpus only; holdout sealed at fit time)",
+"fitExecutedAt": "2026-10-19T17:36:33Z",
+"fitExecutedBeforeFreezeNote": "The dev corpus was executed through the pure deterministic functions (buildNameCandidates, deterministicNameChoice, buildClaimUnits, eligibleEvidenceFor, deterministicClaimCheck, toDeterministicClaimRecord, evaluateListingEvidenceGate) BEFORE the frozen bytes above were hashed: dev-03/dev-08 needed evidence rows and dev-12's variant fact was narrowed during fitting, then the corpus was re-frozen and re-hashed. publishedBeforeHoldoutInspection attests the holdout seal ordering (dev fit + policy publish happened before any holdout-corpus content was inspected or executed), not that dev was frozen before it was ever run.",
+"frozenCommit": "untracked-working-tree (new pack files, never committed; HEAD 079b9a4aede0fc48a056166de3c1c998bc3462cd is the unrelated base)",
+"frozenRecordedAt": "2026-10-19T18:00:00Z",
+"freezeAmendmentNote": "2026-10-19: dev-corpus.json description corrected (14 distinct families -> 13 distinct families; dev-13/dev-14 share one family by design). No row bytes changed besides the description string; dev sha256 re-pinned above. No further edits permitted after this amendment (see noFurtherEditLock). 2026-10-21: dev-07 expectation amended (missing->resolved, category stays missing_size (row still documents the sizeless case)) to match the N2 applicable-variant rule in spec 6.1 and name-normalization-v2: size is not a universal naming requirement, so a complete brand+title with no evidenced quantity resolves. Counts: resolved 10->11, missingHeld 2->1. dev sha256 re-pinned above. Activation stays OFF; re-attestation required (see freezeReview). 2026-10-21b: normalization pin v1->v2-applicable-variant in dev+holdout frozenVersions (ROW CONTENT UNCHANGED in both files; label only), policy namingRuleVersion, and test literal. Both sha256 pins re-pinned above. Holdout rows untouched; unseal requirement retained. Activation stays OFF; re-attestation required.",
+"listingRule": "listing-evidence-rules-v1",
+"listingRuleVersion": "listing-evidence-rules-v1",
+"modelPin": "jev-1.13.0",
+"namingOperation": "title_consolidation",
+"namingRule": "single-or-equivalent resolves with zero calls; ambiguity abstains without a TypeSafe route (never invents, never unions conflicts, never ships weight); low-probability (P<0.50) abstains; overflow visible, never clipped",
+"namingRuleVersion": "name-normalization-v2-applicable-variant",
+"operation": "naming_and_listing_joint",
+"policyId": "naming-listing-task-policy-v1-dev",
+"promptTemplate": "jev-naming-listing-v1",
+"publishedBeforeHoldoutInspection": true,
+"selectionFloor": 0.5,
+"sha256": "d6cfd8862939451499d4dc9cd28e6a675f8f612ddf9001fe7880e167140da542",
+"holdoutSha256": "1f78f59f2a2c904317fa6de56658c90c3f4081418e1b2cf45792ea8a0c0b52fe",
+"noFurtherEditLock": true,
+"freezeReview": {
+"reviewer": "UNASSIGNED - independent reviewer sign-off required before any holdout run",
+"status": "pending",
+"scope": "Attest fit-then-freeze plus THREE amendments (2026-10-19 description; 2026-10-21 dev-07 N2 expectation; 2026-10-21b normalization v1->v2 label in both corpora with row content unchanged), sha256/holdoutSha256 pins match, and dev-07 resolved expectation consistent with spec 6.1/N2. Record reviewer id + date here; status flips to signed only then.",
+"statement": "No independent review yet. The re-freeze is NOT attested: activation stays OFF until status=signed."
+},
+"similarityCeiling": {
+"metric": "token-set Jaccard over normalized listing titles",
+"threshold": 0.6,
+"observedMax": 0.429,
+"rationale": "Measured cross-corpus max is 0.429 (dev-05 vs hold-05). A pure brand-swap near-duplicate (Acme->Beacon, all else identical) would score ~0.67 and pass the old 0.80 ceiling, so 0.80 was lax by construction. 0.60 rejects brand-swap/paraphrase near-duplicates while keeping ~0.17 margin above the observed max."
+},
+"holdoutUnseal": {
+"accessControl": "NONE - holdout-corpus.json is readable in-repo; the seal is procedural (publishedBeforeHoldoutInspection attestation + frozen pins), not cryptographic or access-enforced. Any reader of this repo can inspect holdout content; treat any unlogged inspection as seal compromise for activation purposes.",
+"requirement": "Holdout unseal requires reviewer authorization recorded in the qualification report: reviewer id, date, purpose, and the holdoutSha256 pin verified before the run. The unseal log entry is an activation-time requirement - no holdout rows may be executed through buildNameCandidates/deterministicClaimCheck (or any naming/listing function) until that entry exists."
+}
+}

@@ -2,31 +2,19 @@
  * Drift 4b (#257) — new-product, unavailable-assignment, and
  * reconcile-lifecycle workflows.
  *
- * The existing-product slice (#253) deliberately holds three cases aside:
- * genuinely new remote products, page assignments without a stable
- * live-store identity, and reconcile-linked rows. This service promotes
- * every held-aside case to a first-class workflow:
+ * New remote products must enter through onboarding so their price comes from
+ * the store manager's input; direct store imports are refused.
  *
- * - New remote products resolve via an explicit import workflow
- *   (`importNewProduct`) that is distinct from per-hunk acceptance and
- *   carries the same filename-collision and audit discipline.
- * - Page hunks are held per hunk, not per field: only remote values without
- *   a stable identity (`name:*`) hold as `unavailable_assignment`. Verified
- *   (`id:*`) page moves resolve like any other hunk. Held page accepts fail
- *   closed; explicit reject (keep local) and reconcile (manual merge) stay
- *   open so local assignments are never silently corrupted.
- * - Reconcile is field-selective: creation records an explicit field list in
- *   the frozen change-set draft (baseline + selected remote fields), and the
- *   reconciled set is derived from that frozen draft (base vs draft diff).
- *   Unrelated outstanding fields on the same product stay resolvable while
- *   linked fields flow through creation → rechecks → approval → discard →
- *   reopen, each step defined across every linked hunk.
+ * - Page hunks are held per hunk. Pages without a stable store identity stay
+ *   held; verified page moves can be reviewed individually.
+ * - Reconcile drafts include only selected supported fields. Unselected
+ *   changes remain available for separate review, and linked changes stay
+ *   held until the change set is approved, discarded, or reopened.
  */
 
 import { deterministicStringify, hashJson } from '../git/deterministic-json';
 import {
   findDriftById,
-  resolveDrift,
   linkDriftToChangeSet,
   releaseSingleReconcileDrift,
 } from '../db/repositories/drift-repo';
@@ -34,7 +22,6 @@ import { addAuditLog } from '../db/repositories/audit-log-repo';
 import {
   buildComparisonProjection,
   diffComparisonProjections,
-  hashComparisonProjection,
 } from './catalog-comparison';
 import { parseDriftDiff, applySingleFieldHunk, isSupportedHunkField } from './drift-hunks';
 import {
@@ -42,17 +29,9 @@ import {
   upsertChangeSetItem,
   listChangeSetItems,
 } from '../db/repositories/change-set-repo';
-import {
-  findProductBySku,
-  insertProductIndex,
-  updateProductIndex,
-  listCatalogFilenameOwners,
-} from '../db/repositories/product-index-repo';
+import { listCatalogFilenameOwners } from '../db/repositories/product-index-repo';
 import { listNonDiscardedChangeSetDrafts } from '../db/repositories/change-set-repo';
-import { indexProductPageAssignments } from '../db/repositories/page-repo';
 import { normalizeFileName, resolveBaseFileName, resolveReimportFilename } from './file-name';
-import { writeProductFile } from '../git/workspace-files';
-import { skuToProductFilePath } from '../git/product-file-path';
 import { GitClient } from '../git/git-client';
 import type { Product } from '../shared/types';
 
@@ -187,31 +166,22 @@ export function createReconcileChangeSet(
 
   const actor = input.actor ?? workspaceId;
   const nowIso = new Date().toISOString();
-  const isNew = kind === 'new' || !baseline;
-
-  // Draft construction: new products carry the whole remote product as a
-  // `create`; existing products carry baseline + selected remote fields so
-  // unselected fields never join the frozen selection.
-  let draft: Product;
-  let operation: string;
-  if (isNew) {
-    draft = remote!;
-    operation = 'create';
-  } else {
-    operation = 'update';
-    draft = baseline!;
-    for (const field of selected) {
-      if (!isSupportedHunkField(field) && field !== 'core.productOnPages' && field !== 'sku') {
-        fail(400, `Unsupported drift field "${field}" for reconcile.`);
-      }
-      if (field === 'sku') {
-        fail(400, 'SKU is identity and is never reconciled field-by-field.');
-      }
-      try {
-        draft = applySingleFieldHunk(draft, remote!, field);
-      } catch (e) {
-        fail(400, e instanceof Error ? e.message : String(e));
-      }
+  if (kind === 'new' || !baseline) {
+    fail(409, 'Add new products through onboarding so their price comes from your input.');
+  }
+  let draft: Product = baseline;
+  const operation = 'update';
+  for (const field of selected) {
+    if (!isSupportedHunkField(field) && field !== 'core.productOnPages' && field !== 'sku') {
+      fail(400, `Unsupported drift field "${field}" for reconcile.`);
+    }
+    if (field === 'sku') {
+      fail(400, 'SKU is identity and is never reconciled field-by-field.');
+    }
+    try {
+      draft = applySingleFieldHunk(draft, remote!, field);
+    } catch (e) {
+      fail(400, e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -366,181 +336,16 @@ export interface ImportNewProductResult {
 }
 
 /**
- * Explicit new-product workflow: imports one genuinely new remote product
- * (no local baseline) into the approved catalog. Distinct from per-hunk
- * acceptance by construction — hunk resolution stays held for new products
- * and directs here. Carries staleness checks, filename-collision holds,
- * catalog-index insertion, page-assignment indexing, and a decision audit
- * with actor, time, and catalog reference.
+ * A remote-only product has no onboarding price authority. Keep the endpoint
+ * explicit so older clients receive a clear refusal instead of importing it.
  */
 export function importNewRemoteProduct(
   workspaceId: string,
-  workspacePath: string,
+  _workspacePath: string,
   input: ImportNewProductInput,
 ): ImportNewProductResult {
   const drift = findDriftById(input.driftId);
-  if (!drift) fail(404, 'Drift record not found.');
-  if (drift!.workspaceId !== workspaceId) fail(404, 'Drift record not found.');
-  if (drift!.status !== 'open') {
-    fail(400, `Drift status is "${drift!.status}", not open.`);
-  }
-  const parsed = parseDriftDiff(drift!);
-  if (parsed.hasLocalProduct || drift!.localJson != null) {
-    fail(
-      409,
-      `SKU "${drift!.sku}" already exists locally; it is a changed product, not a new one. Resolve it hunk by hunk instead of importing.`,
-    );
-  }
-  if (input.confirmed !== true) {
-    fail(400, 'Importing a genuinely new remote product requires explicit confirmation: pass confirmed:true.');
-  }
-  if (input.expectedRemoteHash != null && input.expectedRemoteHash !== drift!.remoteHash) {
-    fail(
-      409,
-      `Stale new-product import: remote observation changed for SKU "${drift!.sku}" (expected ${input.expectedRemoteHash}, found ${drift!.remoteHash}). Re-review before importing.`,
-    );
-  }
-
-  let remote: Product;
-  try {
-    remote = JSON.parse(drift!.remoteJson) as Product;
-  } catch {
-    fail(400, `Remote product for SKU "${drift!.sku}" is unreadable; re-check drift.`);
-  }
-  if (!remote!.sku) {
-    fail(400, 'Cannot import a remote product without SKU.');
-  }
-
-  const actor = input.actor ?? workspaceId;
-  const nowIso = new Date().toISOString();
-
-  // Filename-collision protection holds before any write.
-  const pulledName = normalizeFileName(
-    (remote!.customFields?.['FileName'] as unknown) ?? (remote!.core?.seo?.fileName as unknown) ?? null,
-  );
-  if (pulledName) {
-    const owners = new Map<string, string>();
-    try {
-      for (const { sku, fileName } of listCatalogFilenameOwners()) {
-        const key = fileName.toLowerCase();
-        if (!owners.has(key)) owners.set(key, sku);
-      }
-    } catch {
-      // Minimal DBs: fall through.
-    }
-    try {
-      for (const { sku, draftJson } of listNonDiscardedChangeSetDrafts(workspaceId)) {
-        try {
-          const base = resolveBaseFileName(JSON.parse(draftJson) as Product);
-          const key = base.toLowerCase();
-          if (!owners.has(key)) owners.set(key, sku);
-        } catch {
-          continue;
-        }
-      }
-    } catch {
-      // Change-set reads never block the import path itself.
-    }
-    const disposition = resolveReimportFilename(pulledName, remote!.sku, owners);
-    if (disposition.action === 'hold_collision') {
-      fail(
-        409,
-        `IMPORT_FILENAME_COLLISION: pulled FileName "${disposition.name}" for SKU ${remote!.sku} is owned by ${disposition.ownerSku}. Repair through a reviewed change set; live pages are never renamed automatically.`,
-      );
-    }
-  }
-
-  writeProductFile(workspacePath, remote!);
-  try {
-    indexProductPageAssignments(remote!);
-  } catch {
-    // Page indexing never blocks the import itself.
-  }
-
-  const productHash = hashComparisonProjection(buildComparisonProjection(remote!));
-  const existing = findProductBySku(remote!.sku);
-  if (existing) {
-    updateProductIndex({
-      sku: remote!.sku,
-      title: remote!.core.name,
-      status: remote!.status,
-      price: remote!.core.price,
-      inventoryQuantity: remote!.core.inventory.quantityOnHand,
-      primaryImage: remote!.core.media.primary,
-      productHash,
-      lastPulledRemoteHash: drift!.remoteHash,
-      lastSyncedRemoteHash: drift!.remoteHash,
-      lastSyncedAt: nowIso,
-      syncStatus: 'synced',
-      hasAdvancedBlocks: Object.keys(remote!.shopsite.preserved.advancedBlocks).length > 0 ? 1 : 0,
-      description: remote!.core.description,
-      searchKeywords: remote!.core.seo.searchKeywords,
-      customFields: remote!.customFields,
-    });
-  } else {
-    insertProductIndex({
-      id: remote!.id,
-      sku: remote!.sku,
-      filePath: skuToProductFilePath(remote!.sku),
-      title: remote!.core.name,
-      status: remote!.status,
-      price: remote!.core.price,
-      inventoryQuantity: remote!.core.inventory.quantityOnHand,
-      primaryImage: remote!.core.media.primary,
-      productHash,
-      lastApprovedCommit: null,
-      lastPulledRemoteHash: drift!.remoteHash,
-      lastSyncedRemoteHash: drift!.remoteHash,
-      lastSyncedAt: nowIso,
-      syncStatus: 'synced',
-      hasAdvancedBlocks: Object.keys(remote!.shopsite.preserved.advancedBlocks).length > 0 ? 1 : 0,
-      hasWarnings: 0,
-      createdAt: remote!.metadata.createdAt,
-      updatedAt: remote!.metadata.updatedAt,
-      description: remote!.core.description,
-      searchKeywords: remote!.core.seo.searchKeywords,
-      customFields: remote!.customFields,
-    });
-  }
-
-  let commitHash: string | null = null;
-  const git = new GitClient(workspacePath);
-  if (git.isRepo()) {
-    git.add([skuToProductFilePath(remote!.sku)]);
-    const status = git.status();
-    if (status) {
-      git.commit(`Import genuinely new remote product ${remote!.sku} (drift)`);
-      commitHash = git.getHeadHash();
-    } else {
-      commitHash = git.getHeadHash() || null;
-    }
-    try {
-      updateProductIndex({ sku: remote!.sku, lastApprovedCommit: commitHash });
-    } catch {
-      // Index best-effort; commit already landed.
-    }
-  }
-
-  resolveDrift(drift!.id, 'accepted_remote');
-
-  addAuditLog({
-    workspaceId,
-    entityType: 'drift',
-    entityId: drift!.id,
-    action: 'drift_new_product_imported',
-    message: `Imported genuinely new remote product SKU "${remote!.sku}" into the approved catalog`,
-    detailsJson: JSON.stringify({
-      sku: remote!.sku,
-      productKind: 'new',
-      remoteHash: drift!.remoteHash,
-      baselineCommit: parsed.baselineCommit,
-      resultingCommit: commitHash,
-      catalogRef: skuToProductFilePath(remote!.sku),
-      decision: 'accepted',
-      actor,
-      at: nowIso,
-    }),
-  });
-
-  return { driftId: drift!.id, sku: remote!.sku, commitHash, productKind: 'new' };
+  if (!drift || drift.workspaceId !== workspaceId) fail(404, 'Drift record not found.');
+  if (drift.status !== 'open') fail(400, `Drift status is "${drift.status}", not open.`);
+  fail(409, 'Add new products through onboarding so their price comes from your input.');
 }

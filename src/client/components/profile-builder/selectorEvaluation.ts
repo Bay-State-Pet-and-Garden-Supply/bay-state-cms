@@ -362,6 +362,8 @@ function getSelectorValue(
   draft: ProfileDraft,
   key: string,
 ): string | null | undefined {
+  if (/(?:price|cost|sale)/i.test(key)) return null;
+
   switch (key) {
     case 'titleSelector':
       return draft.titleSelector;
@@ -371,10 +373,7 @@ function getSelectorValue(
       return draft.descriptionSelector;
     case 'imagesSelector':
       return draft.imagesSelector;
-    case 'priceSelector':
-      return draft.priceSelector;
     default:
-      // Custom selector field.
       return draft.customSelectors[key];
   }
 }

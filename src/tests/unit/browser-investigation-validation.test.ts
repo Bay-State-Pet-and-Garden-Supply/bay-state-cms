@@ -119,7 +119,6 @@ function matchingWorkerResult(selectedVariantKey: string, parentProductId: strin
       title: 'BetterBone Beef',
       brand: 'BetterBone',
       description: 'Grass-fed chew.',
-      price: '19.99',
       primaryImage: 'https://shop.example.com/cdn/small.jpg',
       additionalImages: [],
       customFields: { sku: 'BB-SM-001', gtin: '810001234501', variants: 'Small', availability: 'in_stock' },

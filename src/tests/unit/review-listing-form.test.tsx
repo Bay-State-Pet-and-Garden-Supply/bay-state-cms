@@ -9,7 +9,7 @@ import type { ReviewDraft } from '../../client/components/onboarding/review/revi
 function makeDetail(overrides: Record<string, unknown> = {}) {
   return {
     item: {
-      price: null,
+      price: ' $24.99 ',
       quantity: null,
       sourceType: 'official_page',
       curationData: {},
@@ -35,9 +35,8 @@ const baseDraft = (): ReviewDraft => ({
   brandHint: '',
   curatedWeight: '',
   curatedDescription: '',
-  searchKeywords: '',
-  price: '24.99',
   quantity: '4',
+  searchKeywords: '',
 });
 
 async function renderPanel(props: Record<string, unknown>) {
@@ -75,22 +74,23 @@ afterEach(() => {
 });
 
 describe('ReviewListingPanel V2 form // e10s02', () => {
-  it('official_page: renders enabled price and quantity inputs', async () => {
+  it('shows the onboarding price unchanged and read-only', async () => {
     const r = await renderPanel({ detail: makeDetail(), v2: true });
-    expect(r.input('rv-edit-price')?.disabled).toBe(false);
+    const price = r.container.querySelector('#rv-edit-price');
+    expect(price?.tagName).toBe('DIV');
+    expect(price?.textContent).toBe(' $24.99 ');
+    expect(r.input('rv-edit-price')?.getAttribute('aria-readonly')).toBe('true');
     expect(r.input('rv-edit-quantity')?.disabled).toBe(false);
-    expect(r.input('rv-edit-price')?.value).toBe('24.99');
     r.unmount();
   });
 
-  it('distributor_record: price EDITABLE (adjudication — gate blocker must be fixable), quantity readonly with note', async () => {
+  it('shows the immutable price for distributor records while quantity stays read-only', async () => {
     const r = await renderPanel({
       detail: makeDetail({ sourceType: 'distributor_record' }),
       v2: true,
     });
-    const price = r.input('rv-edit-price');
-    expect(price?.disabled).toBe(false);
-    // note is programmatically tied to the disabled input (aria-describedby)
+    expect(r.container.querySelector('#rv-edit-price')?.textContent).toBe(' $24.99 ');
+    expect(r.input('rv-edit-price')?.getAttribute('aria-readonly')).toBe('true');
     expect(r.input('rv-edit-quantity')?.disabled).toBe(true);
     expect(r.text()).toContain('manage inventory upstream');
     r.unmount();

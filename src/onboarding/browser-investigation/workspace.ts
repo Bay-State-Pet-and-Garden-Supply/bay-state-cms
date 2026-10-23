@@ -414,7 +414,7 @@ export function buildDriftRepairContext(
   }
   const failingSamples: Extract<DriftRepairContext, { available: true }>['failingSamples'] = [];
   for (const row of deps.matrix?.rows ?? []) {
-    const failing = row.cells.filter((c) => !c.success);
+    const failing = row.cells.filter((cell) => !cell.success && !/(?:price|cost|sale)/i.test(cell.field));
     if (failing.length === 0) continue;
     failingSamples.push({
       sampleId: row.sampleId,

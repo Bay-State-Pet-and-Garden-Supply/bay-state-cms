@@ -54,9 +54,13 @@ _Avoid_: Listing generator, identity resolver, source-discovery engine
 A supplied product identity fact that is optional context for classification, never a classifier-owned assignment or removal.
 _Avoid_: Classification Attribute, inferred classifier output
 
+**Input Price Authority**:
+The spreadsheet or manual onboarding price is the single price authority. It is carried verbatim from input to draft and never replaced, supplemented, or validated by third-party or page-extracted prices.
+_Avoid_: Page-extracted price, fallback pricing, price matching
+
 **Protected Product Data**:
-Product information outside classifier ownership, including Brand, other identity information, listing content, pricing, inventory, and operational status.
-_Avoid_: Arbitrary classification target, generic field enrichment
+ Product information outside classifier ownership, including Brand, other identity information, listing content, pricing, inventory, and operational status.
+ _Avoid_: Arbitrary classification target, generic field enrichment
 
 **Grooming**:
 The Product Type for pet skin and coat care, including medicated shampoos, lotions, and anti-itch sprays. Products explicitly intended for flea or tick control belong to Flea & Tick Treatment.
@@ -69,7 +73,7 @@ A Product Classification whose Category or Product Type is missing, conflicting,
 _Avoid_: Forced type, successful classification, guessed fallback
 
 **Classification Readiness**:
-A reviewed Product Classification with its configured Attribute Profile and applicable required values resolved. An unresolved required classification or profile requirement is not ready for product draft creation.
+Classification Readiness is achieved when a reviewed Product Classification has approved storefront values, its Attribute Profile is resolved, and every applicable required Classification Attribute has a current valid reviewed value. Optional unvalued or confirmed non-applicable attributes do not block; unresolved profile authority or unknown applicability for a required attribute keeps the product in Review and blocks draft creation.
 _Avoid_: Run completed, model confidence, hidden internal-type gate
 
 **Assistant**:
@@ -95,6 +99,34 @@ _Avoid_: Product identity, product family, variant group
 **Product Identity**:
 The stable local CMS identity for a product after it becomes a product draft or approved product.
 _Avoid_: SKU, onboarding row
+
+**Product Family**:
+A customer-facing group of variants of the same underlying product under a Family Variant Rule. Members may span onboarding batches and the existing approved catalog; an internal Curation Cohort does not establish membership.
+_Avoid_: Brand-wide product line, Curation Cohort, source-page option state
+
+**Family Variant Rule**:
+A product-type-specific definition of which differences are permitted within a Product Family. Food families preserve brand, recipe, flavor, species, life stage, and form while package size may differ; other variation axes require an explicit rule.
+_Avoid_: Name-stem similarity, universal size/color rule
+
+**Subproduct**:
+A product associated with a main product for joint storefront display, including a package-size member of a Product Family.
+_Avoid_: SKU suffix, ordering option, family identity
+
+**Main Product**:
+The product through which a Product Family is presented. An existing Main Product is preserved; a new family's Main Product is one of its real, purchasable member SKUs.
+_Avoid_: Automatically created display-only parent, synthetic UPC
+
+**Short Name**:
+A concise customer-facing label for a Subproduct, separate from its full product name and Product SKU. In a size-only Product Family, the Short Name identifies the member's package size.
+_Avoid_: Product name, SKU, family name
+
+**Curation Cohort**:
+An internal group of Onboarding Items considered together to share curation context or computation. Membership establishes neither a storefront **Product Family** nor a requirement for otherwise independent items to advance together.
+_Avoid_: Product Family, published variant relationship
+
+**Item Readiness**:
+The determination that one **Onboarding Item** satisfies the evidence, listing-completeness, review, and other requirements for its next stage. Readiness is independent of unrelated items and shared computation; genuinely linked multi-product changes retain their consistency requirements.
+_Avoid_: Cohort completion, batch readiness, family membership
 
 **Unmapped Product Type**:
 A plausible Product Type that is not yet configured for the store.
@@ -495,14 +527,16 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - Each configured **Product Classification** selects its **Attribute Profile**; profiles and identifiers are not additional types to predict or review.
 - A provisional **Product Classification** may drive dependent attribute and taxonomy-page proposals in one pass without making them catalog truth.
 - **Universal Classification Attributes** may be proposed from the SKU's own evidence under explicit configuration, without establishing **Classification Readiness**.
+- A **Universal Classification Attribute** may be proposed without a **Product Classification**, but it cannot resolve or bypass a missing or invalid **Attribute Profile** selected by an established **Product Classification**.
 - An **Unresolved Product Classification** is an explicit incomplete result, never a forced label or successful completed assignment.
 - Changing **Category** or **Product Type** is a **Proposal Decision Revision** that invalidates dependent proposals, applicability, page placement, and readiness before application.
 - Missing required **Category**, **Product Type**, profile configuration, or applicable required values keeps the product in **Review** before draft creation.
+- An explicitly empty **Attribute Profile** is resolved with no attribute requirements; a missing or invalid declared profile is unresolved.
 - An **Unmapped Product Type** or unsupported classification combination requires **Configuration Review**, not an invented assignment.
 - An **Attribute Profile** may be shared by multiple **Product Classifications**.
 - **Brand** is optional input context and never a classification assignment, replacement, removal, or brand-page proposal.
 - **Protected Product Data** cannot become a classifier target through an Attribute Mapping, profile, model output, or reviewed target revision.
-- Runtime enforcement lives in `src/classification/classification-ownership.ts` (shared allowlist/refusal contract consumed at proposal production, review validation, projection, and application).
+- Only a verified classification purpose authorizes a **Catalog Field** as an output; an **Attribute Mapping**, example values, or an empty slot cannot establish that ownership.
 - An **Attribute Profile** may define **Attribute Constraints** for each included **Product Attribute**.
 - An **Attribute Profile** may define **Attribute Applicability Conditions** for each included **Product Attribute**.
 - An **Attribute Applicability Condition** may use unreviewed proposals only for **Applicability Previews**.
@@ -551,7 +585,7 @@ _Avoid_: Hidden ordering, implicit prerequisite
 - A product can only be assigned to existing **Category Pages**.
 - A **Category Page** has one **Category Page Identity**.
 - An accepted Category Page assignment is validated by **Category Page Identity** before product draft creation.
-- An **Unavailable Category Page Assignment** becomes a **Skipped Draft Assignment**.
+- An accepted **Unavailable Category Page Assignment** requires resolution before product draft creation, not silent omission from a successful partial draft.
 - A product may have zero or more **Field Assignments**.
 - A **Field Assignment** records the value of one **Product Attribute** for one product.
 - A **Classification Removal Proposal** requires an explicit **Proposal Decision** before clearing an existing classification value or taxonomy-page assignment.
@@ -689,18 +723,42 @@ _Avoid_: Official-domain requirement, single-source route, extractor profile
 Gathering evidence from available sources in an approved **Brand Sourcing Strategy** while other planned sources are unavailable. Unavailable sources remain visible but do not block collection from usable sources; listing sufficiency is assessed during **Prepare listing**.
 _Avoid_: Whole-product profile block, silent source omission
 
+**Browser-Assisted Evidence Collection**:
+Bounded product-specific research for missing listing evidence after structured and static source collection, distinct from domain-level **Browser Investigation**. Observations remain attributable to their sources and are not accepted merely because a browser or model produced them.
+_Avoid_: Browser Investigation, browser-first pipeline, automatically trusted extraction
+
+**Item Evidence Acceptance**:
+The decision that source-attributed product facts may support listing preparation after source authority, exact sellable-item and variant matching, provenance, conflict, and applicable rights requirements are satisfied. Browser-assisted facts may qualify per item without a healthy **Domain Extractor Profile**; acceptance is not human **Review**, release approval, or **Profile Health**.
+_Avoid_: Model confidence as verification, profile activation, listing approval
+
+**Listing Completeness Standard**:
+The product-type-specific checklist of content needed for a curated rich listing to be ready for **Review**, subject only to explicit **Listing Completeness Exceptions**, rather than an obligation to reproduce all manufacturer content. Completeness is distinct from whether the supplied facts are sufficiently supported.
+_Avoid_: Universal field checklist, all available manufacturer content, factual verification
+
+**Listing Completeness Exception**:
+An operator-approved, item-specific omission of a designated non-critical requirement from a **Listing Completeness Standard**, with the omitted field and reason recorded. It does not waive exact sellable-item and variant resolution, image rights, or required safety information, or assert that missing facts are known.
+_Avoid_: Automatic waiver, completed field, fabricated substitute
+
+**Grounded Listing Copy**:
+Customer-facing product wording composed only from facts that have passed **Item Evidence Acceptance**, with claims traceable to supporting evidence. A generative model may compose the wording but cannot create product facts, resolve evidence conflicts, or turn a **Listing Completeness Exception** into an asserted value.
+_Avoid_: Model-generated facts, unsupported benefits, inferred missing specifications
+
+**Retailer Corroboration**:
+Source-attributed use of third-party retailer observations to cross-check basic product facts after the exact sellable item has been matched. It does not authorize reuse of retailer prose or imagery or turn a retailer page into an **Official Product Page**.
+_Avoid_: Licensed retailer content, manufacturer evidence, image reuse approval
+
 **Listing Evidence Gap**:
-Missing product information that prevents a usable listing after collected evidence is consolidated during **Prepare listing**, requiring operator help in that stage. A gap is distinct from an identity or variant conflict, which must be resolved before conflicting evidence can be used together.
+Missing product information that prevents a listing from meeting its **Listing Completeness Standard** after collected evidence is consolidated during **Prepare listing**, requiring operator help in that stage. A gap is distinct from an identity or variant conflict, which must be resolved before conflicting evidence can be used together.
 _Avoid_: Incomplete individual source, missing official domain, source identity conflict
 
 **Discovery** (v2 canonical `find_product_page` / Find product page — owner-approved 2026-09-08):
-The pipeline stage that finds the official product page URL on a brand's approved official domains through the local URL index and sitemap lookup (ADR 0032; never external web search).
+The pipeline stage that finds candidate official product pages for an imported register item, keeping offered URLs distinct from **Confirmed Official Pages**.
 
 **Extraction** (v2 canonical `collect_details` / Collect details — owner-approved 2026-09-08):
-The pipeline stage that scrapes raw product details (titles, descriptions, images, prices) from Confirmed Official Pages and revalidates page identity against the same name/variant evidence before persisting. **Source-dispatched (Amendment A + Amendment B):** official-page items keep the URL/profile/page-scrape path; `distributor_record` items bypass scraping entirely and are materialized **merchandising-depth** (identity fields plus description, features, category, dimensions, case pack, unit of measure, ingredients, and display-only image candidates) with a null URL, zero fetch/profile/OCR/model/image calls, and a dedicated `distributorRecordProvenance` (generation, evidence hash, sorted accepted attempt/provider ids, projection version, per-field merchandising provenance). Price, inventory, and commerce images stay absent.
+The pipeline stage that collects source-attributed product details for one sellable item and variant before listing preparation. Observations remain distinct from accepted facts, and collection alone establishes neither image rights nor **Profile Health**.
 
 **Domain Extractor Profile**:
-A reviewed extraction contract for one product-page structure on a domain that identifies the structures trusted during Extraction.
+A reviewed, reusable extraction contract for one product-page structure on a domain, identifying the structures used by profile-based **Extraction**.
 _Avoid_: Crawlee profile, generic scraper, selector cache
 
 **Profile Scope**:
@@ -712,7 +770,7 @@ A stable product-page structure observation used to confirm that a Domain Extrac
 _Avoid_: Visual design, exact DOM snapshot, URL pattern
 
 **Profile Match**:
-The single healthy Domain Extractor Profile selected for a source URL before automated Extraction begins.
+The single healthy **Domain Extractor Profile** selected for a source URL before profile-based **Extraction** begins.
 _Avoid_: First profile, silent fallback, ambiguous match
 
 **Source-Page Variant**:
@@ -728,7 +786,7 @@ Deterministic pre-extraction capability that parses Shopify/JSON-LD/Woo/BigComme
 _Avoid_: LLM variant guess, client-trusted URL/payload, default-on browser interaction
 
 **Profile Health**:
-The reviewed readiness of a Domain Extractor Profile, including product identity, description, image, and relevant variant evidence, to support automated Extraction for a domain.
+The reviewed readiness of a **Domain Extractor Profile**, including product identity, description, image, and relevant variant evidence, to support profile-based **Extraction** within its scope.
 _Avoid_: Profile exists, latest generation status, domain uptime
 
 **Profile Revalidation Requirement**:
@@ -736,15 +794,15 @@ The review state created when a Domain Extractor Profile may no longer match its
 _Avoid_: Immediate profile deletion, transient page failure, silent profile decay
 
 **Fail-Closed Extraction**:
-The rule that automated Extraction stops for a product page when its domain lacks a healthy Domain Extractor Profile.
+The rule that a profile-based **Extraction** attempt cannot contribute accepted facts when it lacks a healthy, applicable **Domain Extractor Profile**.
 _Avoid_: Generic fallback extraction, best-effort scraping
 
 **Profile-Blocked Item**:
-An Onboarding Item stopped in Extraction because no healthy Domain Extractor Profile produced a Profile Match.
+An **Onboarding Item** whose profile-based **Extraction** attempt is blocked because no usable **Profile Match** is available.
 _Avoid_: Failed product, auto-retry candidate, skipped item
 
 **Manual Evidence**:
-Operator-transcribed product facts for a Profile-Blocked Item, submitted per SKU with an attestation (no family inheritance, per-SKU verification, image rights) and held in Review like any official-page row before promotion. Always available as a fallback for family-page-only brands; building a healthy Domain Extractor Profile remains the happy path.
+Operator-transcribed product facts submitted per SKU with an attestation covering per-SKU verification, no family inheritance, and applicable image rights, subject to **Review** before promotion. It is distinct from browser-collected observations and does not create **Profile Health**.
 _Avoid_: Automated extraction, distributor record, generic fallback scraping
 
 **Profile Retry Preview**:
@@ -843,16 +901,16 @@ _Avoid_: Table view, item list, batch detail view
 ## Relationships
 
 - The **Pipeline Board** renders four automated stage columns (**Discovery**, **Extraction**, **Curation**) and two manual columns (**Review**, **Promotion**).
-- **Extraction** requires a healthy **Domain Extractor Profile** for the source URL's domain — for **official_page** sources. **Distributor-record sources are profile-free**: `distributor_record_to_extraction` items materialize merchandising-depth structured data (null URL, Amendment B) and never require a profile or URL.
+- The profile-based official-page **Extraction** route requires a healthy **Domain Extractor Profile** for the source URL's domain. **Distributor-record sources are profile-free**: `distributor_record_to_extraction` items materialize merchandising-depth structured data (null URL, Amendment B) and never require a profile or URL.
 - A domain may have multiple **Domain Extractor Profiles** when its product pages use different structures.
 - Each **Domain Extractor Profile** has one **Profile Scope**.
 - A **Profile Scope** includes both an operator-visible URL pattern and a **Page Structure Signal**.
-- A source URL must resolve to exactly one **Profile Match** before automated **Extraction** can produce trusted product evidence.
+- Profile-based **Extraction** requires a source URL to resolve to exactly one **Profile Match** before that route can produce trusted product evidence.
 - A **Profile Match** requires both the source URL and the source page's **Page Structure Signal** to fit the **Profile Scope**.
 - The most specific healthy **Profile Scope** determines the **Profile Match**.
 - Ambiguous matching **Profile Scopes** prevent a **Profile Match** until a reviewer resolves the ambiguity.
 - A default **Domain Extractor Profile** may produce a **Profile Match** only when it is explicitly scoped as the domain default and healthy.
-- When a source URL fits a **Profile Scope** URL pattern but its **Page Structure Signal** no longer fits, **Fail-Closed Extraction** stops that item.
+- When a source URL fits a **Profile Scope** URL pattern but its **Page Structure Signal** no longer fits, **Fail-Closed Extraction** stops that profile-based attempt.
 - A **Page Structure Signal** mismatch creates a **Profile Revalidation Requirement** for the relevant **Domain Extractor Profile**.
 - A single **Page Structure Signal** mismatch does not remove **Profile Health** without repeated mismatches or reviewer confirmation.
 - **Profile Tooling Extraction** may run when automated **Extraction** would fail closed.
@@ -865,6 +923,9 @@ _Avoid_: Table view, item list, batch detail view
 - **Browser Investigation** inputs and results belong to one workspace; applying an **Extraction Policy Proposal** to a shared **Domain Extractor Profile** draft is a separate operator decision.
 - An **Extraction Policy Proposal** may be saved as an inactive draft despite failed or incomplete validation; its failures remain visible and prevent activation.
 - An investigation-derived extraction policy requires passing **Blind Profile Holdout** validation in addition to existing **Profile Health** requirements. A confirmation-count waiver does not waive the holdout requirement.
+- **Item Evidence Acceptance** for **Browser-Assisted Evidence Collection** is per item and does not establish **Profile Health** or bypass **Review**.
+- A **Listing Completeness Exception** may resolve a designated non-critical **Listing Evidence Gap** for one item; it does not supply missing evidence.
+- Shared work and **Curation Cohort** membership do not determine **Item Readiness** for otherwise independent items.
 - A **Profile Builder Workspace** is organized around one domain, not one product item.
 - An **Onboarding Item** may provide a seed **Profile Validation Sample** for a **Profile Builder Workspace**.
 - A **Profile Builder Workspace** may use unreviewed sitemap product URLs as exploratory Profile Validation Samples.
@@ -880,14 +941,14 @@ _Avoid_: Table view, item list, batch detail view
 - **Profile Health** belongs to the matched **Domain Extractor Profile**, not to the whole domain.
 - **Profile Health** is determined from confirmed same-domain product samples within the **Profile Scope**.
 - A healthy **Domain Extractor Profile** includes reviewed title, description, and image extraction coverage.
-- Price extraction is not required for **Profile Health** when the imported product provides the trusted price.
+- Page prices are never extracted. Profile Health covers reviewed title, description, and image extraction; the immutable onboarding price remains authoritative.
 - A **Domain Extractor Profile** for variant-bearing product pages requires reviewed evidence that the correct variant can be distinguished before it is healthy.
 - Image extraction coverage requires reviewed image previews before **Profile Health** can allow automated **Extraction**.
 - **Fail-Closed Extraction** may stop an item in **Extraction** without producing trusted product evidence.
 - **Fail-Closed Extraction** may create a **Profile-Blocked Item**.
-- A **Profile-Blocked Item** remains in **Extraction** until a reviewer chooses to retry it.
-- A **Profile-Blocked Item** may instead advance via **Manual Evidence**; withdrawing the submission returns it to blocked, and retry refuses active-manual items until withdrawn.
-- **Manual Evidence** never converts distributor rows, completed rows, or legacy rows, and never exempts Review, image-rights approval, or family readiness.
+- A **Profile-Blocked Item** may resume profile-based collection through a reviewed retry or obtain facts through a separate eligible route; neither alternative evidence nor item acceptance creates **Profile Health**.
+- A **Profile-Blocked Item** may advance using **Manual Evidence** or **Browser-Assisted Evidence Collection** only when **Item Evidence Acceptance** and its own **Item Readiness** requirements are satisfied.
+- **Manual Evidence** does not reinterpret distributor or historical records and never exempts **Review**, image-rights approval, or readiness of a genuinely linked **Product Family** operation.
 - When a relevant **Domain Extractor Profile** becomes healthy, affected **Profile-Blocked Items** appear in a **Profile Retry Preview** rather than automatically rerunning.
 - A **Profile Retry Preview** supports selected retries; it does not advance a whole **Onboarding Batch**.
 - An **Onboarding Batch** has derived progress (counts per stage) computed from its items, not a controlling status of its own.
@@ -940,7 +1001,7 @@ _Avoid_: Table view, item list, batch detail view
 - There is one canonical **Product Classification**, not independently inferred internal and website types.
 - Ambiguous Category/Product Type results remain **Unresolved Product Classifications**; required gaps keep the product in **Review**, never force a type or silently permit draft creation.
 - Correcting Category or Product Type is a **Proposal Decision Revision** that invalidates dependent proposals while retaining review history.
-- Product-family batching never authorizes inherited product facts or classification assignments; each **Product SKU** uses its own supplied evidence.
+- Curation Cohort membership never authorizes inherited product facts or classification assignments; each **Product SKU** uses its own supplied evidence.
 - "variant data" could mean full family modeling or source-page option selection — resolved: use **Source-Page Variant** only for selecting the correct source-page option state for one imported **Product SKU**.
 - Variant selection could rely on LLM guessing during automated Extraction — resolved: use a reviewed deterministic **Variant Selection Strategy** and fail closed on ambiguity.
 - SKU could be confused with the stable local product identity — resolved: use **Product SKU** for the store-facing onboarding key and **Product Identity** after product draft creation.
@@ -999,7 +1060,7 @@ _Avoid_: Table view, item list, batch detail view
 
 Catalog Product Classification extends the classification pipeline to existing ShopSite products (not just onboarding pipeline items).
 
-The domain terms above and ADR 0041 govern the desired single-classification contract. The architecture and operational details below describe the pre-cutover implementation, not a second business Product Type or an exception to reviewed removals.
+The domain terms above and ADR 0041 govern the active single-classification contract. Current implementation ownership is recorded in ADR 0041's Shared interpretations section. The architecture and operational details below are historical pre-cutover snapshots; they do not define a parallel business Product Type, live-cache fallback, or alternate review gate.
 
 ### Key Concepts
 
@@ -1071,6 +1132,11 @@ This dated snapshot records historical implementation and does not override the 
 
 The operator-facing onboarding model adopted by ADR 0016. Automation owns progression; the Store Manager owns exceptions, final verification, and release decisions. The six internal Pipeline Stages remain the execution/diagnostics truth; this section governs how they are presented and operated.
 
+**Plain Language Rule**:
+Assume Store Managers have no technical background. Explain what is happening, what needs their attention, and what happens next in familiar words. Do not require them to understand AI, Git, syncing, or internal processing. Use the human-facing terms below; keep technical detail in separate diagnostics or setup surfaces.
+_Avoid_: Machine-stage names, unexplained technical terms, instructions that assume prior software knowledge
+
+
 **Batch Workspace**:
 The primary Store Manager view of one Onboarding Batch, bringing together pipeline context, required human attention, preparation evidence, final review, and release decisions. Pipeline Stage and Operator Work-State describe different aspects of the same products rather than separate onboarding workflows.
 _Avoid_: Pipeline Board, independently scoped competing workspaces
@@ -1100,7 +1166,7 @@ The human-facing name for the combined URL-verification + extractor-profile oper
 _Avoid_: Mentally switching between "Discovery" and "Extraction" as unrelated stages
 
 **Family Readiness Barrier**:
-The Curation gate: a product family (ADR 0013 durable candidate cohort) waits until every active member is Extraction-ready. There is no default partial-family Curation ("curate the available 3 of 4"). Ready cohorts may run automatically under the cohort Curation worker path (feature-flagged). Waiting vs blocked members are distinguished; blocking siblings link directly to their Needs Attention task.
+The Curation gate: a candidate Curation Cohort waits until every active member is Extraction-ready. There is no default partial-cohort Curation ("curate the available 3 of 4"). Ready cohorts may run automatically under the cohort Curation worker path (feature-flagged). Waiting vs blocked members are distinguished; blocking siblings link directly to their Needs Attention task.
 _Avoid_: Per-SKU Curation as the default operator model, manual "curate now" partial-family actions
 
 **Durable Review State**:

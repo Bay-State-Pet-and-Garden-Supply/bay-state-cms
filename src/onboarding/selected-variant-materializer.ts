@@ -67,10 +67,6 @@ export function materializeSelectedVariant(options: MaterializeOptions): Extract
     }
     out.fieldProvenance = { ...out.fieldProvenance, title: 'variant-selected' };
   }
-  if (selected.price) {
-    out.price = selected.price;
-    out.fieldProvenance = { ...out.fieldProvenance, price: 'variant-selected' };
-  }
   // primary image: variant primary only — never sibling/pallet; base gallery that could contain sibling images is not retained (only selected candidate gallery) to avoid cross-variant contamination; product-level images are carried via selected candidate's gallery when the matrix marks them product-level
   const primary = selected.images.find((i) => i.role === 'primary');
   if (primary) {

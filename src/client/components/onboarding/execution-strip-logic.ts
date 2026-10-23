@@ -182,7 +182,6 @@ export const STRIP_REASON_ALLOWLIST = [
   'failed',
   'conflict_found',
   'profile_blocked',
-  'family_barrier',
   'domain_released',
   'reviewed',
   'approval_recorded',

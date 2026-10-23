@@ -1,18 +1,17 @@
 import type { AttributeMappingConfig, ClassificationProposal, ProductAttributeConfig } from '../shared/types';
-import type { SerializationConfigV2 } from '../shared/schemas/classification';
+import type { CanonicalClassificationOutputBindingV2, SerializationConfigV2 } from '../shared/schemas/classification';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 import { resolveAlias } from './controlled-value-identity';
 import { isSilentNarrowing } from './attribute-grounding-guards';
-
-/** Return the reviewed correction when present, including an explicit null. */
-export function getEffectiveProposalValue(proposal: ClassificationProposal): unknown {
-  return proposal.hasRevisedValue ? proposal.revisedValue : proposal.proposedValue;
-}
-
-/** Return the reviewed target when present; otherwise retain the immutable target. */
-export function getEffectiveProposalTargetId(proposal: ClassificationProposal): string | null {
-  return proposal.hasRevisedTargetId ? proposal.revisedTargetId ?? null : proposal.targetId;
-}
+import { deterministicStringify } from '../git/deterministic-json';
+import { resolveWebsiteClassification, type BundleView } from './product-classification';
+import { resolveCanonicalClassificationOutputBindings, isBrandPageProposal, isCanonicalClassificationAttributeId, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import type { RuntimeClassificationSnapshot } from './runtime-snapshot';
+import { classifyClassifierFamilyWrite } from '../validation/storefront-family-validation';
+import { resolveAttributeProfilePlan } from './attribute-profile-plan';
+import { composeEffectiveReviewedFacts, findRejectedProductClassificationProposal } from './reviewed-facts';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
+import { parseMeasuredValue, validateAttributeProfileValue, validateSerializableValue } from './attribute-value-validation';
 
 /** Extract a stable Product Type ID from either supported proposal value shape. */
 export function getProductTypeIdFromValue(value: unknown): string | null {
@@ -84,6 +83,8 @@ export function getEffectiveClassificationPair(
     productTypeId: getEffectivePrimaryProductTypeId(proposal),
   };
 }
+
+
 /**
  * Serialize an attribute value into a catalog field string using the mapping's
  * serialization config. This is the ONE serializer shared by preview
@@ -94,8 +95,8 @@ export function getEffectiveClassificationPair(
  *
  * - Explicit clears (null/undefined) produce a true empty string, bypassing
  *   prefix/suffix so the catalog field becomes "" rather than e.g. "Size: ".
- * - `measured` validates that the value is a finite number and appends the
- *   unit with the configured separator.
+ * - `measured` requires a finite number with either no unit or the captured
+ *   canonical unit, then appends that unit with the configured separator.
  * - `delimited` joins with the field-specific delimiter. The `reject` escape
  *   policy throws when a value contains the delimiter (fail closed); the
  *   `backslash` policy escapes it.
@@ -129,23 +130,12 @@ export function serializeAttributeValue(
   let core: string;
 
   if (kind === 'measured' || format === 'measured') {
-    const unit = shape.unit ?? '';
+    const unit = shape.unit?.trim() ?? '';
     const valueUnitSeparator = shape.valueUnitSeparator ?? ' ';
     const raw = Array.isArray(value) ? value[0] : value;
-    let numeric: number;
-    if (typeof raw === 'number') {
-      numeric = raw;
-    } else {
-      const stripped = String(raw).replace(/[^\d.-]/g, '');
-      if (stripped === '' || stripped === '-' || stripped === '.' || stripped === '-.') {
-        throw new Error(`Measured value "${String(raw)}" is not a finite number.`);
-      }
-      numeric = Number(stripped);
-    }
-    if (!Number.isFinite(numeric)) {
-      throw new Error(`Measured value "${String(raw)}" is not a finite number.`);
-    }
-    core = `${numeric}${unit ? `${valueUnitSeparator}${unit}` : ''}`;
+    const parsed = parseMeasuredValue(raw, unit);
+    if (!parsed.ok) throw new Error(parsed.message);
+    core = `${parsed.value}${unit ? `${valueUnitSeparator}${unit}` : ''}`;
   } else if (kind === 'delimited' || format === 'delimited') {
     const delimiter = shape.delimiter ?? shape.separator ?? ', ';
     const escapePolicy = shape.escapePolicy ?? 'reject';
@@ -174,88 +164,63 @@ export function serializeAttributeValue(
   return `${prefix}${core}${suffix}`;
 }
 
-/**
- * Validate a proposed value against its attribute shape: controlled
- * membership, measured units, and explicit-clear semantics. Delimiter policy
- * is enforced inside serializeAttributeValue (it throws on violation).
- */
-export type SerializableValueValidation =
-  | { ok: true }
-  | { ok: false; code: 'controlled_membership' | 'measured_unit'; message: string };
 
-export function validateSerializableValue(
-  value: unknown,
-  attribute?: Pick<
-    ProductAttributeConfig,
-    'id' | 'valueMode' | 'allowedValues' | 'valueAliases'
-  > | null,
-): SerializableValueValidation {
-  // Explicit clears are always legal.
-  if (value === null || value === undefined) return { ok: true };
-
-  const values = Array.isArray(value) ? value : [value];
-
-  if (attribute?.valueMode === 'controlled' && (attribute.allowedValues?.length ?? 0) > 0) {
-    for (const item of values) {
-      const str = String(item);
-      // Exact canonical membership OR an alias that resolves to an exact
-      // allowed ID. An unknown/near-match value is never serialized as a
-      // controlled value (fail closed).
-      const allowed = attribute.allowedValues.includes(str);
-      const aliasTarget = allowed
-        ? str
-        : resolveAlias(str, attribute.valueAliases ?? [], attribute.allowedValues);
-      if (aliasTarget === null) {
-        return {
-          ok: false,
-          code: 'controlled_membership',
-          message: `Value "${str}" is not in the controlled value list for attribute "${attribute.id}".`,
-        };
-      }
-    }
-  }
-
-  if (attribute?.valueMode === 'measured') {
-    for (const item of values) {
-      let numeric: number;
-      if (typeof item === 'number') {
-        numeric = item;
-      } else {
-        const stripped = String(item).replace(/[^\d.-]/g, '');
-        if (stripped === '' || stripped === '-' || stripped === '.' || stripped === '-.') {
-          return {
-            ok: false,
-            code: 'measured_unit',
-            message: `Value "${String(item)}" is not a finite measured number for attribute "${attribute.id}".`,
-          };
-        }
-        numeric = Number(stripped);
-      }
-      if (!Number.isFinite(numeric)) {
-        return {
-          ok: false,
-          code: 'measured_unit',
-          message: `Value "${String(item)}" is not a finite measured number for attribute "${attribute.id}".`,
-        };
-      }
-    }
-  }
-
-  return { ok: true };
+/** Captured values and mappings that authorize a complete canonical pair projection. */
+export interface AssignmentProjectionAuthority {
+  attributes?: ProductAttributeConfig[];
+  frozenMappings?: AttributeMappingConfig[];
+  currentClassificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
+  frozenClassificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
+  verifiedPageNames?: ReadonlyMap<string, string>;
+  categories?: BundleView['categories'];
+  productTypes?: BundleView['productTypes'];
+  /** Present on production authority (including null) to distinguish missing frozen authority from legacy test-only use. */
+  snapshot?: RuntimeClassificationSnapshot | null;
+}
+/** Current decisions distinguish a retracted pair from an absent proposal. */
+export interface AssignmentProjectionReviewContext {
+  reviewedProposals?: readonly ClassificationProposal[];
+  currentRunProposals?: readonly ClassificationProposal[];
 }
 
 /**
- * Project the effect of accepted proposals against current product state.
- * Produces three views:
- * - fields: per-catalog-field diff showing current, proposed, overwrite, no-op
- * - pages: existing vs proposed page additions
- * - skipped: proposals that could not be mapped
- *
- * When `verifiedPageIds` is provided (a Set of page_index row IDs from the
- * active verified import), category_page proposals whose identity is not
- * verified are skipped with a visible reason — name-only data is never
- * serializable. When it is absent/null the caller opts out of verification
- * (legacy preview contexts); production serialization always passes it.
+ * Build projection authority from one frozen snapshot and the currently
+ * active pair bindings. The current binding list is separate from ordinary
+ * Classification Attribute mappings by design.
+ */
+export function createAssignmentProjectionAuthority(
+  snapshot: RuntimeClassificationSnapshot | null | undefined,
+  verifiedPageNames?: ReadonlyMap<string, string>,
+  currentClassificationOutputBindings: CanonicalClassificationOutputBindingV2[] = [],
+): AssignmentProjectionAuthority {
+  if (!snapshot) return {
+    ...(verifiedPageNames ? { verifiedPageNames } : {}),
+    currentClassificationOutputBindings,
+    snapshot: snapshot ?? null,
+  };
+  const verifiedPages = snapshot.pages.state === 'verified'
+    ? snapshot.pages.records.filter(page => page.verified)
+    : [];
+  return {
+    snapshot,
+    attributes: snapshot.attributes,
+    frozenMappings: snapshot.attributeMappings,
+    currentClassificationOutputBindings,
+    frozenClassificationOutputBindings: snapshot.classificationOutputBindings ?? [],
+    verifiedPageNames: verifiedPageNames ?? new Map(verifiedPages.map(page => [page.pageId, page.pageName])),
+    categories: snapshot.categories,
+    productTypes: snapshot.productTypes,
+  };
+}
+
+/**
+ * Interpret reviewed classification changes once for preview and both local
+ * draft owners. Explicit no-target corrections produce no assignment; explicit
+ * null values clear fields or remove the original verified taxonomy page.
+ * `skipped` contains refusals, not successful partial application: mutation
+ * owners must refuse the entire projection before persisting if it is nonempty.
+ * Pending callers may use this same interpretation only as a separate,
+ * visibly provisional supplement, never as approved application authority.
  */
 export function buildAssignmentProjection(
   acceptedProposals: ClassificationProposal[],
@@ -263,109 +228,341 @@ export function buildAssignmentProjection(
   currentPageNames: string[],
   mappings: AttributeMappingConfig[],
   verifiedPageIds?: Set<string> | null,
-): {
-  fields: Array<{
-    catalogField: string;
-    currentValue: string | null;
-    proposedValue: string | null;
-    isOverwrite: boolean;
-    isNoOp: boolean;
-  }>;
-  pages: {
-    existing: string[];
-    proposed: string[];
-  };
-  skipped: Array<{
-    proposalId: string;
-    targetId: string | null;
-    reason: string;
-  }>;
-} {
+  authority: AssignmentProjectionAuthority = {},
+  reviewContext: AssignmentProjectionReviewContext = {},
+) {
   const fields: Array<{
     catalogField: string;
     currentValue: string | null;
-    proposedValue: string | null;
+    proposedValue: string;
     isOverwrite: boolean;
     isNoOp: boolean;
   }> = [];
-  const proposedPages: string[] = [];
-  const skipped: Array<{
-    proposalId: string;
-    targetId: string | null;
-    reason: string;
-  }> = [];
-  const seenFields = new Set<string>();
-
-  for (const proposal of acceptedProposals) {
-    if (proposal.proposalType === 'field_assignment') {
-      // Effective reviewed target/value win over the immutable prediction.
-      const targetId = getEffectiveProposalTargetId(proposal);
-      if (!targetId) {
-        skipped.push({ proposalId: proposal.id, targetId: null, reason: 'No attribute target' });
-        continue;
+  const additions: Array<{ pageId: string; pageName: string }> = [];
+  const removals: Array<{ pageId: string; pageName: string }> = [];
+  const skipped: Array<{ proposalId: string; targetId: string | null; reason: string }> = [];
+  const classificationProposal = acceptedProposals.find(proposal => proposal.proposalType === 'product_classification');
+  const reviewedContextProposals = reviewContext.reviewedProposals ?? acceptedProposals;
+  const currentRunProposals = reviewContext.currentRunProposals ?? reviewedContextProposals;
+  const runId = acceptedProposals.find(proposal => proposal.runId)?.runId
+    ?? reviewedContextProposals.find(proposal => proposal.runId)?.runId;
+  const reviewedFacts = authority.snapshot
+    ? composeEffectiveReviewedFacts(authority.snapshot, reviewedContextProposals, runId ?? '')
+    : [];
+  const contextClassificationProposal = reviewedContextProposals.find(proposal =>
+    proposal.proposalType === 'product_classification'
+    && proposal.status === 'accepted'
+    && !proposal.isStale
+    && proposal.currentDecisionId != null
+    && (!runId || proposal.runId === runId)
+    && (!authority.snapshot || proposal.productSku === authority.snapshot.productSku),
+  );
+  const rejectedClassificationProposal = authority.snapshot && !classificationProposal && !contextClassificationProposal
+    ? findRejectedProductClassificationProposal(currentRunProposals, authority.snapshot.productSku)
+    : null;
+  const reviewedPairFact = rejectedClassificationProposal ? undefined : reviewedFacts.find(fact =>
+    fact.proposalType === 'product_classification'
+    && fact.productSku === authority.snapshot?.productSku
+    && fact.workspaceId === authority.snapshot?.workspaceId,
+  );
+  const effectivePair = classificationProposal
+    ? getEffectiveClassificationPair(classificationProposal)
+    : contextClassificationProposal
+      ? getEffectiveClassificationPair(contextClassificationProposal)
+      : {
+        categoryId: getCategoryIdFromValue(reviewedPairFact?.value),
+        productTypeId: getProductTypeIdFromValue(reviewedPairFact?.value),
+      };
+  const profilePlan = authority.snapshot
+    ? resolveAttributeProfilePlan(authority.snapshot, effectivePair, reviewedFacts)
+    : null;
+  const classificationProposals = acceptedProposals.filter(proposal => proposal.proposalType === 'product_classification');
+  const pairSource = classificationProposals.length === 1 && classificationProposal
+    ? {
+      proposalId: classificationProposal.id,
+      targetId: getEffectiveProposalTargetId(classificationProposal),
+      pair: getEffectiveClassificationPair(classificationProposal),
+    }
+    : classificationProposals.length === 0 && !contextClassificationProposal && reviewedPairFact
+      ? {
+        proposalId: reviewedPairFact.proposalId,
+        targetId: reviewedPairFact.targetId,
+        pair: {
+          categoryId: getCategoryIdFromValue(reviewedPairFact.value),
+          productTypeId: getProductTypeIdFromValue(reviewedPairFact.value),
+        },
       }
-      const mapping = mappings.find(m => m.attributeId === targetId);
-      if (!mapping) {
-        skipped.push({ proposalId: proposal.id, targetId, reason: 'No attribute mapping found' });
-        continue;
-      }
-      if (mapping.isStale) {
-        skipped.push({ proposalId: proposal.id, targetId, reason: 'Attribute mapping is stale' });
-        continue;
-      }
-      if (!mapping.catalogField) {
-        skipped.push({ proposalId: proposal.id, targetId, reason: 'No catalog field in mapping' });
-        continue;
-      }
-
-      const currentValue = currentCustomFields[mapping.catalogField] ?? null;
-      const proposedValue = serializeAttributeValue(getEffectiveProposalValue(proposal), mapping.serialization);
-      // P1 #9: predicted silent multi→single narrowing is a visible skip,
-      // not a diff. An explicit reviewed revised value is human intent
-      // (issue #353) and bypasses the guard.
-      if (!proposal.hasRevisedValue && isSilentNarrowing(currentValue, proposedValue)) {
-        skipped.push({ proposalId: proposal.id, targetId, reason: 'No-narrowing guard: existing multi-value slot survives' });
-        continue;
-      }
-      const isNoOp = currentValue === proposedValue;
-      const isOverwrite = currentValue !== null && !isNoOp;
-
-      if (seenFields.has(mapping.catalogField)) continue;
-      seenFields.add(mapping.catalogField);
-
-      fields.push({ catalogField: mapping.catalogField, currentValue, proposedValue, isOverwrite, isNoOp });
-    } else if (proposal.proposalType === 'category_page') {
-      const targetId = getEffectiveProposalTargetId(proposal);
-      if (!targetId) {
-        skipped.push({ proposalId: proposal.id, targetId: null, reason: 'No page target' });
-        continue;
-      }
-      const pv = getEffectiveProposalValue(proposal) as Record<string, unknown> | undefined;
-      // Display name comes from the value only — never the Page ID (the
-      // target is the stable identity for new proposals).
-      const pageName = pageNameFromPageValue(pv);
-      const pageId = pv?.pageId ? String(pv.pageId) : null;
-      if (verifiedPageIds) {
-        // Fail closed: without a verified identity in the active import the
-        // page assignment cannot be serialized.
-        if (!pageId || !verifiedPageIds.has(pageId)) {
-          skipped.push({ proposalId: proposal.id, targetId, reason: 'Page identity unverified' });
-          continue;
-        }
-      }
-      if (!pageName) {
-        // A verified page without a display name is a visible skip; the Page
-        // ID must never be emitted as a page name.
-        skipped.push({ proposalId: proposal.id, targetId, reason: 'Page display name missing' });
-        continue;
-      }
-      if (!currentPageNames.includes(pageName) && !proposedPages.includes(pageName)) {
-        proposedPages.push(pageName);
+      : null;
+  if (rejectedClassificationProposal && classificationProposals.length === 0) {
+    skipped.push({
+      proposalId: rejectedClassificationProposal.id,
+      targetId: getEffectiveProposalTargetId(rejectedClassificationProposal),
+      reason: 'Product Classification was rejected in this run; a carried pair cannot authorize output.',
+    });
+  }
+  if (classificationProposals.length > 1) {
+    for (const proposal of classificationProposals) {
+      skipped.push({ proposalId: proposal.id, targetId: getEffectiveProposalTargetId(proposal),
+        reason: 'Multiple accepted Product Classification proposals are ambiguous; review one canonical pair.' });
+    }
+  } else if (pairSource) {
+    const refuse = (reason: string) => skipped.push({
+      proposalId: pairSource.proposalId,
+      targetId: pairSource.targetId,
+      reason,
+    });
+    if (classificationProposal?.isStale) {
+      refuse('Proposal is stale; re-review before applying');
+    } else if (!authority.categories || !authority.productTypes) {
+      refuse('Frozen Category and Product Type authority is unavailable');
+    } else {
+      const pair = pairSource.pair;
+      if (!pair.categoryId || !pair.productTypeId) {
+        refuse('Canonical Category + Product Type pair is incomplete');
       } else {
-        skipped.push({ proposalId: proposal.id, targetId, reason: 'Page already assigned' });
+        const resolution = resolveWebsiteClassification(
+          { categoryId: pair.categoryId, productTypeId: pair.productTypeId },
+          { categories: authority.categories, productTypes: authority.productTypes },
+        );
+        if (resolution.status !== 'resolved') {
+          refuse(`${resolution.code}: ${resolution.reason}`);
+        } else {
+          const canonicalRoles = [
+            { role: 'category', proposedValue: resolution.values.category },
+            { role: 'product-type', proposedValue: resolution.values.productType },
+          ] as const;
+          const bindingResolution = resolveCanonicalClassificationOutputBindings({
+            currentBindings: authority.currentClassificationOutputBindings ?? [],
+            frozenBindings: authority.frozenClassificationOutputBindings ?? [],
+            currentMappings: mappings,
+            frozenMappings: authority.frozenMappings ?? [],
+          });
+          if (bindingResolution.status !== 'resolved') {
+            refuse(`protected_target_refused: ${bindingResolution.reason}`);
+          } else {
+            const boundFields: Array<{ catalogField: string; proposedValue: string }> = [];
+            for (const role of canonicalRoles) {
+              const binding = bindingResolution.bindings[role.role];
+              try {
+                boundFields.push({
+                  catalogField: binding.catalogField,
+                  proposedValue: serializeAttributeValue(role.proposedValue, binding.serialization),
+                });
+              } catch (error) {
+                refuse(`protected_target_refused: Canonical ${role.role} output binding cannot serialize its approved website value: ${error instanceof Error ? error.message : String(error)}`);
+                break;
+              }
+            }
+            if (boundFields.length === canonicalRoles.length) {
+              for (const field of boundFields) {
+                const currentValue = currentCustomFields[field.catalogField] ?? null;
+                fields.push({ catalogField: field.catalogField, proposedValue: field.proposedValue, currentValue,
+                  isOverwrite: currentValue !== null && currentValue !== field.proposedValue,
+                  isNoOp: currentValue === field.proposedValue });
+              }
+            }
+          }
+        }
       }
     }
   }
 
-  return { fields, pages: { existing: currentPageNames, proposed: proposedPages }, skipped };
+  for (const proposal of acceptedProposals) {
+    const targetId = getEffectiveProposalTargetId(proposal);
+    const refuse = (reason: string) => skipped.push({ proposalId: proposal.id, targetId, reason });
+    if (proposal.proposalType !== 'field_assignment' && proposal.proposalType !== 'category_page') continue;
+    if (proposal.isStale) {
+      refuse('Proposal is stale; re-review before applying');
+      continue;
+    }
+    if (proposal.proposalType === 'field_assignment'
+      && (isCanonicalClassificationAttributeId(proposal.targetId) || isCanonicalClassificationAttributeId(targetId))) {
+      refuse('Core Category and Product Type fields require one accepted Product Classification pair proposal');
+      continue;
+    }
+    if (proposal.proposalType === 'field_assignment') {
+      // Both immutable and corrected identities must belong to classification.
+      // A protected original cannot be laundered through a permitted correction.
+      const targets = [...new Set([proposal.targetId, targetId].filter((id): id is string => !!id))];
+      let invalid = false;
+      for (const id of targets) {
+        const familyRefusal = classifyClassifierFamilyWrite(id);
+        if (familyRefusal) {
+          refuse(`${familyRefusal.code}: ${familyRefusal.reason}`);
+          invalid = true;
+          break;
+        }
+        if (isProtectedTargetId(id, mappings)) {
+          const refusal = protectedTargetRefusal(id);
+          refuse(`${refusal.code}: ${refusal.reason}`);
+          invalid = true;
+          break;
+        }
+        const matches = mappings.filter(m => m.attributeId === id);
+        const mapping = matches[0];
+        if (matches.length !== 1 || !mapping?.catalogField || mapping.isStale) {
+          refuse('Missing, ambiguous, empty or stale attribute mapping');
+          invalid = true;
+          break;
+        }
+        // Variant-ID/binding bypass (#368 §7): the resolved catalog field
+        // is checked against the family classifier too.
+        const boundFamilyRefusal = classifyClassifierFamilyWrite(mapping.catalogField);
+        if (boundFamilyRefusal) {
+          refuse(`${boundFamilyRefusal.code}: ${boundFamilyRefusal.reason}`);
+          invalid = true;
+          break;
+        }
+        if (isProtectedCatalogField(mapping.catalogField, id, mappings)) {
+          const refusal = protectedTargetRefusal(mapping.catalogField);
+          refuse(`${refusal.code}: ${refusal.reason}`);
+          invalid = true;
+          break;
+        }
+        if (authority.frozenMappings) {
+          const frozen = authority.frozenMappings.filter(m => m.attributeId === id);
+          if (frozen.length !== 1 || frozen[0].isStale
+            || frozen[0].catalogField !== mapping.catalogField
+            || deterministicStringify(frozen[0].serialization) !== deterministicStringify(mapping.serialization)) {
+            refuse('Mapping changed since classification (mapping_changed). Re-review under the current mapping.');
+            invalid = true;
+            break;
+          }
+        }
+      }
+      if (invalid) continue;
+      if (!targetId) {
+        if (!proposal.hasRevisedTargetId) refuse('No attribute target');
+        continue;
+      }
+      const mapping = mappings.find(m => m.attributeId === targetId)!;
+      const attribute = authority.attributes?.find(a => a.id === targetId);
+      if (authority.attributes && !attribute) {
+        refuse('Attribute is absent from captured configuration');
+        continue;
+      }
+      let value = getEffectiveProposalValue(proposal);
+      if (value === undefined || (value !== null && (Array.isArray(value) ? value : [value])
+        .some(item => typeof item !== 'string' && typeof item !== 'number' && typeof item !== 'boolean'))) {
+        refuse('Attribute value has an invalid serialization shape');
+        continue;
+      }
+      const profileEntry = authority.snapshot !== undefined
+        ? profilePlan?.entries.find(candidate => candidate.attribute.id === targetId)
+        : undefined;
+      if (authority.snapshot !== undefined) {
+        const explicitReviewedClear = proposal.hasRevisedValue && value === null;
+        if (profileEntry?.applicability.state !== 'applicable' && !explicitReviewedClear) {
+          // Attributable refusal: the frozen current pair/profile leaves this
+          // attribute not_applicable or unknown (including a missing entry or
+          // a missing plan — never projected into fields). An explicit
+          // reviewed clear still removes rather than assigns (see above).
+          const state = profileEntry?.applicability.state
+            ?? (profilePlan ? 'not_applicable' : 'unknown');
+          const detail = profileEntry?.applicability.reason
+            ?? (profilePlan
+              ? `Attribute "${targetId}" has no frozen Attribute Profile entry under the current pair; re-review under a frozen approved profile.`
+              : 'Frozen Attribute Profile applicability is unavailable; re-review under a frozen approved profile.');
+          refuse(`Attribute "${targetId}" applicability is ${state}: ${detail}`);
+          continue;
+        }
+      }
+      const validation = profileEntry
+        ? validateAttributeProfileValue(value, profileEntry.attribute, profileEntry.cardinality)
+        : validateSerializableValue(value, attribute);
+      if (!validation.ok) {
+        refuse(validation.message);
+        continue;
+      }
+      if (attribute?.valueMode === 'controlled' && value !== null) {
+        const canonicalize = (item: unknown) => attribute.allowedValues.includes(String(item))
+          ? String(item) : resolveAlias(String(item), attribute.valueAliases ?? [], attribute.allowedValues) ?? String(item);
+        value = Array.isArray(value) ? value.map(canonicalize) : canonicalize(value);
+      }
+      let proposedValue: string;
+      try {
+        proposedValue = serializeAttributeValue(value, mapping.serialization);
+      } catch (error) {
+        refuse(error instanceof Error ? error.message : String(error));
+        continue;
+      }
+      const currentValue = currentCustomFields[mapping.catalogField] ?? null;
+      if (!proposal.hasRevisedValue && isSilentNarrowing(currentValue, proposedValue)) {
+        refuse('No-narrowing guard: intentional reduction requires an explicit reviewed value');
+        continue;
+      }
+      const previous = fields.find(field => field.catalogField === mapping.catalogField);
+      if (previous) {
+        if (previous.proposedValue !== proposedValue) refuse('Conflicting accepted assignments address the same catalog field');
+        continue;
+      }
+      fields.push({
+        catalogField: mapping.catalogField,
+        currentValue,
+        proposedValue,
+        isOverwrite: currentValue !== null && currentValue !== proposedValue,
+        isNoOp: currentValue === proposedValue,
+      });
+      continue;
+    }
+
+    const value = getEffectiveProposalValue(proposal);
+    const removal = proposal.hasRevisedValue === true && value === null;
+    // Protect both original and corrected page identities/names, including
+    // the verified name so a forged label cannot disguise a Brand page.
+    const pageValues = [proposal.proposedValue, ...(removal ? [] : [value])];
+    let protectedPage = [proposal.targetId, targetId].some(id =>
+      !!id && (isBrandPageProposal(id) || isBrandPageProposal(authority.verifiedPageNames?.get(id))));
+    for (const pageValue of pageValues) {
+      const pageId = pageValue && typeof pageValue === 'object' && 'pageId' in pageValue
+        ? String(pageValue.pageId) : null;
+      if (isBrandPageProposal(pageNameFromPageValue(pageValue))
+        || isBrandPageProposal(pageId ? authority.verifiedPageNames?.get(pageId) : null)) protectedPage = true;
+    }
+    if (protectedPage) {
+      const refusal = protectedTargetRefusal(targetId ?? proposal.targetId);
+      refuse(`${refusal.code}: ${refusal.reason}`);
+      continue;
+    }
+    if (!removal && !targetId) {
+      if (!proposal.hasRevisedTargetId) refuse('No page target');
+      continue;
+    }
+    if (removal && targetId !== null && targetId !== proposal.targetId) {
+      refuse('Page removal must address the original assignment, not a different revised target');
+      continue;
+    }
+    const pageValue = removal ? proposal.proposedValue : value;
+    const pageId = pageValue && typeof pageValue === 'object' && 'pageId' in pageValue
+      && typeof pageValue.pageId === 'string' ? pageValue.pageId : null;
+    const identityTarget = removal ? proposal.targetId : targetId;
+    if (!pageId || pageId !== identityTarget || !verifiedPageIds?.has(pageId)) {
+      refuse('Page identity unverified or inconsistent with the reviewed target');
+      continue;
+    }
+    const pageName = authority.verifiedPageNames
+      ? authority.verifiedPageNames.get(pageId) : pageNameFromPageValue(pageValue);
+    if (!pageName) {
+      refuse('Verified page display name missing');
+      continue;
+    }
+    if (isBrandPageProposal(pageName)) {
+      const refusal = protectedTargetRefusal(identityTarget);
+      refuse(`${refusal.code}: ${refusal.reason}`);
+      continue;
+    }
+    const changes = removal ? removals : additions;
+    const opposite = removal ? additions : removals;
+    if (opposite.some(page => page.pageId === pageId || page.pageName === pageName)) {
+      refuse('Conflicting accepted page addition and removal');
+      continue;
+    }
+    if (!changes.some(page => page.pageId === pageId)) changes.push({ pageId, pageName });
+  }
+
+  const removed = removals.map(page => page.pageName);
+  const proposed = additions.map(page => page.pageName).filter(name => !currentPageNames.includes(name));
+  const final = currentPageNames.filter(name => !removed.includes(name));
+  for (const page of additions) if (!final.includes(page.pageName)) final.push(page.pageName);
+  return { fields, pages: { existing: currentPageNames, proposed, removed, additions, removals, final }, skipped };
 }

@@ -7,65 +7,94 @@
  * blocking error — never silent universal-only success. Readiness carries
  * the pair gap codes.
  */
-import { describe, it, expect } from 'bun:test';
-import { resolveEffectiveTypeProfile } from '../../classification/effective-curation-type';
-import { validateClassificationConfigBundle } from '../../classification/config-validation';
-import { resolveTypeCategory } from '../../classification/product-classification';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { computeClassificationBundleHash, validateClassificationConfigBundle } from '../../classification/config-validation';
+import { buildFocusedFiles, generateCandidate } from '../../classification/config-generator';
+import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
+import { ClassificationConfigBundleV2Schema, ClassificationFocusedFileNames } from '../../shared/schemas/classification';
+import { sha256Hex } from '../../shared/stable-id';
+import { isTaxonomyFrozen, setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
+import type { CatalogEvidence } from '../../classification/catalog-evidence';
 
-const PROFILES: any[] = [
-  { id: 'dog-profile', productTypeId: 'dog-food-dry', name: 'Dog', attributes: [] },
-];
+const EVIDENCE: CatalogEvidence = {
+  schemaVersion: 1,
+  sourceTreeHash: '0'.repeat(64),
+  productFileCount: 0,
+  parseFailureCount: 0,
+  parseFailures: [],
+  fieldRegistry: { entryCount: 0, xmlFields: [] },
+  fields: [],
+  pages: [],
+};
 
-function snapshot(types: any[]) {
-  return {
-    productTypes: types,
-    categories: [{ id: 'dog-food', name: 'Dog Food' }],
-  } as any;
-}
+beforeEach(() => {
+  setTaxonomyFreezeForTests(true);
+  expect(isTaxonomyFrozen()).toBe(true);
+});
 
-describe('empty vs missing profile (issue #350)', () => {
-  it('an explicit empty profile resolves to universal-only', () => {
-    const profile = resolveEffectiveTypeProfile(
-      'dog-food-dry', PROFILES, true,
-      snapshot([{ id: 'dog-food-dry', attributeProfileId: null }]),
-    );
-    expect(profile).toEqual({ attributes: [] });
-  });
+afterEach(() => {
+  setTaxonomyFreezeForTests(true);
+  expect(isTaxonomyFrozen()).toBe(true);
+});
 
-  it('a dangling profile pointer fails closed with a precise error', () => {
-    expect(() => resolveEffectiveTypeProfile(
-      'dog-food-dry', PROFILES, true,
-      snapshot([{ id: 'dog-food-dry', attributeProfileId: 'ghost-profile' }]),
-    )).toThrow(/ghost-profile/);
-  });
 
-  it('an unknown type fails closed with a precise error', () => {
-    expect(() => resolveEffectiveTypeProfile(
-      'ghost-type', PROFILES, true,
-      snapshot([{ id: 'dog-food-dry', attributeProfileId: null }]),
-    )).toThrow(/ghost-type/);
-  });
+describe('governed canonical configuration validation', () => {
+  it('validation reports exact unmapped Category and dangling profile findings on a generated candidate', () => {
+    const candidate = generateCandidate(BayStatePetGardenSeed, EVIDENCE);
+    const baseline = validateClassificationConfigBundle(candidate.bundle, {
+      mode: 'preview',
+      focusedFileContents: candidate.focusedFiles,
+    });
+    expect(baseline.valid).toBe(true);
 
-  it('validation reports dangling and unmapped codes distinctly', () => {
-    const now = '2026-08-01T12:00:00.000Z';
-    const bundle: any = {
-      manifest: { schemaVersion: 2, compatibilityVersion: 2, createdAt: now, updatedAt: now, activeRevision: 't', lifecycle: 'preview', hasUnresolvedSafetyFindings: false, migrationProvenance: { kind: 'reviewed_generation' }, sourceCatalogCommit: null, catalogEvidenceHash: null, fileVersions: {}, bundleHash: '0'.repeat(64) },
-      bundleOrigin: { kind: 'reviewed_generation' },
-      productTypes: [
-        { id: 'mapped', name: 'M', description: null, attributeProfileId: 'p', oldIdAliases: [], categoryId: 'c' },
-        { id: 'unmapped', name: 'U', description: null, attributeProfileId: null, oldIdAliases: [] },
-      ],
-      categories: [{ id: 'c', name: 'C', description: null, oldIdAliases: [] }],
-      attributes: [], attributeProfiles: [{ id: 'p', productTypeId: 'mapped', name: 'P', attributes: [], oldIdAliases: [] }],
-      attributeMappings: [], curationTargets: [], brands: [], guidance: [],
-      modelPolicy: { defaultProvider: 'ollama', defaultModel: 'm', stageOverrides: {}, imageDataSharing: 'local_only', textDataSharing: 'local_only' },
-      dataSharing: { imagePolicy: 'local_only', textPolicy: 'local_only', sensitiveDataFiltering: true, retentionDays: 90 },
+    const { manifest: sourceManifest, ...candidateContent } = candidate.bundle;
+    const targetTypeIndex = candidateContent.productTypes.findIndex(type => type.id === 'dog-food-dry');
+    if (targetTypeIndex < 0) throw new Error('Generated fixture candidate is missing its dry dog food Product Type');
+    const targetType = candidateContent.productTypes[targetTypeIndex];
+    if (!targetType) throw new Error('Generated fixture Product Type index is out of range');
+    const danglingProfileId = 'missing-fixture-profile';
+    const semanticallyInvalidContent = {
+      ...candidateContent,
+      productTypes: candidateContent.productTypes.map((type, index) => index === targetTypeIndex
+        ? { ...type, categoryId: null, attributeProfileId: danglingProfileId }
+        : type),
     };
-    // Unmapped type reports the explicit gap code; the schema-level
-    // fixture here constructs the bundle through generateCandidate in the
-    // config slice — here assert the semantic directly on the mapping.
-    expect(resolveTypeCategory('unmapped', { productTypes: bundle.productTypes } as any)).toBeNull();
-    const codes = validateClassificationConfigBundle(bundle).findings.map(f => f.code);
-    expect(codes.some(c => c === 'unmapped_product_type_category' || c === 'schema_invalid')).toBe(true);
+    const focusedFiles = buildFocusedFiles(semanticallyInvalidContent);
+    const fileVersions = Object.fromEntries(
+      ClassificationFocusedFileNames.map(fileName => [fileName, sha256Hex(focusedFiles[fileName])]),
+    );
+    const { bundleHash: _candidateHash, ...sourceManifestWithoutHash } = sourceManifest;
+    const manifestWithoutHash = { ...sourceManifestWithoutHash, fileVersions };
+    const invalidBundle = ClassificationConfigBundleV2Schema.parse({
+      ...semanticallyInvalidContent,
+      manifest: {
+        ...manifestWithoutHash,
+        bundleHash: computeClassificationBundleHash(manifestWithoutHash),
+      },
+    });
+
+    const report = validateClassificationConfigBundle(invalidBundle, {
+      mode: 'preview',
+      focusedFileContents: focusedFiles,
+    });
+    const semanticFindings = report.findings
+      .filter(finding => finding.code === 'unmapped_product_type_category' || finding.code === 'dangling_profile')
+      .map(({ severity, code, path: findingPath, message }) => ({ severity, code, path: findingPath, message }));
+    expect(semanticFindings).toEqual([
+      {
+        severity: 'error',
+        code: 'unmapped_product_type_category',
+        path: `$.productTypes[${targetTypeIndex}].categoryId`,
+        message: `Product Type "${targetType.id}" has no approved Category mapping; assign its canonical Category explicitly.`,
+      },
+      {
+        severity: 'error',
+        code: 'dangling_profile',
+        path: `$.productTypes[${targetTypeIndex}].attributeProfileId`,
+        message: `Unknown Attribute Profile "${danglingProfileId}".`,
+      },
+    ]);
+    expect(report.findings.some(finding => finding.code === 'schema_invalid')).toBe(false);
+    expect(report.valid).toBe(false);
   });
 });

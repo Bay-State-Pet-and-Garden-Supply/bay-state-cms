@@ -77,7 +77,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Hypo-Allergenic Shampoo 16oz' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '15.99' },
           sku: { available: true, expectedValue: 'EB-HA-16' },
           gtin: { available: true, expectedValue: '745556011162' },
           description: { available: true },
@@ -114,7 +113,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Hypo-Allergenic Shampoo 32oz' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '24.99' },
           sku: { available: true, expectedValue: 'EB-HA-32OZ' },
           gtin: { available: true, expectedValue: '745556011285' },
           description: { available: true },
@@ -151,7 +149,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Oatmeal & Aloe Shampoo Vanilla 16oz' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '16.99' },
           sku: { available: true, expectedValue: 'EB-OA-SH-16' },
           gtin: { available: true, expectedValue: '745556011018' },
           description: { available: true },
@@ -185,7 +182,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Oatmeal & Aloe Conditioner Vanilla 16oz' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '17.99' },
           sku: { available: true, expectedValue: 'EB-OA-COND-16' },
           gtin: { available: true, expectedValue: '745556012015' },
           description: { available: true },
@@ -218,7 +214,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Hot Spot Relief Wipes 100ct' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '14.99' },
           sku: { available: true, expectedValue: 'EB-HS-WIPES' },
           gtin: { available: true, expectedValue: '745556031009' },
           description: { available: true },
@@ -256,7 +251,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Grooming Starter Bundle' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '29.99' },
           sku: { available: true, expectedValue: 'EB-BUNDLE-STARTER' },
           gtin: { available: false, notes: 'Bundles do not carry GTIN on PDP' },
           description: { available: false, notes: 'Custom landing page without structured body' },
@@ -289,7 +283,6 @@ export function getRepresentativeCorpusFixtures(domain: string = 'earthbath.com'
         fields: {
           title: { available: true, expectedValue: 'Earthbath Unsupported Widget' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '9.99' },
           sku: { available: true, expectedValue: 'EB-BLOCKED-1' },
           gtin: { available: true, expectedValue: '745556099999' },
         },

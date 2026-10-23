@@ -34,6 +34,9 @@ import prereviewGoldset from '../fixtures/benchmark-prereview-goldset.json';
 const workspaceId = 'ws-prediction-test';
 const CONFIG_HASH = 'c'.repeat(64);
 const CONFIG_SNAPSHOT_ID = 'snapshot-pred-1';
+function classificationPairValue(productTypeId: string, categoryId = 'fixture-category') {
+  return { categoryId, productTypeId };
+}
 
 describe('Benchmark prediction bundles', () => {
   let wsPath: string;
@@ -75,8 +78,8 @@ describe('Benchmark prediction bundles', () => {
     } else if (productType) {
       db.run(
         `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-         VALUES (?, ?, ?, 'primary_product_type', ?, ?, 'accepted', ?)`,
-        [randomUUID(), run.id, sku, JSON.stringify(productType), confidence, now]
+         VALUES (?, ?, ?, 'product_classification', ?, ?, 'accepted', ?)`,
+        [randomUUID(), run.id, sku, JSON.stringify(classificationPairValue(productType)), confidence, now]
       );
       const pid = db.query('SELECT id FROM classification_proposals WHERE run_id = ?').get(run.id) as { id: string };
       db.run(
@@ -114,8 +117,8 @@ describe('Benchmark prediction bundles', () => {
     expect(JSON.parse(persisted.predictions_json).length).toBe(2);
   });
 
-  it('extracts the exact effective revised values from the reviewed run', () => {
-    // Seed a run then revise the type via a live decision on a newer run.
+  it('extracts the effective Product Type from the reviewed canonical pair', () => {
+    // Seed a run then revise the pair via a live decision on a newer run.
     const firstRun = seedRun('SKU-REV', 'Dog Food');
     // Ensure the first run sorts strictly older (started_at ordering).
     getDb().run('UPDATE classification_runs SET started_at = ? WHERE id = ?', ['2020-01-01T00:00:00.000Z', firstRun.id]);
@@ -123,20 +126,43 @@ describe('Benchmark prediction bundles', () => {
     const now = new Date().toISOString();
     getDb().run(
       `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
-       VALUES (?, ?, ?, 'primary_product_type', '"Dog Food"', 0.85, 'accepted', ?)`,
-      [randomUUID(), run.id, 'SKU-REV', now]
+       VALUES (?, ?, ?, 'product_classification', ?, 0.85, 'accepted', ?)`,
+      [randomUUID(), run.id, 'SKU-REV', JSON.stringify(classificationPairValue('Dog Food', 'dog-food')), now]
     );
     const pid = getDb().query('SELECT id FROM classification_proposals WHERE run_id = ?').get(run.id) as { id: string };
     getDb().run(
       `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
-       VALUES (?, ?, 'accepted', '"Dog Food Dry"', 0, ?)`,
-      [randomUUID(), pid.id, now]
+       VALUES (?, ?, 'accepted', ?, 0, ?)`,
+      [randomUUID(), pid.id, JSON.stringify(classificationPairValue('Dog Food Dry', 'dog-food')), now]
     );
     getDb().run(`UPDATE classification_runs SET status = 'completed' WHERE id = ?`, [run.id]);
 
     const entry = extractPredictionsForSku(workspaceId, 'SKU-REV');
     expect(entry).not.toBeNull();
     expect(entry!.productType).toBe('Dog Food Dry');
+  });
+  it('treats legacy type-only rows as history rather than Product Classification predictions', () => {
+    const db = getDb();
+    const run = createRun(workspaceId, 'SKU-LEGACY-TYPE', CONFIG_SNAPSHOT_ID, CONFIG_HASH, { sourceKind: 'catalog_product' });
+    const now = new Date().toISOString();
+    db.run(
+      `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, proposed_value_json, confidence, status, created_at)
+       VALUES (?, ?, ?, 'primary_product_type', ?, 0.9, 'accepted', ?)`,
+      ['legacy-type-only', run.id, 'SKU-LEGACY-TYPE', JSON.stringify({ productTypeId: 'legacy-dog-food' }), now],
+    );
+    db.run(
+      `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
+       VALUES (?, ?, 'accepted', NULL, 0, ?)`,
+      ['legacy-type-only-decision', 'legacy-type-only', now],
+    );
+    db.run('UPDATE classification_runs SET status = ? WHERE id = ?', ['completed', run.id]);
+
+    expect(extractPredictionsForSku(workspaceId, 'SKU-LEGACY-TYPE')).toBeNull();
+    const preReview = capturePreReviewPrediction({
+      runId: run.id, workspaceId, productSku: 'SKU-LEGACY-TYPE',
+    });
+    expect(preReview.outcome).toBe('failed');
+    expect(preReview.failureCode).toBe('no_prediction');
   });
 
   it('fails closed on a missing prediction for a gold example', () => {
@@ -284,14 +310,14 @@ describe('Benchmark pre-review predictions (#294)', () => {
       const pid = randomUUID();
       db.run(
         `INSERT INTO classification_proposals (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-         VALUES (?, ?, ?, 'primary_product_type', ?, ?, ?, 'pending', ?)`,
-        [pid, run.id, sku, rawType, JSON.stringify({ productTypeId: rawType }), opts.confidence ?? 0.85, now]
+         VALUES (?, ?, ?, 'product_classification', ?, ?, ?, 'pending', ?)`,
+        [pid, run.id, sku, rawType, JSON.stringify(classificationPairValue(rawType)), opts.confidence ?? 0.85, now]
       );
       if (opts.revisedType) {
         db.run(
           `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
            VALUES (?, ?, 'accepted', ?, 0, ?)`,
-          [randomUUID(), pid, JSON.stringify({ productTypeId: opts.revisedType }), now]
+          [randomUUID(), pid, JSON.stringify(classificationPairValue(opts.revisedType)), now]
         );
       }
     }
@@ -365,11 +391,11 @@ describe('Benchmark pre-review predictions (#294)', () => {
     // Review: corrections land as decisions on the live runs — answers, not predictions.
     const db = getDb();
     const now = new Date().toISOString();
-    for (const row of db.query(`SELECT id FROM classification_proposals WHERE proposal_type = 'primary_product_type'`).all() as Array<{ id: string }>) {
+    for (const row of db.query(`SELECT id FROM classification_proposals WHERE proposal_type = 'product_classification'`).all() as Array<{ id: string }>) {
       db.run(
         `INSERT INTO classification_proposal_decisions (id, proposal_id, decision, revised_value_json, has_revised_target, created_at)
          VALUES (?, ?, 'accepted', ?, 0, ?)`,
-        [randomUUID(), row.id, JSON.stringify({ productTypeId: 'reviewer-corrected-type' }), now]
+        [randomUUID(), row.id, JSON.stringify(classificationPairValue('reviewer-corrected-type', 'corrected-category')), now]
       );
     }
 
@@ -403,8 +429,8 @@ describe('Benchmark pre-review predictions (#294)', () => {
     expect(entry.provenance?.runId).toBe(run.id);
     expect(entry.provenance?.configSnapshotHash).toBe(CONFIG_HASH);
     expect(entry.provenance?.evidenceCount).toBe(0);
-    expect(canonicalPreReviewTypeId({ proposedValue: { productTypeId: 'dog_food_dry' }, targetId: 'legacy-id' })).toBe('dog_food_dry');
-    expect(canonicalPreReviewTypeId({ proposedValue: 'cat_treat', targetId: null })).toBe('cat_treat');
+    expect(canonicalPreReviewTypeId({ proposedValue: classificationPairValue('dog_food_dry', 'dog_food') })).toBe('dog_food_dry');
+    expect(canonicalPreReviewTypeId({ proposedValue: { productTypeId: 'dog_food_dry' } })).toBeNull();
   });
 
   it('candidate/baseline captures never read accepted revised values; later review edits cannot alter a captured bundle', () => {

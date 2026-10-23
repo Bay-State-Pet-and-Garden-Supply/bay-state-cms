@@ -100,13 +100,9 @@ export function analyzeProductTypeImpact(
   } = input;
 
   const isClear = candidateProductTypeId === null;
-  // ADR 0041: the canonical pair is the authority baseline; legacy
-  // `primary_product_type` rows are history-only and never set it.
-  const primaryProposal = activeProposals.find(p => p.proposalType === 'product_classification')
-    ?? activeProposals.find(p => p.proposalType === 'primary_product_type');
-  const currentTypeId = primaryProposal && primaryProposal.proposalType === 'product_classification'
-    ? getEffectivePrimaryProductTypeId(primaryProposal)
-    : null;
+  // Only the canonical pair establishes the prior Product Type authority.
+  const classificationProposal = activeProposals.find(p => p.proposalType === 'product_classification');
+  const currentTypeId = classificationProposal ? getEffectivePrimaryProductTypeId(classificationProposal) : null;
   const isUnchanged = candidateProductTypeId === currentTypeId;
 
   const hasExecutionTypeAlignment =

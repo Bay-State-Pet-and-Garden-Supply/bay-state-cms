@@ -1,0 +1,46 @@
+{
+  "releaseId": "bay-state-v10",
+  "revision": "bay-state-v10",
+  "createdAt": "2026-10-12T00:00:00.000Z",
+  "schemaVersion": 3,
+  "compatibilityVersion": 3,
+  "lifecycle": "release",
+  "sourceBaseline": "bay-state-v9",
+  "fileVersions": {
+    "hierarchy.json": "5402ca0caf6f9d12881856401082c3ed8c9a4a08a091f680a1c315460d7c232d",
+    "facet-profiles.json": "ce0a14b309220c49eb7d9a0293d508c9d63528054037f723156028f9e6846359",
+    "legacy-mappings.json": "0bd403a4b97d4b67dba4d1d18d99321c79e96f3582f3ad3ce6bf736a30798a90",
+    "attributes.json": "153fa9829c24420648835a5b56050e1623085620e36ff2d4b3fb9464862711cc",
+    "export-mappings.json": "130d1e905c7ea00e6d8253e2dd427bb37bcc9c04956be3b862e1abcdc2472fd3",
+    "shopsite-projection.json": "c5dbc31a43fccb0b66b0c79a4c9e542963077bb36e409f88d9b9eef3c80d842e",
+    "guidance.json": "29cc03644122ba9abfb4600f48a250eb59ac275efad194d0995a2ff62a8b62e2",
+    "page-assignment-policy.json": "64eafc38fcf9a9ba074f18a33c7026396642f3458a503419552686ba2285c7db"
+  },
+  "counts": {
+    "nodes": 96,
+    "facetProfiles": 11,
+    "attributes": 25,
+    "mappings": 13,
+    "pages": 153,
+    "departments": 10,
+    "types": 79,
+    "nativeLeaves": 6
+  },
+  "notes": [
+    "bay-state-v5 adds controlled species validation, domain-specific invariant attributes for pet, livestock, equine, and heating product types, and refined facet profiles.",
+    "bay-state-v7 (V5 generation, manifest schemaVersion 3 unchanged): governed species cardinality single->multiple scoped EXACTLY to the compiled profile-supplements and profile-grooming types via two new dedicated facets cloned from their shared facets. No shared-facet fan-out.",
+    "Owner-authorized explicit approval covers ONLY the compiled profile-supplements + profile-grooming species entries: official manufacturer product copy for the affected supplement/grooming products explicitly lists both Dog and Cat. Evidence owner-reviewed (public/dev manufacturer excerpts); no held-out items read.",
+    "Supersedes the rejected bay-state-v6 candidate (shared-facet flip fanned out to 21 compiled profiles; see rejection audit). All other profiles, types, values, mappings, questions, invariants, and history preserved from bay-state-v5 baseline.",
+    "bay-state-v8 (V5 generation, manifest schemaVersion 3 unchanged): owner-decided type definitions for EXACTLY two classifiable types \u2014 grooming (pet skin/coat care incl. medicated lotions/shampoos/anti-itch sprays; explicitly flea/tick-targeted products stay Flea & Tick Treatment) and insect-control (electronic/heated mosquito-repellent systems and dedicated consumables). Verbatim owner wording; no other leaf/taxonomy edits.",
+    "All 74 type/profile IDs, facet memberships, species cardinalities (multiple still only profile-supplements + profile-grooming), invariants, values, aliases, mappings, questions, and history preserved from bay-state-v7 baseline.",
+    "Owner-approved CMS\u2194ShopSite alignment (2026-10-06):",
+    "PF32 is pipe-joined UPC/barcode data \u2014 product-cross-sell mapping removed, not_exported (read-only).",
+    "PF8 carries feeding-instruction/ingredient HTML \u2014 nutrition mapping removed, not_exported (read-only).",
+    "species vocabulary widened: Wild Bird, Caged Bird, Farm Animal, Small Pet, Bee.",
+    "Delimited '|' serialization adopted for the CMS-owned multi-value slots (live store uses pipes).",
+    "Species membership cardinality normalized to single (profile-pet-food-supplements, profile-accessories-grooming) so the derived target matches the compiler's single-select contract.",
+    "Retires safety-toe-type export intent (already not_exported; remains for the next gold contract revision).",
+    "P1 #8 new native type leaves: dog-food-freeze-dried-raw + cat-food-freeze-dried-raw (profile-pet-food, Freeze-Dried Raw invariants); milk-replacer (profile-pet-food, no species/form invariant); aquarium-equipment (profile-accessories, Fish); catnip-loose (profile-accessories, Cat).",
+    "P1 #10 size retirement: breed-size + size to not_exported, PF19/PF27 mappings removed, all facet memberships revoked. Existing live/workspace values untouched; core.weight independent."
+  ]
+}

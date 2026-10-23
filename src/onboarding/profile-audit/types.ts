@@ -46,7 +46,6 @@ export interface ReplayRunnerOptions {
   expected?: {
     name?: string;
     brandHint?: string | null;
-    price?: string | null;
     gtin?: string;
   };
   recordLatency?: boolean;

@@ -16,6 +16,7 @@ import {
   ReleaseValidationError,
 } from '../../classification/release-validation';
 import { V4_TAXONOMY_REVISION, V5_TAXONOMY_REVISION } from '../../classification/release-compiler';
+import { getStoredReleaseAdminEnabled, getStoredApiToken } from '../../db/repositories/security-settings-repo';
 import { timingSafeCompare } from '../../shared/timing-safe';
 
 /**
@@ -45,11 +46,11 @@ import { timingSafeCompare } from '../../shared/timing-safe';
 
 const admin = new Hono();
 
-/** Env kill-switch-style gate (default disabled). */
+/** Env kill-switch override; unset env uses the persisted setting. */
 function releaseAdminEnabled(): boolean {
   const raw = process.env.BAYSTATE_CMS_RELEASE_ADMIN_ENABLED;
-  if (raw === undefined || raw === '') return false;
-  return ['1', 'true', 'on'].includes(raw.trim().toLowerCase());
+  if (raw !== undefined) return ['1', 'true', 'on'].includes(raw.trim().toLowerCase());
+  return getStoredReleaseAdminEnabled();
 }
 
 // ─── Available-revision scan (cached) ─────────────────────────────────────────
@@ -194,7 +195,8 @@ admin.post('/settings/taxonomy-release/pin', async (c) => {
   }
 
   // Gate 2: API token re-check (defense in depth; global middleware may change).
-  const expectedToken = process.env.BAYSTATE_CMS_API_TOKEN;
+  // Effective token: env override wins, otherwise the UI-managed stored token.
+  const expectedToken = process.env.BAYSTATE_CMS_API_TOKEN ?? getStoredApiToken();
   const provided = c.req.header('Authorization') ?? '';
   if (!expectedToken || !timingSafeCompare(provided, `Bearer ${expectedToken}`)) {
     return c.json({ error: 'Unauthorized. Provide a valid API token via Authorization: Bearer header.', code: 'invalid_api_token' }, 401);

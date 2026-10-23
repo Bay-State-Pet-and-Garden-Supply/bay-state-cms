@@ -26,7 +26,7 @@ import type {
   DataSharingPolicy,
 } from '../../ai/provider-connections';
 import type { ConnectionHealthReport, DiscoveredModel } from '../../ai/connection-health-monitor';
-import { TYPESAFE_KNOWN_MODELS } from '../../ai/systemone-transport';
+import { TYPESAFE_KNOWN_MODELS } from '../../ai/typesafe-models';
 import { DEFAULT_LOCAL_VISION_MODEL } from '../../shared/vision-model-defaults';
 import { colors, fonts, rounded } from '../theme';
 import { ClassificationProviderSettings } from './settings/ClassificationProviderSettings';

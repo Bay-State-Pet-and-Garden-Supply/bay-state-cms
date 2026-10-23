@@ -45,7 +45,6 @@ export interface HybridSelectionInput {
   expected?: {
     name?: string;
     brandHint?: string | null;
-    price?: string | null;
     gtin?: string | null;
     sku?: string | null;
   };
@@ -75,10 +74,6 @@ function normalizeCompare(s: unknown): string {
     .trim();
 }
 
-function normalizePrice(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s).replace(/[^\d.]/g, '').trim();
-}
 
 function cleanGtin(s: unknown): string {
   if (s === null || s === undefined) return '';
@@ -228,11 +223,11 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
   };
 
   // ── Step 2: Structured field extraction helper ────────────────────────────
-  function getStructuredField(field: 'title' | 'brand' | 'description' | 'price' | 'sku' | 'gtin'): {
+  function getStructuredField(field: 'title' | 'brand' | 'description' | 'sku' | 'gtin'): {
     value: string | null;
     source: string;
   } {
-    // If selected variant has specific SKU / price / GTIN / title, that is top priority structured signal
+    // Selected variants can provide identity fields and a title.
     if (selectedCandidate) {
       if (field === 'title' && selectedCandidate.title?.trim()) {
         return { value: selectedCandidate.title.trim(), source: 'variant-candidate' };
@@ -243,9 +238,6 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
         selectedCandidate.identifiers?.find(i => i.kind === 'sku')?.normalizedValue;
       if (field === 'sku' && skuId) {
         return { value: String(skuId).trim(), source: 'variant-candidate' };
-      }
-      if (field === 'price' && selectedCandidate.price) {
-        return { value: String(selectedCandidate.price).trim(), source: 'variant-candidate' };
       }
       const gtinId =
         selectedCandidate.identifiers?.find(i => i.kind === 'gtin')?.value ??
@@ -293,15 +285,6 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
       }
     }
 
-    if (field === 'price') {
-      const jOffers = raw.jsonLd?.offers as Record<string, unknown> | undefined;
-      const jPrice = jOffers?.price ?? jOffers?.lowPrice;
-      if (jPrice !== undefined && String(jPrice).trim()) {
-        return { value: String(jPrice).trim(), source: 'json-ld' };
-      }
-      if (raw.microdata?.price?.trim()) return { value: raw.microdata.price.trim(), source: 'microdata' };
-      if (raw.metaTags?.['product:price:amount']?.trim()) return { value: raw.metaTags['product:price:amount'].trim(), source: 'meta' };
-    }
 
     if (field === 'sku') {
       const jSku = raw.jsonLd?.sku as string | undefined;
@@ -321,7 +304,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
   }
 
   // ── Step 3: Compare values deterministically and surface disagreements ───
-  function resolveField(field: 'title' | 'brand' | 'description' | 'price' | 'sku' | 'gtin'): string | null {
+  function resolveField(field: 'title' | 'brand' | 'description' | 'sku' | 'gtin'): string | null {
     const rawCustomVal = raw.custom?.[field];
     const selectorVal =
       typeof rawCustomVal === 'string' && rawCustomVal.trim()
@@ -334,11 +317,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
     if (selectorVal && structuredVal) {
       let isDisagreement: boolean;
 
-      if (field === 'price') {
-        const selP = normalizePrice(selectorVal);
-        const strP = normalizePrice(structuredVal);
-        isDisagreement = Boolean(selP && strP && selP !== strP);
-      } else if (field === 'gtin') {
+      if (field === 'gtin') {
         const selG = cleanGtin(selectorVal);
         const strG = cleanGtin(structuredVal);
         isDisagreement = Boolean(selG && strG && !canonicalGtinMatch(selG, strG));
@@ -361,7 +340,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
           structuredSource: structured.source,
           selectorSource: 'custom-selector',
           resolution: 'selector_preferred_with_conflict',
-          severity: (field === 'title' || field === 'price' || field === 'sku' || field === 'gtin') ? 'critical' : 'warning',
+          severity: (field === 'title' || field === 'sku' || field === 'gtin') ? 'critical' : 'warning',
           disagreementReason: `Selector value "${selectorVal}" disagrees with ${structured.source} value "${structuredVal}"`,
         });
       }
@@ -387,7 +366,6 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
   const title = resolveField('title');
   const brand = resolveField('brand');
   const description = resolveField('description');
-  const price = resolveField('price');
   const sku = resolveField('sku');
   const gtin = resolveField('gtin');
 
@@ -469,7 +447,7 @@ export function selectHybridFields(input: HybridSelectionInput): HybridSelection
     title,
     brand,
     description,
-    price,
+    price: null,
     primaryImage: imageFilterResult.primaryImage,
     additionalImages,
     bulletPoints: Array.isArray(raw.htmlHeuristics?.bulletPoints)

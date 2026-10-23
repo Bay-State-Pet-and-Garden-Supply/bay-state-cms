@@ -700,7 +700,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
       expect(shopAllPage).toBeUndefined(); // Suppressed due to specificity
     });
 
-    it('assigns brand-page shortcut with isBrandShortcut: true in multiple mode', async () => {
+    it('excludes brand pages from category-page decisions in multiple mode', async () => {
       const run = createRun(workspaceId, 'SKU-DOG-FOOD-1', null, 'hash-page-test-catalog');
 
       let requestedBrandQuestion = false;
@@ -731,10 +731,10 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
       });
 
       expect(decision.outcome).toBe('predicted');
-      const brandPage = decision.pages.find(p => p.pageId === 'page-fromm');
-      expect(brandPage).toBeDefined();
-      expect(brandPage?.isBrandShortcut).toBe(true);
-      // Brand shortcut was handled deterministically without calling Jev for that page
+      expect(decision.pages.some(p => p.pageId === 'page-fromm')).toBe(false);
+      expect(decision.pages.some(p => p.isBrandShortcut)).toBe(false);
+      // Brand placement is outside classifier ownership, so the Category Page
+      // Choice packet never asks Jev to decide the brand page.
       expect(requestedBrandQuestion).toBe(false);
     });
 
@@ -839,8 +839,7 @@ describe('TypeSafe Jev Category Page Seam Verification (Issue #299)', () => {
 
       const modelProp = proposals.find(p => (p.proposedValue as any).pageId === 'page-dry-dog-food');
       expect(modelProp?.derivation?.kind).toBe('systemone_judgment');
-      const brandProp = proposals.find(p => (p.proposedValue as any).pageId === 'page-fromm');
-      expect(brandProp?.derivation?.kind).toBe('deterministic_enrichment');
+      expect(proposals.some(p => typeof p.proposedValue === 'object' && p.proposedValue !== null && 'pageId' in p.proposedValue && p.proposedValue.pageId === 'page-fromm')).toBe(false);
     });
   });
 

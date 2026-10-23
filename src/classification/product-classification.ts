@@ -38,8 +38,61 @@ export const INVALID_CLASSIFICATION_PAIR_CODE = 'invalid_classification_pair';
 export const UNMAPPED_TYPE_CATEGORY_CODE = 'unmapped_product_type_category';
 
 export interface BundleView {
-  productTypes: Array<{ id: string; categoryId?: string | null }>;
+  productTypes: Array<{ id: string; categoryId?: string | null; websiteValues?: WebsiteClassificationValues | null }>;
   categories: Array<{ id: string }>;
+}
+
+/** Exact externally approved ShopSite classification field values. */
+export interface WebsiteClassificationValues {
+  category: string;
+  productType: string;
+}
+
+export type WebsiteClassificationResolution =
+  | { status: 'resolved'; values: WebsiteClassificationValues }
+  | { status: 'unresolved'; code: string; reason: string };
+
+export const UNMAPPED_WEBSITE_CLASSIFICATION_CODE = 'unmapped_website_classification';
+export const AMBIGUOUS_WEBSITE_CLASSIFICATION_CODE = 'ambiguous_website_classification';
+
+/**
+ * Resolve the exact approved website values from canonical internal IDs.
+ * Refuses unknown, mismatched, incomplete, or ambiguous mappings; internal
+ * identifiers are never returned as website values.
+ */
+export function resolveWebsiteClassification(
+  pair: ProductClassification,
+  bundle: BundleView,
+): WebsiteClassificationResolution {
+  const category = bundle.categories.find(candidate => candidate.id === pair.categoryId);
+  if (!category || !pair.categoryId) {
+    return { status: 'unresolved', code: INVALID_CLASSIFICATION_PAIR_CODE, reason: 'Category is not configured.' };
+  }
+  const matches = bundle.productTypes.filter(candidate => candidate.id === pair.productTypeId);
+  if (matches.length !== 1) {
+    return { status: 'unresolved', code: matches.length === 0 ? INVALID_CLASSIFICATION_PAIR_CODE : AMBIGUOUS_WEBSITE_CLASSIFICATION_CODE,
+      reason: matches.length === 0 ? 'Product Type is not configured.' : 'Product Type identifier is ambiguous.' };
+  }
+  const type = matches[0];
+  if (type.categoryId !== pair.categoryId) {
+    return { status: 'unresolved', code: INVALID_CLASSIFICATION_PAIR_CODE, reason: 'Product Type does not belong to the supplied Category.' };
+  }
+  const websiteValues = type.websiteValues;
+  if (!websiteValues || !websiteValues.category.trim() || !websiteValues.productType.trim()) {
+    return { status: 'unresolved', code: UNMAPPED_WEBSITE_CLASSIFICATION_CODE, reason: 'Product Type has no complete approved website mapping.' };
+  }
+  const duplicate = bundle.productTypes.some(candidate =>
+    candidate.id !== type.id
+    && candidate.websiteValues?.category === websiteValues.category
+    && candidate.websiteValues?.productType === websiteValues.productType,
+  );
+  if (duplicate) {
+    return { status: 'unresolved', code: AMBIGUOUS_WEBSITE_CLASSIFICATION_CODE, reason: 'Website classification mapping is ambiguous.' };
+  }
+  return {
+    status: 'resolved',
+    values: { category: websiteValues.category, productType: websiteValues.productType },
+  };
 }
 
 /**

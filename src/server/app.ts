@@ -15,6 +15,9 @@ import pageRoutes from './routes/page-routes';
 import dashboardRoutes from './routes/dashboard-routes';
 import onboardingRoutes from './routes/onboarding-routes';
 import onboardingWorkRoutes from './routes/onboarding-work-routes';
+import acceptedItemEvidenceRoutes from './routes/accepted-item-evidence-routes';
+import { itemAcquisitionRoutes } from './routes/item-acquisition-routes';
+import { listingCompletenessRoutes } from './routes/listing-completeness-routes';
 import onboardingStageReadRoutes from './routes/onboarding-stage-read-routes';
 import distributorRoutes from './routes/distributor-routes';
 import classificationRoutes from './routes/classification-routes';
@@ -37,29 +40,46 @@ import { profileBuilderGenerateDraftRoutes } from './routes/profile-builder-gene
 import { profileMatrixRoutes } from './routes/profile-matrix-routes';
 import { profileInspectRoutes } from './routes/profile-inspect-routes';
 import { browserInvestigationRoutes } from './routes/browser-investigation-routes';
+import storefrontFamilyRoutes from './routes/storefront-family-routes';
 import releaseRoutes from './routes/release-routes';
+import securitySettingsRoutes from './routes/security-settings-routes';
 import { getCurrentWorkspace } from './services/workspace-service';
+import { getStoredApiToken } from '../db/repositories/security-settings-repo';
 import { timingSafeCompare } from '../shared/timing-safe';
 
 const app = new Hono();
 
 // API token middleware
-// When BAYSTATE_CMS_API_TOKEN is set, all mutating (non-GET) requests must include
-// an Authorization: Bearer <token> header matching the configured token.
-const apiToken = process.env.BAYSTATE_CMS_API_TOKEN;
-if (apiToken) {
-  app.use('/api/*', async (c, next) => {
-    if (c.req.method === 'GET' || c.req.method === 'HEAD') {
-      await next();
-      return;
-    }
-    const auth = c.req.header('Authorization') ?? '';
-    if (!timingSafeCompare(auth, `Bearer ${apiToken}`)) {
-      return c.json({ error: 'Unauthorized. Provide a valid API token via Authorization: Bearer header.' }, 401);
-    }
-    await next();
-  });
+// The autoload below initializes the database on demand, so resolve the
+// stored token lazily *after* initialization. Reading it here (before the
+// autoload middleware below runs) crashes cold starts without an env token:
+// getStoredApiToken() touches getDb(), which throws "Database not initialized".
+function resolveEffectiveApiToken(): string | undefined {
+  if (process.env.BAYSTATE_CMS_API_TOKEN) return process.env.BAYSTATE_CMS_API_TOKEN;
+  // getCurrentWorkspace() triggers migration/initialization on demand; the
+  // stored-token read happens only once the database is ready.
+  getCurrentWorkspace();
+  try {
+    return getStoredApiToken();
+  } catch {
+    // Initialization just ran (or is still settling); treat as no stored
+    // token rather than failing the request — the autoload middleware below
+    // completes setup and later requests resolve the stored value.
+    return undefined;
+  }
 }
+app.use('/api/*', async (c, next) => {
+  const apiToken = resolveEffectiveApiToken();
+  if (!apiToken || c.req.method === 'GET' || c.req.method === 'HEAD') {
+    await next();
+    return;
+  }
+  const auth = c.req.header('Authorization') ?? '';
+  if (!timingSafeCompare(auth, `Bearer ${apiToken}`)) {
+    return c.json({ error: 'Unauthorized. Provide a valid API token via Authorization: Bearer header.' }, 401);
+  }
+  await next();
+});
 
 // Restricted CORS - only allow local UI origins
 app.use('*', cors({
@@ -95,6 +115,9 @@ app.route('/api', pageRoutes);
 app.route('/api', dashboardRoutes);
 app.route('/api', onboardingRoutes);
 app.route('/api', onboardingWorkRoutes);
+app.route('/api', acceptedItemEvidenceRoutes);
+app.route('/api', itemAcquisitionRoutes);
+app.route('/api', listingCompletenessRoutes);
 // Slice 1: dedicated v2 stage reads (read-only; same /api middleware).
 app.route('/api', onboardingStageReadRoutes);
 app.route('/api', distributorRoutes);
@@ -120,8 +143,10 @@ app.route('/api', profileMatrixRoutes);
 app.route('/api', profileInspectRoutes);
 // T1 (#225): workspace-scoped Browser Investigation lifecycle (fake provider).
 app.route('/api', browserInvestigationRoutes);
+app.route('/api', storefrontFamilyRoutes);
 // P4: taxonomy release status + sanctioned pin activation (sole state.json writer).
 app.route('/api', releaseRoutes);
+app.route('/api', securitySettingsRoutes);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

@@ -41,6 +41,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { hasValidWaiver } from '../db/repositories/waiver-repo';
 import { getRepresentativeSuite } from '../db/repositories/representative-suite-repo';
 import { getMatrixResult } from './profile-test-matrix';
+import { listSampleObservations, isObservationFresh } from '../db/repositories/profile-sample-observation-repo';
 import { evaluateGate, type GateInput, type GateResult } from './profile-activation-gate';
 import { templateAwarePrefix } from './template-clustering';
 import { getSuiteSuggestion } from './suite-suggestion-service';
@@ -96,6 +97,29 @@ export function evaluateDomainVersionHealth(domain: string, versionId: string): 
     }
     const matrix = getMatrixResult(normalized, version.id);
     const sampleUrls = serverSampleIds(normalized);
+    // D3 observation binding: every confirmed sample needs a recorded
+    // manager observation for THIS version, fresh against the current
+    // artifact set. Transient UI state can never satisfy this — only rows.
+    const observations = listSampleObservations(normalized, version.id);
+    const unobserved = sampleUrls.filter(url => !observations.some(o => o.sampleUrl === url));
+    if (sampleUrls.length > 0 && unobserved.length > 0) {
+      return { domain: normalized, versionId: version.id, healthy: false, reason: 'missing_sample_observations', gate: null };
+    }
+    // Freshness is per-sample: each observation must match the current
+    // artifact hash of ITS OWN sample row — a global hash set would accept
+    // swapped contents across samples.
+    const hashBySample = new Map(
+      (matrix?.rows ?? []).map(r => [r.sampleUrl, r.cells.map(c => c.artifactHash).filter(Boolean)]),
+    );
+    const stale = observations.some(o => {
+      if (o.contentHash === null) return false;
+      const hashes = hashBySample.get(o.sampleUrl) ?? [];
+      if (hashes.length === 0) return false;
+      return !hashes.some(h => isObservationFresh(o, h));
+    });
+    if (stale) {
+      return { domain: normalized, versionId: version.id, healthy: false, reason: 'stale_sample_observations', gate: null };
+    }
     const clusterIds: string[] = (() => {
       try {
         const confirmedPrefixes = new Set(sampleUrls.map(u => templateAwarePrefix(u)));
@@ -175,7 +199,7 @@ function executableContent(profile: ExtractorProfile) {
   return {
     titleSelector: profile.titleSelector,
     titleOptionalSelectors: profile.titleOptionalSelectors,
-    priceSelector: profile.priceSelector,
+    priceSelector: null,
     descriptionSelector: profile.descriptionSelector,
     brandSelector: profile.brandSelector,
     imagesSelector: profile.imagesSelector,

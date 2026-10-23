@@ -312,9 +312,11 @@ export function packagingOcrDataToEvidence(
     }
   }
 
-  // visibleTextLines — emit only first 3 lines to avoid bloat
+  // visibleTextLines — emit the first 4 lines (a value-relevant quote on
+  // line 4, e.g. rear-panel life-stage text, stays citeable); beyond that
+  // the window truncates to avoid bloat.
   if (ocrData.visibleTextLines?.length) {
-    const lines = ocrData.visibleTextLines.slice(0, 3);
+    const lines = ocrData.visibleTextLines.slice(0, 4);
     for (const val of lines) {
       if (!val?.trim()) continue;
       evidence.push({

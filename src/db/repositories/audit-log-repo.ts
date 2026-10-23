@@ -48,6 +48,26 @@ export function countAuditLogsByAction(workspaceId: string, action: string): num
 }
 
 /**
+ * True when an audit event already exists for one entity + action (issue
+ * #363 exactly-once approval receipt: recovery retries must not duplicate
+ * the `approved` event).
+ */
+export function hasEntityAction(
+  workspaceId: string,
+  entityType: string,
+  entityId: string,
+  action: string,
+): boolean {
+  const db = getDb();
+  const row = db.query(
+    `SELECT 1 AS hit FROM audit_log
+      WHERE workspace_id = ? AND entity_type = ? AND entity_id = ? AND action = ?
+      LIMIT 1`,
+  ).get(workspaceId, entityType, entityId, action) as { hit: number } | undefined;
+  return !!row;
+}
+
+/**
  * Drift 6/6 (#255) — queryable audit history for past drift decisions.
  *
  * Resolution audit itself is owned by the hunk slices (#253 single-hunk,

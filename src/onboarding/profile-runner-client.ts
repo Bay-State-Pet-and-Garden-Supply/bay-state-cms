@@ -28,7 +28,6 @@ export interface ProfileRunnerOptions {
   expected: {
     name: string;
     brandHint?: string | null;
-    price?: string | null;
     /** UPC/GTIN when known — forwarded for ADR-0031 ladder identity
      * classification on the worker side (ExtractRequest already accepts it). */
     upc?: string | null;
@@ -85,7 +84,6 @@ function expectedOf(expected: ProfileRunnerOptions['expected']): Record<string, 
   return {
     name: expected.name,
     brandHint: expected.brandHint ?? null,
-    price: expected.price ?? null,
     spreadsheetHints: {},
     upc: expected.upc || undefined,
     // T4: trusted identity inputs ride the existing expected carrier —
@@ -100,7 +98,10 @@ function workerProfileOf(profile: ExtractorProfile, allowedSourceDomains: string
     runtime: profile.runtime ?? 'rendered',
     selectors: {
       titleSelector: profile.titleSelector,
-      priceSelector: profile.priceSelector,
+      // Input Price Authority (ADR 0043): priceSelector retired — the
+      // worker never extracts page prices. Carried as null for legacy
+      // profile rows that still store one.
+      priceSelector: null,
       descriptionSelector: profile.descriptionSelector,
       brandSelector: profile.brandSelector,
       imagesSelector: profile.imagesSelector,

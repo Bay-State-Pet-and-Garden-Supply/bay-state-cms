@@ -271,23 +271,24 @@ describe('browser investigation apply governance (T2; server-authoritative since
     expect(serialized).toContain('a1b2c3d4e5f60718293a4b5c6d7e8f90');
   });
 
-  it('derives executable selectors only from validated exceptions, never from free text', async () => {
+  it('does not persist third-party price recommendations or mutate price selectors', async () => {
     const { created, invoke } = setupApply({
       result: shopifyResult({
-        fieldRecommendations: POLICY_FIELDS.map((field) =>
-          field === 'price'
-            ? { field, sources: ['shopify_product_json', 'selector'], selector: '  .price__regular  ', structureId: 'shopify-default' }
-            : { field, sources: ['shopify_product_json'], structureId: 'shopify-default' },
-        ),
+        fieldRecommendations: [
+          ...POLICY_FIELDS.map((field) =>
+            field === 'title'
+              ? { field, sources: ['shopify_product_json', 'selector'], selector: '.product-title', structureId: 'shopify-default' }
+              : { field, sources: ['shopify_product_json'], structureId: 'shopify-default' },
+          ),
+          { field: 'price', sources: ['selector'], selector: '.third-party-price', structureId: 'shopify-default' },
+        ],
       }) as InvestigationRecord['result'],
     });
     await invoke();
     const selectors = created[0]!.selectors as Record<string, unknown>;
-    expect(selectors.priceSelector).toBe('.price__regular');
-    expect(selectors.titleSelector).toBeNull();
-    expect((selectors.shopifyJSONPath as boolean)).toBe(true);
-    const metadata = selectors.customSelectorMetadata as Record<string, unknown>;
-    expect(metadata.priceSelector).toMatchObject({ source: 'browser-investigation', field: 'price' });
+    expect(selectors.priceSelector).toBeNull();
+    expect(selectors.titleSelector).toBe('.product-title');
+    expect(JSON.stringify(selectors)).not.toContain('.third-party-price');
   });
 
   it('rejects requires_code_adapter outcomes as unappliable without creating a version', async () => {

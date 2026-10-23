@@ -21,7 +21,7 @@ import type { DomainDiagnosticsEntry } from '../shared/schemas/onboarding';
 
 export const DomainConfigUpsertSchema = z.object({
   titleSelector: z.string().nullable().optional(),
-  priceSelector: z.string().nullable().optional(),
+  priceSelector: z.null().optional(),
   descriptionSelector: z.string().nullable().optional(),
   brandSelector: z.string().nullable().optional(),
   imagesSelector: z.string().nullable().optional(),
@@ -68,7 +68,7 @@ export function upsertDomainConfig(
     // 1. Upsert extractor profile
     upsertProfile(normalizedDomain, {
       titleSelector: data.titleSelector,
-      priceSelector: data.priceSelector,
+      priceSelector: null,
       descriptionSelector: data.descriptionSelector,
       brandSelector: data.brandSelector,
       imagesSelector: data.imagesSelector,

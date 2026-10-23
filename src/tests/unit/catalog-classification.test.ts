@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  serializeAttributeValue,
   buildAssignmentProjection,
 } from '../../classification/assignment-projection';
 import {
@@ -8,7 +7,8 @@ import {
   extractPageNamesFromBlock,
 } from '../../shopsite/product-codec';
 import { ownProductPageNames } from '../../classification/catalog-product-source';
-import type { ClassificationProposal, AttributeMappingConfig, Product } from '../../shared/types';
+import type { ClassificationProposal, AttributeMappingConfig, ProductAttributeConfig, Product } from '../../shared/types';
+import type { CanonicalClassificationOutputBindingV2 } from '../../shared/schemas/classification';
 
 function makePageTestProduct(
   productOnPages: string[],
@@ -47,320 +47,286 @@ function makePageTestProduct(
   };
 }
 
-// ─── assignment-projection.ts ─────────────────────────────────────────────────
+// Reviewed assignment interpretation. End-to-end pending/approved separation is
+// exercised by canonical-classification-workflow.test.ts; these inputs are
+// accepted decisions, never pending suggestions presented as approved changes.
+const mappings: AttributeMappingConfig[] = [
+  { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
+  { id: 'material-map', attributeId: 'material', catalogField: 'ProductField28', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
+  { id: 'species-map', attributeId: 'species', catalogField: 'ProductField17', serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false },
+];
+const attributes: ProductAttributeConfig[] = [
+  { id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Chicken', 'Beef'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: null },
+  { id: 'material', name: 'Material', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Nylon', 'Rubber'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: null },
+  { id: 'species', name: 'Pet Type', description: null, valueMode: 'controlled', canonicalUnit: null, allowedValues: ['Dog', 'Cat'], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: null },
+];
+const currentCustomFields = { ProductField23: 'Chicken', ProductField28: 'Nylon', ProductField17: 'Dog', ProductField6: '19.99', ProductField16: 'Acme' };
+const verifiedPageNames = new Map([
+  ['page-food', 'Dog Food'], ['page-treats', 'Treats'], ['page-new', 'New Category'], ['page-brand', 'Brand - Acme'],
+]);
+const verifiedPageIds = new Set(verifiedPageNames.keys());
+const authority = { attributes, frozenMappings: mappings, verifiedPageNames };
 
-describe('serializeAttributeValue', () => {
-  const defaultSerialization = { format: 'direct', separator: ', ', prefix: '', suffix: '' };
-
-  it('returns empty string for null/undefined', () => {
-    expect(serializeAttributeValue(null, defaultSerialization)).toBe('');
-    expect(serializeAttributeValue(undefined, defaultSerialization)).toBe('');
-  });
-
-  it('bypasses prefix/suffix for explicit null clears', () => {
-    const withPrefix = { format: 'direct', separator: ', ', prefix: 'Size: ', suffix: '' };
-    const withSuffix = { format: 'direct', separator: ', ', prefix: '', suffix: ' lb' };
-    expect(serializeAttributeValue(null, withPrefix)).toBe('');
-    expect(serializeAttributeValue(null, withSuffix)).toBe('');
-    expect(serializeAttributeValue(undefined, withPrefix)).toBe('');
-  });
-
-  it('returns string value directly for direct format', () => {
-    expect(serializeAttributeValue('Chicken', defaultSerialization)).toBe('Chicken');
-  });
-
-  it('joins array values with separator', () => {
-    expect(serializeAttributeValue(['Chicken', 'Beef'], defaultSerialization)).toBe('Chicken, Beef');
-  });
-
-  it('applies prefix and suffix', () => {
-    const withAffix = { format: 'direct', separator: ', ', prefix: '[', suffix: ']' };
-    expect(serializeAttributeValue('Chicken', withAffix)).toBe('[Chicken]');
-  });
-
-  it('applies prefix and suffix to array values', () => {
-    const withAffix = { format: 'direct', separator: ', ', prefix: '[', suffix: ']' };
-    expect(serializeAttributeValue(['A', 'B'], withAffix)).toBe('[A, B]');
-  });
-
-  it('converts numbers to strings', () => {
-    expect(serializeAttributeValue(42, defaultSerialization)).toBe('42');
-    expect(serializeAttributeValue(3.14, defaultSerialization)).toBe('3.14');
-  });
-});
-
-describe('buildAssignmentProjection', () => {
-  const mappings: AttributeMappingConfig[] = [
-    {
-      id: 'flavor-map',
-      attributeId: 'flavor',
-      catalogField: 'ProductField17',
-      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' },
-      isStale: false,
-    },
-    {
-      id: 'stale-map',
-      attributeId: 'color',
-      catalogField: 'ProductField18',
-      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' },
-      isStale: true,
-    },
-    {
-      id: 'no-field-map',
-      attributeId: 'size',
-      catalogField: '',
-      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' },
-      isStale: false,
-    },
-  ];
-
-  const currentCustomFields: Record<string, string> = {
-    ProductField17: 'Chicken',
-    ProductField19: 'ExistingValue',
+function proposal(overrides: Partial<ClassificationProposal> = {}): ClassificationProposal {
+  return {
+    id: 'p1', runId: 'r1', productSku: 'SKU001', proposalType: 'field_assignment', targetId: 'flavor',
+    proposedValue: 'Beef', confidence: 0.9, evidenceIds: [], status: 'accepted',
+    isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: '2026-08-04T00:00:00Z',
+    ...overrides,
   };
+}
 
-  const currentPageNames = ['Dog Food', 'Treats'];
+function pageProposal(id: string, pageId: string, pageName: string): ClassificationProposal {
+  return proposal({ id, proposalType: 'category_page', targetId: pageId, proposedValue: { pageId, pageName } });
+}
 
-  it('maps field_assignment proposals to projections', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p1', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'flavor',
-        proposedValue: 'Beef', confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-
-    expect(result.fields).toHaveLength(1);
-    expect(result.fields[0].catalogField).toBe('ProductField17');
-    expect(result.fields[0].currentValue).toBe('Chicken');
-    expect(result.fields[0].proposedValue).toBe('Beef');
-    expect(result.fields[0].isOverwrite).toBe(true);
-    expect(result.fields[0].isNoOp).toBe(false);
-    expect(result.skipped).toHaveLength(0);
+describe('reviewed assignment projection with captured semantic authority', () => {
+  it('projects Flavor and Pet Type into their distinct certified fields', () => {
+    const result = buildAssignmentProjection([
+      proposal(), proposal({ id: 'p-pet', targetId: 'species', proposedValue: 'Cat' }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: 'Chicken', proposedValue: 'Beef', isOverwrite: true, isNoOp: false },
+      { catalogField: 'ProductField17', currentValue: 'Dog', proposedValue: 'Cat', isOverwrite: true, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('projects an explicit null correction as a deliberate field clear', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p-clear', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'flavor',
-        proposedValue: 'Beef', revisedValue: null, hasRevisedValue: true, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
+  it('projects an accepted canonical pair through both captured and current output bindings', () => {
+    const bindings = [
+      { role: 'category' as const, catalogField: 'ProductField24', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type' as const, catalogField: 'ProductField25', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
     ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-    expect(result.fields[0].proposedValue).toBe('');
-    expect(result.fields[0].isOverwrite).toBe(true);
-    expect(result.fields[0].isNoOp).toBe(false);
+    const pair = proposal({
+      id: 'p-pair',
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+    });
+    const result = buildAssignmentProjection(
+      [pair],
+      currentCustomFields,
+      [],
+      mappings,
+      verifiedPageIds,
+      {
+        ...authority,
+        currentClassificationOutputBindings: bindings,
+        frozenClassificationOutputBindings: bindings,
+        categories: [{ id: 'dog-food' }],
+        productTypes: [{
+          id: 'dog-food-dry',
+          categoryId: 'dog-food',
+          websiteValues: { category: 'QA Dog Food', productType: 'QA Dry Dog Food' },
+        }],
+      },
+    );
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField24', currentValue: null, proposedValue: 'QA Dog Food', isOverwrite: false, isNoOp: false },
+      { catalogField: 'ProductField25', currentValue: null, proposedValue: 'QA Dry Dog Food', isOverwrite: false, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('projects prefixed/suffixed explicit null clears as empty strings', () => {
-    const affixMappings: AttributeMappingConfig[] = [
-      {
-        id: 'size-map',
-        attributeId: 'size',
-        catalogField: 'ProductField20',
-        serialization: { format: 'direct', separator: ', ', prefix: 'Size: ', suffix: '' },
-        isStale: false,
-      },
+  it.each([
+    ['missing current Category binding', (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.filter(binding => binding.role !== 'category'), null],
+    ['stale Product Type binding', (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.map(binding => binding.role === 'product-type' ? { ...binding, isStale: true } : binding), null],
+    ['wrong Category destination', (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.map(binding => binding.role === 'category' ? { ...binding, catalogField: 'ProductField25' } : binding), null],
+    ['changed current serializer', null, (bindings: CanonicalClassificationOutputBindingV2[]) => bindings.map(binding => binding.role === 'category' ? { ...binding, serialization: { ...binding.serialization, prefix: 'Category: ' } } : binding)],
+  ])('refuses an incomplete, stale, mismatched or changed pair binding: %s', (_label, currentEdit, frozenEdit) => {
+    const bindings = [
+      { role: 'category' as const, catalogField: 'ProductField24', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
+      { role: 'product-type' as const, catalogField: 'ProductField25', serialization: { kind: 'scalar' as const, prefix: '', suffix: '' }, isStale: false },
     ];
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p-affix-clear', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'size',
-        proposedValue: 'Large', revisedValue: null, hasRevisedValue: true, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    const result = buildAssignmentProjection(proposals, {}, [], affixMappings);
-    expect(result.fields[0].proposedValue).toBe('');
-  });
-
-  it('skips assignments when the revised target is explicitly cleared to null', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p-target-clear', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'flavor',
-        proposedValue: 'Beef', revisedTargetId: null, hasRevisedTargetId: true, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-    expect(result.fields).toHaveLength(0);
+    const pair = proposal({
+      id: 'p-pair',
+      proposalType: 'product_classification',
+      targetId: 'dog-food-dry',
+      proposedValue: { categoryId: 'dog-food', productTypeId: 'dog-food-dry' },
+    });
+    const currentBindings = currentEdit ? currentEdit(bindings) : bindings;
+    const frozenBindings = frozenEdit ? frozenEdit(bindings) : bindings;
+    const result = buildAssignmentProjection([pair], currentCustomFields, [], mappings, verifiedPageIds, {
+      ...authority,
+      currentClassificationOutputBindings: currentBindings,
+      frozenClassificationOutputBindings: frozenBindings,
+      categories: [{ id: 'dog-food' }],
+      productTypes: [{
+        id: 'dog-food-dry',
+        categoryId: 'dog-food',
+        websiteValues: { category: 'QA Dog Food', productType: 'QA Dry Dog Food' },
+      }],
+    });
+    expect(result.fields).toEqual([]);
     expect(result.skipped).toEqual([
-      expect.objectContaining({ proposalId: 'p-target-clear', targetId: null, reason: 'No attribute target' }),
+      expect.objectContaining({ proposalId: 'p-pair', reason: expect.stringContaining('protected_target_refused') }),
     ]);
   });
 
-  it('uses the revised target when mapping a corrected assignment', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p-retarget', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'size',
-        proposedValue: 'Beef', revisedTargetId: 'flavor', hasRevisedTargetId: true, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-    expect(result.fields[0].catalogField).toBe('ProductField17');
-    expect(result.fields[0].proposedValue).toBe('Beef');
+  it('writes a corrected Flavor→Material decision only into Material PF28', () => {
+    const result = buildAssignmentProjection([
+      proposal({ revisedTargetId: 'material', hasRevisedTargetId: true, revisedValue: 'Rubber', hasRevisedValue: true }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField28', currentValue: 'Nylon', proposedValue: 'Rubber', isOverwrite: true, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('flags no-op when current and proposed match', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p2', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'flavor',
-        proposedValue: 'Chicken', confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-
-    expect(result.fields[0].isNoOp).toBe(true);
-    expect(result.fields[0].isOverwrite).toBe(false);
+  it('treats an explicit reviewed null as a field clear', () => {
+    const result = buildAssignmentProjection([
+      proposal({ revisedValue: null, hasRevisedValue: true }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: 'Chicken', proposedValue: '', isOverwrite: true, isNoOp: false },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('skips proposals with stale mapping', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p3', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'color',
-        proposedValue: 'Red', confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-
-    expect(result.fields).toHaveLength(0);
-    expect(result.skipped).toHaveLength(1);
-    expect(result.skipped[0].reason).toContain('stale');
+  it('does not turn an explicitly cleared target into an assignment or refusal', () => {
+    const result = buildAssignmentProjection([
+      proposal({ revisedTargetId: null, hasRevisedTargetId: true }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('skips proposals with no catalog field', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p4', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'size',
-        proposedValue: 'Large', confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-
-    expect(result.fields).toHaveLength(0);
-    expect(result.skipped).toHaveLength(1);
+  it('does not apply revised target/value payloads without their presence flags', () => {
+    const result = buildAssignmentProjection([
+      proposal({ proposedValue: 'Chicken', revisedTargetId: 'material', revisedValue: 'Rubber', hasRevisedTargetId: false, hasRevisedValue: false }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: 'Chicken', proposedValue: 'Chicken', isOverwrite: false, isNoOp: true },
+    ]);
+    expect(result.skipped).toEqual([]);
   });
 
-  it('handles category_page proposals as additive', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p5', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'category_page', targetId: 'Dog Food',
-        proposedValue: { pageName: 'Dog Food' }, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'p6', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'category_page', targetId: 'New Category',
-        proposedValue: { pageName: 'New Category' }, confidence: 0.8,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-
-    expect(result.pages.existing).toEqual(['Dog Food', 'Treats']);
-    expect(result.pages.proposed).toEqual(['New Category']);
-    // Dog Food proposal is skipped because it is already assigned
-    expect(result.skipped).toHaveLength(1);
+  it.each([
+    ['unknown Flavor slot', 'flavor', 'ProductField1'],
+    ['MAP pricing', 'flavor', 'ProductField6'],
+    ['Brand slot', 'flavor', 'ProductField16'],
+    ['Pet Type borrowed by Flavor', 'flavor', 'ProductField17'],
+    ['native fulfillment', 'flavor', 'ProductType'],
+    ['unknown semantic role', 'unverified-role', 'ProductField23'],
+    ['Brand borrowed Flavor slot', 'brand', 'ProductField23'],
+  ])('refuses %s even when current and captured mappings agree', (_label, attributeId, catalogField) => {
+    const unsafeMappings = [{ ...mappings[0], attributeId, catalogField }];
+    const result = buildAssignmentProjection([
+      proposal({ targetId: attributeId }),
+    ], currentCustomFields, [], unsafeMappings, verifiedPageIds, { ...authority, frozenMappings: unsafeMappings });
+    expect(result.fields).toEqual([]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'p1', targetId: attributeId, reason: expect.stringContaining('protected_target_refused') }),
+    ]);
   });
 
-  it('skips page proposals for already-assigned pages and for nameless values', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p7', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'category_page', targetId: 'Dog Food',
-        proposedValue: {}, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'p8', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'category_page', targetId: 'Dog Food',
-        proposedValue: { pageName: 'Dog Food' }, confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
+  it('does not launder an original Brand target through a permitted correction', () => {
+    const result = buildAssignmentProjection([
+      proposal({ targetId: 'brand', revisedTargetId: 'flavor', hasRevisedTargetId: true }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'p1', reason: expect.stringContaining('protected_target_refused') }),
+    ]);
+  });
 
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
+  it.each(['missing', 'empty', 'stale', 'duplicate'] as const)('refuses a %s mapping rather than emitting a field', state => {
+    const invalidMappings = state === 'missing' ? []
+      : state === 'duplicate' ? [mappings[0], { ...mappings[0], id: 'duplicate' }]
+        : [{ ...mappings[0], catalogField: state === 'empty' ? '' : 'ProductField23', isStale: state === 'stale' }];
+    const result = buildAssignmentProjection([proposal()], currentCustomFields, [], invalidMappings, verifiedPageIds, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['p1']);
+  });
+
+  it('refuses serialization drift from the captured mapping', () => {
+    const changed = [{ ...mappings[0], serialization: { ...mappings[0].serialization, prefix: 'Flavor: ' } }, ...mappings.slice(1)];
+    const result = buildAssignmentProjection([proposal()], currentCustomFields, [], changed, verifiedPageIds, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'p1', reason: expect.stringContaining('mapping_changed') }),
+    ]);
+  });
+
+  it('reports conflicting accepted assignments instead of silently picking a winner', () => {
+    const result = buildAssignmentProjection([
+      proposal(), proposal({ id: 'p-conflict', proposedValue: 'Chicken' }),
+    ], currentCustomFields, [], mappings, verifiedPageIds, authority);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['p-conflict']);
+  });
+});
+
+describe('verified taxonomy page deltas', () => {
+  it('adds only new verified taxonomy names without duplicating existing assignments', () => {
+    const result = buildAssignmentProjection([
+      pageProposal('p-food', 'page-food', 'Dog Food'),
+      pageProposal('p-new', 'page-new', 'New Category'),
+      pageProposal('p-duplicate', 'page-new', 'New Category'),
+    ], {}, ['Dog Food', 'Treats'], mappings, verifiedPageIds, authority);
+    expect(result.pages).toEqual({
+      existing: ['Dog Food', 'Treats'], proposed: ['New Category'], removed: [],
+      additions: [{ pageId: 'page-food', pageName: 'Dog Food' }, { pageId: 'page-new', pageName: 'New Category' }],
+      removals: [], final: ['Dog Food', 'Treats', 'New Category'],
+    });
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('removes the original verified taxonomy assignment for an explicit reviewed clear', () => {
+    const result = buildAssignmentProjection([
+      { ...pageProposal('p-remove', 'page-food', 'Dog Food'), revisedValue: null, hasRevisedValue: true, revisedTargetId: null, hasRevisedTargetId: true },
+    ], {}, ['Dog Food', 'Treats'], mappings, verifiedPageIds, authority);
+    expect(result.pages.removals).toEqual([{ pageId: 'page-food', pageName: 'Dog Food' }]);
+    expect(result.pages.final).toEqual(['Treats']);
     expect(result.pages.proposed).toEqual([]);
-    // The empty-object value has no display name — the Page ID target must
-    // never be substituted (issue #17 pass 3c).
-    const namelessSkip = result.skipped.find(skip => skip.proposalId === 'p7');
-    expect(namelessSkip).toBeDefined();
-    expect(namelessSkip!.reason).toBe('Page display name missing');
-    // A named value that matches an existing page is skipped as already
-    // assigned.
-    const assignedSkip = result.skipped.find(skip => skip.proposalId === 'p8');
-    expect(assignedSkip).toBeDefined();
-    expect(assignedSkip!.reason).toContain('already assigned');
+    expect(result.skipped).toEqual([]);
   });
 
-  it('deduplicates by catalog field (first proposal wins)', () => {
-    const proposals: ClassificationProposal[] = [
-      {
-        id: 'p8', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'flavor',
-        proposedValue: 'Beef', confidence: 0.9,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'p9', runId: 'r1', productSku: 'SKU001',
-        proposalType: 'field_assignment', targetId: 'flavor',
-        proposedValue: 'Chicken', confidence: 0.8,
-        evidenceIds: [], status: 'accepted',
-        isBulkAcceptable: false, isStale: false, stalenessReason: null,
-        createdAt: new Date().toISOString(),
-      },
-    ];
+  it('uses the captured display name, never a forged payload name', () => {
+    const result = buildAssignmentProjection([
+      pageProposal('p-name', 'page-new', 'Invented Page'),
+    ], {}, [], mappings, verifiedPageIds, authority);
+    expect(result.pages.final).toEqual(['New Category']);
+    expect(result.skipped).toEqual([]);
+  });
 
-    const result = buildAssignmentProjection(proposals, currentCustomFields, currentPageNames, mappings);
-    expect(result.fields).toHaveLength(1);
-    expect(result.fields[0].proposedValue).toBe('Beef');
+  it.each([
+    proposal({ id: 'p-unverified', proposalType: 'category_page', targetId: 'page-unknown', proposedValue: { pageId: 'page-unknown', pageName: 'Unknown Page' } }),
+    proposal({ id: 'p-inconsistent', proposalType: 'category_page', targetId: 'page-food', proposedValue: { pageId: 'page-new', pageName: 'New Category' } }),
+    proposal({ id: 'p-no-id', proposalType: 'category_page', targetId: 'page-new', proposedValue: { pageName: 'New Category' } }),
+  ])('refuses unverified or inconsistent identity: $id', page => {
+    const result = buildAssignmentProjection([page], {}, ['Treats'], mappings, verifiedPageIds, authority);
+    expect(result.pages.final).toEqual(['Treats']);
+    expect(result.pages.additions).toEqual([]);
+    expect(result.pages.removals).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual([page.id]);
+  });
+
+  it('never substitutes the stable page ID for a missing verified display name', () => {
+    const result = buildAssignmentProjection([
+      proposal({ proposalType: 'category_page', targetId: 'page-new', proposedValue: { pageId: 'page-new' } }),
+    ], {}, [], mappings, verifiedPageIds, { ...authority, verifiedPageNames: new Map() });
+    expect(result.pages.final).toEqual([]);
+    expect(result.skipped.map(skip => skip.proposalId)).toEqual(['p1']);
+  });
+
+  it.each([false, true])('protects Brand page identity even with a disguised name (removal=%s)', removal => {
+    const page = pageProposal('p-brand', 'page-brand', 'Dog Food');
+    if (removal) Object.assign(page, { revisedValue: null, hasRevisedValue: true });
+    const result = buildAssignmentProjection([page], {}, ['Brand - Acme', 'Treats'], mappings, verifiedPageIds, authority);
+    expect(result.pages.final).toEqual(['Brand - Acme', 'Treats']);
+    expect(result.pages.additions).toEqual([]);
+    expect(result.pages.removals).toEqual([]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'p-brand', reason: expect.stringContaining('protected_target_refused') }),
+    ]);
+  });
+
+  it('treats an explicitly cleared page target as no assignment, not a page-name fallback', () => {
+    const page = { ...pageProposal('p-no-target', 'page-new', 'New Category'), revisedTargetId: null, hasRevisedTargetId: true };
+    const result = buildAssignmentProjection([page], {}, ['Treats'], mappings, verifiedPageIds, authority);
+    expect(result.pages.final).toEqual(['Treats']);
+    expect(result.pages.additions).toEqual([]);
+    expect(result.skipped).toEqual([]);
   });
 });
 
@@ -371,10 +337,6 @@ describe('buildAssignmentProjection', () => {
 // and serialization goes through ShopSiteProductCodec.encode.
 
 describe('extractPageNamesFromBlock', () => {
-  it('returns empty array for empty input', () => {
-    expect(extractPageNamesFromBlock('')).toEqual([]);
-  });
-
   it('extracts page names from legacy flat <Name> fragments', () => {
     expect(extractPageNamesFromBlock('\n    <Name>Dog Food</Name>\n    <Name>Treats</Name>\n  ')).toEqual(['Dog Food', 'Treats']);
   });
@@ -389,10 +351,6 @@ describe('extractPageNamesFromBlock', () => {
 });
 
 describe('ownProductPageNames', () => {
-  it('returns empty array when no assignments exist', () => {
-    expect(ownProductPageNames(makePageTestProduct([]))).toEqual([]);
-  });
-
   it('prefers first-class core.productOnPages', () => {
     expect(ownProductPageNames(makePageTestProduct(['Dog Food', 'Treats']))).toEqual(['Dog Food', 'Treats']);
   });

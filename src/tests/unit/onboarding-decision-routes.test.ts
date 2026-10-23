@@ -77,6 +77,8 @@ function seedReviewItem(sku = 'SKU-ROUTE-1') {
       classificationRunId: run.id,
       classificationProposals: [{ id: 'stale-proposal-copy' }],
       classificationEvidence: [{ id: 'stale-evidence-copy' }],
+      itemExecutionCurrentness: { revision: 7, inputHash: 'authoritative' },
+      groundedCopyProvenance: { producer: 'item-curation', current: true },
     }), item.id],
   );
 
@@ -135,6 +137,8 @@ describe('onboarding decision routes', () => {
 
     expect(response.status).toBe(200);
     const body = await response.json() as any;
+    expect(body.classificationReadiness).toMatchObject({ ok: false });
+    expect(body.classificationReadiness.reason).toEqual(expect.any(String));
     expect(body.item.curationData.classificationProposals).toHaveLength(1);
     expect(body.item.curationData.classificationProposals[0]).toMatchObject({
       id: 'proposal-canonical',
@@ -163,9 +167,8 @@ describe('onboarding decision routes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         curation_data: {
-          curatedTitle: 'Reviewer title',
-          classificationRunId: 'stale-run',
-          classificationProposals: [{ id: 'client-overwrite' }],
+          itemExecutionCurrentness: { hash: 'client-overwrite' },
+          groundedCopyProvenance: { producer: 'client-overwrite' },
           classificationEvidence: [{ id: 'client-overwrite' }],
         },
       }),
@@ -175,9 +178,8 @@ describe('onboarding decision routes', () => {
     const row = getDb().query('SELECT curation_data_json FROM onboarding_items WHERE id = ?')
       .get(seeded.itemId) as { curation_data_json: string };
     const saved = JSON.parse(row.curation_data_json);
-    expect(saved.curatedTitle).toBe('Reviewer title');
-    expect(saved.classificationRunId).toBe(seeded.runId);
-    expect(saved.classificationProposals.map((entry: any) => entry.id)).toEqual(['proposal-canonical']);
+    expect(saved.itemExecutionCurrentness).toEqual({ revision: 7, inputHash: 'authoritative' });
+    expect(saved.groundedCopyProvenance).toEqual({ producer: 'item-curation', current: true });
     expect(saved.classificationEvidence.map((entry: any) => entry.id)).toEqual(['evidence-canonical']);
   });
 

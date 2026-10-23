@@ -134,7 +134,6 @@ function WorkingShell({ batchId, batchName, workspaceId: suppliedWorkspaceId, on
   if (legacy?.kind === 'operation') {
     if (legacy.view === 'review' || legacy.view === 'approved') activeStage = 'review_listings';
     if (legacy.view === 'export') activeStage = 'create_drafts';
-    if (legacy.view === 'family') activeStage = 'prepare_listing';
   }
   if (legacy?.kind === 'outcome') activeStage = 'create_drafts';
 
@@ -149,7 +148,6 @@ function WorkingShell({ batchId, batchName, workspaceId: suppliedWorkspaceId, on
       const previous = readStageViewPreferences(stageScope);
       const filter = destination === 'approved' ? { reviewState: 'reviewed' }
         : destination === 'review' ? { reviewState: 'unreviewed' }
-        : destination === 'family' ? { category: 'waiting_on_family' }
         : { category: destination === 'export' ? 'all' : destination };
       writeStageViewPreferences(stageScope, { q: previous?.q ?? '', selectedId: previous?.selectedId ?? null, filters: { ...previous?.filters, ...filter } });
     }

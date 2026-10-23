@@ -16,6 +16,8 @@ import { getDb } from '../../db/connection';
 import { setTaxonomyFreezeForTests } from '../../classification/taxonomy-freeze';
 import type { StageContext } from '../../classification/types';
 import type { ClassificationEvidence } from '../../shared/schemas/classification';
+import { snapshotHash } from '../../classification/runtime-snapshot';
+import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 
 describe('Brand Integration', () => {
   let workspacePath: string;
@@ -235,6 +237,75 @@ describe('Brand Integration', () => {
   });
 
   it('processProductFieldTarget falls through to normal matching for non-brand fields', async () => {
+    // Genuine captured authority: the hardened processor resolves permission
+    // and inference inputs from the run's frozen runtime snapshot, so the
+    // fixture carries a certified flavor slot (PF23 `Facet - Flavor` per
+    // docs/audits/extra-fields-certification-2026-10-15) with a unique
+    // current binding. PF1 is uncertified commerce — never classifier-owned.
+    const now = new Date().toISOString();
+    const frozenConfig = {
+      manifest: { schemaVersion: 1, compatibilityVersion: 1, createdAt: now, updatedAt: now, fileVersions: {} },
+      productTypes: [],
+      attributes: [
+        {
+          id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled' as const,
+          canonicalUnit: null, allowedValues: ['Chicken', 'Beef'],
+          valueAliases: [{ alias: 'chicken', mapsTo: 'Chicken' }],
+          visualEvidenceEligibility: 'eligible' as const, isClaim: false, isCompositionAttribute: false, group: 'Food',
+        },
+      ],
+      attributeProfiles: [],
+      attributeMappings: [
+        { id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23', serialization: { format: 'direct' as const, separator: ', ', prefix: '', suffix: '' }, isStale: false },
+      ],
+      curationTargets: [
+        {
+          id: 'flavor-field', kind: 'product_field' as const, mandatory: false, label: 'Flavor',
+          enabled: true, selectionMode: 'single' as const, attributeId: 'flavor', catalogField: 'ProductField23',
+          optionSource: 'configured' as const, required: false, sortOrder: 0,
+        },
+      ],
+      guidance: [],
+      modelPolicy: {
+        defaultProvider: 'ollama', defaultModel: '', stageOverrides: {},
+        imageDataSharing: 'local_only' as const, textDataSharing: 'local_only' as const,
+      },
+      dataSharing: {
+        imagePolicy: 'local_only' as const, textPolicy: 'local_only' as const,
+        sensitiveDataFiltering: true, retentionDays: 90,
+      },
+      brands: [],
+    };
+    const frozenAttribute = {
+      id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled',
+      canonicalUnit: null, allowedValues: ['Chicken', 'Beef'],
+      valueAliases: [{ alias: 'chicken', mapsTo: 'Chicken' }],
+      visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Food',
+    } as const;
+    const frozenMapping = {
+      id: 'flavor-map', attributeId: 'flavor', catalogField: 'ProductField23',
+      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false,
+    } as const;
+    const frozenTargetConfig = {
+      id: 'flavor-field', kind: 'product_field', mandatory: false, label: 'Flavor',
+      enabled: true, selectionMode: 'single', attributeId: 'flavor', catalogField: 'ProductField23',
+      optionSource: 'configured', required: false, sortOrder: 0,
+    } as const;
+    const frozenOptions = [{ value: 'Beef', label: 'Beef' }, { value: 'Chicken', label: 'Chicken' }];
+    const snapshotBase = {
+      schemaVersion: 1, createdAt: new Date().toISOString(), workspaceId, workspacePath, productSku: 'BRAND-TEST-NBF',
+      configAuthorityKind: 'v1', sourceCatalogCommit: null, config: { ...frozenConfig, attributes: [frozenAttribute], attributeMappings: [frozenMapping], curationTargets: [frozenTargetConfig] },
+      configSnapshotRef: { id: 'snap-flavor', hash: 'hash-flavor', sourceCommit: null, createdAt: new Date().toISOString() },
+      focusedFileHashes: {}, catalogEvidenceHash: null, productTypes: [], categories: [],
+      attributes: [frozenAttribute], attributeProfiles: [], attributeMappings: [frozenMapping],
+      guidance: [], brands: [], modelPolicy: frozenConfig.modelPolicy, dataSharing: frozenConfig.dataSharing,
+      curationTargets: [frozenTargetConfig], fieldOptions: { 'flavor-field': frozenOptions },
+      reviewedFacts: [], pages: { state: 'no_verified_page_catalog', nameOnlyRecords: [] },
+      sourceProductHash: null, searchKeywords: null, productPageNames: [],
+      pageImportId: null, pageImportHash: null, pageContextReliability: 'low',
+    } as unknown as RuntimeClassificationSnapshot;
+    const frozenSnapshot = { ...snapshotBase, snapshotHash: snapshotHash(snapshotBase) };
+    const frozenContext: StageContext = { ...context, snapshot: frozenSnapshot };
     const resolvedEvidence: ClassificationEvidence = {
       id: randomUUID(),
       runId,
@@ -258,18 +329,15 @@ describe('Brand Integration', () => {
         label: 'Flavor',
         enabled: true,
         selectionMode: 'single',
-        attributeId: 'flavor-attr',
-        catalogField: 'ProductField1',
+        attributeId: 'flavor',
+        catalogField: 'ProductField23',
         optionSource: 'configured',
         required: false,
         sortOrder: 0,
       },
-      options: [
-        { value: 'Chicken', label: 'Chicken' },
-        { value: 'Beef', label: 'Beef' },
-      ],
+      options: frozenSnapshot.fieldOptions['flavor-field'] ?? [],
       attribute: {
-        id: 'flavor-attr',
+        id: 'flavor',
         name: 'Flavor',
         description: null,
         valueMode: 'controlled',
@@ -283,38 +351,37 @@ describe('Brand Integration', () => {
       },
     };
 
+    const fieldEvidence: ClassificationEvidence = {
+      id: randomUUID(),
+      runId,
+      stageName: 'evidence_extraction',
+      productSku: 'BRAND-TEST-NBF',
+      attributeId: null,
+      source: 'spreadsheet',
+      reliability: 'medium',
+      sourceUrl: null,
+      sourceField: 'name',
+      snippet: 'Chicken Flavor',
+      value: 'Chicken Flavor',
+      metadata: {},
+      capturedAt: new Date().toISOString(),
+    };
+
     const result = await processProductFieldTarget(
       target,
       {
         sku: 'BRAND-TEST-NBF',
-        evidence: [
-          resolvedEvidence,
-          {
-            id: randomUUID(),
-            runId,
-            stageName: 'evidence_extraction',
-            productSku: 'BRAND-TEST-NBF',
-            attributeId: null,
-            source: 'spreadsheet',
-            reliability: 'medium',
-            sourceUrl: null,
-            sourceField: 'name',
-            snippet: 'Chicken Flavor',
-            value: 'Chicken Flavor',
-            metadata: {},
-            capturedAt: new Date().toISOString(),
-          },
-        ],
+        evidence: [resolvedEvidence, fieldEvidence],
         acceptedProposals: [],
         allProposals: [],
       },
-      context,
+      frozenContext,
     );
 
     // Should match "Chicken" via alias, not the brand shortcut
     expect(result.proposals.length).toBeGreaterThanOrEqual(1);
     if (result.proposals.length > 0) {
-      expect(result.proposals[0].targetId).toBe('flavor-attr');
+      expect(result.proposals[0].targetId).toBe('flavor');
     }
   });
 

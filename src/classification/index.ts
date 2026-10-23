@@ -79,7 +79,7 @@ export { selectAcceptedClassification, selectClassificationProposal, getReviewed
 export type { ProposalSelection } from './proposal-selection';
 
 // ─── Assignment Projection ────────────────────────────────────────────────────
-export type { SerializableValueValidation } from './assignment-projection';
+export type { SerializableValueValidation } from './attribute-value-validation';
 
 // ─── Dependent Refresh Queue ──────────────────────────────────────────────────
 

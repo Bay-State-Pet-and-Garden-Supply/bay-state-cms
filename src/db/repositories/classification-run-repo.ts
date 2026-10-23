@@ -22,6 +22,22 @@ export interface ClassificationRunRow {
   errorMessage: string | null;
   /** Parent cohort run (issue #30 PR3); NULL for legacy/non-cohort runs. */
   cohortRunId: string | null;
+  /** Idempotency key for queued catalog starts (P2 #19); NULL when unkeyed. */
+  idempotencyKey?: string | null;
+  /** Claiming worker lease holder (P2 #19); NULL when unclaimed. */
+  claimedBy?: string | null;
+  /** Lease claim timestamp (P2 #19); NULL when unclaimed. */
+  claimedAt?: string | null;
+}
+
+/** Carries the conflicting active run id when a different key targets a queued/running SKU. */
+export class CatalogRunConflictError extends Error {
+  readonly activeRunId: string;
+  constructor(activeRunId: string) {
+    super(`SKU already has an active catalog run (${activeRunId})`);
+    this.name = 'CatalogRunConflictError';
+    this.activeRunId = activeRunId;
+  }
 }
 
 export function createRun(
@@ -42,6 +58,8 @@ export function createRun(
     sourceProductHash?: string | null;
     /** Link this child SKU run to its parent cohort run (issue #30 PR3). */
     cohortRunId?: string;
+    /** Idempotency key for queued catalog starts (P2 #19): same key replays the same run. */
+    idempotencyKey?: string;
   },
 ): ClassificationRunRow;
 export function createRun(
@@ -54,12 +72,14 @@ export function createRun(
     sourceKind?: 'onboarding' | 'catalog_product';
     sourceProductHash?: string | null;
     cohortRunId?: string;
+    idempotencyKey?: string;
   },
 ): ClassificationRunRow {
   let onboardingItemId: string | undefined;
   let sourceKind: 'onboarding' | 'catalog_product' = 'onboarding';
   let sourceProductHash: string | null = null;
   let cohortRunId: string | undefined;
+  let idempotencyKey: string | undefined;
 
   if (typeof optionsOrItemId === 'string') {
     onboardingItemId = optionsOrItemId;
@@ -68,10 +88,36 @@ export function createRun(
     sourceKind = optionsOrItemId.sourceKind ?? (optionsOrItemId.onboardingItemId ? 'onboarding' : 'catalog_product');
     sourceProductHash = optionsOrItemId.sourceProductHash ?? null;
     cohortRunId = optionsOrItemId.cohortRunId;
+    idempotencyKey = optionsOrItemId.idempotencyKey;
+  }
+
+  const db = getDb();
+  // P2 #19: keyed catalog starts are idempotent. Same key replays the same
+  // run (any status — completed decisions stay on the original run); a
+  // different key against a queued/running SKU conflicts with the active id.
+  if (idempotencyKey && sourceKind === 'catalog_product') {
+    const existing = findCatalogRunByIdempotencyKey(workspaceId, sku, idempotencyKey);
+    if (existing) return existing;
+    const active = db.query(
+      `SELECT id FROM classification_runs
+       WHERE workspace_id = ? AND product_sku = ? AND source_kind = 'catalog_product'
+         AND status IN ('queued', 'running') ORDER BY started_at LIMIT 1`,
+    ).get(workspaceId, sku) as { id: string } | undefined;
+    if (active) throw new CatalogRunConflictError(String(active.id));
+    const id = randomUUID();
+    const started = now();
+    db.run(
+      `INSERT INTO classification_runs
+       (id, workspace_id, onboarding_item_id, source_kind, source_product_hash,
+        product_sku, config_snapshot_id, config_snapshot_hash, status, started_at, cohort_run_id,
+        idempotency_key, claimed_by, claimed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, NULL, NULL)`,
+      [id, workspaceId, onboardingItemId ?? null, sourceKind, sourceProductHash, sku, configSnapshotId, configSnapshotHash, started, cohortRunId ?? null, idempotencyKey],
+    );
+    return { id, workspaceId, onboardingItemId: onboardingItemId ?? null, sourceKind, sourceProductHash, productSku: sku, configSnapshotId, configSnapshotHash, status: 'queued', startedAt: started, completedAt: null, errorMessage: null, cohortRunId: cohortRunId ?? null, idempotencyKey, claimedBy: null, claimedAt: null };
   }
 
   const id = randomUUID();
-  const db = getDb();
   db.run(
     `INSERT INTO classification_runs
      (id, workspace_id, onboarding_item_id, source_kind, source_product_hash,
@@ -107,6 +153,55 @@ export function getRun(id: string): ClassificationRunRow | null {
     .get(id) as Record<string, any> | undefined;
   if (!row) return null;
   return mapRun(row);
+}
+
+/** Find a catalog run by its idempotency key (P2 #19); null when absent. */
+export function findCatalogRunByIdempotencyKey(
+  workspaceId: string,
+  sku: string,
+  idempotencyKey: string,
+): ClassificationRunRow | null {
+  const row = getDb().query(
+    `SELECT * FROM classification_runs
+     WHERE workspace_id = ? AND product_sku = ? AND source_kind = 'catalog_product'
+       AND idempotency_key = ?`,
+  ).get(workspaceId, sku, idempotencyKey) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return mapRun(row);
+}
+
+/**
+ * Atomically claim a queued catalog run for a worker (P2 #19). Wins only
+ * when the run is queued and unclaimed, or its lease expired
+ * (`leaseTtlSeconds`); the winner flips to running. Losers get false.
+ */
+export function claimCatalogRun(runId: string, workerId: string, leaseTtlSeconds: number): boolean {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - leaseTtlSeconds * 1000).toISOString();
+  const claimedAt = now();
+  const updated = db.query(
+    `UPDATE classification_runs
+     SET status = 'running', claimed_by = ?, claimed_at = ?
+     WHERE id = ? AND source_kind = 'catalog_product' AND status IN ('queued', 'running')
+       AND (claimed_at IS NULL OR claimed_at < ?)`,
+  ).run(workerId, claimedAt, runId, cutoff);
+  return updated.changes === 1;
+}
+
+/**
+ * Crash recovery (P2 #19): running catalog runs whose lease expired with no
+ * heartbeat fail into `failed` so restart re-queues them. Unclaimed queued
+ * runs survive (restart re-claims them). Returns the recovered count.
+ */
+export function recoverStaleCatalogRuns(leaseTtlSeconds: number): number {
+  const cutoff = new Date(Date.now() - leaseTtlSeconds * 1000).toISOString();
+  const updated = getDb().query(
+    `UPDATE classification_runs
+     SET status = 'failed', completed_at = ?, error_message = 'worker lease expired without heartbeat'
+     WHERE source_kind = 'catalog_product' AND status = 'running'
+       AND claimed_at IS NOT NULL AND claimed_at < ?`,
+  ).run(now(), cutoff);
+  return updated.changes;
 }
 
 // ─── Cohort member-run narrow readers (Slice 1: relocated verbatim from
@@ -286,7 +381,7 @@ export function getAcceptedProposals(productSku: string, runId?: string): Classi
           WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
           ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS has_revised_target_id
         FROM classification_proposals p
-        WHERE p.product_sku = ? AND p.run_id = ? AND p.status = ? AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
+        WHERE p.product_sku = ? AND p.run_id = ? AND p.status = ? AND p.proposal_type <> 'primary_product_type' AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
           AND (SELECT d.decision FROM classification_proposal_decisions d
                WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
                ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) = ?`)
@@ -312,7 +407,7 @@ export function getAcceptedProposals(productSku: string, runId?: string): Classi
         WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
         ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) AS has_revised_target_id
       FROM classification_proposals p
-      WHERE p.product_sku = ? AND p.status = ? AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
+      WHERE p.product_sku = ? AND p.status = ? AND p.proposal_type <> 'primary_product_type' AND p.superseded_at IS NULL AND COALESCE(p.is_stale, 0) = 0
         AND (SELECT d.decision FROM classification_proposal_decisions d
              WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
              ORDER BY d.created_at DESC, d.rowid DESC LIMIT 1) = ?`)
@@ -719,6 +814,9 @@ function mapRun(row: Record<string, any>): ClassificationRunRow {
     completedAt: row.completed_at ? String(row.completed_at) : null,
     errorMessage: row.error_message ? String(row.error_message) : null,
     cohortRunId: row.cohort_run_id ? String(row.cohort_run_id) : null,
+    idempotencyKey: row.idempotency_key ? String(row.idempotency_key) : null,
+    claimedBy: row.claimed_by ? String(row.claimed_by) : null,
+    claimedAt: row.claimed_at ? String(row.claimed_at) : null,
   };
 }
 
@@ -924,20 +1022,6 @@ export function findRuntimeSnapshotEvidenceExtractionRuleVersion(snapshotHash: s
   }
 }
 
-/** Frozen page-import hash carried by a persisted config snapshot, if any. */
-export function findConfigSnapshotPageImportHash(workspaceId: string, snapshotHash: string): string | null {
-  const snapshotRow = getDb().query(
-    `SELECT config_json FROM classification_config_snapshots
-     WHERE workspace_id = ? AND snapshot_hash = ?`,
-  ).get(workspaceId, String(snapshotHash)) as { config_json: string | null } | undefined;
-  if (!snapshotRow?.config_json) return null;
-  try {
-    const snap = JSON.parse(snapshotRow.config_json) as { pageImportHash?: unknown };
-    return typeof snap.pageImportHash === 'string' ? snap.pageImportHash : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Accepted canonical pair decision (ADR 0041: legacy
  * `primary_product_type` rows are history-only, never gate authority). */
@@ -977,7 +1061,7 @@ export function findAcceptedPairDecision(runId: string): AcceptedPairDecisionRow
   };
 }
 
-/** Reviewable proposal gate columns for a run (all types; caller filters). */
+/** Review-gate eligible proposal columns; history-only legacy Product Type rows are excluded. */
 export interface GateProposalRow {
   id: string;
   status: string;
@@ -994,7 +1078,7 @@ export function listGateProposalsByRun(runId: string): GateProposalRow[] {
               WHERE d.proposal_id = p.id AND d.superseded_at IS NULL
             ) AS has_decision
      FROM classification_proposals p
-     WHERE p.run_id = ?`,
+     WHERE p.run_id = ? AND p.proposal_type <> 'primary_product_type'`,
   ).all(runId) as Array<{
     id: string; status: string; proposal_type: string;
     target_id: string | null; has_decision: number;

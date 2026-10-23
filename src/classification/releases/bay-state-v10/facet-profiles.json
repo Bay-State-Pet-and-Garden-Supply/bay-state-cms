@@ -1,0 +1,780 @@
+{
+  "bundleOrigin": {
+    "kind": "release",
+    "releaseId": "bay-state-v10",
+    "createdAt": "2026-10-12T00:00:00.000Z"
+  },
+  "schemaVersion": 2,
+  "entries": [
+    {
+      "id": "profile-accessories",
+      "name": "Accessories, Grooming & Apparel",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "cat-litter-profile",
+        "cat-toys-profile",
+        "collars-leashes-profile",
+        "dog-crates-kennels-profile",
+        "dog-toys-profile",
+        "dog-waste-bags-profile",
+        "flea-tick-treatment-profile",
+        "grooming-profile",
+        "overalls-coveralls-profile",
+        "pet-beds-profile",
+        "work-boots-profile",
+        "work-gloves-profile",
+        "workwear-outerwear-profile"
+      ],
+      "canonicalNodeIds": [
+        "aquarium-equipment",
+        "cat-litter",
+        "cat-toys",
+        "catnip-loose",
+        "collars-leashes",
+        "dog-crates-kennels",
+        "dog-toys",
+        "dog-waste-bags",
+        "flea-tick-treatment",
+        "overalls-coveralls",
+        "pet-beds",
+        "work-boots",
+        "work-gloves",
+        "workwear-outerwear"
+      ],
+      "behaviorFingerprint": "4b418c5e4f8937014a6e67bc"
+    },
+    {
+      "id": "profile-fencing-towing",
+      "name": "Fencing & Towing Hardware",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "corral-panels-gates-profile",
+        "electric-fence-chargers-profile",
+        "electric-fence-insulators-profile",
+        "fence-wire-mesh-profile",
+        "fencing-tools-profile",
+        "t-posts-wooden-posts-profile",
+        "tie-down-straps-chains-profile",
+        "towing-couplers-jacks-profile",
+        "trailer-hitches-balls-profile",
+        "trailer-lights-wiring-profile"
+      ],
+      "canonicalNodeIds": [
+        "corral-panels-gates",
+        "electric-fence-chargers",
+        "electric-fence-insulators",
+        "fence-wire-mesh",
+        "fencing-tools",
+        "t-posts-wooden-posts",
+        "tie-down-straps-chains",
+        "towing-couplers-jacks",
+        "trailer-hitches-balls",
+        "trailer-lights-wiring"
+      ],
+      "behaviorFingerprint": "d9dafc136517b8afea4b2e0f"
+    },
+    {
+      "id": "profile-garden",
+      "name": "Lawn & Garden Care",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "garden-hoses-reels-profile",
+        "grass-seed-profile",
+        "hand-tools-profile",
+        "insect-control-profile",
+        "lawn-fertilizer-profile",
+        "plant-food-fertilizer-profile",
+        "potting-soil-profile",
+        "sprinklers-nozzles-profile",
+        "weed-control-profile"
+      ],
+      "canonicalNodeIds": [
+        "garden-hoses-reels",
+        "grass-seed",
+        "hand-tools",
+        "insect-control",
+        "lawn-fertilizer",
+        "plant-food-fertilizer",
+        "potting-soil",
+        "sprinklers-nozzles",
+        "weed-control"
+      ],
+      "behaviorFingerprint": "3828878b02495b1456d6839d"
+    },
+    {
+      "id": "profile-heating",
+      "name": "Heating & Fuel",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "fuel-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "coop-barn-heat-lamps-profile",
+        "firewood-kindling-profile",
+        "garage-barn-heaters-profile",
+        "heating-pellets-wood-profile",
+        "propane-heaters-profile",
+        "stove-pipe-chimney-care-profile"
+      ],
+      "canonicalNodeIds": [
+        "coop-barn-heat-lamps",
+        "firewood-kindling",
+        "garage-barn-heaters",
+        "heating-pellets-wood",
+        "propane-heaters",
+        "stove-pipe-chimney-care"
+      ],
+      "behaviorFingerprint": "aafba1797b40739564c6b76d"
+    },
+    {
+      "id": "profile-livestock-equipment",
+      "name": "Livestock & Equine Equipment",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "bee-supplies-profile",
+        "equine-grooming-hoof-profile",
+        "fly-control-equine-profile",
+        "fly-insect-control-livestock-profile",
+        "horse-blankets-tack-profile",
+        "horse-treats-supplements-profile",
+        "livestock-feeders-profile",
+        "livestock-health-dewormers-profile",
+        "poultry-coops-equipment-profile",
+        "stall-mats-bedding-profile",
+        "stock-tanks-waterers-profile"
+      ],
+      "canonicalNodeIds": [
+        "bee-supplies",
+        "equine-grooming-hoof",
+        "fly-control-equine",
+        "fly-insect-control-livestock",
+        "horse-blankets-tack",
+        "horse-treats-supplements",
+        "livestock-feeders",
+        "livestock-health-dewormers",
+        "poultry-coops-equipment",
+        "stall-mats-bedding",
+        "stock-tanks-waterers"
+      ],
+      "behaviorFingerprint": "f2fe961f98967fc34797c5e2"
+    },
+    {
+      "id": "profile-livestock-feed",
+      "name": "Livestock & Equine Feed",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "cattle-feed-profile",
+        "goat-sheep-feed-profile",
+        "horse-feed-profile",
+        "pig-swine-feed-profile",
+        "poultry-feed-profile",
+        "small-animal-feed-bedding-profile"
+      ],
+      "canonicalNodeIds": [
+        "cattle-feed",
+        "goat-sheep-feed",
+        "horse-feed",
+        "pig-swine-feed",
+        "poultry-feed",
+        "small-animal-feed-bedding"
+      ],
+      "behaviorFingerprint": "a2f813419160384ea218e320"
+    },
+    {
+      "id": "profile-pet-food",
+      "name": "Pet Food & Treats",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "cat-food-dry-profile",
+        "cat-food-wet-profile",
+        "cat-treats-profile",
+        "dog-food-dry-profile",
+        "dog-food-wet-profile",
+        "dog-treats-profile",
+        "supplements-profile"
+      ],
+      "canonicalNodeIds": [
+        "cat-food-dry",
+        "cat-food-freeze-dried-raw",
+        "cat-food-wet",
+        "cat-treats",
+        "dog-food-dry",
+        "dog-food-freeze-dried-raw",
+        "dog-food-wet",
+        "dog-treats",
+        "fish-food",
+        "milk-replacer"
+      ],
+      "behaviorFingerprint": "186e9f6ad0b1a908d38ea766"
+    },
+    {
+      "id": "profile-power-equipment",
+      "name": "Power Equipment & Tools",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "air-compressors-hoses-profile",
+        "chainsaws-log-splitters-profile",
+        "lawn-mowers-profile",
+        "power-tool-accessories-profile",
+        "pressure-washers-profile",
+        "string-trimmers-edgers-profile"
+      ],
+      "canonicalNodeIds": [
+        "air-compressors-hoses",
+        "chainsaws-log-splitters",
+        "lawn-mowers",
+        "power-tool-accessories",
+        "pressure-washers",
+        "string-trimmers-edgers"
+      ],
+      "behaviorFingerprint": "de7047634717db39570531c1"
+    },
+    {
+      "id": "profile-wild-bird",
+      "name": "Wild Bird & Wildlife",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "bird-food-profile",
+        "bird-houses-baths-profile",
+        "deer-wildlife-feed-profile",
+        "suet-cakes-profile",
+        "wild-bird-feeders-profile"
+      ],
+      "canonicalNodeIds": [
+        "bird-food",
+        "bird-houses-baths",
+        "deer-wildlife-feed",
+        "suet-cakes",
+        "wild-bird-feeders"
+      ],
+      "behaviorFingerprint": "95fa1b02fa3657de968e38a2"
+    },
+    {
+      "id": "profile-pet-food-supplements",
+      "name": "Pet Food & Treats (Supplements dedicated)",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "supplements-profile"
+      ],
+      "canonicalNodeIds": [
+        "supplements"
+      ],
+      "behaviorFingerprint": "85203ce6d5a60c60dfbdff7a"
+    },
+    {
+      "id": "profile-accessories-grooming",
+      "name": "Accessories, Grooming & Apparel (Grooming dedicated)",
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "sourceV3ProfileIds": [
+        "grooming-profile"
+      ],
+      "canonicalNodeIds": [
+        "grooming"
+      ],
+      "behaviorFingerprint": "79980921b3eeb484a39bef57"
+    }
+  ]
+}

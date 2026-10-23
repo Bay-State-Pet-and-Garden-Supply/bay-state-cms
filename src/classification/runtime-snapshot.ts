@@ -21,6 +21,8 @@ import type {
   ClassificationConfigSnapshotRef,
   CurationTargetConfig,
   ClassificationConfigBundleV2,
+  CanonicalClassificationOutputBindingV2,
+  ProductTypeConfigV2,
 } from '../shared/schemas/classification';
 import type { RuntimeConfigAuthority } from './config-loader';
 import type { ResolvedTargetOption } from './curation-target-resolver';
@@ -50,6 +52,10 @@ import {
 } from './model-operation-registry';
 
 const now = () => new Date().toISOString();
+
+export type RuntimeClassificationProductType =
+  ClassificationConfig['productTypes'][number]
+  & Pick<Partial<ProductTypeConfigV2>, 'categoryId' | 'websiteValues' | 'invariantAttributes' | 'departmentId'>;
 
 export interface PageSnapshotRecord {
   pageId: string;
@@ -130,7 +136,7 @@ export interface RuntimeClassificationSnapshot {
   configSnapshotRef: ClassificationConfigSnapshotRef;
   focusedFileHashes: Record<string, string>;
   catalogEvidenceHash: string | null;
-  productTypes: ClassificationConfig['productTypes'];
+  productTypes: RuntimeClassificationProductType[];
   /**
    * Canonical Categories frozen for the run (issue #350). V1 configs carry
    * no categories (empty); v2 bundles carry the approved set. The snapshot
@@ -139,6 +145,8 @@ export interface RuntimeClassificationSnapshot {
   categories: Array<{ id: string; name: string }>;
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
+  /** Pair-role destinations are frozen independently of ordinary attribute mappings. */
+  classificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
   attributeMappings: ClassificationConfig['attributeMappings'];
   guidance: ClassificationConfig['guidance'];
   brands: ClassificationConfig['brands'];
@@ -198,7 +206,10 @@ export function computeSnapshotFieldOptions(config: ClassificationConfig): Recor
     if (target.kind !== 'product_field') continue;
     const attribute = config.attributes.find(candidate => candidate.id === target.attributeId);
     if (!attribute) continue;
-    const allowed = resolveAttributeAllowedValues(config, attribute, target);
+    // Model inference must see the complete frozen candidate authority. The
+    // 250-value default is for UI retrieval only; truncating here could make
+    // an oversized candidate set look valid instead of refusing dispatch.
+    const allowed = resolveAttributeAllowedValues(config, attribute, target, Number.POSITIVE_INFINITY);
     result[target.id] = allowed.map(value => ({ value, label: value }));
   }
   return result;
@@ -212,11 +223,12 @@ export function computeSnapshotFieldOptions(config: ClassificationConfig): Recor
  */
 function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   config: ClassificationConfig;
-  productTypes: ClassificationConfig['productTypes'];
+  productTypes: RuntimeClassificationProductType[];
   categories: Array<{ id: string; name: string }>;
   attributes: ClassificationConfig['attributes'];
   attributeProfiles: ClassificationConfig['attributeProfiles'];
   attributeMappings: ClassificationConfig['attributeMappings'];
+  classificationOutputBindings: CanonicalClassificationOutputBindingV2[];
   guidance: ClassificationConfig['guidance'];
   brands: ClassificationConfig['brands'];
   modelPolicy: ClassificationConfig['modelPolicy'];
@@ -232,6 +244,7 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
       attributes: config.attributes,
       attributeProfiles: config.attributeProfiles,
       attributeMappings: config.attributeMappings,
+      classificationOutputBindings: [],
       guidance: config.guidance,
       brands: config.brands,
       modelPolicy: config.modelPolicy,
@@ -242,11 +255,12 @@ function resolveAuthorityFields(authority: RuntimeConfigAuthority): {
   const bundle = authority.bundle;
   return {
     config: bundle as unknown as ClassificationConfig,
-    productTypes: bundle.productTypes as unknown as ClassificationConfig['productTypes'],
+    productTypes: bundle.productTypes,
     categories: (bundle.categories ?? []).map(category => ({ id: category.id, name: category.name })),
     attributes: bundle.attributes as unknown as ClassificationConfig['attributes'],
     attributeProfiles: bundle.attributeProfiles as unknown as ClassificationConfig['attributeProfiles'],
     attributeMappings: bundle.attributeMappings as unknown as ClassificationConfig['attributeMappings'],
+    classificationOutputBindings: bundle.classificationOutputBindings ?? [],
     guidance: bundle.guidance as unknown as ClassificationConfig['guidance'],
     brands: bundle.brands as unknown as ClassificationConfig['brands'],
     modelPolicy: bundle.modelPolicy as unknown as ClassificationConfig['modelPolicy'],
@@ -309,6 +323,7 @@ export function buildRuntimeSnapshot(input: RuntimeSnapshotInput): RuntimeClassi
     attributes: fields.attributes,
     attributeProfiles: fields.attributeProfiles,
     attributeMappings: fields.attributeMappings,
+    classificationOutputBindings: fields.classificationOutputBindings,
     guidance: fields.guidance,
     brands: fields.brands,
     modelPolicy: fields.modelPolicy,
@@ -584,6 +599,16 @@ export function assertModelPlanCompatible(
     throw new Error(
       `Model plan incompatible: snapshot plan has no entry for operation "${operation}".`,
     );
+  }
+  if (operation === 'distributor_copy_consolidation') {
+    const copyGeneration = snapshot.modelPolicy.copyGeneration;
+    if (!copyGeneration
+      || entry.provider !== copyGeneration.provider
+      || entry.model !== copyGeneration.model
+      || entry.locality !== ((snapshot.modelPolicy as typeof snapshot.modelPolicy & { providerLocalities?: Record<string, string | null> }).providerLocalities?.[copyGeneration.provider] ?? null)
+      || entry.textDataSharing !== copyGeneration.textDataSharing) {
+      throw new Error('Model plan incompatible: grounded-copy route does not match its explicit frozen copy-generation authority.');
+    }
   }
   if (entry.promptTemplateVersion !== PROMPT_TEMPLATE_VERSIONS[operation]) {
     throw new Error(

@@ -39,10 +39,6 @@ export function normalizeText(s: unknown): string {
     .trim();
 }
 
-export function normalizePrice(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s).replace(/[^\d.]/g, '').trim();
-}
 
 /**
  * Checks whether an extracted title is a generic fragment or bare category word
@@ -77,7 +73,7 @@ export function detectRawConflicts(raw: any): HybridConflict[] {
   if (!raw || !raw.custom) return [];
   const conflicts: HybridConflict[] = [];
 
-  function getStructuredVal(field: 'title' | 'brand' | 'price' | 'sku' | 'gtin'): { value: string | null; source: string } {
+  function getStructuredVal(field: 'title' | 'brand' | 'sku' | 'gtin'): { value: string | null; source: string } {
     if (field === 'title') {
       const j = raw.jsonLd?.name;
       if (typeof j === 'string' && j.trim()) return { value: j.trim(), source: 'json-ld' };
@@ -92,13 +88,6 @@ export function detectRawConflicts(raw: any): HybridConflict[] {
         : (typeof raw.jsonLd?.brand === 'object' && raw.jsonLd?.brand?.name ? raw.jsonLd.brand.name : null);
       if (typeof j === 'string' && j.trim()) return { value: j.trim(), source: 'json-ld' };
       const m = raw.microdata?.brand;
-      if (typeof m === 'string' && m.trim()) return { value: m.trim(), source: 'microdata' };
-    }
-    if (field === 'price') {
-      const jOffers = raw.jsonLd?.offers;
-      const jPrice = jOffers?.price ?? jOffers?.lowPrice;
-      if (jPrice !== undefined && String(jPrice).trim()) return { value: String(jPrice).trim(), source: 'json-ld' };
-      const m = raw.microdata?.price;
       if (typeof m === 'string' && m.trim()) return { value: m.trim(), source: 'microdata' };
     }
     if (field === 'sku') {
@@ -116,23 +105,16 @@ export function detectRawConflicts(raw: any): HybridConflict[] {
     return { value: null, source: 'none' };
   }
 
-  const fields: Array<'title' | 'brand' | 'price' | 'sku' | 'gtin'> = ['title', 'brand', 'price', 'sku', 'gtin'];
+  const fields: Array<'title' | 'brand' | 'sku' | 'gtin'> = ['title', 'brand', 'sku', 'gtin'];
   for (const f of fields) {
     const customRaw = raw.custom?.[f];
     const selectorVal = typeof customRaw === 'string' && customRaw.trim() ? customRaw.trim() : null;
     const structured = getStructuredVal(f);
     const structuredVal = structured.value;
     if (selectorVal && structuredVal) {
-      let isDisagreement = false;
-      if (f === 'price') {
-        const p1 = normalizePrice(selectorVal);
-        const p2 = normalizePrice(structuredVal);
-        isDisagreement = Boolean(p1 && p2 && p1 !== p2);
-      } else if (f === 'gtin') {
-        isDisagreement = !canonicalGtinMatch(selectorVal, structuredVal);
-      } else if (f === 'sku' || f === 'brand' || f === 'title') {
-        isDisagreement = normalizeText(selectorVal) !== normalizeText(structuredVal);
-      }
+      const isDisagreement = f === 'gtin'
+        ? !canonicalGtinMatch(selectorVal, structuredVal)
+        : normalizeText(selectorVal) !== normalizeText(structuredVal);
       if (isDisagreement) {
         conflicts.push({
           field: f,
@@ -164,6 +146,7 @@ export function scoreExtraction(
 
     const fieldScores: Record<string, FieldScoreDetail> = {};
     for (const [field, spec] of Object.entries(groundTruth.fields)) {
+      if (/price|cost|sale/i.test(field)) continue;
       const isInapplicable = Boolean((spec as any).inapplicable || spec.notes?.toLowerCase().includes('inapplicable'));
       const missingReason: MissingFieldReason = isInapplicable
         ? 'inapplicable'
@@ -217,7 +200,6 @@ export function scoreExtraction(
         title: null,
         brand: null,
         description: null,
-        price: null,
         primaryImage: null,
         additionalImages: [],
         sku: null,
@@ -341,6 +323,7 @@ export function scoreExtraction(
   let availableCorrect = 0;
 
   for (const [field, spec] of Object.entries(groundTruth.fields)) {
+    if (/price|cost|sale/i.test(field)) continue;
     const rawDataVal = (outcome.data as Record<string, unknown>)[field];
     let extractedStr = rawDataVal !== undefined && rawDataVal !== null ? String(rawDataVal).trim() : null;
 
@@ -429,9 +412,7 @@ export function scoreExtraction(
         failureCodesSet.add('MISSING_AVAILABLE_FIELD');
       } else if (expectedVal !== null) {
         let isMatch: boolean;
-        if (field === 'price') {
-          isMatch = normalizePrice(extractedStr) === normalizePrice(expectedVal);
-        } else if (field === 'gtin') {
+        if (field === 'gtin') {
           isMatch = canonicalGtinMatch(extractedStr, expectedVal);
         } else if (field === 'sku') {
           isMatch = normalizeText(extractedStr) === normalizeText(expectedVal);
@@ -618,7 +599,6 @@ export function scoreExtraction(
       title: outcome.data.title,
       brand: outcome.data.brand,
       description: outcome.data.description,
-      price: outcome.data.price,
       primaryImage: outcome.primaryImage,
       additionalImages: outcome.data.additionalImages,
       sku: typeof (outcome.data as Record<string, unknown>).sku === 'string'

@@ -183,7 +183,7 @@ describe('explicit unresolved variant-identity disposition (no-matrix Sitecore c
     markVariantIdentityUnresolved(sized.id, 'size-specific row on no-matrix Sitecore family page');
     await makeDomainHealthy(DOMAIN);
 
-    const sweep = sweepDomainReleases(WS_MAIN);
+    const sweep = await sweepDomainReleases(WS_MAIN);
     expect(sweep.releasedIds).toEqual([]);
     expect(findItemById(sized.id)!.stageStatus).toBe('failed');
 

@@ -51,6 +51,7 @@ import {
 import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { generateCandidate, buildFocusedFiles } from '../../classification/config-generator';
 import { BayStatePetGardenSeed } from '../../classification/config-seeds/bay-state-pet-garden-v1';
+import { createRuntimeActivationContext, loadActiveClassificationConfigBundleV2 } from '../../classification/config-loader';
 import { computeClassificationBundleHash } from '../../classification/config-validation';
 import { freezeCohortForExecution } from '../../onboarding/cohort-curation/freeze';
 import { executeViaSeam } from './helpers/cohort-curation-harness';
@@ -224,17 +225,22 @@ const EVIDENCE: CatalogEvidence = {
 function writeActiveV2Bundle(
   wsPath: string,
   seed: typeof BayStatePetGardenSeed = BayStatePetGardenSeed,
+  attestedCatalogFields?: string[],
 ): { bundle: ReturnType<typeof generateCandidate>['bundle']; xmlFields: string[] } {
   const candidate = generateCandidate(seed, EVIDENCE);
   const bundle = candidate.bundle;
-  const xmlFields = [...new Set(bundle.attributeMappings.map(mapping => mapping.catalogField))];
+  const xmlFields = [...new Set([
+    ...bundle.attributeMappings.map(mapping => mapping.catalogField),
+    ...(bundle.classificationOutputBindings ?? []).map(binding => binding.catalogField),
+  ])];
+  const attestedFields = attestedCatalogFields ?? xmlFields;
   fs.writeFileSync(
     path.join(wsPath, 'store', 'field-registry.json'),
-    JSON.stringify({ entries: xmlFields.map(xmlField => ({ xmlField })) }),
+    JSON.stringify({ entries: attestedFields.map(xmlField => ({ xmlField })) }),
   );
 
   const artifactPath = path.join(wsPath, 'store', 'classification', 'catalog-evidence.json');
-  const artifactContent = JSON.stringify({ schemaVersion: 1, xmlFields });
+  const artifactContent = JSON.stringify({ schemaVersion: 1, xmlFields: attestedFields });
   fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
   fs.writeFileSync(artifactPath, artifactContent);
   const catalogEvidenceHash = sha256Hex(artifactContent);
@@ -274,6 +280,17 @@ function writeActiveV2Bundle(
   for (const [name, content] of Object.entries(focusedFiles)) {
     fs.writeFileSync(path.join(dir, name), content);
   }
+  const activation = createRuntimeActivationContext(wsPath, '');
+  try {
+    loadActiveClassificationConfigBundleV2(wsPath, activation);
+  } catch (error) {
+    let details = '';
+    if (error && typeof error === 'object' && 'details' in error) details = JSON.stringify(error.details);
+    else if (error && typeof error === 'object' && 'findings' in error) details = JSON.stringify(error.findings);
+    const message = error instanceof Error ? `${error.message}\n${details}` : String(error);
+    throw new Error(`Active v2 fixture failed active-loader precondition: ${message}`, { cause: error });
+  }
+  expect((bundle.classificationOutputBindings ?? []).map(binding => binding.catalogField)).toEqual(['ProductField24', 'ProductField25']);
   return { bundle: { ...bundle, manifest }, xmlFields };
 }
 
@@ -409,7 +426,16 @@ function prepareActiveV2Workspace(
   wsId: string,
   wsPath: string,
   extByUpc: Record<string, Record<string, any>>,
-  seed: typeof BayStatePetGardenSeed = BayStatePetGardenSeed,
+  seed: typeof BayStatePetGardenSeed = {
+    ...BayStatePetGardenSeed,
+    productTypes: BayStatePetGardenSeed.productTypes.map(type => ({
+      ...type,
+      websiteValues: type.websiteValues ?? {
+        category: 'QA/test-only category',
+        productType: `QA/test-only ${type.id}`,
+      },
+    })),
+  },
 ): { items: OnboardingItem[]; cohorts: CurationCohort[]; configSnapshotHash: string } {
   const { bundle } = writeActiveV2Bundle(wsPath, seed);
   const { hash: configSnapshotHash } = upsertConfigSnapshot(wsId, bundle);
@@ -1709,6 +1735,18 @@ describe('Universal Category Page assignment requirement (operator mandate)', ()
     clearCohortPageCoordinationCache();
   });
 
+  it('active loader rejects unattested PF24/PF25 output-binding destinations', () => {
+    const { workspacePath: wsPath } = newWorkspace();
+    let errorMessage = '';
+    try {
+      writeActiveV2Bundle(wsPath, undefined, []);
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+    expect(errorMessage).toContain('catalog_field_unattested');
+    expect(errorMessage).toContain('$.classificationOutputBindings[0].catalogField');
+    expect(errorMessage).toContain('$.classificationOutputBindings[1].catalogField');
+  });
   it('review gate refuses missing_category_page when committed curation carries no suggestedPages', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const { items } = prepareActiveV2Workspace(workspaceId, wsPath, THREE_MEMBER_EXTRACTIONS);

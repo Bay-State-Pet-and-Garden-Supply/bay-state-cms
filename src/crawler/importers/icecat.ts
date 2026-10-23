@@ -1,5 +1,5 @@
 import Icecat from 'icecat';
-import { type ScrapedProductEvidence, ScrapedProductEvidenceSchema } from '../corpus-schema.js';
+import { isThirdPartyPriceSpecification, type ScrapedProductEvidence, ScrapedProductEvidenceSchema } from '../corpus-schema.js';
 import { computeEntityId } from '../url-policy.js';
 
 export interface OpenIcecatProductResponse {
@@ -126,7 +126,7 @@ export async function fetchOpenIcecatByGtin(
           for (const feat of group.Features) {
             const name = feat.Feature?.Name?.Value?.trim();
             const val = feat.Value?.trim();
-            if (name && val) {
+            if (name && val && !isThirdPartyPriceSpecification(name)) {
               specifications[name] = val;
             }
           }

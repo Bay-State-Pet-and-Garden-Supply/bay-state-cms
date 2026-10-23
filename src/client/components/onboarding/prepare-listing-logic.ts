@@ -83,7 +83,6 @@ export function isPreparationSummaryEmpty(summary: PreparationSummary): boolean 
 export const PREPARATION_FILTERS = [
   { category: '', label: 'All products' },
   { category: 'processing', label: 'Preparing' },
-  { category: 'waiting_on_family', label: 'Waiting on family' },
   { category: 'needs_attention', label: 'Needs attention' },
 ] as const;
 
@@ -95,7 +94,7 @@ export function preparationCategoryFilter(value: unknown): PreparationCategoryFi
 
 export function preparationStatusLabel(category: WorkStateCategory): string {
   const labels: Record<WorkStateCategory, string> = {
-    processing: 'Preparing', waiting_on_family: 'Waiting on family', needs_attention: 'Needs attention',
+    processing: 'Preparing', needs_attention: 'Needs attention',
     ready_for_review: 'Ready for review', approved: 'Approved', ready_to_export: 'CMS draft created',
     completed: 'Completed', skipped: 'Skipped',
   };

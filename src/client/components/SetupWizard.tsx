@@ -39,7 +39,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
   const startPollingStatus = (successPrefix: string) => {
     setPolling(true);
     setLoading(true);
-    setStatusMessage('Initializing catalog import in the background...');
+    setStatusMessage('Getting your catalog ready...');
     
     const interval = setInterval(async () => {
       try {
@@ -48,15 +48,15 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
           clearInterval(interval);
           setPolling(false);
           setLoading(false);
-          setResult(`${successPrefix} Baseline commit: ${res.baselineCommit || 'N/A'}`);
+          setResult(successPrefix);
           setStep(1);
         } else if (res.bootstrapStatus === 'failed') {
           clearInterval(interval);
           setPolling(false);
           setLoading(false);
-          setError(res.error || 'Bootstrap failed in the background. Check server logs.');
+          setError(res.error || "We couldn't finish importing products. Please try again or contact support.");
         } else if (res.bootstrapStatus === 'running') {
-          setStatusMessage('Importing products from ShopSite, parsing XML, and writing Git catalog files...');
+          setStatusMessage('Importing products from your store. This may take a few minutes...');
         }
       } catch (err) {
         clearInterval(interval);
@@ -69,7 +69,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
 
   const handleSaveConnection = async () => {
     if (!cgiBaseUrl.trim() || !merchantId.trim() || (!password && !passwordConfigured)) {
-      setError('CGI URL, merchant/user ID, and password are required to enable direct sync. You can skip this and use XML import/export fallback.');
+      setError('Store connection address, account ID, and password are required to connect. You can skip this and import a catalog export instead.');
       return;
     }
     setLoading(true);
@@ -93,7 +93,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
     setResult('');
     try {
       await bootstrapFromPull();
-      startPollingStatus('Bootstrap complete! Products successfully imported from ShopSite.');
+      startPollingStatus('Your products are ready to review.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -102,7 +102,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
 
   const handleBootstrapXml = async () => {
     if (!xmlInput.trim()) {
-      setError('XML content is required');
+      setError('Paste the catalog export first.');
       return;
     }
     setLoading(true);
@@ -110,7 +110,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
     setResult('');
     try {
       await bootstrapFromXml(xmlInput.trim());
-      startPollingStatus('Bootstrap complete! Products successfully imported from pasted XML.');
+      startPollingStatus('Your products are ready to review.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -119,7 +119,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
 
   const handleFileBootstrap = async () => {
     if (!filePath.trim()) {
-      setError('File path is required');
+      setError('Enter where the catalog file is saved.');
       return;
     }
     setLoading(true);
@@ -127,7 +127,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
     setResult('');
     try {
       await bootstrapFromFile(filePath.trim());
-      startPollingStatus('Bootstrap complete! Products successfully imported from XML file.');
+      startPollingStatus('Your products are ready to review.');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -161,63 +161,63 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
 
       {step === 0 && (
         <div>
-          <p>Initial setup for store catalog. Configure direct sync if available, or import products from XML/export fallback.</p>
+          <p>Set up your store catalog. Connect to your store or import a catalog export.</p>
 
           <div style={styles.section}>
-            <h2 style={styles.heading}>Optional Direct Sync Connection</h2>
+            <h2 style={styles.heading}>Connect to your store (optional)</h2>
             <p style={{ fontSize: 13, color: '#4b5563' }}>
-              Basic auth works for some ShopSite environments, but authentication is store-specific. If this fails, you can still use XML import/export fallback.
+              Store connection details differ by store. If this connection does not work, import a catalog export instead.
             </p>
             <input
               style={styles.input}
-              placeholder="ShopSite CGI URL or script path (e.g., https://store.example.com/cgi-bin/bo/db_xml.cgi)"
+              placeholder="Store connection address (ask your ShopSite administrator)"
               value={cgiBaseUrl}
               onChange={e => setCgiBaseUrl(e.target.value)}
             />
             <input
               style={styles.input}
-              placeholder="Merchant/user ID"
+              placeholder="Store account ID"
               value={merchantId}
               onChange={e => setMerchantId(e.target.value)}
             />
             <input
               style={styles.input}
-              placeholder={passwordConfigured ? "Password (configured - leave blank to keep, or enter new one)" : "Password"}
+              placeholder={passwordConfigured ? "Password (already saved — leave blank to keep it)" : "Password"}
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
             <button style={styles.secondary} onClick={handleSaveConnection} disabled={loading}>
-              {loading ? 'Testing...' : 'Save & Test Connection'}
+              {loading ? 'Testing...' : 'Save and test connection'}
             </button>
             <button style={styles.button} onClick={handleBootstrapFromPull} disabled={loading}>
-              {loading ? 'Bootstrapping...' : 'Bootstrap Catalog from ShopSite'}
+              {loading ? 'Importing...' : 'Import products from my store'}
             </button>
           </div>
 
           <div style={styles.section}>
-            <h2 style={styles.heading}>Paste ShopSite XML</h2>
+            <h2 style={styles.heading}>Paste a catalog export</h2>
             <textarea
               style={styles.textarea}
-              placeholder="Paste your ShopSite products XML here..."
+              placeholder="Paste your store's catalog export here..."
               value={xmlInput}
               onChange={e => setXmlInput(e.target.value)}
             />
             <button style={styles.button} onClick={handleBootstrapXml} disabled={loading}>
-              {loading ? 'Importing...' : 'Import from XML'}
+              {loading ? 'Importing...' : 'Import catalog export'}
             </button>
           </div>
 
           <div style={styles.section}>
-            <h2 style={styles.heading}>Load from XML File</h2>
+            <h2 style={styles.heading}>Import a catalog file</h2>
             <input
               style={styles.input}
-              placeholder="Path to XML file on disk"
+              placeholder="Path to the catalog file"
               value={filePath}
               onChange={e => setFilePath(e.target.value)}
             />
             <button style={styles.secondary} onClick={handleFileBootstrap} disabled={loading}>
-              {loading ? 'Loading...' : 'Load from File'}
+              {loading ? 'Importing...' : 'Import from file'}
             </button>
           </div>
         </div>
@@ -225,7 +225,7 @@ export function SetupWizard({ onComplete, onUpdated: _onUpdated }: Props) {
 
       {step === 1 && (
         <div>
-          <p>Bootstrap complete! You can now manage products.</p>
+          <p>Store setup is complete. You can now review your products.</p>
           <button style={styles.button} onClick={onComplete}>
             Open Catalog
           </button>

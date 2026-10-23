@@ -2,7 +2,7 @@ import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
 import { canonicalJsonFileString, canonicalJsonStringify, hashCanonicalJson, isSha256Hex, sha256Hex } from '../../shared/stable-id';
 import { buildFocusedFiles } from '../../classification/config-generator';
-import type { ClassificationConfigBundleV2 } from '../../shared/schemas/classification';
+import type { CanonicalClassificationOutputBindingV2, ClassificationConfigBundleV2 } from '../../shared/schemas/classification';
 import type {
   ClassificationConfig,
   ProductTypeConfig,
@@ -82,6 +82,9 @@ export function syncConfigToCache(workspaceId: string, config: ClassificationCon
   const db = getDb();
   const schemaVersion = (config as any).manifest?.schemaVersion ?? 1;
   const manifestValue = (config as any).manifest ?? { schemaVersion: 1 };
+  const outputBindings = (config as ClassificationConfig & {
+    classificationOutputBindings?: CanonicalClassificationOutputBindingV2[];
+  }).classificationOutputBindings ?? [];
 
   db.transaction(() => {
     // Manifest
@@ -181,7 +184,28 @@ export function syncConfigToCache(workspaceId: string, config: ClassificationCon
         ],
       );
     }
-    upsertConfigFile(workspaceId, 'mappings.json', schemaVersion, config.attributeMappings);
+    db.run('DELETE FROM classification_output_bindings WHERE workspace_id = ?', [workspaceId]);
+    for (const binding of outputBindings) {
+      db.run(
+        `INSERT INTO classification_output_bindings
+         (workspace_id, role, catalog_field, serialization_json, is_stale, config_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          workspaceId,
+          binding.role,
+          binding.catalogField,
+          JSON.stringify(binding.serialization),
+          binding.isStale ? 1 : 0,
+          hashCanonicalJson(binding),
+          now(),
+          now(),
+        ],
+      );
+    }
+
+    upsertConfigFile(workspaceId, 'mappings.json', schemaVersion, schemaVersion === 2
+      ? { entries: config.attributeMappings, classificationOutputBindings: outputBindings }
+      : config.attributeMappings);
 
     // Curation targets are file-backed stage settings. They do not need a
     // dedicated cache table because stages read them from the active config,
@@ -389,6 +413,17 @@ export function getCachedAttributeMappings(workspaceId: string): AttributeMappin
     catalogField: String(r.catalog_field),
     serialization: r.serialization_json ? JSON.parse(String(r.serialization_json)) : { format: 'direct', separator: ', ', prefix: '', suffix: '' },
     isStale: Number(r.is_stale) === 1,
+  }));
+}
+export function getCachedClassificationOutputBindings(workspaceId: string): CanonicalClassificationOutputBindingV2[] {
+  const rows = getDb()
+    .query('SELECT * FROM classification_output_bindings WHERE workspace_id = ? ORDER BY role')
+    .all(workspaceId) as Record<string, any>[];
+  return rows.map(row => ({
+    role: String(row.role) as CanonicalClassificationOutputBindingV2['role'],
+    catalogField: String(row.catalog_field),
+    serialization: JSON.parse(String(row.serialization_json)) as CanonicalClassificationOutputBindingV2['serialization'],
+    isStale: Number(row.is_stale) === 1,
   }));
 }
 

@@ -25,12 +25,8 @@ export interface ReviewListingPanelProps {
   saving: boolean;
   saveError: string | null;
   onOpenLightbox?: (url: string, caption: string) => void;
-  /**
-   * e10s02 — full-field review form (editability matrix, price/quantity
-   * inputs, provenance badges, Listing facts group). False ⇒ the exact
-   * pre-V2 panel EXCEPT the Weight field stays an editable input whose value
-   * persists via the flag-off save payload's curatedWeight key.
-   */
+  /** e10s02 full-field review form. Price is read-only; quantity remains
+   * editable only for official-page items. */
   v2?: boolean;
   /**
    * e10s03 a11y wiring — jump-target id → blocking gate codes for that
@@ -83,14 +79,11 @@ export function ReviewListingPanel({
   const ext = extraction(detail);
   const curation = detail?.item.curationData ?? null;
   const approved = distributorApprovedImages(ext);
-  // e10s02 editability matrix (adjudicated): price editable for BOTH source
-  // types; quantity readonly for distributor records.
   const sourceType: SourceType =
     detail?.item.sourceType === 'distributor_record'
       ? 'distributor_record'
       : ((workState?.sourceType as SourceType) ?? 'official_page');
   const quantityEditable = fieldEditability(sourceType, 'quantity') === 'editable';
-
   const primary = ext?.primaryImage ?? approved?.primary ?? workState?.imageUrl ?? null;
   const additional = (ext?.additionalImages ?? []).filter(url => url !== primary);
   for (const url of approved?.additional ?? []) {
@@ -297,11 +290,9 @@ export function ReviewListingPanel({
   const bullets = ext?.bulletPoints ?? [];
   const keywords = curation?.searchKeywords ?? ext?.searchKeywords ?? null;
   const customFields = ext?.customFields ?? {};
-  // V1 keeps its exact source-order (extraction first); V2 shows the
-  // promotable value (the item column wins — promotion reads item price).
-  const price = v2
-    ? detail?.item.price ?? ext?.price ?? null
-    : ext?.price ?? detail?.item.price ?? null;
+  // Price always comes from the product-add input; page extraction never
+  // supplies it or overrides it.
+  const price = detail?.item.price ?? null;
   const quantity = detail?.item.quantity;
 
   // e10s02: read-only "Listing facts" values (known keys) + provenance badges.
@@ -582,18 +573,22 @@ export function ReviewListingPanel({
                       <label className="rv-field-label" htmlFor="rv-edit-price">
                         Price
                       </label>
-                      <input
+                      <div
                         id="rv-edit-price"
+                        tabIndex={-1}
                         className="rv-input"
-                        inputMode="decimal"
-                        placeholder="e.g. 24.99"
-                        // Adjudication: editable for BOTH source types — item.price is the
-                        // promoter's only distributor price authority and its emptiness blocks.
+                        role="status"
+                        aria-readonly="true"
                         aria-invalid={invalidFor('rv-edit-price') || undefined}
                         aria-describedby={describedByFor('rv-edit-price')}
-                        value={draft.price ?? ''}
-                        onChange={e => onDraftChange({ ...draft, price: e.target.value })}
-                      />
+                      >
+                        {detail?.item.price ?? 'No price entered'}
+                      </div>
+                      <div className="rv-lock-note" role="note">
+                        {detail?.item.price != null && detail.item.price.trim() !== ''
+                          ? 'Set when this product was added. It cannot be changed during review.'
+                          : 'No price was entered when this product was added. It must be entered before review can continue.'}
+                      </div>
                     </div>
                     <div>
                       <label className="rv-field-label" htmlFor="rv-edit-quantity">
@@ -668,7 +663,7 @@ export function ReviewListingPanel({
                   </div>
                   {price && (
                     <div className="rv-field" style={{ marginBottom: 0 }}>
-                      <div className="rv-field-label">{v2 ? 'Price' : 'Price (source)'}</div>
+                      <div className="rv-field-label">Price</div>
                       <div className="rv-field-value">{price}</div>
                     </div>
                   )}

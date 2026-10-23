@@ -87,6 +87,15 @@ export function TaxonomyReleaseCard(): React.ReactElement {
     void load();
   }, [load]);
 
+  // A successful admin-gate change in Security Settings alters whether
+  // Activate is enabled. Panels stay mounted across tab switches, so listen
+  // for the gate change instead of requiring a page reload.
+  useEffect(() => {
+    const refresh = () => { void load(); };
+    window.addEventListener('baystate:release-admin-changed', refresh);
+    return () => window.removeEventListener('baystate:release-admin-changed', refresh);
+  }, [load]);
+
   const activate = async (revision: string) => {
     setBusy(true);
     setError('');

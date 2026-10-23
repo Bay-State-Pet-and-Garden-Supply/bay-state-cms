@@ -22,7 +22,6 @@ describe('profile audit scoring', () => {
       fields: {
         title: { available: true, expectedValue: 'Hot Spot Relief Spray' },
         brand: { available: true, expectedValue: 'earthbath' },
-        price: { available: false }, // not available on brand site
         gtin: { available: false },  // not available on brand site
         description: { available: true },
       },
@@ -46,7 +45,7 @@ describe('profile audit scoring', () => {
         title: 'Hot Spot Relief Spray',
         brand: 'earthbath',
         description: 'Soothing spray for dogs with tea tree oil and aloe vera',
-        price: null, // unavailable on page, should be marked correct
+        price: '$14.99', // third-party page price is not an audit field
         primaryImage: 'https://earthbath.com/cdn/shop/files/PT3S-HotSpot-Spray-front.png?width=1200',
         additionalImages: [
           'https://earthbath.com/cdn/shop/files/PT3S-HotSpot-Spray-back.png?width=1200',
@@ -70,8 +69,7 @@ describe('profile audit scoring', () => {
     expect(scored.identityVerdict).toBe('correct_match');
     expect(scored.fieldScores.title.correct).toBe(true);
     expect(scored.fieldScores.brand.correct).toBe(true);
-    expect(scored.fieldScores.price.status).toBe('unavailable');
-    expect(scored.fieldScores.price.correct).toBe(true);
+    expect(scored.fieldScores).not.toHaveProperty('price');
     expect(scored.fieldScores.gtin.status).toBe('unavailable');
     expect(scored.fieldScores.gtin.correct).toBe(true);
     expect(scored.fieldCorrectnessScore).toBe(1.0);
@@ -421,7 +419,7 @@ describe('profile audit scoring', () => {
   // Issue #189: Acceptance Criterion 2 — Field Comparison Rules & Conflicts
   // ──────────────────────────────────────────────────────────────────────────
   describe('Acceptance Criterion 2: Selector-versus-structured conflicts and individual field rules', () => {
-    it('judges title, price, brand, and identifiers each by their own rule', () => {
+    it('judges title, brand, and identifiers each by their own rule', () => {
       const rulesSample: AuditManifestSample = {
         ...sample,
         groundTruth: {
@@ -435,7 +433,6 @@ describe('profile audit scoring', () => {
           fields: {
             title: { available: true, expectedValue: 'Hot Spot Relief Spray 8oz' },
             brand: { available: true, expectedValue: 'Earthbath' },
-            price: { available: true, expectedValue: '$14.99' },
             gtin: { available: true, expectedValue: '0012345678901' },
             sku: { available: true, expectedValue: 'SKU-SPRAY-8' },
           },
@@ -448,7 +445,7 @@ describe('profile audit scoring', () => {
         data: ExtractionDataSchema.parse({
           title: 'Hot Spot Relief Spray 8oz',
           brand: 'Earthbath',
-          price: '14.99', // Numeric equality matches $14.99
+          price: '14.99', // ignored third-party page price
           confidence: 1,
         }),
         admittedImages: [],
@@ -462,18 +459,18 @@ describe('profile audit scoring', () => {
       const scoredMatching = scoreExtraction(outcomeMatching, rulesSample);
       expect(scoredMatching.fieldScores.title.correct).toBe(true);
       expect(scoredMatching.fieldScores.brand.correct).toBe(true);
-      expect(scoredMatching.fieldScores.price.correct).toBe(true);
+      expect(scoredMatching.fieldScores).not.toHaveProperty('price');
       expect(scoredMatching.fieldScores.gtin.correct).toBe(true);
       expect(scoredMatching.fieldScores.sku.correct).toBe(true);
       expect(scoredMatching.fieldCorrectnessScore).toBe(1.0);
 
-      // 2. Substrings and price differences must NOT match
+      // 2. Title fragments and identifier substrings fail; page price remains ignored
       const outcomeSubstrings: ExtractionOutcome = {
         configuration: 'current_extraction',
         data: ExtractionDataSchema.parse({
           title: 'Spray', // Fragment
           brand: 'Earth', // Substring of Earthbath
-          price: '19.99', // Price disagreement
+          price: '19.99', // ignored third-party page price
           confidence: 1,
         }),
         admittedImages: [],
@@ -487,7 +484,7 @@ describe('profile audit scoring', () => {
       const scoredSubstrings = scoreExtraction(outcomeSubstrings, rulesSample);
       expect(scoredSubstrings.fieldScores.title.correct).toBe(false);
       expect(scoredSubstrings.fieldScores.brand.correct).toBe(false);
-      expect(scoredSubstrings.fieldScores.price.correct).toBe(false);
+      expect(scoredSubstrings.fieldScores).not.toHaveProperty('price');
       expect(scoredSubstrings.fieldScores.gtin.correct).toBe(false);
       expect(scoredSubstrings.fieldScores.sku.correct).toBe(false);
       expect(scoredSubstrings.fieldCorrectnessScore).toBe(0.0);
@@ -504,7 +501,6 @@ describe('profile audit scoring', () => {
           fieldProvenance: {
             title: 'custom-selector',
             brand: 'custom-selector',
-            price: 'custom-selector',
           },
         }),
         raw: {
@@ -532,6 +528,8 @@ describe('profile audit scoring', () => {
       expect(scored.failureCodes).toContain('FIELD_CONFLICT');
       expect(scored.conflicts).toBeDefined();
       expect(scored.conflicts!.length).toBeGreaterThanOrEqual(3);
+      expect(scored.conflicts!.some(c => c.field === 'price')).toBe(false);
+      expect(scored.fieldScores).not.toHaveProperty('price');
 
       const titleConflict = scored.conflicts!.find(c => c.field === 'title');
       expect(titleConflict).toBeDefined();
@@ -539,11 +537,6 @@ describe('profile audit scoring', () => {
       expect(titleConflict?.structuredSource).toBe('json-ld');
       expect(titleConflict?.selectorValue).toBe('Selector Title 16oz');
       expect(titleConflict?.structuredValue).toBe('Structured JSON-LD Title 32oz');
-
-      const priceConflict = scored.conflicts!.find(c => c.field === 'price');
-      expect(priceConflict).toBeDefined();
-      expect(priceConflict?.selectorValue).toBe('$12.99');
-      expect(priceConflict?.structuredValue).toBe('24.99');
 
       expect(scored.fieldScores.title.status).toBe('conflict');
       expect(scored.fieldScores.title.conflictDetails).toContain('Selector (custom-selector): "Selector Title 16oz"');

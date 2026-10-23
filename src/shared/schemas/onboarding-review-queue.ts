@@ -283,8 +283,9 @@ export function deriveReviewGateStatus(
     warningCodes.push('name_from_fallback_source');
   }
 
-  // 3. Price resolution
-  const rawPrice = item.price || (item.sourceType === 'distributor_record' ? null : (extractionData?.price as string | null));
+  // 3. Price resolution — Input Price Authority (ADR 0043): item.price ONLY,
+  // never a page-extracted fallback for any source type.
+  const rawPrice = item.price || null;
   const price = typeof rawPrice === 'string' ? rawPrice.replace(/[$\s,]/g, '').trim() : null;
   if (!price) {
     isBlocked = true;

@@ -1,0 +1,3752 @@
+{
+  "bundleOrigin": {
+    "kind": "reviewed_generation"
+  },
+  "entries": [
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "dog-food-dry-profile",
+      "name": "Dry Dog Food",
+      "oldIdAliases": [],
+      "productTypeId": "dog-food-dry"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "dog-food-wet-profile",
+      "name": "Wet Dog Food",
+      "oldIdAliases": [],
+      "productTypeId": "dog-food-wet"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "dog-treats-profile",
+      "name": "Dog Treats",
+      "oldIdAliases": [],
+      "productTypeId": "dog-treats"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "cat-food-dry-profile",
+      "name": "Dry Cat Food",
+      "oldIdAliases": [],
+      "productTypeId": "cat-food-dry"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "cat-food-wet-profile",
+      "name": "Wet Cat Food",
+      "oldIdAliases": [],
+      "productTypeId": "cat-food-wet"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "cat-treats-profile",
+      "name": "Cat Treats",
+      "oldIdAliases": [],
+      "productTypeId": "cat-treats"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "flavor",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "species",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "life-stage",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "breed-size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "dietary-features",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "health-benefits",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "supplements-profile",
+      "name": "Supplements",
+      "oldIdAliases": [],
+      "productTypeId": "supplements"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "dog-toys-profile",
+      "name": "Dog Toys",
+      "oldIdAliases": [],
+      "productTypeId": "dog-toys"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "cat-toys-profile",
+      "name": "Cat Toys",
+      "oldIdAliases": [],
+      "productTypeId": "cat-toys"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "grooming-profile",
+      "name": "Grooming",
+      "oldIdAliases": [],
+      "productTypeId": "grooming"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "dog-waste-bags-profile",
+      "name": "Dog Waste Bags",
+      "oldIdAliases": [],
+      "productTypeId": "dog-waste-bags"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "collars-leashes-profile",
+      "name": "Collars & Leashes",
+      "oldIdAliases": [],
+      "productTypeId": "collars-leashes"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "flea-tick-treatment-profile",
+      "name": "Flea & Tick Treatment",
+      "oldIdAliases": [],
+      "productTypeId": "flea-tick-treatment"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "cat-litter-profile",
+      "name": "Cat Litter",
+      "oldIdAliases": [],
+      "productTypeId": "cat-litter"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "dog-crates-kennels-profile",
+      "name": "Dog Crates & Kennels",
+      "oldIdAliases": [],
+      "productTypeId": "dog-crates-kennels"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "pet-beds-profile",
+      "name": "Pet Beds",
+      "oldIdAliases": [],
+      "productTypeId": "pet-beds"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "poultry-feed-profile",
+      "name": "Poultry Feed",
+      "oldIdAliases": [],
+      "productTypeId": "poultry-feed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "cattle-feed-profile",
+      "name": "Cattle Feed",
+      "oldIdAliases": [],
+      "productTypeId": "cattle-feed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "goat-sheep-feed-profile",
+      "name": "Goat & Sheep Feed",
+      "oldIdAliases": [],
+      "productTypeId": "goat-sheep-feed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "pig-swine-feed-profile",
+      "name": "Pig & Swine Feed",
+      "oldIdAliases": [],
+      "productTypeId": "pig-swine-feed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "horse-feed-profile",
+      "name": "Horse Feed",
+      "oldIdAliases": [],
+      "productTypeId": "horse-feed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "nutrition",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "small-animal-feed-bedding-profile",
+      "name": "Small Animal Feed & Bedding",
+      "oldIdAliases": [],
+      "productTypeId": "small-animal-feed-bedding"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "poultry-coops-equipment-profile",
+      "name": "Poultry Coops & Equipment",
+      "oldIdAliases": [],
+      "productTypeId": "poultry-coops-equipment"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "stock-tanks-waterers-profile",
+      "name": "Stock Tanks & Waterers",
+      "oldIdAliases": [],
+      "productTypeId": "stock-tanks-waterers"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "livestock-feeders-profile",
+      "name": "Livestock Feeders",
+      "oldIdAliases": [],
+      "productTypeId": "livestock-feeders"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "livestock-health-dewormers-profile",
+      "name": "Livestock Health & Dewormers",
+      "oldIdAliases": [],
+      "productTypeId": "livestock-health-dewormers"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "fly-insect-control-livestock-profile",
+      "name": "Fly & Pest Control for Livestock",
+      "oldIdAliases": [],
+      "productTypeId": "fly-insect-control-livestock"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "stall-mats-bedding-profile",
+      "name": "Stall Mats & Bedding",
+      "oldIdAliases": [],
+      "productTypeId": "stall-mats-bedding"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "fly-control-equine-profile",
+      "name": "Equine Fly & Pest Control",
+      "oldIdAliases": [],
+      "productTypeId": "fly-control-equine"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "equine-grooming-hoof-profile",
+      "name": "Equine Grooming & Hoof Care",
+      "oldIdAliases": [],
+      "productTypeId": "equine-grooming-hoof"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "horse-blankets-tack-profile",
+      "name": "Horse Blankets & Tack",
+      "oldIdAliases": [],
+      "productTypeId": "horse-blankets-tack"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "horse-treats-supplements-profile",
+      "name": "Horse Treats & Supplements",
+      "oldIdAliases": [],
+      "productTypeId": "horse-treats-supplements"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "electric-fence-chargers-profile",
+      "name": "Electric Fence Chargers",
+      "oldIdAliases": [],
+      "productTypeId": "electric-fence-chargers"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "fence-wire-mesh-profile",
+      "name": "Fence Wire & Mesh",
+      "oldIdAliases": [],
+      "productTypeId": "fence-wire-mesh"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "t-posts-wooden-posts-profile",
+      "name": "T-Posts & Wooden Fence Posts",
+      "oldIdAliases": [],
+      "productTypeId": "t-posts-wooden-posts"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "corral-panels-gates-profile",
+      "name": "Corral Panels & Farm Gates",
+      "oldIdAliases": [],
+      "productTypeId": "corral-panels-gates"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "electric-fence-insulators-profile",
+      "name": "Electric Fence Insulators",
+      "oldIdAliases": [],
+      "productTypeId": "electric-fence-insulators"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "fencing-tools-profile",
+      "name": "Fencing Tools & Accessories",
+      "oldIdAliases": [],
+      "productTypeId": "fencing-tools"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "heating-pellets-wood-profile",
+      "name": "Heating Wood Pellets",
+      "oldIdAliases": [],
+      "productTypeId": "heating-pellets-wood"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "firewood-kindling-profile",
+      "name": "Firewood & Kindling",
+      "oldIdAliases": [],
+      "productTypeId": "firewood-kindling"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "propane-heaters-profile",
+      "name": "Propane Heaters",
+      "oldIdAliases": [],
+      "productTypeId": "propane-heaters"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "garage-barn-heaters-profile",
+      "name": "Garage & Barn Heaters",
+      "oldIdAliases": [],
+      "productTypeId": "garage-barn-heaters"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "coop-barn-heat-lamps-profile",
+      "name": "Coop & Barn Heat Lamps",
+      "oldIdAliases": [],
+      "productTypeId": "coop-barn-heat-lamps"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "stove-pipe-chimney-care-profile",
+      "name": "Stove Pipe & Chimney Care",
+      "oldIdAliases": [],
+      "productTypeId": "stove-pipe-chimney-care"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "lawn-fertilizer-profile",
+      "name": "Lawn Fertilizer",
+      "oldIdAliases": [],
+      "productTypeId": "lawn-fertilizer"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "grass-seed-profile",
+      "name": "Grass Seed",
+      "oldIdAliases": [],
+      "productTypeId": "grass-seed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "weed-control-profile",
+      "name": "Weed Control",
+      "oldIdAliases": [],
+      "productTypeId": "weed-control"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "insect-control-profile",
+      "name": "Insect & Pest Control",
+      "oldIdAliases": [],
+      "productTypeId": "insect-control"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "potting-soil-profile",
+      "name": "Potting Soil & Mulch",
+      "oldIdAliases": [],
+      "productTypeId": "potting-soil"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "hand-tools-profile",
+      "name": "Hand Garden Tools",
+      "oldIdAliases": [],
+      "productTypeId": "hand-tools"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "garden-hoses-reels-profile",
+      "name": "Garden Hoses & Reels",
+      "oldIdAliases": [],
+      "productTypeId": "garden-hoses-reels"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "sprinklers-nozzles-profile",
+      "name": "Sprinklers & Hose Nozzles",
+      "oldIdAliases": [],
+      "productTypeId": "sprinklers-nozzles"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "category",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "plant-food-fertilizer-profile",
+      "name": "Plant Food & Garden Fertilizer",
+      "oldIdAliases": [],
+      "productTypeId": "plant-food-fertilizer"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "lawn-mowers-profile",
+      "name": "Lawn Mowers",
+      "oldIdAliases": [],
+      "productTypeId": "lawn-mowers"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "string-trimmers-edgers-profile",
+      "name": "String Trimmers & Edgers",
+      "oldIdAliases": [],
+      "productTypeId": "string-trimmers-edgers"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "chainsaws-log-splitters-profile",
+      "name": "Chainsaws & Log Splitters",
+      "oldIdAliases": [],
+      "productTypeId": "chainsaws-log-splitters"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "pressure-washers-profile",
+      "name": "Pressure Washers",
+      "oldIdAliases": [],
+      "productTypeId": "pressure-washers"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "power-tool-accessories-profile",
+      "name": "Power Tool Accessories",
+      "oldIdAliases": [],
+      "productTypeId": "power-tool-accessories"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "air-compressors-hoses-profile",
+      "name": "Air Compressors & Hoses",
+      "oldIdAliases": [],
+      "productTypeId": "air-compressors-hoses"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "trailer-hitches-balls-profile",
+      "name": "Trailer Hitches & Hitch Balls",
+      "oldIdAliases": [],
+      "productTypeId": "trailer-hitches-balls"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "towing-couplers-jacks-profile",
+      "name": "Trailer Couplers & Jacks",
+      "oldIdAliases": [],
+      "productTypeId": "towing-couplers-jacks"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "trailer-lights-wiring-profile",
+      "name": "Trailer Lights & Wiring",
+      "oldIdAliases": [],
+      "productTypeId": "trailer-lights-wiring"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "tie-down-straps-chains-profile",
+      "name": "Tie-Down Straps & Chains",
+      "oldIdAliases": [],
+      "productTypeId": "tie-down-straps-chains"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "bird-food-profile",
+      "name": "Wild Bird Food & Seed",
+      "oldIdAliases": [],
+      "productTypeId": "bird-food"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "suet-cakes-profile",
+      "name": "Suet Cakes",
+      "oldIdAliases": [],
+      "productTypeId": "suet-cakes"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "wild-bird-feeders-profile",
+      "name": "Wild Bird Feeders",
+      "oldIdAliases": [],
+      "productTypeId": "wild-bird-feeders"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "bird-houses-baths-profile",
+      "name": "Bird Houses & Baths",
+      "oldIdAliases": [],
+      "productTypeId": "bird-houses-baths"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "food-form",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "packaging-type",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "deer-wildlife-feed-profile",
+      "name": "Deer & Wildlife Feed",
+      "oldIdAliases": [],
+      "productTypeId": "deer-wildlife-feed"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "work-boots-profile",
+      "name": "Work Boots & Barn Boots",
+      "oldIdAliases": [],
+      "productTypeId": "work-boots"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "work-gloves-profile",
+      "name": "Work Gloves",
+      "oldIdAliases": [],
+      "productTypeId": "work-gloves"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "workwear-outerwear-profile",
+      "name": "Workwear Outerwear",
+      "oldIdAliases": [],
+      "productTypeId": "workwear-outerwear"
+    },
+    {
+      "attributes": [
+        {
+          "applicabilityConditions": [],
+          "attributeId": "material",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "color",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "size",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-feature",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        },
+        {
+          "applicabilityConditions": [],
+          "attributeId": "product-cross-sell",
+          "cardinality": "single",
+          "confidenceThresholds": {},
+          "constraints": {},
+          "required": false,
+          "valueAliases": []
+        }
+      ],
+      "id": "overalls-coveralls-profile",
+      "name": "Overalls & Coveralls",
+      "oldIdAliases": [],
+      "productTypeId": "overalls-coveralls"
+    }
+  ],
+  "schemaVersion": 2
+}

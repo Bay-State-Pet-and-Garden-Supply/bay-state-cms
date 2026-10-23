@@ -130,7 +130,7 @@ describe('variant-identity rollout hold (#218)', () => {
     const parked = seedVariantParkedItem(mainBatchId, 'VH218-SWEEP-PARKED');
     await makeDomainHealthy(DOMAIN);
 
-    const sweep = sweepDomainReleases(WS_MAIN);
+    const sweep = await sweepDomainReleases(WS_MAIN);
     expect(sweep.releasedIds).toEqual([selected.id]);
     expect(findItemById(selected.id)!.stageStatus).toBe('pending');
     expect(findItemById(ambiguous.id)!.stageStatus).toBe('failed');
@@ -154,7 +154,7 @@ describe('variant-identity rollout hold (#218)', () => {
     await makeDomainHealthy(DOMAIN);
     const bulk = releaseDomainExtractionItems(WS_MAIN, DOMAIN, { releaseAllBlocked: true });
     expect(bulk.skipped.map(s => s.itemId)).toContain(parked.id);
-    expect(sweepDomainReleases(WS_MAIN).releasedIds).toEqual([]);
+    expect((await sweepDomainReleases(WS_MAIN)).releasedIds).toEqual([]);
 
     expect(readTerminalFixtureState(terminal.ids)).toEqual(terminal.before);
   });

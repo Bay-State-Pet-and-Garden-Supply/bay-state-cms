@@ -21,7 +21,8 @@ Bay State CMS is a standalone local content management system for ShopSite 15 st
 2. **ShopSite XML:** Use `src/shopsite/product-codec.ts` (`ShopSiteProductCodec.decode`/`encode`, `extractPageNamesFromBlock` for Category Page assignments) for bidirectional XML translation, with `src/shopsite/xml-builder.ts` as the thin encode delegate. Preserving unknown fields is a core requirement—the codec owns round-trip preservation internally.
 3. **Git Workspaces:** The system treats a Git repository as the source of truth for the catalog. All approved changes must be committed to Git.
 4. **Shared Schemas:** Use Zod schemas in `src/shared/schemas` for data validation across both frontend and backend.
-
+5. **Manager Plain Language:** Design operator workflows for store managers with no assumed technical background. Explain what is happening, the next action, and its consequence in familiar words; NEVER require understanding AI, Git, syncing, or internal processing. Use CONTEXT's Store Manager Operating Model terms; keep technical detail in diagnostics/setup surfaces. See ADR 0043.
+6. **Input Price Authority:** The spreadsheet or manual onboarding price is immutable input — carried byte-for-byte to the draft. NEVER collect, validate, supplement, compare, replace, or score it using a third-party page price. See ADR 0043 and CONTEXT **Input Price Authority**.
 ## Development & Testing Commands
 - `bun run dev`: Starts the API server and Vite dev server.
 - `bun run test`: Runs the Vitest suite.

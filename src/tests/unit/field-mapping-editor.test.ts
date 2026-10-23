@@ -1,13 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeDb, getDb, initDb } from '../../db/connection';
+import { closeDb, initDb } from '../../db/connection';
 import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
-import { listRegistry } from '../../db/repositories/field-registry-repo';
 import { getCachedAttributeMappings } from '../../db/repositories/classification-config-repo';
 import { GitClient } from '../../git/git-client';
 import { previewCandidate, activateBundle } from '../../classification/config-store';
@@ -27,11 +26,11 @@ import { sha256Hex } from '../../shared/stable-id';
 import type { ClassificationConfigBundleV2 } from '../../shared/schemas/classification';
 
 const REVIEWED_FIELDS = [
-  'ProductField4', 'ProductField8', 'ProductField16', 'ProductField17',
-  'ProductField18', 'ProductField19', 'ProductField20', 'ProductField21',
-  'ProductField22', 'ProductField23', 'ProductField24', 'ProductField25',
-  'ProductField26', 'ProductField27', 'ProductField28', 'ProductField29',
-  'ProductField30', 'ProductField32',
+  'ProductField1', 'ProductField8', 'ProductField16', 'ProductField17', 'ProductField18',
+  'ProductField19', 'ProductField20', 'ProductField21', 'ProductField22',
+  'ProductField23', 'ProductField24', 'ProductField25', 'ProductField26',
+  'ProductField27', 'ProductField28', 'ProductField29', 'ProductField30',
+  'ProductField32',
 ];
 const ARTIFACT_CONTENT = JSON.stringify({
   schemaVersion: 1,
@@ -133,10 +132,20 @@ function activeBundle(): ClassificationConfigBundleV2 {
   return authority.bundle;
 }
 
+function persistedState() {
+  const classificationDir = path.join(root, 'store', 'classification');
+  return {
+    bundleHash: activeBundle().manifest.bundleHash,
+    files: ['mappings.json', 'curation-targets.json', 'manifest.json']
+      .map(fileName => fs.readFileSync(path.join(classificationDir, fileName))),
+    cachedMappings: getCachedAttributeMappings(workspaceId),
+    gitHead: runGit(['rev-parse', 'HEAD']),
+  };
+}
+
 describe('field mapping editor (active v2 bundle)', () => {
-  beforeAll(async () => {
-    // P0 taxonomy freeze: this suite exercises the editor implementation, so
-    // the freeze is explicitly lifted for the duration of the tests.
+  beforeEach(async () => {
+    closeDb();
     setTaxonomyFreezeForTests(false);
     await freshWorkspace();
   });
@@ -145,197 +154,158 @@ describe('field mapping editor (active v2 bundle)', () => {
     closeDb();
   });
 
-  it('re-points a mapping (unmap + map) and keeps targets and the cache mirror in sync', () => {
+  it('unmaps and restores an optional semantic binding under its governed role', () => {
     const before = activeBundle();
-    expect(before.attributeMappings.find(m => m.attributeId === 'product-feature')?.catalogField).toBe('ProductField26');
+    expect(before.attributeMappings.find(mapping => mapping.attributeId === 'size')?.catalogField).toBe('ProductField27');
+    expect(before.attributeProfiles.some(profile =>
+      profile.attributes.some(attribute => attribute.attributeId === 'size' && !attribute.required),
+    )).toBe(true);
 
     applyFieldMappingEdits(root, workspaceId, [
-      { catalogField: 'ProductField26', attributeId: null },
-      { catalogField: 'ProductField4', attributeId: 'product-feature' },
-    ], { gitEnabled: false });
-
-    const after = activeBundle();
-    expect(after.attributeMappings.find(m => m.attributeId === 'product-feature')?.catalogField).toBe('ProductField4');
-    expect(after.attributeMappings.some(m => m.catalogField === 'ProductField26')).toBe(false);
-    expect(after.manifest.bundleHash).not.toBe(before.manifest.bundleHash);
-    expect(after.manifest.fileVersions['mappings.json']).not.toBe(before.manifest.fileVersions['mappings.json']);
-    expect(after.manifest.fileVersions['product-types.json']).toBe(before.manifest.fileVersions['product-types.json']);
-
-    // Curation target for product-feature follows the mapping field.
-    const featureTarget = after.curationTargets.find(t => t.kind === 'product_field' && t.attributeId === 'product-feature');
-    expect(featureTarget?.catalogField).toBe('ProductField4');
-
-    // Cache mirror (what draft-promoter reads) is refreshed with v2 rows.
-    const cached = getCachedAttributeMappings(workspaceId);
-    expect(cached.find(m => m.attributeId === 'product-feature')?.catalogField).toBe('ProductField4');
-  });
-
-  it('updates serialization on an existing mapping and re-binds file hashes', () => {
-    const before = activeBundle();
-    applyFieldMappingEdits(root, workspaceId, [
+      { catalogField: 'ProductField27', attributeId: null },
       {
-        catalogField: 'ProductField24',
-        attributeId: 'category',
+        catalogField: 'ProductField27',
+        attributeId: 'size',
         serialization: { kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' },
       },
     ], { gitEnabled: false });
 
     const after = activeBundle();
-    const mapping = after.attributeMappings.find(m => m.attributeId === 'category')!;
-    expect(mapping.serialization).toEqual({ kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' });
+    const sizeMapping = after.attributeMappings.find(mapping => mapping.attributeId === 'size')!;
+    expect(sizeMapping.catalogField).toBe('ProductField27');
+    expect(sizeMapping.serialization).toEqual({
+      kind: 'delimited',
+      delimiter: '|',
+      escapePolicy: 'reject',
+      prefix: '',
+      suffix: '',
+    });
     expect(after.manifest.fileVersions['mappings.json']).not.toBe(before.manifest.fileVersions['mappings.json']);
-    const cached = getCachedAttributeMappings(workspaceId);
-    expect(cached.find(m => m.attributeId === 'category')?.serialization).toMatchObject({ kind: 'delimited', delimiter: '|' });
+    expect(after.curationTargets.find(target => target.kind === 'product_field' && target.attributeId === 'size')?.catalogField)
+      .toBe('ProductField27');
+    expect(getCachedAttributeMappings(workspaceId).find(mapping => mapping.attributeId === 'size')?.catalogField)
+      .toBe('ProductField27');
+    expect(getCachedAttributeMappings(workspaceId).find(mapping => mapping.attributeId === 'size')?.serialization)
+      .toMatchObject({ kind: 'delimited', delimiter: '|' });
   });
 
-  it('unmaps a field: removes the mapping and its curation target', () => {
+  it('updates serialization on a certified semantic mapping and synchronizes the cache', () => {
     const before = activeBundle();
-    expect(before.attributeMappings.some(m => m.attributeId === 'product-cross-sell')).toBe(true);
-
     applyFieldMappingEdits(root, workspaceId, [
-      { catalogField: 'ProductField32', attributeId: null },
+      {
+        catalogField: 'ProductField23',
+        attributeId: 'flavor',
+        serialization: { kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' },
+      },
     ], { gitEnabled: false });
 
     const after = activeBundle();
-    expect(after.attributeMappings.some(m => m.catalogField === 'ProductField32')).toBe(false);
-    expect(after.curationTargets.some(t => t.kind === 'product_field' && t.attributeId === 'product-cross-sell')).toBe(false);
-    const cached = getCachedAttributeMappings(workspaceId);
-    expect(cached.some(m => m.attributeId === 'product-cross-sell')).toBe(false);
+    const mapping = after.attributeMappings.find(candidate => candidate.attributeId === 'flavor')!;
+    expect(mapping.catalogField).toBe('ProductField23');
+    expect(mapping.serialization).toEqual({ kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' });
+    expect(after.manifest.fileVersions['mappings.json']).not.toBe(before.manifest.fileVersions['mappings.json']);
+    expect(getCachedAttributeMappings(workspaceId).find(candidate => candidate.attributeId === 'flavor')?.serialization)
+      .toMatchObject({ kind: 'delimited', delimiter: '|' });
   });
 
-  it('rejects edits referencing an unknown attribute', () => {
-    expect(() => applyFieldMappingEdits(root, workspaceId, [
-      { catalogField: 'ProductField25', attributeId: 'does-not-exist' },
-    ], { gitEnabled: false })).toThrow(FieldMappingEditError);
+  it('fails active validation atomically for an incompatible serializer on a certified field', () => {
+    const before = persistedState();
+    let refusal: FieldMappingEditError | null = null;
     try {
       applyFieldMappingEdits(root, workspaceId, [
-        { catalogField: 'ProductField25', attributeId: 'does-not-exist' },
+        {
+          catalogField: 'ProductField23',
+          attributeId: 'flavor',
+          serialization: { kind: 'measured', unit: 'kg', valueUnitSeparator: ' ', prefix: '', suffix: '' },
+        },
       ], { gitEnabled: false });
     } catch (error) {
-      expect((error as FieldMappingEditError).code).toBe('unknown_attribute');
+      refusal = error as FieldMappingEditError;
     }
+    expect(refusal?.code).toBe('validation_failed');
+    expect(refusal?.message).toContain('unexpected_measured_serialization');
+    expect(persistedState()).toEqual(before);
   });
 
-  it('rejects moving an already-mapped attribute to a second field', () => {
-    try {
-      applyFieldMappingEdits(root, workspaceId, [
-        { catalogField: 'ProductField16', attributeId: 'brand' }, // already mapped to 16 — no-op
-        // ProductField31 is unoccupied (no D3 collision), so the second field
-        // for brand triggers the one-attribute-one-field rule.
-        { catalogField: 'ProductField31', attributeId: 'brand' }, // second field for brand
-      ], { gitEnabled: false });
-    } catch (error) {
-      expect((error as FieldMappingEditError).code).toBe('attribute_already_mapped');
-      return;
-    }
-    throw new Error('expected attribute_already_mapped error');
-  });
-
-  it('I3.1: a mapping-only edit leaves the field registry unchanged', () => {
-    const registryBefore = listRegistry(workspaceId);
-
-    applyFieldMappingEdits(root, workspaceId, [
-      { catalogField: 'ProductField24', attributeId: 'category' },
+  it('keeps an unchanged input-only Brand reaffirmation out of a mixed save batch', () => {
+    const before = activeBundle();
+    const brandBefore = before.attributeMappings.find(mapping => mapping.attributeId === 'brand')!;
+    const result = applyFieldMappingEdits(root, workspaceId, [
+      { catalogField: 'ProductField16', attributeId: 'brand' },
+      {
+        catalogField: 'ProductField23',
+        attributeId: 'flavor',
+        serialization: { kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' },
+      },
     ], { gitEnabled: false });
 
-    // The mapping editor no longer writes field metadata — the registry
-    // (including curated labels) is owned exclusively by the canonical
-    // field-metadata service.
-    expect(listRegistry(workspaceId)).toEqual(registryBefore);
+    const after = activeBundle();
+    expect(result.appliedFields).toEqual(['ProductField23']);
+    expect(after.attributeMappings.find(mapping => mapping.attributeId === 'brand')).toEqual(brandBefore);
+    expect(after.attributeMappings.find(mapping => mapping.attributeId === 'flavor')?.serialization)
+      .toMatchObject({ kind: 'delimited', delimiter: '|' });
+    expect(getCachedAttributeMappings(workspaceId).find(mapping => mapping.attributeId === 'brand')?.catalogField)
+      .toBe('ProductField16');
   });
 
-  it('I3.2: a label in the edit payload is rejected (no alternate label authority)', () => {
+  it('refuses removal of the input-only Brand mapping without changing files, cache, or Git history', () => {
+    const before = persistedState();
+    let refusal: FieldMappingEditError | null = null;
     try {
       applyFieldMappingEdits(root, workspaceId, [
-        { catalogField: 'ProductField24', attributeId: 'category', label: 'Should not apply' },
-      ] as never, { gitEnabled: false });
-    } catch (error) {
-      expect((error as FieldMappingEditError).code).toBe('invalid_edit');
-      return;
-    }
-    throw new Error('expected invalid_edit error for a label-bearing edit payload');
-  });
-
-  it('fails closed when the edited bundle cannot pass active validation', () => {
-    // ProductField99 is not attested in the live field registry; unmap the
-    // category mapping first so the re-map reaches validation (the two edits
-    // are one atomic call — nothing is written on failure).
-    try {
-      applyFieldMappingEdits(root, workspaceId, [
-        { catalogField: 'ProductField24', attributeId: null },
-        { catalogField: 'ProductField99', attributeId: 'category' },
+        { catalogField: 'ProductField16', attributeId: null },
       ], { gitEnabled: false });
     } catch (error) {
-      expect((error as FieldMappingEditError).code).toBe('validation_failed');
-      return;
+      refusal = error as FieldMappingEditError;
     }
-    throw new Error('expected validation_failed error');
+    expect(refusal?.code).toBe('invalid_edit');
+    expect(refusal?.message).toContain('input-only Brand');
+    expect(persistedState()).toEqual(before);
   });
 
-  it('commits the scoped change to the nested repository when git is enabled', () => {
+  it('refuses protected, unknown, and cross-role outputs atomically', () => {
+    const before = persistedState();
+    const rejectedEdits = [
+      { catalogField: 'ProductField6', attributeId: 'flavor' },
+      { catalogField: 'ProductField99', attributeId: 'size' },
+      { catalogField: 'ProductField27', attributeId: 'material' },
+    ] as const;
+
+    for (const edit of rejectedEdits) {
+      let refusal: FieldMappingEditError | null = null;
+      try {
+        applyFieldMappingEdits(root, workspaceId, [edit], { gitEnabled: false });
+      } catch (error) {
+        refusal = error as FieldMappingEditError;
+      }
+      expect(refusal?.code).toBe('invalid_edit');
+      expect(refusal?.message).toContain(edit.catalogField);
+    }
+
+    expect(persistedState()).toEqual(before);
+    const after = activeBundle();
+    expect(after.attributeMappings.find(mapping => mapping.attributeId === 'material')?.catalogField).toBe('ProductField28');
+    expect(after.attributeMappings.find(mapping => mapping.attributeId === 'size')?.catalogField).toBe('ProductField27');
+  });
+
+  it('commits a valid mapping serialization change only within the classification scope', () => {
     const headBefore = runGit(['rev-parse', 'HEAD']);
-    applyFieldMappingEdits(root, workspaceId, [
-      { catalogField: 'ProductField32', attributeId: 'product-cross-sell' },
+    const result = applyFieldMappingEdits(root, workspaceId, [
+      {
+        catalogField: 'ProductField28',
+        attributeId: 'material',
+        serialization: { kind: 'delimited', delimiter: '|', escapePolicy: 'reject', prefix: '', suffix: '' },
+      },
     ]);
     const headAfter = runGit(['rev-parse', 'HEAD']);
     expect(headAfter).not.toBe(headBefore);
+    expect(result.commitHash).toBe(headAfter);
+    expect(activeBundle().attributeMappings.find(mapping => mapping.attributeId === 'material')?.catalogField)
+      .toBe('ProductField28');
+    expect(getCachedAttributeMappings(workspaceId).find(mapping => mapping.attributeId === 'material')?.serialization)
+      .toMatchObject({ kind: 'delimited', delimiter: '|' });
     const touched = runGit(['show', '--name-only', '--format=', 'HEAD']).split('\n').filter(Boolean);
+    expect(touched).toContain('store/classification/mappings.json');
     expect(touched.every(file => file.startsWith('store/classification/'))).toBe(true);
-  });
-
-  it('keeps the DB active-config hash aligned with the edited manifest', () => {
-    const bundle = activeBundle();
-    const stored = getDb()
-      .query('SELECT value FROM app_meta WHERE key = ?')
-      .get(`active_classification_config_hash:${workspaceId}`) as { value: string } | undefined;
-    expect(stored?.value).toBe(bundle.manifest.bundleHash);
-  });
-
-  it('D3: rejects a remap onto a field occupied by a different attribute that is not unmapped in the batch, and writes nothing', () => {
-    // ProductField17 is held by species; brand is remapped onto it without
-    // unmapping species in the same batch — fail closed. This test performs
-    // its own caught throw and then asserts the bundle state is unchanged
-    // directly (bundleHash + mappings), so it never depends on the ordering
-    // or the throw of any other test.
-    const before = activeBundle();
-    expect(before.attributeMappings.find(m => m.attributeId === 'species')?.catalogField).toBe('ProductField17');
-    expect(before.attributeMappings.find(m => m.attributeId === 'brand')?.catalogField).toBe('ProductField16');
-    try {
-      applyFieldMappingEdits(root, workspaceId, [
-        { catalogField: 'ProductField17', attributeId: 'brand' },
-      ], { gitEnabled: false });
-    } catch (error) {
-      expect((error as FieldMappingEditError).code).toBe('collision');
-      expect((error as FieldMappingEditError).message).toContain('species');
-      expect((error as FieldMappingEditError).message).toContain('ProductField17');
-    }
-
-    // Nothing was written: mappings, bundleHash, and mappings.json are all
-    // byte-identical to the pre-edit state.
-    const after = activeBundle();
-    expect(after.attributeMappings.find(m => m.attributeId === 'brand')?.catalogField).toBe('ProductField16');
-    expect(after.attributeMappings.find(m => m.attributeId === 'species')?.catalogField).toBe('ProductField17');
-    expect(after.attributeMappings.some(m => m.attributeId === 'species')).toBe(true);
-    expect(after.manifest.bundleHash).toBe(before.manifest.bundleHash);
-    expect(after.manifest.fileVersions['mappings.json']).toBe(before.manifest.fileVersions['mappings.json']);
-  });
-
-  it('D3: allows the move when the destination occupant IS unmapped in the same batch', () => {
-    // Move brand from ProductField16 onto ProductField17, explicitly unmapping
-    // the occupant (species) in the same batch — the existing move semantics.
-    applyFieldMappingEdits(root, workspaceId, [
-      { catalogField: 'ProductField16', attributeId: null },
-      { catalogField: 'ProductField17', attributeId: null },
-      { catalogField: 'ProductField17', attributeId: 'brand' },
-    ], { gitEnabled: false });
-
-    const after = activeBundle();
-    expect(after.attributeMappings.find(m => m.attributeId === 'brand')?.catalogField).toBe('ProductField17');
-    expect(after.attributeMappings.some(m => m.attributeId === 'species')).toBe(false);
-    expect(after.attributeMappings.some(m => m.catalogField === 'ProductField16')).toBe(false);
-    // The displaced attribute's curation target is removed with its mapping;
-    // the moved attribute's target follows the new field.
-    expect(after.curationTargets.some(t => t.kind === 'product_field' && t.attributeId === 'species')).toBe(false);
-    expect(after.curationTargets.find(t => t.kind === 'product_field' && t.attributeId === 'brand')?.catalogField).toBe('ProductField17');
   });
 });

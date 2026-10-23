@@ -1,0 +1,63 @@
+{
+  "bundleOrigin": {
+    "kind": "reviewed_generation"
+  },
+  "entries": [
+    {
+      "aliases": [
+        "WOOF",
+        "My Woof",
+        "mywoof"
+      ],
+      "id": "woof",
+      "name": "Woof",
+      "oldIdAliases": []
+    },
+    {
+      "aliases": [
+        "HONEST KITCHEN",
+        "Honest Kitchen",
+        "thehonestkitchen.com"
+      ],
+      "id": "honest-kitchen",
+      "name": "The Honest Kitchen",
+      "oldIdAliases": []
+    },
+    {
+      "aliases": [
+        "DR MARTY",
+        "Dr Marty",
+        "DR. MARTY"
+      ],
+      "id": "dr-marty",
+      "name": "Dr. Marty",
+      "oldIdAliases": []
+    },
+    {
+      "aliases": [
+        "BLUE BUFFALO",
+        "Blue"
+      ],
+      "id": "blue-buffalo",
+      "name": "Blue Buffalo",
+      "oldIdAliases": []
+    },
+    {
+      "aliases": [
+        "TUFFY"
+      ],
+      "id": "tuffy",
+      "name": "Tuffy",
+      "oldIdAliases": []
+    },
+    {
+      "aliases": [
+        "PURINA"
+      ],
+      "id": "purina",
+      "name": "Purina",
+      "oldIdAliases": []
+    }
+  ],
+  "schemaVersion": 2
+}

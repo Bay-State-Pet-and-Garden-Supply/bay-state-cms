@@ -262,8 +262,10 @@ export function profileBuilderReducer(
         brandSelector: p.brandSelector,
         descriptionSelector: p.descriptionSelector,
         imagesSelector: p.imagesSelector,
-        priceSelector: p.priceSelector,
-        customSelectors: p.customSelectors ?? {},
+        priceSelector: null,
+        customSelectors: p.customSelectors
+          ? Object.fromEntries(Object.entries(p.customSelectors).filter(([key]) => !/(?:price|cost|sale)/i.test(key)))
+          : {},
         sitemapProductUrlPattern: p.sitemapProductUrlPattern,
         shopifyJSONPath: p.shopifyJSONPath ?? false,
         variantSelectionStrategy: p.variantSelectionStrategy,
@@ -977,6 +979,8 @@ function updateDraftSelector(
   key: string,
   selector: string,
 ): ProfileDraft {
+  if (/(?:price|cost|sale)/i.test(key)) return draft;
+
   switch (key) {
     case 'titleSelector':
       return { ...draft, titleSelector: selector || null };
@@ -986,10 +990,7 @@ function updateDraftSelector(
       return { ...draft, descriptionSelector: selector || null };
     case 'imagesSelector':
       return { ...draft, imagesSelector: selector || null };
-    case 'priceSelector':
-      return { ...draft, priceSelector: selector || null };
     default:
-      // Custom field — update customSelectors map.
       return {
         ...draft,
         customSelectors: {
@@ -1078,6 +1079,8 @@ function fieldHasPreviewValue(
   preview: ExtractorTestResult,
   fieldKey: string,
 ): boolean {
+  if (/(?:price|cost|sale)/i.test(fieldKey)) return false;
+
   switch (fieldKey) {
     case 'titleSelector':
       return !!preview.title;
@@ -1087,14 +1090,11 @@ function fieldHasPreviewValue(
       return !!preview.description;
     case 'imagesSelector':
       return !!(preview.images && preview.images.length > 0);
-    case 'priceSelector':
-      return !!preview.price;
     default: {
-      // Custom fields are in customFields map.
       const customKey = fieldKey.replace(/Selector$/, '').toLowerCase();
-      for (const [k, v] of Object.entries(preview.customFields ?? {})) {
-        if (k.toLowerCase() === customKey || k === fieldKey) {
-          return !!v;
+      for (const [key, value] of Object.entries(preview.customFields ?? {})) {
+        if (key.toLowerCase() === customKey || key === fieldKey) {
+          return !!value;
         }
       }
       return false;

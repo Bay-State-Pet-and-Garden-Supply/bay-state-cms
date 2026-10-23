@@ -73,7 +73,7 @@ describe('release guard + selected-retry hardening (#198)', () => {
     cleanReleaseDomain(DOMAIN);
   });
 
-  it('legacy profile save leaves failed items untouched (no silent requeue)', () => {
+  it('legacy profile save leaves failed items untouched (no silent requeue)', async () => {
     const item = seedFailedItem(mainBatchId, 'G-LEGACY-1');
     upsertProfile(DOMAIN, { titleSelector: 'h1.product-title' });
 
@@ -81,7 +81,7 @@ describe('release guard + selected-retry hardening (#198)', () => {
     const res = releaseDomainExtractionItems(WS_MAIN, DOMAIN);
     expect(res.profileAvailable).toBe(false);
     expect(res.releasedIds).toEqual([]);
-    const sweep = sweepDomainReleases(WS_MAIN);
+    const sweep = await sweepDomainReleases(WS_MAIN);
     expect(sweep.releasedIds).toEqual([]);
     expect(findItemById(item.id)!.stageStatus).toBe('failed');
   });
@@ -149,11 +149,11 @@ describe('release guard + selected-retry hardening (#198)', () => {
   it('sweep releases only once health is established (no premature, no stuck)', async () => {
     const item = seedFailedItem(mainBatchId, 'G-SWEEP-1');
     upsertProfile(DOMAIN, { titleSelector: 'h1' });
-    expect(sweepDomainReleases(WS_MAIN).releasedIds).toEqual([]);
+    expect((await sweepDomainReleases(WS_MAIN)).releasedIds).toEqual([]);
     expect(findItemById(item.id)!.stageStatus).toBe('failed');
 
     await makeHealthy(DOMAIN);
-    expect(sweepDomainReleases(WS_MAIN).releasedIds).toEqual([item.id]);
+    expect((await sweepDomainReleases(WS_MAIN)).releasedIds).toEqual([item.id]);
     expect(findItemById(item.id)!.stageStatus).toBe('pending');
   });
 

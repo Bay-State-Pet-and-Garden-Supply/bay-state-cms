@@ -42,10 +42,8 @@ import {
   deepFreeze,
 } from '../../classification/runtime-snapshot';
 import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
-import {
-  getEffectiveCurationTypeForSnapshot,
-  resolveEffectiveTypeProfile,
-} from '../../classification/effective-curation-type';
+import { getEffectiveClassification, getEffectiveCurationTypeForSnapshot } from '../../classification/effective-curation-type';
+import { resolveAttributeProfilePlan } from '../../classification/attribute-profile-plan';
 import { isUniversalAttribute } from '../../classification/applicability-evaluator';
 import {
   validateMemberSemantics,
@@ -409,6 +407,12 @@ export async function executePreparedMembers(args: {
           memberExtractionMethod,
           correctionOverlay: memberCorrectionOverlay,
           effectiveType: {
+            // Issue #304: the reviewer-corrected own-SKU pair resolves
+            // through the same decision boundary
+            // (`processProductTypeTarget` reviewed precedence), so an
+            // agreeing-reviewed pair curates through instead of hitting the
+            // neutered Rule 2 hatch. Only the member's OWN snapshot pair
+            // counts — never a sibling or family conclusion.
             id: resolvedEffectiveType.effectiveTypeId,
             source: resolvedEffectiveType.source,
           },
@@ -444,57 +448,49 @@ export async function executePreparedMembers(args: {
         // never pass it.
         hooks?.beforeSemanticValidation?.(curationData);
         const memberSkuForSemantic = memberSku;
-        // Issue #352: the semantic check uses the member's OWN pipeline pair
-        // (reviewed first, then the provisional pair from this same pass) —
-        // mirroring the stages' effective-type resolution. The frozen
-        // snapshot's reviewed fact alone would miss the provisional pair and
-        // falsely block supported members. ADR 0041: legacy
-        // `primary_product_type` rows are history-only, never live authority.
-        const semanticPair = (() => {
-          for (const proposal of curationData.classificationProposals) {
-            if (proposal.proposalType === 'product_classification' && proposal.status === 'accepted') {
-              const value = (proposal as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
-                ? (proposal as { revisedValue?: unknown }).revisedValue
-                : proposal.proposedValue;
-              const id = (value as { productTypeId?: unknown } | null)?.productTypeId;
-              if (typeof id === 'string' && id.length > 0) return id;
-              if (typeof proposal.targetId === 'string' && proposal.targetId.length > 0) return proposal.targetId;
-            }
-          }
-          const pending = [...curationData.classificationProposals]
-            .filter(proposal => proposal.proposalType === 'product_classification' && !proposal.isStale && (proposal.status === 'pending' || proposal.status === 'deferred'))
-            .sort((a, b) => b.confidence - a.confidence)[0];
-          if (pending) {
-            const value = (pending as { revisedValue?: unknown; proposedValue?: unknown; hasRevisedValue?: boolean }).hasRevisedValue
-              ? (pending as { revisedValue?: unknown }).revisedValue
-              : pending.proposedValue;
-            const id = (value as { productTypeId?: unknown } | null)?.productTypeId;
-            if (typeof id === 'string' && id.length > 0) return id;
-            if (typeof pending.targetId === 'string' && pending.targetId.length > 0) return pending.targetId;
-          }
-          return resolvedEffectiveType.effectiveTypeId;
-        })();
-        const effectiveTypeIdForSemantic = semanticPair;
-        const effectiveProfileForSemantic = effectiveTypeIdForSemantic
-          ? resolveEffectiveTypeProfile(
-              effectiveTypeIdForSemantic,
-              memberSnapshotForSemantic.attributeProfiles,
-              true,
-              memberSnapshotForSemantic,
-            )
-          : null;
-        const universalAttributeIdsForSemantic = new Set(
-          memberSnapshotForSemantic.attributes
-            .filter(attribute => isUniversalAttribute(attribute))
-            .map(attribute => attribute.id),
+        // ADR 0041: resolve the member's canonical pair through the same
+        // reviewed-first, own-SKU authority used by classification stages.
+        // This preserves a compatible frozen pair when the current pass
+        // abstains, while never borrowing a sibling or execution pair.
+        // Issue #304 (reviewer-corrected pair cures through): the pipeline
+        // already resolved through the same boundary
+        // (`processProductTypeTarget` reviewed precedence), so a
+        // reviewer-corrected own-SKU pair that agrees with the pass curates
+        // through instead of hitting the neutered Rule 2 hatch. Only the
+        // member's OWN snapshot pair counts — never a sibling conclusion.
+        const effectiveClassificationForSemantic = getEffectiveClassification(
+          {
+            sku: memberSkuForSemantic,
+            evidence: [],
+            acceptedProposals: curationData.classificationProposals,
+            allProposals: curationData.classificationProposals,
+          },
+          {
+            workspacePath,
+            workspaceId,
+            configSnapshotRef: memberSnapshotForSemantic.configSnapshotRef,
+            runId: childRun.id,
+            snapshot: memberSnapshotForSemantic,
+          },
         );
-        const profileAttributeIdsForSemantic = effectiveProfileForSemantic
-          ? new Set(effectiveProfileForSemantic.attributes.map(entry => entry.attributeId))
+        const semanticPair = {
+          categoryId: effectiveClassificationForSemantic.effectiveCategoryId,
+          productTypeId: effectiveClassificationForSemantic.effectiveTypeId,
+        };
+        const effectiveTypeIdForSemantic = semanticPair.productTypeId;
+        const profilePlanForSemantic = resolveAttributeProfilePlan(
+          memberSnapshotForSemantic,
+          { categoryId: semanticPair.categoryId, productTypeId: effectiveTypeIdForSemantic },
+          memberSnapshotForSemantic.reviewedFacts,
+        );
+        const universalAttributeIdsForSemantic = new Set(
+          memberSnapshotForSemantic.attributes.filter(attribute => isUniversalAttribute(attribute)).map(attribute => attribute.id),
+        );
+        const profileAttributeIdsForSemantic = profilePlanForSemantic.status === 'ready'
+          ? new Set(profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => entry.attribute.id))
           : null;
         const cardinalityByAttributeForSemantic = new Map<string, 'single' | 'multiple'>(
-          (effectiveProfileForSemantic?.attributes ?? [])
-            .filter(entry => entry.cardinality !== undefined)
-            .map(entry => [entry.attributeId, entry.cardinality]),
+          profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => [entry.attribute.id, entry.cardinality]),
         );
         const durableTitleOutputForSemantic = titleInputForMember(
           coordinatedTitles,
@@ -549,14 +545,11 @@ export async function executePreparedMembers(args: {
           universalAttributeIds: universalAttributeIdsForSemantic,
           profileAttributeIds: profileAttributeIdsForSemantic,
           cardinalityByAttributeId: cardinalityByAttributeForSemantic,
-          // PR9 review R1 (B4): the full FROZEN profile entries (carry each
-          // attribute's applicabilityConditions) + the member's FROZEN/reviewed
-          // facts from the immutable runtime snapshot — conditional
-          // applicability is REVALIDATED with the established evaluator.
-          profileEntriesByAttributeId: effectiveProfileForSemantic
-            ? new Map(effectiveProfileForSemantic.attributes.map(entry => [entry.attributeId, entry]))
+          profileEntriesByAttributeId: profilePlanForSemantic.status === 'ready'
+            ? new Map(profilePlanForSemantic.entries.filter(entry => entry.rule).map(entry => [entry.attribute.id, entry.rule!]))
             : null,
           reviewedFacts: memberSnapshotForSemantic.reviewedFacts,
+          profileResolution: profilePlanForSemantic,
         });
         const semanticFindings = [
           ...memberSemanticsResult.findings,

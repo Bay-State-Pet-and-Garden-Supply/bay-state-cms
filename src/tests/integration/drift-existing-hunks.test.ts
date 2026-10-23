@@ -196,7 +196,7 @@ describe('Drift 4/6 (#253): existing-product hunks', () => {
     detect(BASE_XML);
   });
 
-  it('accepting a hunk preserves unrelated fields and product identity', () => {
+  it('keeps the onboarding price unchanged while allowing unrelated field changes', () => {
     detect(BASE_XML);
     const twoField = BASE_XML.replace('19.99', '24.99').replace(
       '<QuantityOnHand>10</QuantityOnHand>',
@@ -204,39 +204,70 @@ describe('Drift 4/6 (#253): existing-product hunks', () => {
     );
     detect(twoField);
     const before = readProductFile(workspacePath, 'HUNK-001')!;
-    const beforeId = before.id;
+    expect(() =>
+      resolveSingleHunk(workspaceId, workspacePath, {
+        driftId: listDrift(workspaceId, 'open').find((d) => d.sku === 'HUNK-001')!.id,
+        field: 'core.price',
+        decision: 'accept',
+      }),
+    ).toThrow(/Unsupported drift field/);
+    expect(readProductFile(workspacePath, 'HUNK-001')!.core.price).toBe('19.99');
 
     const drift = listDrift(workspaceId, 'open').find((d) => d.sku === 'HUNK-001')!;
-    const parsed = parseDriftDiff(drift);
-    expect(parsed.hunks.length).toBe(2);
-
-    const res = resolveSingleHunk(workspaceId, workspacePath, {
+    const qtyRes = resolveSingleHunk(workspaceId, workspacePath, {
       driftId: drift.id,
-      field: 'core.price',
+      field: 'core.quantityOnHand',
       decision: 'accept',
-      expectedRemoteHash: drift.remoteHash,
-      expectedBaselineCommit: parsed.baselineCommit,
     });
-    expect(res.decision).toBe('accepted');
-    expect(res.remainingHunks).toBe(1);
+    expect(qtyRes.decision).toBe('accepted');
+    expect(qtyRes.remainingHunks).toBe(1);
 
     const after = readProductFile(workspacePath, 'HUNK-001')!;
-    // Only price moved; quantity stays at baseline 10, identity preserved.
-    expect(after.core.price).toBe('24.99');
-    expect(after.core.inventory.quantityOnHand).toBe(10);
-    expect(after.id).toBe(beforeId);
+    expect(after.core.price).toBe('19.99');
+    expect(after.core.inventory.quantityOnHand).toBe(42);
+    expect(after.id).toBe(before.id);
     expect(after.sku).toBe('HUNK-001');
 
-    // Description hunk stays outstanding (field isolation).
     const remaining = findDriftById(drift.id)!;
-    const reparsed = parseDriftDiff(remaining);
-    expect(reparsed.hunks.map((h) => h.field)).toEqual(['core.quantityOnHand']);
+    expect(parseDriftDiff(remaining).hunks.map((h) => h.field)).toEqual(['core.price']);
+    const keptPrice = resolveSingleHunk(workspaceId, workspacePath, {
+      driftId: remaining.id,
+      field: 'core.price',
+      decision: 'reject',
+    });
+    expect(keptPrice.decision).toBe('rejected');
+    expect(readProductFile(workspacePath, 'HUNK-001')!.core.price).toBe('19.99');
 
-    // Restore baseline for later tests.
     const restored = readProductFile(workspacePath, 'HUNK-001')!;
-    restored.core.price = '19.99';
+    restored.core.inventory.quantityOnHand = 10;
     writeProductFile(workspacePath, restored);
-    commitAll('Restore price for #253');
+    commitAll('Restore quantity after immutable-price test');
+    detect(BASE_XML);
+  });
+
+  it('audits a decision to keep the onboarding price', () => {
+    detect(BASE_XML);
+    try { getDb().run('DELETE FROM drift_hunk_ack WHERE workspace_id = ?', [workspaceId]); } catch { /* ok */ }
+    detect(BASE_XML.replace('19.99', '24.99'));
+    const drift = listDrift(workspaceId, 'open').find((d) => d.sku === 'HUNK-001')!;
+    resolveSingleHunk(workspaceId, workspacePath, {
+      driftId: drift.id,
+      field: 'core.price',
+      decision: 'reject',
+    });
+    const db = getDb();
+    const audits = db.query(
+      `SELECT * FROM audit_log WHERE workspace_id = ? AND entity_id = ? AND action = 'drift_hunk_rejected' ORDER BY created_at DESC LIMIT 1`,
+    ).all(workspaceId, drift.id) as Array<Record<string, unknown>>;
+    expect(audits.length).toBe(1);
+    const details = JSON.parse(String(audits[0].details_json)) as Record<string, unknown>;
+    expect(details['decision']).toBe('rejected');
+    expect(details['actor']).toBe(workspaceId);
+    expect(details['field']).toBe('core.price');
+    expect(typeof details['at']).toBe('string');
+    expect(readProductFile(workspacePath, 'HUNK-001')!.core.price).toBe('19.99');
+
+    try { getDb().run('DELETE FROM drift_hunk_ack WHERE workspace_id = ?', [workspaceId]); } catch { /* ok */ }
     detect(BASE_XML);
   });
 
@@ -421,14 +452,18 @@ describe('Drift 4/6 (#253): existing-product hunks', () => {
     detect(BASE_XML);
   });
 
-  it('emits basic resolution audit with decision, actor, time, field, catalog ref', () => {
+  it('emits an audit when accepting a non-price change', () => {
     detect(BASE_XML);
     try { getDb().run('DELETE FROM drift_hunk_ack WHERE workspace_id = ?', [workspaceId]); } catch { /* ok */ }
-    detect(BASE_XML.replace('19.99', '24.99'));
+    const changed = BASE_XML.replace(
+      '<QuantityOnHand>10</QuantityOnHand>',
+      '<QuantityOnHand>42</QuantityOnHand>',
+    );
+    detect(changed);
     const drift = listDrift(workspaceId, 'open').find((d) => d.sku === 'HUNK-001')!;
     resolveSingleHunk(workspaceId, workspacePath, {
       driftId: drift.id,
-      field: 'core.price',
+      field: 'core.quantityOnHand',
       decision: 'accept',
     });
     const db = getDb();
@@ -439,15 +474,16 @@ describe('Drift 4/6 (#253): existing-product hunks', () => {
     const details = JSON.parse(String(audits[0].details_json)) as Record<string, unknown>;
     expect(details['decision']).toBe('accepted');
     expect(details['actor']).toBe(workspaceId);
-    expect(details['field']).toBe('core.price');
+    expect(details['field']).toBe('core.quantityOnHand');
     expect(typeof details['at']).toBe('string');
     expect(typeof details['catalogRef']).toBe('string');
+    const product = readProductFile(workspacePath, 'HUNK-001')!;
+    expect(product.core.price).toBe('19.99');
+    expect(product.core.inventory.quantityOnHand).toBe(42);
 
-    // Restore baseline file (accept moved it to 24.99).
-    const prod = readProductFile(workspacePath, 'HUNK-001')!;
-    prod.core.price = '19.99';
-    writeProductFile(workspacePath, prod);
-    commitAll('Restore after audit test');
+    product.core.inventory.quantityOnHand = 10;
+    writeProductFile(workspacePath, product);
+    commitAll('Restore quantity after non-price audit test');
     try { getDb().run('DELETE FROM drift_hunk_ack WHERE workspace_id = ?', [workspaceId]); } catch { /* ok */ }
     detect(BASE_XML);
   });

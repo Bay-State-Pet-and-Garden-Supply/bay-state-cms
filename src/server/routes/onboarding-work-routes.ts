@@ -64,7 +64,7 @@ import {
   WorkStateCategoryEnum,
   ReviewStateEnum,
 } from '../../shared/schemas/onboarding-work-state';
-import { SourceTypeEnum, SubmitManualEvidenceRequestSchema } from '../../shared/schemas/onboarding';
+import { SourceTypeEnum, SubmitManualEvidenceRequestSchema, VerifyListingEvidenceRequestSchema } from '../../shared/schemas/onboarding';
 import { getActiveManualEvidenceAttestationForItem } from '../../db/repositories/onboarding-manual-evidence-repo';
 
 const route = new Hono();
@@ -895,6 +895,113 @@ async function readDistributorReferenceForManualEvidence(itemId: string): Promis
   }
   return Object.keys(out).length > 0 ? out : null;
 }
+
+/**
+ * GET /api/onboarding/items/:id/listing-evidence-verify (issue #367)
+ * Read model for the operator verification form: the current unresolved
+ * claims, the exact expected evidence hash, and the opaque expected
+ * revision token. Read-only — never mutates.
+ */
+route.get('/onboarding/items/:id/listing-evidence-verify', async (c) => {
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal: _principal } = scoped;
+  void _principal;
+  const itemId = c.req.param('id');
+  const item = findItemById(itemId);
+  if (!item) {
+    return c.json({ error: 'Item not found', code: 'item_not_found' }, 404);
+  }
+  const batch = findBatchById(item.batchId);
+  if (!batch || batch.workspaceId !== workspace.id) {
+    return c.json({ error: 'Onboarding item not found', code: 'workspace_mismatch' }, 404);
+  }
+  const { currentVerifyRevisionForItem } = await import('../../classification/listing-evidence-verify');
+  const { currentListingEvidenceHashes } = await import('../../classification/listing-evidence-currentness');
+  let curation: Record<string, unknown> | null = null;
+  try {
+    const { findCurationDataJsonById } = await import('../../db/repositories/onboarding-item-repo');
+    const raw = findCurationDataJsonById(itemId);
+    if (raw) {
+      const parsed: unknown = JSON.parse(String(raw));
+      if (parsed && typeof parsed === 'object') curation = parsed as Record<string, unknown>;
+    }
+  } catch {
+    curation = null;
+  }
+  const rawRecord = curation?.listingEvidenceValidation ?? null;
+  const { ListingEvidenceValidationSchema } = await import('../../shared/schemas/onboarding');
+  const parsedRecord = ListingEvidenceValidationSchema.safeParse(rawRecord);
+  if (!parsedRecord.success) {
+    return c.json({ error: 'No current listing-evidence record for this item.', code: 'no_validation_record' }, 409);
+  }
+  const current = currentListingEvidenceHashes(itemId, curation, { workspacePath: undefined, workspaceId: workspace.id });
+  return c.json({
+    itemId,
+    expectedRevision: currentVerifyRevisionForItem(itemId),
+    expectedEvidenceHash: current.evidenceHash,
+    record: parsedRecord.data,
+  });
+});
+
+/**
+ * POST /api/onboarding/items/:id/listing-evidence-verify (issue #367)
+ * Authenticated operator verification of eligible unresolved listing
+ * claims. The Idempotency-Key header is the action token: exact replay
+ * returns the prior receipt; token/payload mismatch refuses with 409 and
+ * no partial writes. Actor/workspace/eligibility are server-derived —
+ * client-supplied identity is never trusted. The observation must quote a
+ * verbatim span of a target claim (or route through manual-evidence
+ * attestation); the reason is server-generated from that attestation.
+ * Classification grandfathering (explicit): runless/legacy items with no
+ * classificationRunId skip the run-ownership leg (nothing to own); items
+ * with a run id are fully gated.
+ */
+route.post('/onboarding/items/:id/listing-evidence-verify', async (c) => {
+  const scoped = requireWorkspacePrincipal(c);
+  if ('error' in scoped) return scoped.error;
+  const { workspace, principal } = scoped;
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body.' }, 400);
+  }
+  const parsed = VerifyListingEvidenceRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Invalid verification payload.', issues: parsed.error.issues }, 400);
+  }
+  const actionToken = c.req.header('Idempotency-Key') ?? c.req.header('idempotency-key') ?? '';
+  if (!actionToken.trim()) {
+    return c.json({ error: 'Action token required.', code: 'idempotency_key_required' }, 400);
+  }
+  const { verifyListingEvidence } = await import('../../classification/listing-evidence-verify');
+  const result = verifyListingEvidence(
+    {
+      workspaceId: workspace.id,
+      itemId: c.req.param('id'),
+      claimIds: parsed.data.claimIds,
+      observation: parsed.data.observation,
+      provenance: parsed.data.provenance,
+      expectedEvidenceHash: parsed.data.expectedEvidenceHash,
+      expectedRevision: parsed.data.expectedRevision,
+      actionToken: actionToken.trim(),
+    },
+    principal,
+  );
+  if (!result.ok) {
+    const status = result.status as 400 | 401 | 404 | 409 | 422 | 503;
+    return c.json({ error: result.reason, code: result.code }, status);
+  }
+  return c.json({
+    itemId: c.req.param('id'),
+    receiptId: result.receiptId,
+    replay: result.replay,
+    resolvedClaimIds: result.resolvedClaimIds,
+    aggregateStatus: result.aggregateStatus,
+    record: result.record,
+  });
+});
 
 /**
  * Workspace + item preamble shared by the variant-identity disposition

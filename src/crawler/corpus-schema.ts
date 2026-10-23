@@ -15,6 +15,27 @@ const ValidationStateEnum = z.enum(['unvalidated', 'valid', 'rejected']);
 
 const PageKindEnum = z.enum(['product', 'category', 'interstitial', 'blocked', 'unknown']);
 
+const PRICE_SPECIFICATION_TOKENS = new Set(['cost', 'map', 'msrp', 'pricing', 'rrp']);
+
+export function isThirdPartyPriceSpecification(name: string): boolean {
+  const normalizedName = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+  return normalizedName.includes('price') ||
+    normalizedName.split(' ').some((token) => PRICE_SPECIFICATION_TOKENS.has(token));
+}
+
+const SpecificationsSchema = z.record(z.string(), z.string()).transform((specifications) => {
+  const filtered: Record<string, string> = {};
+  for (const [name, value] of Object.entries(specifications)) {
+    if (!isThirdPartyPriceSpecification(name)) filtered[name] = value;
+  }
+  return filtered;
+});
+
 export const ScrapedProductEvidenceSchema = z.object({
   /** Stable identifier for the scraped item (legacy prefix-derived IDs are replaced by SHA-256 entity IDs). */
   id: z.string().optional(),
@@ -42,13 +63,11 @@ export const ScrapedProductEvidenceSchema = z.object({
   /** Raw category breadcrumb path from target site (e.g. ["Dog", "Food", "Dry Food"]) */
   rawBreadcrumb: z.array(z.string()).default([]),
   /** Key-value dictionary of product specifications (e.g. { "Species": "Dog", "Form": "Kibble" }) */
-  specifications: z.record(z.string(), z.string()).default({}),
+  specifications: SpecificationsSchema.default({}),
   /** Main product description text / copy */
   description: z.string().optional(),
   /** List of product image URLs */
   images: z.array(z.string().url()).default([]),
-  /** Price string if extracted (for reference) */
-  price: z.string().optional(),
   /** Availability status if extracted */
   inStock: z.boolean().optional(),
 

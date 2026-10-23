@@ -221,7 +221,7 @@ export function ReviewPagesPanel({ detail, onUpdatePages }: ReviewPagesPanelProp
           {gating?.needsVerifiedPages && (
             <div className="rv-field-value" style={{ marginTop: '0.375rem', fontSize: '0.75rem', color: '#92400e' }}>
               {gating.needsReviewedType
-                ? 'Needs reviewed Product Type — page assignment requires an accepted Product Type.'
+                ? 'Needs an accepted Product Classification — accept the Category + Product Type pair before assigning pages.'
                 : `No verified Catalog Pages for import — ${gating.verifiedPageCount} verified page${gating.verifiedPageCount === 1 ? '' : 's'} in snapshot. Import ShopSite pages first.`}
             </div>
           )}

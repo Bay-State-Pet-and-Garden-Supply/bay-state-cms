@@ -70,7 +70,6 @@ export const LIVE_ACTIVITY_REASON_CODES = [
   'failed',
   'conflict_found',
   'profile_blocked',
-  'family_barrier',
   'domain_released',
   'reviewed',
   'approval_recorded',

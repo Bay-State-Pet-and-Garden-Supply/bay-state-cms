@@ -59,7 +59,6 @@ function passingRunner(): PolicyWorkerRunner {
         title: expected.name,
         brand: expected.brandHint ?? 'BetterBone',
         description: 'Deterministic thin-slice extraction.',
-        price: expected.price ?? '$12.99',
         primaryImage: 'https://shop.example.com/images/alpha.jpg',
         additionalImages: [],
         customFields: {

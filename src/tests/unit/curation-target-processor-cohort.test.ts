@@ -34,10 +34,33 @@ vi.mock('@/classification/page-assignment-llm', () => ({
   llmAssignCategoryPages: mocks.perItem,
 }));
 
-vi.mock('@/classification/runtime-snapshot', () => ({ buildModelCallContext: vi.fn(() => null) }));
+vi.mock('@/classification/runtime-snapshot', () => ({
+  buildModelCallContext: vi.fn(() => null),
+  snapshotHash: vi.fn((snapshot: { snapshotHash: string }) => snapshot.snapshotHash),
+}));
+vi.mock('@/classification/config-loader', () => ({
+  loadClassificationConfig: vi.fn(() => ({
+    categories: [],
+    productTypes: [],
+    attributes: [],
+    curationTargets: [],
+    brands: [],
+    guidance: [],
+    modelPolicy: {},
+  })),
+}));
+vi.mock('@/onboarding/model-policy-snapshot', () => ({
+  modelPolicyViewFromConfig: vi.fn(() => null),
+}));
+
+
+vi.mock('@/classification/page-decision', () => ({
+  buildBackfillPageFilter: vi.fn(() => null),
+  filterPageCandidatesForBackfill: vi.fn((candidates: unknown[]) => candidates),
+}));
+
 import { processPageTarget, materializeCoordinatedPages, processProductFieldTarget } from '../../classification/curation-target-processor';
 import { categoryPageProposalsStage } from '../../classification/stages/category-page-proposals';
-
 const products = [
   { sku: 'SKU1', name: 'Acme Cat Pate Chicken', webTitle: null, brand: 'Acme', description: '', species: ['Cat'], flavor: 'Chicken', lifeStage: null, productForm: 'Pate', healthConcern: [] },
   { sku: 'SKU2', name: 'Acme Cat Pate Salmon', webTitle: null, brand: 'Acme', description: '', species: ['Cat'], flavor: 'Salmon', lifeStage: null, productForm: 'Pate', healthConcern: [] },

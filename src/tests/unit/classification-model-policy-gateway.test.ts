@@ -94,6 +94,44 @@ describe('buildModelPolicyView / assertModelPolicyIntact', () => {
     }
   });
 });
+describe('distributor copy route — separate explicit authority', () => {
+  it('denies an unconfigured writer instead of inheriting the stage or default route', () => {
+    const view = buildModelPolicyView(OLLAMA_LOCAL_POLICY, { snapshotHash: 'copy-disabled' });
+    try {
+      resolveModelRoute(view, 'distributor_copy_consolidation', LOCAL_KEYS);
+      expect.unreachable('copy generation must have an explicit authority');
+    } catch (err) {
+      expect((err as ModelPolicyDeniedError).code).toBe('policy_disabled');
+    }
+    expect(resolveFallbackRoute(view, 'distributor_copy_consolidation', LOCAL_KEYS)).toBeNull();
+  });
+
+  it('uses only the explicit writer model and sharing authority', () => {
+    const view = buildModelPolicyView({
+      ...OLLAMA_LOCAL_POLICY,
+      stageOverrides: {
+        name_consolidation: {
+          provider: 'ollama',
+          model: 'judgment-model',
+          fallbackProvider: null,
+          fallbackModel: null,
+        },
+      },
+      copyGeneration: {
+        provider: 'ollama',
+        model: 'qwen2.5:14b',
+        textDataSharing: 'local_only',
+      },
+    } as ModelPolicyConfigV2, { snapshotHash: 'copy-explicit' });
+    const route = resolveModelRoute(view, 'distributor_copy_consolidation', LOCAL_KEYS);
+    expect(route.model).toBe('qwen2.5:14b');
+    expect(route.provider).toBe('ollama');
+    expect(route.locality).toBe('local');
+    expect(view.copyGeneration?.textDataSharing).toBe('local_only');
+    expect(route.fallbackProvider).toBeNull();
+    expect(route.fromOverride).toBe(false);
+  });
+});
 
 describe('resolveModelRoute — locality and endpoint enforcement', () => {
   it('resolves a declared-local provider with a loopback endpoint under local_only', () => {

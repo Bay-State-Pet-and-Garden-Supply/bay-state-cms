@@ -48,8 +48,7 @@ import { buildEvidenceTargetPacket, tokenGroundingSupport } from '../evidence-ta
 import { buildModelCallContext } from '../runtime-snapshot';
 import { modelPolicyViewFromConfig } from '../../onboarding/model-policy-snapshot';
 import type { ModelPolicyConfigV2 } from '../../shared/schemas/classification';
-import { loadClassificationConfig } from '../config-loader';
-import { resolveEnabledTargets, resolveTargetsFromSnapshot } from '../curation-target-resolver';
+import { resolveTargetsFromSnapshot } from '../curation-target-resolver';
 import { getUniversalTierFlags } from '../flags';
 
 /** Outcome recorded per gap attribute in stage metadata (audit trail). */
@@ -94,11 +93,20 @@ export const valueGapAbstainStage: StageDefinition = {
         },
       };
     }
-
-    // ── Resolve targets (frozen snapshot first, live config only on legacy runs)
-    const resolved = context.snapshot
-      ? resolveTargetsFromSnapshot(context.snapshot)
-      : resolveEnabledTargets(loadClassificationConfig(context.workspacePath), context.workspaceId);
+    if (!context.snapshot) {
+      return {
+        status: 'abstained',
+        reason: 'Value-gap resolution requires a frozen classification snapshot.',
+        output: {
+          evidence: [],
+          proposals: [],
+          abstained: true,
+          message: 'Value-gap resolution requires a frozen classification snapshot.',
+          metadata: { resolutions: [], proposedCount: 0, abstainedCount: 0 },
+        },
+      };
+    }
+    const resolved = resolveTargetsFromSnapshot(context.snapshot);
 
     // ── Applicability evaluations from the upstream stage output. The
     // pipeline runner merges upstream evidence into `input.evidence`, so the

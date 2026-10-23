@@ -1,0 +1,772 @@
+{
+"corpusId": "naming-listing-dev-v1",
+"description": "Frozen family-separated DEV corpus for joint naming + listing-evidence qualification (issue #375). Offline only. Covers official/distributor/manual/OCR inputs, abbreviated register names, conflicting/missing facts, unsupported text, optional omissions, singleton/cohort behavior. 14 rows, 13 distinct families (dev-13/dev-14 share one family by design: two cohort members of the same 5 lb / 15 lb family).",
+"frozenVersions": {
+"listingRules": "listing-evidence-rules-v1",
+"model": "jev-1.13.0",
+"normalization": "name-normalization-v2-applicable-variant",
+"policy": "naming-listing-task-policy-v1-dev"
+},
+"rows": [
+{
+"brand": "Acme",
+"category": "official_agree_deterministic",
+"evidence": [
+{
+"id": "dev01-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Chicken Dinner 5LB"
+},
+{
+"id": "dev01-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Acme Chicken Dinner 5 lb"
+},
+{
+"id": "dev01-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Made with real chicken and rice for adult dogs."
+},
+{
+"id": "dev01-ev-o3",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-chicken-5lb",
+"id": "dev-01",
+"listingDescription": "Made with real chicken and rice for adult dogs.",
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Chicken Dinner 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev01-ev-r1",
+"span": "ACME Chicken Dinner 5LB"
+}
+],
+"note": "Single eligible register span resolves deterministically with zero model calls; multi-source bundle supports every listing claim.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-01-ACM-CHKN5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "abbreviated_distributor_needs_selection",
+"evidence": [
+{
+"id": "dev02-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Chkn Dnr 5LB"
+},
+{
+"id": "dev02-ev-d1",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "title",
+"value": "Acme Chicken Dinner 5 lb"
+},
+{
+"id": "dev02-ev-d2",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-chkndnr-5lb",
+"id": "dev-02",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Chicken Dinner 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "needs_selection"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev02-ev-r1",
+"span": "ACME Chkn Dnr 5LB"
+},
+{
+"channel": "distributor",
+"evidenceId": "dev02-ev-d1",
+"span": "Acme Chicken Dinner 5 lb"
+}
+],
+"note": "Abbreviated register name plus full distributor spelling yields semantically ambiguous candidates: offline abstention, live TypeSafe Choice required. Listing itself is fully supported.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-02-ACM-ABBR5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "ocr_single_source",
+"evidence": [
+{
+"id": "dev03-ev-c1",
+"reliability": "medium",
+"sku": "self",
+"source": "visual_product_evidence",
+"sourceField": "package_text",
+"value": "Acme Premium Dog Food 10 lb"
+},
+{
+"id": "dev03-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "Acme Premium Dog Food 10 lb"
+},
+{
+"id": "dev03-ev-c2",
+"reliability": "medium",
+"sku": "self",
+"source": "visual_product_evidence",
+"sourceField": "weight",
+"value": "Net weight 10 lb"
+}
+],
+"familyId": "devfam-acme-premium-10lb",
+"id": "dev-03",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Premium Dog Food 10 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "ocr",
+"evidenceId": "dev03-ev-c1",
+"span": "Acme Premium Dog Food 10 lb"
+}
+],
+"note": "Existing OCR package text alone carries brand and net quantity: deterministic name, zero new OCR.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-03-ACM-PREM10",
+"variantFacts": {
+"weight": "10 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "manual_supplies_evidence",
+"evidence": [
+{
+"id": "dev04-ev-m1",
+"reliability": "low",
+"sku": "self",
+"source": "operator_manual",
+"sourceField": "observed_title",
+"value": "Acme Chicken Dinner 5 lb"
+},
+{
+"id": "dev04-ev-m2",
+"reliability": "low",
+"sku": "self",
+"source": "operator_manual",
+"sourceField": "observed_weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-manual-5lb",
+"id": "dev-04",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Chicken Dinner 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "manual",
+"evidenceId": "dev04-ev-m1",
+"span": "Acme Chicken Dinner 5 lb"
+}
+],
+"note": "Register carried no usable name; current operator-attested observation supplies it. Manual channel never labeled official.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-04-ACM-MAN5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "conflicting_sizes",
+"evidence": [
+{
+"id": "dev05-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Dog Food 5LB"
+},
+{
+"id": "dev05-ev-o1",
+"reliability": "conflicting",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Acme Dog Food 15 lb"
+},
+{
+"id": "dev05-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-conflict-5-15",
+"id": "dev-05",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Dog Food 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "conflict"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev05-ev-r1",
+"span": "ACME Dog Food 5LB"
+},
+{
+"channel": "official",
+"evidenceId": "dev05-ev-o1",
+"span": "Acme Dog Food 15 lb"
+}
+],
+"note": "Conflicting package sizes are never unioned into a title: naming stays actionable. The conflicted row is excluded from eligible listing evidence, so the 5 lb listing still evaluates.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-05-ACM-CONF",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": null,
+"category": "missing_brand",
+"evidence": [
+{
+"id": "dev06-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "Chicken Dinner 5LB"
+},
+{
+"id": "dev06-ev-d1",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "title",
+"value": "Chicken Dinner 5 lb"
+},
+{
+"id": "dev06-ev-d2",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-nobrand-chicken-5lb",
+"id": "dev-06",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Chicken Dinner 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "missing"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev06-ev-r1",
+"span": "Chicken Dinner 5LB"
+},
+{
+"channel": "distributor",
+"evidenceId": "dev06-ev-d1",
+"span": "Chicken Dinner 5 lb"
+}
+],
+"note": "Missing mandatory brand evidence stays actionable: the name is never invented. Listing claims alone still evaluate against eligible evidence.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-06-NOBRAND",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "missing_size",
+"evidence": [
+{
+"id": "dev07-ev-r1",
+"reliability": "medium",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "Acme Chicken Dinner"
+}
+],
+"familyId": "devfam-acme-nosize",
+"id": "dev-07",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Chicken Dinner",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev07-ev-r1",
+"span": "Acme Chicken Dinner"
+}
+],
+"note": "N2 applicable-variant rule (spec 6.1): size is not a universal naming requirement, so a complete brand+title with no evidenced quantity resolves instead of holding. The missing_size hold now applies only when no complete product identity exists.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-07-ACM-NOSIZE",
+"variantFacts": {}
+},
+{
+"brand": "Acme",
+"category": "shipping_weight_ignored",
+"evidence": [
+{
+"id": "dev08-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Dog Food 5LB"
+},
+{
+"id": "dev08-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Acme Dog Food 5 lb"
+},
+{
+"id": "dev08-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+},
+{
+"id": "dev08-ev-s1",
+"reliability": "medium",
+"sku": "self",
+"source": "distributor_record",
+"sourceField": "shipping",
+"value": "Shipping weight 12 lb"
+},
+{
+"id": "dev08-ev-o3",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Crunchy kibble for adult dogs."
+}
+],
+"familyId": "devfam-acme-ship-5lb",
+"id": "dev-08",
+"listingDescription": "Crunchy kibble for adult dogs.",
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Dog Food 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev08-ev-r1",
+"span": "ACME Dog Food 5LB"
+}
+],
+"note": "Shipping weight is parcel evidence, never net contents: every candidate carries 5 lb and none is sized 12 lb.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-08-ACM-SHIP5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "unsupported_text_blocked",
+"evidence": [
+{
+"id": "dev09-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Cat Food 3LB"
+},
+{
+"id": "dev09-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "title",
+"value": "Acme Cat Food 3 lb"
+},
+{
+"id": "dev09-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Crunchy kibble for adult cats."
+},
+{
+"id": "dev09-ev-o3",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 3 lb"
+}
+],
+"familyId": "devfam-acme-cat-3lb",
+"id": "dev-09",
+"listingCorrectedDescription": "Crunchy kibble for adult cats.",
+"listingDescription": "Crunchy kibble for adult cats. Vet recommended number one choice.",
+"listingExpectedStatus": "blocked",
+"listingTitle": "Acme Cat Food 3 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "official",
+"evidenceId": "dev09-ev-o1",
+"span": "Acme Cat Food 3 lb"
+}
+],
+"note": "Included unsafe optional marketing text blocks release; removing it (correction) passes. Absent optional facts would never claim.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-09-ACM-CAT3",
+"variantFacts": {
+"weight": "3 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "negation_contradiction",
+"evidence": [
+{
+"id": "dev10-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Dog Food 5LB"
+},
+{
+"id": "dev10-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "description",
+"value": "Made with real chicken, corn, and rice."
+},
+{
+"id": "dev10-ev-o2",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-negation-5lb",
+"id": "dev-10",
+"listingDescription": "Made with real chicken, corn, and rice. No corn or rice.",
+"listingExpectedStatus": "blocked",
+"listingTitle": "Acme Dog Food 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev10-ev-r1",
+"span": "ACME Dog Food 5LB"
+}
+],
+"note": "Listing negates an assertion the eligible evidence affirms: deterministic contradiction, blocked.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-10-ACM-NEG5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "quantity_mismatch_blocked",
+"evidence": [
+{
+"id": "dev11-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Dog Food 5LB"
+},
+{
+"id": "dev11-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-qty-5lb",
+"id": "dev-11",
+"listingDescription": null,
+"listingExpectedStatus": "blocked",
+"listingTitle": "Acme Dog Food 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev11-ev-r1",
+"span": "ACME Dog Food 5LB"
+}
+],
+"note": "Included variant fact 15 lb contradicts evidenced 5 lb on the same axis: blocked. A model can never overrule a concrete quantity contradiction.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-11-ACM-QTY5",
+"variantFacts": {
+"weight": "15 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "optional_omission_passes",
+"evidence": [
+{
+"id": "dev12-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Dog Food 5LB"
+},
+{
+"id": "dev12-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-optional-5lb",
+"id": "dev-12",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Dog Food 5 lb",
+"mode": "singleton",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev12-ev-r1",
+"span": "ACME Dog Food 5LB"
+}
+],
+"note": "Absent optional description and flavor facts produce no claim and never block: exactly one title claim.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-12-ACM-OPT5",
+"variantFacts": {}
+},
+{
+"brand": "Acme",
+"category": "cohort_sibling_excluded",
+"evidence": [
+{
+"id": "dev13-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Chicken Dinner 5LB"
+},
+{
+"id": "dev13-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+},
+{
+"id": "dev13-ev-sib1",
+"reliability": "high",
+"sku": "sibling",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 15 lb"
+}
+],
+"familyId": "devfam-acme-cohort-5-15",
+"id": "dev-13",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Chicken Dinner 5 lb",
+"mode": "cohort",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev13-ev-r1",
+"span": "ACME Chicken Dinner 5LB"
+}
+],
+"note": "Cohort member: sibling 15 lb evidence (other SKU, same family) is excluded from eligible evidence. Sibling context is presentation-only.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-13-ACM-COH5",
+"variantFacts": {
+"weight": "5 lb"
+}
+},
+{
+"brand": "Acme",
+"category": "cohort_same_family_distinct_sku",
+"evidence": [
+{
+"id": "dev14-ev-r1",
+"reliability": "high",
+"sku": "self",
+"source": "spreadsheet",
+"sourceField": "name",
+"value": "ACME Chicken Dinner 15LB"
+},
+{
+"id": "dev14-ev-o1",
+"reliability": "high",
+"sku": "self",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 15 lb"
+},
+{
+"id": "dev14-ev-sib1",
+"reliability": "high",
+"sku": "sibling",
+"source": "official_product_page",
+"sourceField": "weight",
+"value": "Net weight 5 lb"
+}
+],
+"familyId": "devfam-acme-cohort-5-15",
+"id": "dev-14",
+"listingDescription": null,
+"listingExpectedStatus": "passed",
+"listingTitle": "Acme Chicken Dinner 15 lb",
+"mode": "cohort",
+"nameExpected": {
+"kind": "resolved"
+},
+"nameSpans": [
+{
+"channel": "register",
+"evidenceId": "dev14-ev-r1",
+"span": "ACME Chicken Dinner 15LB"
+}
+],
+"note": "Second member of the same family keeps its own SKU-local facts: 15 lb from its own evidence only, never inherited from its 5 lb sibling.",
+"requiredFields": [
+"title"
+],
+"sku": "DEV-14-ACM-COH15",
+"variantFacts": {
+"weight": "15 lb"
+}
+}
+]
+}

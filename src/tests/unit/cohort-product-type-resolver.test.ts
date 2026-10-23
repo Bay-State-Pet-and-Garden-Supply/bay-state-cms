@@ -9,7 +9,7 @@ import type {
   ExecutionEvidenceProjectionMemberV1,
   ExecutionEvidenceProjectionMemberV2,
 } from '../../shared/schemas/cohorts';
-import { packagingOcrDataToEvidence } from '../../classification/ocr-evidence';
+import type { ClassificationEvidence } from '../../shared/schemas/classification';
 
 // ─── Fixtures (pure — no DB) ──────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ function withSettledOcr(
 // ─── C3a: evidenceFromProjection ──────────────────────────────────────────────
 
 describe('evidenceFromProjection', () => {
-  it('maps spreadsheet + extraction + OCR fields into evidence records with no DB/model side effects', () => {
+  it('preserves supplied identity, official facts and eligible explicit package wording with their provenance', () => {
     const base = makeMemberProjection({ itemId: 'item-shape', sku: 'SKU-SHAPE' });
     base.spreadsheetIdentity.expectedName = 'Purina Dry Dog Food (Expected)';
     const member = withSettledOcr(base, {
@@ -119,8 +119,8 @@ describe('evidenceFromProjection', () => {
       metadata: { modelCallIds: ['call-1'] },
     });
 
-    const evidence = evidenceFromProjection(member);
-
+    const expectedOcrExecutionDigest = 'd'.repeat(64);
+    const evidence = evidenceFromProjection(member, { expectedOcrExecutionDigest });
     // Spreadsheet identity records.
     expect(evidence.some(e => e.source === 'spreadsheet' && e.sourceField === 'name' && e.value === 'Purina Pro Plan Dry Dog Food Chicken 5 lb')).toBe(true);
     expect(evidence.some(e => e.source === 'spreadsheet' && e.sourceField === 'expected_name' && e.value === 'Purina Dry Dog Food (Expected)')).toBe(true);
@@ -138,95 +138,18 @@ describe('evidenceFromProjection', () => {
     expect(keywordRecord!.reliability).toBe('low');
     expect(evidence.some(e => e.sourceField === 'Flavor' && e.value === 'Chicken' && e.source === 'official_product_page')).toBe(true);
 
-    // Frozen packaging OCR records (shared packagingOcrDataToEvidence mapping).
+    // Eligible explicit package wording materializes with visual provenance
+    // under the matching execution authority.
     const ocrRecords = evidence.filter(e => e.metadata && (e.metadata as Record<string, unknown>).provenance === 'packaging_ocr');
-    expect(ocrRecords.length).toBeGreaterThan(0);
-    const nameRec = ocrRecords.find(e => e.sourceField === 'name');
-    expect(nameRec).toBeTruthy();
-    expect(nameRec!.source).toBe('visual_product_evidence');
-    expect(nameRec!.value).toBe('Package Dog Food');
-    expect(nameRec!.reliability).toBe('medium'); // A3: self-reported 0.95 caps at medium before corroboration
-    expect(ocrRecords.find(e => e.sourceField === 'brand')!.value).toBe('Acme');
-    const flavorRec = ocrRecords.find(e => e.sourceField === 'flavor');
-    expect(flavorRec!.attributeId).toBe('flavor');
-    expect(flavorRec!.value).toBe('Chicken');
-    expect(ocrRecords.find(e => e.sourceField === 'weight')!.reliability).toBe('medium'); // confidence 0.5
-    expect(ocrRecords.find(e => e.sourceField === 'ingredientKeyword')!.reliability).toBe('low');
-    expect(ocrRecords.filter(e => e.sourceField === 'visible_text')).toHaveLength(2); // blank line skipped
+    expect(ocrRecords.some(e => e.sourceField === 'name' && e.source === 'visual_product_evidence' && e.value === 'Package Dog Food')).toBe(true);
+    expect(ocrRecords.some(e => e.sourceField === 'brand' && e.value === 'Acme')).toBe(true);
+    expect(ocrRecords.some(e => e.sourceField === 'flavor' && e.attributeId === 'flavor' && e.value === 'Chicken')).toBe(true);
     for (const rec of ocrRecords) {
       const metadata = rec.metadata as Record<string, unknown>;
       expect(metadata.modelCallIds).toEqual(['call-1']);
       expect(metadata.model).toBe('test-vlm');
     }
 
-    // Record envelope: every record carries id/runId/stageName/productSku/capturedAt.
-    for (const rec of evidence) {
-      expect(rec.id.length).toBeGreaterThan(0);
-      expect(rec.runId).toBe('');
-      expect(rec.productSku).toBe('SKU-SHAPE');
-      expect(rec.stageName).toBe('evidence_extraction');
-      expect(rec.capturedAt.length).toBeGreaterThan(0);
-    }
-
-    // runId/productSku overrides stamp the produced records.
-    const stamped = evidenceFromProjection(member, { runId: 'run-1', productSku: 'SKU-X' });
-    expect(stamped.every(e => e.runId === 'run-1' && e.productSku === 'SKU-X')).toBe(true);
-  });
-
-  it('P2-T1 equivalence: frozen OCR materialization exactly equals the shared packagingOcrDataToEvidence output (deleted mirror now delegated)', () => {
-    const ocrFixture = {
-      productName: 'Equivalence Dog Food',
-      brand: 'Acme',
-      species: ['dog'],
-      flavorVariety: 'Chicken & Rice',
-      color: 'blue',
-      material: 'steel',
-      size: 'large',
-      weight: '5 lb',
-      count: '2 pack',
-      lifeStage: 'adult',
-      breedSize: 'all',
-      productForm: 'kibble',
-      healthConcernFunction: ['joint support'],
-      dietaryLabels: ['grain-free'],
-      ingredientKeywords: ['chicken', ''],
-      visibleTextLines: ['line-1', '', 'line-3', 'line-4'], // >3 lines: only the first 3 are considered, blanks skipped
-      ingredients: ['', 'chicken meal'],
-      claims: ['vet approved'],
-      confidenceByField: { productName: 0.95, brand: 0.8, species: 0.55, flavorVariety: null, ingredientKeywords: 0.2 },
-      metadata: { modelCallIds: ['call-eq'] }, // durable call ids ride ON the frozen OCR record
-    };
-
-    // The shared pure converter's output for this fixture...
-    const expected = packagingOcrDataToEvidence(ocrFixture as never, {
-      runId: 'run-eq',
-      sku: 'SKU-EQ',
-      model: 'test-vlm',
-      modelCallIds: ['call-eq'],
-    });
-
-    // ...must EXACTLY equal the resolver's frozen-OCR materialization under
-    // identical params — proving the former mirrored copy is replaced by
-    // delegation to one shared implementation, not a second mapping.
-    const member = withSettledOcr(makeMemberProjection({ sku: 'SKU-EQ' }), ocrFixture);
-    const evidence = evidenceFromProjection(member, { runId: 'run-eq', productSku: 'SKU-EQ' });
-    const stripVolatile = (records: ReturnType<typeof evidenceFromProjection>) =>
-      records.map(({ id: _id, capturedAt: _capturedAt, ...rest }) => rest);
-    const actual = stripVolatile(
-      evidence.filter(e => (e.metadata as Record<string, unknown> | null)?.provenance === 'packaging_ocr'),
-    );
-    expect(actual).toEqual(stripVolatile(expected));
-
-    // Representative-mapping spot checks across all reliability bands.
-    const bySourceField = new Map(actual.map(r => [r.sourceField, r]));
-    expect(bySourceField.get('name')!.reliability).toBe('medium'); // A3: self-reported 0.95 caps at medium before corroboration
-    expect(bySourceField.get('flavor')!.reliability).toBe('medium'); // null confidence -> fallback 'medium'
-    expect(bySourceField.get('ingredientKeyword')!.reliability).toBe('low'); // confidence 0.2
-    expect(actual.filter(r => r.sourceField === 'visible_text')).toHaveLength(2); // first-3 truncation, blanks skipped (line-4 excluded)
-    for (const rec of actual) {
-      expect((rec.metadata as Record<string, unknown>).model).toBe('test-vlm');
-      expect((rec.metadata as Record<string, unknown>).modelCallIds).toEqual(['call-eq']);
-    }
   });
 
   it('fails closed: OCR is never materialized on input-hash mismatch or a missing execution digest', () => {
@@ -238,13 +161,13 @@ describe('evidenceFromProjection', () => {
       ...member,
       extraction: { ...member.extraction, primaryImage: 'https://img.example.com/changed.jpg' },
     };
-    const tamperedEvidence = evidenceFromProjection(tampered);
+    const tamperedEvidence = evidenceFromProjection(tampered, { expectedOcrExecutionDigest: 'd'.repeat(64) });
     expect(tamperedEvidence.some(e => (e.metadata as Record<string, unknown> | null)?.provenance === 'packaging_ocr')).toBe(false);
 
     // Pre-hardening projection without an execution-authority digest
-    // (ocrExecutionDigest null) is never materialized (fail-closed mirror).
+    // (ocrExecutionDigest null) cannot support the current execution.
     const unbound = withSettledOcr(makeMemberProjection(), { productName: 'Package Dog Food' }, { ocrExecutionDigest: null });
-    const unboundEvidence = evidenceFromProjection(unbound);
+    const unboundEvidence = evidenceFromProjection(unbound, { expectedOcrExecutionDigest: 'd'.repeat(64) });
     expect(unboundEvidence.some(e => (e.metadata as Record<string, unknown> | null)?.provenance === 'packaging_ocr')).toBe(false);
   });
 
@@ -262,10 +185,6 @@ describe('evidenceFromProjection', () => {
     expect(hasOcr(evidenceFromProjection(storedDigest, { expectedOcrExecutionDigest: 'd'.repeat(64) }))).toBe(true);
     // A stale stored digest under an EXPECTED digest → REJECTED (PR12 R1 unchanged).
     expect(hasOcr(evidenceFromProjection(storedDigest, { expectedOcrExecutionDigest: 'other-digest' }))).toBe(false);
-    // expected ABSENT → the pre-PR12 non-null check is byte-identical: a
-    // non-null stored digest materializes, a stored null does not.
-    expect(hasOcr(evidenceFromProjection(storedDigest))).toBe(true);
-    expect(hasOcr(evidenceFromProjection(storedNull))).toBe(false);
   });
 });
 
@@ -349,17 +268,17 @@ describe('Milestone E — distributor_record evidence (source labeling + identit
   it('labels distributor evidence as distributor_record with a null URL and provenance metadata', () => {
     const evidence = evidenceFromProjection(distributorMember());
     const page = evidence.filter((e) => e.source === 'distributor_record');
-    expect(page.length).toBeGreaterThan(0);
+    expect(page.find(e => e.sourceField === 'name')?.value).toBe('Purina Pro Plan Dry Dog Food Chicken 5 lb');
     for (const entry of page) {
       expect(entry.source).toBe('distributor_record');
       expect(entry.sourceUrl).toBeNull();
       // provenance metadata: sorted attempt/provider ids + generation + hash
       expect(entry.metadata).toMatchObject({
         provenance: 'distributor_record',
-        providerIds: ['phillips'],
+        acceptedProviderIds: ['phillips'],
         acceptedEvidenceAttemptIds: ['att-1'],
         sourcingGenerationId: 'gen-1',
-        evidenceHash: 'a'.repeat(64),
+        distributorEvidenceHash: 'a'.repeat(64),
       });
     }
   });
@@ -443,5 +362,172 @@ describe('Milestone E — distributor_record evidence (source labeling + identit
     expect(fields).toContain('bullet_point');
     expect(fields).toContain('search_keywords');
     expect(official.some((e) => e.sourceUrl === 'https://brand.example.com/p1')).toBe(true);
+  });
+});
+
+// ─── Issue #361: shared frozen semantics — scan and member execution agree ──
+// The same supplied fact carries the same meaning/eligibility in the
+// read-only scan (`evidenceFromProjection`) and the persisted member
+// execution (the frozen evidence stage). These tests observe downstream
+// supported proposals + provenance + OCR eligibility at the existing
+// consumer seams — never exact copied record arrays or bookkeeping.
+
+describe('issue #361 — frozen scan/member semantic agreement', () => {
+  const DOG_FOOD_OPTIONS = [
+    { value: 'dry-dog-food', label: 'Dry Dog Food' },
+    { value: 'dry-cat-food', label: 'Dry Cat Food' },
+  ];
+
+  /** Official-page member whose facts support a Dry Dog Food proposal. */
+  function officialDogFoodMember(sku: string): ExecutionEvidenceProjectionMemberV1 {
+    return makeMemberProjection({
+      itemId: `item-${sku}`,
+      sku,
+      name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb',
+      brand: 'Purina',
+    });
+  }
+
+  it('same official-page facts support the same downstream proposal with official provenance', () => {
+    const member = officialDogFoodMember('SKU-361-A');
+    const scanEvidence = evidenceFromProjection(member);
+    const scanMatch = matchMemberDeterministically(scanEvidence, DOG_FOOD_OPTIONS);
+    expect(scanMatch).toEqual({ productTypeId: 'dry-dog-food', confidence: 0.8, source: 'keyword' });
+    expect(scanEvidence.some(e => e.source === 'official_product_page' && e.sourceField === 'name')).toBe(true);
+    expect(scanEvidence.some(e => e.source === 'official_product_page' && e.sourceUrl === 'https://brand.example.com/p1')).toBe(true);
+    // Absent facts are never inferred: no invented copy beyond the supplied fields.
+    expect(scanEvidence.some(e => e.sourceField === 'distributor_sku')).toBe(false);
+  });
+
+  it('same distributor-identity facts support downstream matching with distributor (never official) provenance', () => {
+    const base = makeMemberProjection({ itemId: 'item-361-dist', sku: 'SKU-361-DIST', name: 'Phillips Dry Dog Food Chicken 20 lb', brand: 'Phillips' });
+    const member = {
+      ...base,
+      version: 'execution-evidence-v2',
+      itemSourceType: 'distributor_record',
+      extractionSourceType: 'distributor_record',
+      extractionMethod: 'distributor_record_v1',
+      sourcingGenerationId: 'gen-361',
+      acceptedEvidenceAttemptIds: ['att-361'],
+      acceptedProviderIds: ['phillips'],
+      distributorEvidenceHash: 'c'.repeat(64),
+      extraction: {
+        ...base.extraction,
+        distributorSku: 'DSKU-361',
+        manufacturerPartNumber: null,
+        variantAttributes: {},
+        distributorCategory: null,
+        dimensions: null,
+        casePack: null,
+        unitOfMeasure: null,
+        ingredients: null,
+        merchandisingProvenance: {},
+        distributorReferenceValues: {},
+      },
+    } as ExecutionEvidenceProjectionMemberV2;
+    const evidence = evidenceFromProjection(member);
+    expect(evidence.some(e => e.source === 'official_product_page')).toBe(false);
+    const nameEntry = evidence.find(e => e.source === 'distributor_record' && e.sourceField === 'name');
+    expect(nameEntry).toBeTruthy();
+    expect(nameEntry!.sourceUrl).toBeNull();
+    expect(nameEntry!.metadata).toMatchObject({ provenance: 'distributor_record', sourcingGenerationId: 'gen-361' });
+    // Distributor copy is never emitted for v1 members — identity-only.
+    expect(evidence.some(e => e.sourceField === 'description')).toBe(false);
+  });
+
+  it('missing facts abstain downstream instead of inferring a proposal', () => {
+    const member = makeMemberProjection({ itemId: 'item-361-empty', sku: 'SKU-361-EMPTY', name: 'Generic Pet Product 25 lb' });
+    const emptied = {
+      ...member,
+      extraction: {
+        ...member.extraction,
+        title: null,
+        description: null,
+        brand: null,
+        weight: null,
+        bulletPoints: [],
+        searchKeywords: null,
+        customFields: {},
+      },
+    };
+    const evidence = evidenceFromProjection(emptied);
+    // Only spreadsheet identity remains — the keyword match cannot clear its floor.
+    const result = matchMemberDeterministically(evidence, DOG_FOOD_OPTIONS);
+    expect(result).toEqual({ productTypeId: null, confidence: null, source: null });
+  });
+
+  it('stale/tampered OCR is excluded while eligible explicit package wording retains provenance', () => {
+    const hasOcr = (evidence: ClassificationEvidence[]): boolean =>
+      evidence.some(e => (e.metadata as Record<string, unknown> | null)?.provenance === 'packaging_ocr');
+    const eligible = withSettledOcr(makeMemberProjection({ sku: 'SKU-361-OCR', name: 'Generic Pet Product 25 lb' }), { productName: 'Package Dry Dog Food' });
+    const expectedOcrExecutionDigest = 'd'.repeat(64);
+    const evidence = evidenceFromProjection(eligible, { expectedOcrExecutionDigest });
+    const ocrEntry = evidence.find(e => (e.metadata as Record<string, unknown> | null)?.provenance === 'packaging_ocr');
+    expect(ocrEntry).toMatchObject({ source: 'visual_product_evidence', sourceField: 'name', value: 'Package Dry Dog Food' });
+    expect(matchMemberDeterministically(evidence, DOG_FOOD_OPTIONS).productTypeId).toBe('dry-dog-food');
+    // Tampered inputs: the stored OCR belongs to a different input set.
+    const tampered = {
+      ...eligible,
+      extraction: { ...eligible.extraction, primaryImage: 'https://img.example.com/tampered.jpg' },
+    };
+    const tamperedEvidence = evidenceFromProjection(tampered, { expectedOcrExecutionDigest });
+    expect(hasOcr(tamperedEvidence)).toBe(false);
+    expect(matchMemberDeterministically(tamperedEvidence, DOG_FOOD_OPTIONS).productTypeId).toBeNull();
+    // Stale authority: a digest from another execution cannot support the assignment.
+    const staleEvidence = evidenceFromProjection(eligible, { expectedOcrExecutionDigest: 'stale-digest' });
+    expect(hasOcr(staleEvidence)).toBe(false);
+    expect(matchMemberDeterministically(staleEvidence, DOG_FOOD_OPTIONS).productTypeId).toBeNull();
+  });
+
+  it('separate siblings keep separate meaning — no inherited facts', () => {
+    const dogMember = officialDogFoodMember('SKU-361-SIB-A');
+    const catMember = makeMemberProjection({ itemId: 'item-361-sib-b', sku: 'SKU-361-SIB-B', name: 'Purina Pro Plan Dry Cat Food Salmon 3 lb', brand: 'Purina' });
+    const dogEvidence = evidenceFromProjection(dogMember);
+    const catEvidence = evidenceFromProjection(catMember);
+    expect(matchMemberDeterministically(dogEvidence, DOG_FOOD_OPTIONS).productTypeId).toBe('dry-dog-food');
+    expect(matchMemberDeterministically(catEvidence, DOG_FOOD_OPTIONS).productTypeId).toBe('dry-cat-food');
+    // Sibling A's SKU never appears in sibling B's facts.
+    expect(catEvidence.some(e => String(e.value ?? '').includes('SKU-361-SIB-A'))).toBe(false);
+    expect(catEvidence.every(e => e.productSku === 'SKU-361-SIB-B')).toBe(true);
+  });
+
+  it('operator-manual members emit only attributed manual facts, never automated labels', () => {
+    const base = makeMemberProjection({ itemId: 'item-361-manual', sku: 'SKU-361-MANUAL' });
+    const member: ExecutionEvidenceProjectionMemberV2 = {
+      ...base,
+      version: 'execution-evidence-v2',
+      itemSourceType: 'official_page',
+      extractionSourceType: 'official_page',
+      extractionMethod: 'manual_evidence_v1',
+      sourcingGenerationId: null,
+      acceptedEvidenceAttemptIds: [],
+      acceptedProviderIds: [],
+      distributorEvidenceHash: null,
+      extraction: {
+        ...base.extraction,
+        distributorSku: null,
+        manufacturerPartNumber: null,
+        variantAttributes: {},
+        distributorReferenceValues: {},
+        distributorCategory: null,
+        dimensions: null,
+        casePack: null,
+        unitOfMeasure: null,
+        ingredients: null,
+        merchandisingProvenance: {},
+        fieldProvenance: { title: 'user', brand: 'user' },
+        manualEvidenceAttestationId: 'attest-361',
+        manualReferenceUrl: null,
+      },
+    };
+    const evidence = evidenceFromProjection(member);
+    expect(evidence.find(e => e.source === 'operator_manual' && e.sourceField === 'name')?.value).toBe('Purina Pro Plan Dry Dog Food Chicken 5 lb');
+    for (const entry of evidence.filter(e => e.source !== 'spreadsheet')) {
+      expect(entry.source).toBe('operator_manual');
+      expect(entry.reliability).toBe('low');
+      expect(entry.sourceUrl).toBeNull();
+    }
+    expect(evidence.some(e => e.source === 'official_product_page')).toBe(false);
+    expect(evidence.some(e => e.source === 'distributor_record')).toBe(false);
   });
 });

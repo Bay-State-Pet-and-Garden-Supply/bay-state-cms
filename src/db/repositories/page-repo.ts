@@ -1,3 +1,5 @@
+import type { Database } from 'bun:sqlite';
+
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
 
@@ -38,8 +40,8 @@ export function getPageByName(name: string): PageRow | null {
  * currently ACTIVE page import and whose availability is `available`.
  * Name-only and out-of-import rows are review context and never appear here.
  */
-export function listVerifiedPageOptions(workspaceId: string): PageRow[] {
-  const db = getDb();
+export function listVerifiedPageOptions(workspaceId: string, reader?: Database): PageRow[] {
+  const db = reader ?? getDb();
   const rows = db.query(
     `SELECT p.* FROM page_index p
      JOIN page_imports i ON i.id = p.import_id
@@ -164,6 +166,18 @@ export function assignProductToVerifiedPage(productSku: string, pageId: string, 
 }
 
 /**
+ * Remove one reviewed product-page assignment by its verified identity.
+ * The caller MUST pass the Page identity from the active verified import.
+ */
+export function removeProductFromVerifiedPage(productSku: string, pageId: string, pageName: string): void {
+  const db = getDb();
+  db.run(
+    'DELETE FROM product_pages WHERE product_sku = ? AND (page_id = ? OR page_name = ?)',
+    [productSku, pageId, pageName],
+  );
+}
+
+/**
  * Legacy name-based assignment (backward-compatible wrapper). Resolves the
  * page by name and writes page_id ONLY when that row carries a verified
  * identity from an active import; otherwise the assignment stays name-only
@@ -212,6 +226,34 @@ export function getProductPageAssignments(productSku: string): Array<{ pageId: s
   const rows = db.query('SELECT page_id, page_name FROM product_pages WHERE product_sku = ?').all(productSku) as Array<{ page_id: string | null; page_name: string }>;
   return rows.map(r => ({ pageId: r.page_id ? String(r.page_id) : null, pageName: String(r.page_name) }));
 }
+/**
+ * Owned-write restore (issue #363): replace one SKU's page joins with the
+ * exact snapshot taken before approval. Callers snapshot via
+ * `getProductPageAssignments` and restore here — no direct
+ * `product_pages` SQL outside this repository.
+ */
+export function restoreProductPageJoins(
+  productSku: string,
+  joins: Array<{ pageId: string | null; pageName: string }>,
+): void {
+  const db = getDb();
+  db.transaction(() => {
+    db.run('DELETE FROM product_pages WHERE product_sku = ?', [productSku]);
+    for (const join of joins) {
+      if (join.pageId) {
+        db.run(
+          'INSERT OR IGNORE INTO product_pages (product_sku, page_name, page_id, created_at) VALUES (?, ?, ?, ?)',
+          [productSku, join.pageName, join.pageId, new Date().toISOString()],
+        );
+      } else {
+        db.run(
+          'INSERT OR IGNORE INTO product_pages (product_sku, page_name, created_at) VALUES (?, ?, ?)',
+          [productSku, join.pageName, new Date().toISOString()],
+        );
+      }
+    }
+  });
+}
 
 /**
  * Distinct assigned page names across ALL products — the catalog-wide name
@@ -228,6 +270,40 @@ export function listDistinctProductPageNames(): string[] {
 export function clearProductPages(productSku: string): void {
   const db = getDb();
   db.run('DELETE FROM product_pages WHERE product_sku = ?', [productSku]);
+}
+
+/**
+ * Replace a SKU's page joins with verified identities only (P2 #23).
+ *
+ * Every name must resolve to exactly one verified + available row in the
+ * active import; ambiguous or unverified names throw WITHOUT touching rows
+ * (validate all, then clear + insert). Returns the resolved assignments.
+ */
+export function replaceProductPageJoins(
+  productSku: string,
+  pageNames: string[],
+): Array<{ pageId: string; pageName: string }> {
+  const resolved = pageNames.map(name => {
+    const db = getDb();
+    const rows = db.query(
+      `SELECT p.* FROM page_index p
+       JOIN page_imports i ON i.id = p.import_id
+       WHERE p.name = ? AND i.status = 'active'
+         AND p.identity_status = 'verified' AND p.availability = 'available'`,
+    ).all(name) as Record<string, unknown>[];
+    if (rows.length !== 1) {
+      throw new Error(
+        `Page "${name}" has no verified identity in the active import ` +
+        `(${rows.length} verified rows); refusing to join.`,
+      );
+    }
+    return mapPageRow(rows[0]);
+  });
+  clearProductPages(productSku);
+  for (const page of resolved) {
+    assignProductToVerifiedPage(productSku, page.id, page.name);
+  }
+  return resolved.map(page => ({ pageId: page.id, pageName: page.name }));
 }
 
 /**

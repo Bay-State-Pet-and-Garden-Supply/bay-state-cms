@@ -3,7 +3,7 @@
  * parsing is strict; runtime overrides work without a redeploy; the PI kill
  * switch dominates every other setting.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_OCR_STAGE_FLAGS,
   getOcrStageFlags,
@@ -115,28 +115,44 @@ describe('kill switch dominance', () => {
   });
 
   it('dominates an in-memory override via getOcrStageFlags', () => {
-    vi.stubEnv('BAYSTATE_CMS_OCR_KILL_SWITCH', 'true');
-    overrideOcrStageFlags({ packagingOcrStageEnabled: true });
-    expect(getOcrStageFlags().packagingOcrStageEnabled).toBe(false);
-    vi.unstubAllEnvs();
+    const saved = process.env.BAYSTATE_CMS_OCR_KILL_SWITCH;
+    try {
+      process.env.BAYSTATE_CMS_OCR_KILL_SWITCH = 'true';
+      overrideOcrStageFlags({ packagingOcrStageEnabled: true });
+      expect(getOcrStageFlags().packagingOcrStageEnabled).toBe(false);
+    } finally {
+      if (saved === undefined) delete process.env.BAYSTATE_CMS_OCR_KILL_SWITCH;
+      else process.env.BAYSTATE_CMS_OCR_KILL_SWITCH = saved;
+    }
     // Kill switch cleared → the override's normal precedence is restored.
     expect(getOcrStageFlags().packagingOcrStageEnabled).toBe(true);
+    resetOcrStageFlagsOverride();
   });
 });
 
 describe('runtime override', () => {
+  const STUBBED_KEYS = [
+    'BAYSTATE_CMS_PACKAGING_OCR_STAGE_ENABLED',
+    'BAYSTATE_CMS_PACKAGING_OCR_STAGE_SHADOW_ONLY',
+    'BAYSTATE_CMS_PACKAGING_OCR_DUAL_RUN',
+    'BAYSTATE_CMS_OCR_RETRIES_ENABLED',
+    'BAYSTATE_CMS_OCR_KILL_SWITCH',
+  ];
+  let savedEnv: Record<string, string | undefined> = {};
   beforeEach(() => {
     resetOcrStageFlagsOverride();
-    // Stub ambient OCR-stage env so process.env leakage cannot skew defaults.
-    vi.stubEnv('BAYSTATE_CMS_PACKAGING_OCR_STAGE_ENABLED', '');
-    vi.stubEnv('BAYSTATE_CMS_PACKAGING_OCR_STAGE_SHADOW_ONLY', '');
-    vi.stubEnv('BAYSTATE_CMS_PACKAGING_OCR_DUAL_RUN', '');
-    vi.stubEnv('BAYSTATE_CMS_OCR_RETRIES_ENABLED', '');
-    vi.stubEnv('BAYSTATE_CMS_OCR_KILL_SWITCH', '');
+    savedEnv = {};
+    for (const key of STUBBED_KEYS) {
+      savedEnv[key] = process.env[key];
+      process.env[key] = '';
+    }
   });
   afterEach(() => {
     resetOcrStageFlagsOverride();
-    vi.unstubAllEnvs();
+    for (const key of STUBBED_KEYS) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
   });
 
   it('applies and clears an in-memory override without a redeploy', () => {

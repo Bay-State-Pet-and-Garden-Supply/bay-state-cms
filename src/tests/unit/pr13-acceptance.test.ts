@@ -2,7 +2,7 @@
  * PR13 acceptance (issue #30, third test:db invocation group): authority
  * economics + polish.
  *
- * Covers (per the PR13 architecture report, DECISION-A..D):
+ * Covers (per the PR13 architecture report, DECISION-A..C):
  *  1. T-hash scoping (DECISION-C): only the broad policy digest changing
  *     leaves the T-hash UNCHANGED; the operation-specific plan entry
  *     (provider/model/promptTemplateVersion/ruleVersion) still participates.
@@ -15,10 +15,7 @@
  *     (the cohort-coordinated output-linkage exemption resolves the
  *     parent-op-bound call ids). Authority-mutated B and an incomplete old
  *     set both coordinate fresh.
- *  3. H4 conflict-reason wording (DECISION-D): the distinct/reviewed
- *     SUMMARIES render `id (Label)` from the frozen snapshot's productTypes;
- *     unknown ids render id-only; member detail lines keep the raw ids.
- *  4. The two PR12-close P2 edges: the expected-OCR-digest predicate literal
+ *  3. The two PR12-close P2 edges: the expected-OCR-digest predicate literal
  *     contract (a supplied NULL expected digest rejects OCR entirely — never
  *     matches a stored null) and the v1 shadow-OCR false-negative
  *     documentation (module JSDoc + ADR).
@@ -57,7 +54,7 @@ import {
   rerunIdleCohortRevision,
   COHORT_LEASE_TTL_MS,
 } from '../../db/repositories/classification-cohort-run-repo';
-import { upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
+import { syncConfigToCache, upsertConfigSnapshot } from '../../db/repositories/classification-config-repo';
 import { getCohortTitleOutputsByRun } from '../../db/repositories/classification-cohort-output-repo';
 import { activatePageImportFromRecords } from '../../shopsite/page-import-service';
 import { listVerifiedPageOptions } from '../../db/repositories/page-repo';
@@ -260,7 +257,20 @@ const EVIDENCE: CatalogEvidence = {
 function writeActiveV2Bundle(
   wsPath: string,
 ): { bundle: ReturnType<typeof generateCandidate>['bundle']; xmlFields: string[] } {
-  const candidate = generateCandidate(BayStatePetGardenSeed, EVIDENCE);
+  const testSeed = {
+    ...BayStatePetGardenSeed,
+    productTypes: BayStatePetGardenSeed.productTypes.map(type => {
+      if (!type.categoryId) throw new Error(`PR13 test fixture lacks a Category for "${type.id}".`);
+      return {
+        ...type,
+        websiteValues: {
+          category: `QA Category: ${type.categoryId}`,
+          productType: `QA Product Type: ${type.id}`,
+        },
+      };
+    }),
+  };
+  const candidate = generateCandidate(testSeed, EVIDENCE);
   const bundle = candidate.bundle;
   const xmlFields = [...new Set(bundle.attributeMappings.map(mapping => mapping.catalogField))];
   fs.writeFileSync(
@@ -459,6 +469,7 @@ function prepareActiveV2Workspace(
   extByUpc: Record<string, Record<string, any>>,
 ): { items: OnboardingItem[]; cohorts: CurationCohort[]; configSnapshotHash: string } {
   const { bundle } = writeActiveV2Bundle(wsPath);
+  syncConfigToCache(wsId, bundle as unknown as Parameters<typeof syncConfigToCache>[1]);
   const { hash: configSnapshotHash } = upsertConfigSnapshot(wsId, bundle);
   activateVerifiedPages(wsId);
   const created = createReadyCohort(wsId, extByUpc);
@@ -500,7 +511,7 @@ async function freezeActiveCohort(wsId: string, wsPath: string): Promise<CohortR
 /** Parse the run's frozen execution-evidence projection from its snapshot. */
 function loadProjection(wsId: string, run: CohortRun): ExecutionEvidenceProjectionV2 {
   const snap = getCohortSnapshotByHash(wsId, run.evidenceSnapshotHash!)!;
-// @ts-ignore -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
+// @ts-expect-error -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
   return parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
 }
 
@@ -536,17 +547,12 @@ function placeInPromotion(items: OnboardingItem[]): void {
   // their INTENDED gate, not the approval gate.
   seedPromotionApproval(items);
 }
-
-/** Seed a compatible reviewed Primary Product Type decision (mirrors the
- *  cohort-freeze harness): the freeze's snapshot build collects it as a
- *  provenance-compatible reviewed fact, so the cohort resolver sees it. The
- *  run's `config_snapshot_hash` is the ACTIVE v2 bundle hash (== the
- *  authority's `bundle.manifest.bundleHash`) so `factConfigIsCompatible`
- *  accepts the fact. */
-function seedReviewedTypeDecision(wsId: string, sku: string, itemId: string, typeId: string, configSnapshotHash: string): void {
+/** Persist an accepted own-SKU Category + Product Type decision under v2 authority. */
+function seedReviewedPairDecision(wsId: string, sku: string, itemId: string, configSnapshotHash: string): void {
   const now = new Date().toISOString();
-  const runId = `prior-type-run-${itemId}`;
-  const proposalId = `prior-type-proposal-${itemId}`;
+  const runId = `prior-pair-run-${itemId}`;
+  const proposalId = `prior-pair-proposal-${itemId}`;
+  const pair = { categoryId: 'dog-food', productTypeId: 'dog-food-dry' };
   getDb().run(
     `INSERT INTO classification_runs
      (id, workspace_id, onboarding_item_id, product_sku, source_kind, config_snapshot_hash, status, started_at)
@@ -556,16 +562,18 @@ function seedReviewedTypeDecision(wsId: string, sku: string, itemId: string, typ
   getDb().run(
     `INSERT INTO classification_proposals
      (id, run_id, product_sku, proposal_type, target_id, proposed_value_json, confidence, status, created_at)
-     VALUES (?, ?, ?, 'primary_product_type', ?, ?, 0.95, 'accepted', ?)`,
-    [proposalId, runId, sku, typeId, JSON.stringify({ productTypeId: typeId }), now],
+     VALUES (?, ?, ?, 'product_classification', ?, ?, 0.95, 'accepted', ?)`,
+    [proposalId, runId, sku, pair.productTypeId, JSON.stringify(pair), now],
   );
   getDb().run(
     `INSERT INTO classification_proposal_decisions
      (id, proposal_id, decision, revised_value_json, revised_target_id, created_at, superseded_at, decision_origin)
      VALUES (?, ?, 'accepted', ?, ?, ?, NULL, 'human_review')`,
-    [`prior-type-decision-${itemId}`, proposalId, JSON.stringify({ productTypeId: typeId }), typeId, now],
+    [`prior-pair-decision-${itemId}`, proposalId, JSON.stringify(pair), pair.productTypeId, now],
   );
 }
+
+
 
 // ─── T-hash authority scoping (DECISION-C) ────────────────────────────────────
 
@@ -635,6 +643,10 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
   it('A coordinates (one call) → supersede → revision B SAME authority: ZERO title calls, fresh rows, same values, OLD call ids preserved, members commit byte-identically, promotion passes under the new cohort run', async () => {
     const { workspaceId, workspacePath: wsPath } = newWorkspace();
     const prepared = prepareActiveV2Workspace(workspaceId, wsPath, COHERENT_PROMOTABLE);
+    for (const item of prepared.items) {
+      seedReviewedPairDecision(workspaceId, item.upc, item.id, prepared.configSnapshotHash);
+    }
+
 
     // Revision A: one title call; members commit consuming A's titles.
     const runA = await freezeActiveCohort(workspaceId, wsPath);
@@ -706,7 +718,7 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
     for (const item of prepared.items) decideAllProposals(findItemById(item.id)!);
     placeInPromotion(prepared.items.map(item => findItemById(item.id)!));
     const result = await promoteItems(workspaceId, wsPath, prepared.items[0].batchId, prepared.items.map(item => item.id));
-    expect(result.failures).toHaveLength(0);
+    expect(result.failures).toEqual([]);
     expect(result.count).toBe(3);
     expect(result.changeSetId).not.toBeNull();
   });
@@ -765,79 +777,6 @@ describe('PR13 C5 — cross-parent same-T-hash reuse E2E (issue #30, DECISION-A/
   });
 });
 
-// ─── H4 conflict-reason wording (DECISION-D) ──────────────────────────────────
-
-describe('PR13 C5 — H4 conflict-reason labels (issue #30, DECISION-D)', () => {
-  it('a conflicted freeze reason renders `id (Label)` for configured types and stays deterministic', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    prepareActiveV2Workspace(workspaceId, wsPath, {
-      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme' }),
-      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Wet Dog Food Beef 10 lb', _brandHint: 'Acme' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('failed');
-    expect(finalized.productTypeOutcome).toBe('conflicted');
-    expect(finalized.errorMessage).toContain('cohort_product_type_conflict');
-    // The distinct summary renders the configured labels beside the ids.
-    expect(finalized.errorMessage).toContain('dog-food-dry (Dry Dog Food)');
-    expect(finalized.errorMessage).toContain('dog-food-wet (Wet Dog Food)');
-    // Member detail lines keep the RAW ids (deterministic machine-readable).
-    expect(finalized.errorMessage).toMatch(/ -> dog-food-(dry|wet)@/);
-    // Deterministic STRUCTURE: members sort by onboardingItemId (never input
-    // order), distinct ids sort, and labels resolve identically — assert the
-    // ordering + composition, not the run-scoped item UUIDs (fresh per
-    // workspace, so byte-equality across workspaces is impossible by design).
-    const memberLines = finalized.errorMessage!.match(/members: (.+); no execution type written/)?.[1]?.split('; ') ?? [];
-    expect(memberLines.length).toBe(2);
-    const memberIds = memberLines.map(line => line.split(' ')[0]);
-    expect(memberIds).toEqual([...memberIds].sort((a, b) => a.localeCompare(b)));
-    expect(finalized.errorMessage).toContain('2 distinct confident Product Types');
-  });
-
-  it('an UNKNOWN type id renders id-only (no label) — the label lookup never invents one', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    const prepared = prepareActiveV2Workspace(workspaceId, wsPath, {
-      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme' }),
-      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Dry Dog Food Beef 10 lb', _brandHint: 'Acme' }),
-    });
-    // A reviewed type NOT present in the frozen snapshot's productTypes: the
-    // reviewed-vs-inference conflict reason must render it id-only.
-    seedReviewedTypeDecision(workspaceId, '100000000001', prepared.items[0].id, 'mystery-type', prepared.configSnapshotHash);
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(finalized.status).toBe('failed');
-    expect(finalized.productTypeOutcome).toBe('conflicted');
-    expect(finalized.errorMessage).toContain('mystery-type');
-    expect(finalized.errorMessage).not.toContain('mystery-type (');
-    // The configured id still renders its label.
-    expect(finalized.errorMessage).toContain('dog-food-dry (Dry Dog Food)');
-  });
-
-  it('a re-freeze of the SAME cohort revision repeats the conflict reason BYTE-IDENTICALLY (deterministic wording, PR13 review R1)', async () => {
-    const { workspaceId, workspacePath: wsPath } = newWorkspace();
-    const prepared = prepareActiveV2Workspace(workspaceId, wsPath, {
-      '100000000001': promotableExtraction('100000000001', { _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', _brandHint: 'Acme' }),
-      '100000000002': promotableExtraction('100000000002', { _name: 'Purina Pro Plan Wet Dog Food Beef 10 lb', _brandHint: 'Acme' }),
-    });
-    overrideCohortCurationFlags({ cohortCurationV2Enabled: true, cohortShadowOnly: false });
-    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const first = await freezeCohortForExecution(run, wsPath, workspaceId);
-    expect(first.status).toBe('failed');
-    expect(first.productTypeOutcome).toBe('conflicted');
-    // Same cohort + same frozen authority → the NEW revision repeats the
-    // reason text exactly (same member item ids, same resolved types).
-    rerunIdleCohortRevision(prepared.cohorts[0].id, first.id, 'PR13 C5 determinism re-run');
-    const [run2] = claimReadyCurationCohorts(workspaceId, 10, 'worker-a', COHORT_LEASE_TTL_MS);
-    const second = await freezeCohortForExecution(run2, wsPath, workspaceId);
-    expect(second.status).toBe('failed');
-    expect(second.productTypeOutcome).toBe('conflicted');
-    expect(second.errorMessage).toBe(first.errorMessage);
-    expect(second.errorMessage).toContain('dog-food-dry (Dry Dog Food)');
-  });
-});
 
 // ─── The two PR12-close P2 edges ──────────────────────────────────────────────
 
@@ -848,7 +787,7 @@ describe('PR13 C5 — PR12-close P2 edges', () => {
     // Reuse the C4 unit matrix compactly through the PURE resolver: a stored
     // null with an explicitly-supplied null expected digest is REJECTED; a
     // non-null expected never matches a stored null; expected === stored is
-    // accepted; absent keeps the non-null check.
+    // accepted; absent/null/mismatch excludes OCR.
     // (The full matrix lives in cohort-product-type-resolver.test.ts PR13 C4.)
     const buildMember = (storedDigest: string | null) => {
       const member = {
@@ -906,7 +845,8 @@ describe('PR13 C5 — PR12-close P2 edges', () => {
     expect(hasOcr(evidenceFromProjection(buildMember(null), { expectedOcrExecutionDigest: null }))).toBe(false);
     expect(hasOcr(evidenceFromProjection(buildMember('digest-1'), { expectedOcrExecutionDigest: null }))).toBe(false);
     expect(hasOcr(evidenceFromProjection(buildMember('digest-1'), { expectedOcrExecutionDigest: 'digest-1' }))).toBe(true);
-    expect(hasOcr(evidenceFromProjection(buildMember('digest-1')))).toBe(true);
+    expect(hasOcr(evidenceFromProjection(buildMember('digest-1'), { expectedOcrExecutionDigest: 'other-digest' }))).toBe(false);
+    expect(hasOcr(evidenceFromProjection(buildMember('digest-1')))).toBe(false);
     expect(hasOcr(evidenceFromProjection(buildMember(null)))).toBe(false);
   });
 });

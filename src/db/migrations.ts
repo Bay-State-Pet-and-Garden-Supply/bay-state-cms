@@ -3,6 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { sha256Hex } from '../shared/stable-id';
+import { installAcceptedItemEvidenceSchema } from './repositories/accepted-item-evidence-repo';
+import { installListingCompletenessExceptionSchema } from './repositories/listing-completeness-exception-repo';
+import { installManualEvidenceIdentityBindingSchema } from './repositories/onboarding-manual-evidence-repo';
+import { installItemAcquisitionBudgetSchema } from './repositories/item-acquisition-budget-repo';
+import { installSecuritySettingsSchema } from './repositories/security-settings-repo';
 
 const SCHEMA_PATH = path.resolve(import.meta.dirname, 'schema.sql');
 const ONBOARDING_MIGRATION_PATH = path.resolve(import.meta.dirname, 'onboarding-migration.sql');
@@ -216,6 +221,68 @@ export function runMigrations(): void {
     })();
     console.log('[Migrations] Discovery-runs indexes complete.');
   }
+
+  // Nullable assessment storage preserves legacy runs as unknown rather than
+  // implying that old discovery traces had complete coverage.
+  const discoveryAssessmentColumns = db
+    .query('PRAGMA table_info(onboarding_discovery_runs)')
+    .all() as Array<{ name: string }>;
+  if (!discoveryAssessmentColumns.some(col => col.name === 'assessment_json')) {
+    db.exec('ALTER TABLE onboarding_discovery_runs ADD COLUMN assessment_json TEXT NULL;');
+  }
+  if (!discoveryAssessmentColumns.some(col => col.name === 'assessment_revision')) {
+    db.exec('ALTER TABLE onboarding_discovery_runs ADD COLUMN assessment_revision INTEGER NOT NULL DEFAULT 0;');
+  }
+  if (!discoveryAssessmentColumns.some(col => col.name === 'assessment_updated_at')) {
+    db.exec('ALTER TABLE onboarding_discovery_runs ADD COLUMN assessment_updated_at TEXT NULL;');
+  }
+
+  // ── Discovery model-call audit (issue #364) ──
+  // Durable start/terminal provenance for the `sitemap_selection` protected
+  // TypeSafe dispatch, bound to `onboarding_discovery_runs(id)`. The shared
+  // `classification_model_calls` table cannot hold discovery-run ids
+  // (`run_id REFERENCES classification_runs(id)` with FK enforcement), and
+  // weakening it would break the classification orphan-integrity checks — so
+  // the selector persists here instead. Additive + idempotent.
+  const discoveryModelCallsVersion = db
+    .query('SELECT value FROM app_meta WHERE key = ?')
+    .get('discovery_model_calls_schema_version') as { value: string } | undefined;
+  if (discoveryModelCallsVersion?.value !== '1') {
+    console.log('[Migrations] Creating discovery_model_calls audit table...');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS discovery_model_calls (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES onboarding_discovery_runs(id) ON DELETE CASCADE,
+        operation TEXT NOT NULL,
+        attempt INTEGER NOT NULL DEFAULT 1,
+        provider TEXT,
+        model TEXT,
+        requested_model TEXT,
+        resolved_model TEXT,
+        typed_result_metadata_json TEXT,
+        locality TEXT,
+        snapshot_hash TEXT,
+        model_policy_digest TEXT,
+        prompt_template_version TEXT,
+        rule_version TEXT,
+        prompt_hash TEXT,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        duration_ms INTEGER,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('started', 'success', 'failed', 'policy_denied', 'unavailable')),
+        error_message TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_discovery_model_calls_run ON discovery_model_calls(run_id);
+      CREATE INDEX IF NOT EXISTS idx_discovery_model_calls_snapshot ON discovery_model_calls(snapshot_hash);
+      INSERT INTO app_meta (key, value) VALUES ('discovery_model_calls_schema_version', '1')
+      ON CONFLICT(key) DO UPDATE SET value = '1';
+    `);
+    console.log('[Migrations] Discovery model-call audit table complete.');
+  }
+
 
   // ── Epic #46 operator work-state: durable review/approval/export state ──
   // New table `onboarding_review_state` (version-gated marker
@@ -1134,6 +1201,23 @@ export function runMigrations(): void {
     db.exec("INSERT INTO app_meta (key, value) VALUES ('classification_schema_version', '1');");
   }
 
+  // Canonical Category + Product Type output destinations were added after
+  // classification_schema_version reached 1. Keep this idempotent upgrade
+  // outside the original fresh-install-only migration gate.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS classification_output_bindings (
+      workspace_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('category', 'product-type')),
+      catalog_field TEXT NOT NULL,
+      serialization_json TEXT NOT NULL,
+      is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+      config_hash TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (workspace_id, role)
+    );
+  `);
+
   // ── Ensure classification_brands table exists (existing DB migration) ───────
   try {
     db.exec(`
@@ -1694,6 +1778,23 @@ export function runMigrations(): void {
   // idx_classification_runs_one_running_item, migrations.ts:1049-1056).
   db.exec('CREATE INDEX IF NOT EXISTS idx_classification_runs_cohort_run_id ON classification_runs(cohort_run_id);');
 
+  // classification_runs idempotency + lease columns (P2 #19) — same-key
+  // replay returns the same catalog run; claims are atomic worker leases.
+  // PRAGMA-guarded upgrade for pre-P19 databases; fresh installs get the
+  // columns from classification-migration.sql. Legacy rows keep NULL.
+  try {
+    const idemCols = db.query('PRAGMA table_info(classification_runs)').all() as Array<{ name: string }>;
+    for (const col of ['idempotency_key', 'claimed_by', 'claimed_at']) {
+      if (idemCols.length > 0 && !idemCols.some(c => c.name === col)) {
+        db.exec(`ALTER TABLE classification_runs ADD COLUMN ${col} TEXT;`);
+        console.log(`[Migrations] Added classification_runs.${col}.`);
+      }
+    }
+  } catch (e) {
+    console.error('[Migrations] Failed to add idempotency columns to classification_runs:', e);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_classification_runs_idempotency ON classification_runs(workspace_id, product_sku, idempotency_key) WHERE idempotency_key IS NOT NULL;');
+
   // ── classification_cohort_snapshots + evidence_snapshot_id (issue #30 PR3 M2) ─
   //
   // M2 adds the content-addressed execution-evidence snapshot table and links
@@ -1893,6 +1994,71 @@ export function runMigrations(): void {
     console.error('[Migrations] Curation V2 migration failed:', e);
   }
 
+  // Issue #304 follow-up / #356 cutover: widen the classification_proposals
+  // proposal_type CHECK to admit the canonical 'product_classification' pair
+  // kind (schema.sql already declares it; live DBs created before the
+  // cutover still enforce the legacy set and fail every canonical pair
+  // insert). Idempotent: rebuilds only when the CHECK lacks the kind.
+  // SQLite cannot ALTER a CHECK, so this builds a NEW table, copies rows,
+  // drops the original, and renames the new table into place — never
+  // renaming the ORIGINAL (which would rewrite inbound FKs on
+  // classification_proposal_decisions/evidence/dependencies to the legacy
+  // name and break them on drop). One transaction, FKs off; all rows,
+  // defaults and indexes preserved.
+  try {
+    const pairCheck = db.query(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'classification_proposals'`).get() as
+      | { sql: string | null }
+      | undefined;
+    if (pairCheck?.sql && !pairCheck.sql.includes(`'product_classification'`)) {
+      console.log('[Migrations] Widening classification_proposals.proposal_type CHECK to admit product_classification...');
+      const newCols: Record<string, true> = { id: true, run_id: true, product_sku: true, proposal_type: true, target_id: true, proposed_value_json: true, confidence: true, status: true, is_bulk_acceptable: true, is_stale: true, staleness_reason: true, config_snapshot_hash: true, created_at: true, evidence_ids_json: true, stale_at: true, superseded_by_run_id: true, metadata_json: true, model_call_ids_json: true, supporting_evidence_ids_json: true, contradicting_evidence_ids_json: true, derivation_json: true, superseded_at: true, refresh_queue_id: true };
+      const liveCols = (db.query(`PRAGMA table_info(classification_proposals)`).all() as Array<{ name: string }>).map(c => c.name).filter(name => newCols[name]);
+      const cols = liveCols.map(name => `"${name}"`).join(', ');
+      const indexes = (db.query(`SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'classification_proposals' AND sql IS NOT NULL`).all() as Array<{ sql: string }>).map(r => r.sql);
+      db.exec('PRAGMA foreign_keys=OFF;');
+      try {
+        db.transaction(() => {
+          db.exec(`CREATE TABLE classification_proposals_new (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES classification_runs(id) ON DELETE CASCADE,
+            product_sku TEXT NOT NULL,
+            proposal_type TEXT NOT NULL CHECK (proposal_type IN ('primary_product_type', 'product_classification', 'category_page', 'field_assignment', 'configuration_gap', 'reviewable_abstention')),
+            target_id TEXT,
+            proposed_value_json TEXT,
+            confidence REAL NOT NULL DEFAULT 0 CHECK (confidence >= 0 AND confidence <= 1),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'deferred', 'stale')),
+            is_bulk_acceptable INTEGER NOT NULL DEFAULT 0 CHECK (is_bulk_acceptable IN (0, 1)),
+            is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+            staleness_reason TEXT,
+            config_snapshot_hash TEXT,
+            created_at TEXT NOT NULL,
+            evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+            stale_at TEXT,
+            superseded_by_run_id TEXT REFERENCES classification_runs(id),
+            metadata_json TEXT DEFAULT '{}',
+            model_call_ids_json TEXT,
+            supporting_evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+            contradicting_evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+            derivation_json TEXT,
+            superseded_at TEXT,
+            refresh_queue_id TEXT
+          );`);
+          db.exec(`INSERT INTO classification_proposals_new (${cols}) SELECT ${cols} FROM classification_proposals;`);
+          db.exec(`DROP TABLE classification_proposals;`);
+          db.exec(`ALTER TABLE classification_proposals_new RENAME TO classification_proposals;`);
+          for (const sql of indexes) db.exec(sql);
+        })();
+      } finally {
+        db.exec('PRAGMA foreign_keys=ON;');
+      }
+      db.exec(`INSERT INTO app_meta (key, value) VALUES ('classification_pair_check_version', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value;`);
+      console.log('[Migrations] classification_proposals CHECK widened.');
+    }
+  } catch (e) {
+    console.error('[Migrations] classification pair CHECK migration failed:', e);
+    throw e;
+  }
+
   // Classification is item-centric: at most one live run may own an item.
   // Keep this outside the version guard so databases that already recorded
   // curation_v2_schema_version still receive the concurrency constraint.
@@ -1907,6 +2073,15 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_remote_drift_ws_sku_status
     ON remote_drift(workspace_id, sku, status)
   `);
+  // Issue #303 follow-up: the keyset-paginated pool queries filter on
+  // (stage, stage_status) and page in (row_number, id) order. The planner
+  // narrows via the pre-existing (stage, stage_status, claimed_by) prefix
+  // (`SEARCH ... USING INDEX`), so per-page work is bounded by the
+  // eligible-subset size; the residual global-order sort is over that
+  // subset only. No new index: a (stage, stage_status, row_number, id)
+  // variant was measured to be redundant — the planner prefers the narrower
+  // existing index and still sorts. See the EXPLAIN assertion in
+  // onboarding-automation.test.ts.
 
   // ── Catalog Classification Migration ──────────────────────────────────────
   //
@@ -5800,6 +5975,48 @@ export function runMigrations(): void {
       db.exec("UPDATE app_meta SET value = '5' WHERE key = 'onboarding_operation_receipt_schema_version';");
       console.log('[Migrations] Operation receipts migrated to v5.');
     }
+    // v5 -> v6 (ticket #367): widen the operation CHECK to
+    // listing-evidence verification commands. Same rebuild discipline as
+    // v4 -> v5: preserve every row and column, exactly one version bump.
+    const receiptV5b = db
+      .query('SELECT value FROM app_meta WHERE key = ?')
+      .get('onboarding_operation_receipt_schema_version') as { value: string } | undefined;
+    if (receiptV5b && receiptV5b.value === '5') {
+      console.log('[Migrations] Migrating operation receipts v5 -> v6 (listing_evidence_verify operation)...');
+      db.transaction(() => {
+        db.exec('DROP TABLE IF EXISTS onboarding_operation_receipts_new;');
+        db.exec(`
+          CREATE TABLE onboarding_operation_receipts_new (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+            batch_id TEXT NOT NULL REFERENCES onboarding_batches(id) ON DELETE CASCADE,
+            operation TEXT NOT NULL CHECK(operation IN ('approve','export','gap_correction','listing_evidence_verify')),
+            principal TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            idempotency_key TEXT,
+            request_hash TEXT NOT NULL CHECK(request_hash GLOB '[0-9a-f]*' AND length(request_hash) = 64),
+            details_json TEXT,
+            status TEXT NOT NULL CHECK(status IN ('started','completed','failed')) DEFAULT 'completed',
+            started_at TEXT,
+            completed_at TEXT,
+            UNIQUE(workspace_id, batch_id, operation, idempotency_key)
+          );
+        `);
+        db.exec(`
+          INSERT INTO onboarding_operation_receipts_new
+            (id, workspace_id, batch_id, operation, principal, role, created_at, idempotency_key, request_hash, details_json, status, started_at, completed_at)
+          SELECT id, workspace_id, batch_id, operation, principal, role, created_at, idempotency_key, request_hash, details_json, status, started_at, completed_at
+          FROM onboarding_operation_receipts;
+        `);
+        db.exec('DROP TABLE onboarding_operation_receipts;');
+        db.exec('ALTER TABLE onboarding_operation_receipts_new RENAME TO onboarding_operation_receipts;');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_operation_receipts_batch ON onboarding_operation_receipts(batch_id);');
+        db.exec('CREATE INDEX IF NOT EXISTS idx_operation_receipts_workspace ON onboarding_operation_receipts(workspace_id);');
+      })();
+      db.exec("UPDATE app_meta SET value = '6' WHERE key = 'onboarding_operation_receipt_schema_version';");
+      console.log('[Migrations] Operation receipts migrated to v6.');
+    }
   } catch (e) {
     console.error('[Migrations] Failed to create operation receipts table:', e);
   }
@@ -6221,6 +6438,230 @@ export function runMigrations(): void {
   } catch (e) {
     console.error('[Migrations] change-set item run binding migration failed:', e);
   }
+
+  // ── Linked/consistency-group approval tables (issue #363) ─────────────────
+  // Additive + idempotent: the consistency-group write/read manifest store.
+  // Structural contract only (workspace ownership, true bases, exact hashes).
+  // Guarded CREATE TABLE so fresh and existing databases converge.
+  try {
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS change_set_linked_manifests (
+        change_set_id TEXT PRIMARY KEY REFERENCES change_sets(id),
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        manifest_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'committed', 'recovered')),
+        commit_hash TEXT,
+        snapshot_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );`,
+    );
+    try {
+      const cols = db.query('PRAGMA table_info(change_set_linked_manifests)').all() as Array<{ name: string }>;
+      if (cols.length > 0 && !cols.some((c) => c.name === 'snapshot_json')) {
+        db.exec('ALTER TABLE change_set_linked_manifests ADD COLUMN snapshot_json TEXT;');
+      }
+    } catch { /* best-effort convergence for pre-existing databases */ }
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_linked_manifests_ws
+        ON change_set_linked_manifests(workspace_id);`,
+    );
+  } catch (e) {
+    console.error('[Migrations] Linked approval manifest migration failed:', e);
+  }
+  // ── Storefront-family plans (issue #368, listing-owned) ──────────────────
+  // Additive + idempotent: versioned family plans + human decisions.
+  // Guarded CREATE TABLE so fresh and existing databases converge.
+  try {
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS storefront_family_plans (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        plan_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'accepted', 'revised', 'rejected', 'deferred', 'stale', 'applied')),
+        revision INTEGER NOT NULL DEFAULT 0,
+        linked_change_set_id TEXT REFERENCES change_sets(id),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );`,
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_family_plans_ws
+        ON storefront_family_plans(workspace_id);`,
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_family_plans_change_set
+        ON storefront_family_plans(linked_change_set_id);`,
+    );
+  } catch (e) {
+    console.error('[Migrations] Storefront family plan migration failed:', e);
+  }
+  // ── TypeSafe family-membership proposals (issue #371) ─────────────────────
+  // Additive + idempotent: versioned proposal + raw judgments + audit hashes.
+  // Guarded CREATE TABLE so fresh and existing databases converge (schema.sql
+  // carries the same shape for fresh installs).
+  try {
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS family_membership_proposals (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        sku TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        judgments_json TEXT NOT NULL,
+        raw_judgments_json TEXT NOT NULL,
+        model_call_ids_json TEXT NOT NULL,
+        request_json TEXT NOT NULL DEFAULT '{}',
+        evidence_hash TEXT NOT NULL,
+        rule_hash TEXT NOT NULL,
+        anchor_hash TEXT NOT NULL,
+        model_policy_digest TEXT NOT NULL,
+        rule_version TEXT NOT NULL,
+        prompt_template_version TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'unresolved', 'accepted', 'revised', 'rejected', 'deferred', 'stale')),
+        revision INTEGER NOT NULL DEFAULT 0,
+        linked_plan_id TEXT,
+        decided_by TEXT,
+        decided_at TEXT,
+        decision_note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );`,
+    );
+    // Converge pre-existing databases: widen the status CHECK to admit
+    // `unresolved` recorded refusals and add the originating-request column.
+    const proposalDdl = db.query(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'family_membership_proposals'`).get() as { sql?: string } | undefined;
+    const proposalCols = db.query('PRAGMA table_info(family_membership_proposals)').all() as Array<{ name: string }>;
+    if (proposalDdl?.sql && !proposalDdl.sql.includes("'unresolved'")) {
+      const fkRow = db.query('PRAGMA foreign_keys').get() as { foreign_keys: number } | undefined;
+      const fkWasOn = fkRow ? Number(fkRow.foreign_keys) === 1 : false;
+      if (fkWasOn) db.exec('PRAGMA foreign_keys = OFF');
+      try {
+        (() => {
+          db.exec(`
+            CREATE TABLE family_membership_proposals_new (
+              id TEXT PRIMARY KEY,
+              workspace_id TEXT NOT NULL REFERENCES workspace(id),
+              sku TEXT NOT NULL,
+              outcome TEXT NOT NULL,
+              judgments_json TEXT NOT NULL,
+              raw_judgments_json TEXT NOT NULL,
+              model_call_ids_json TEXT NOT NULL,
+              request_json TEXT NOT NULL DEFAULT '{}',
+              evidence_hash TEXT NOT NULL,
+              rule_hash TEXT NOT NULL,
+              anchor_hash TEXT NOT NULL,
+              model_policy_digest TEXT NOT NULL,
+              rule_version TEXT NOT NULL,
+              prompt_template_version TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'unresolved', 'accepted', 'revised', 'rejected', 'deferred', 'stale')),
+              revision INTEGER NOT NULL DEFAULT 0,
+              linked_plan_id TEXT,
+              decided_by TEXT,
+              decided_at TEXT,
+              decision_note TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );`);
+          db.exec(`INSERT INTO family_membership_proposals_new
+            (id, workspace_id, sku, outcome, judgments_json, raw_judgments_json, model_call_ids_json, request_json,
+             evidence_hash, rule_hash, anchor_hash, model_policy_digest, rule_version, prompt_template_version,
+             status, revision, linked_plan_id, decided_by, decided_at, decision_note, created_at, updated_at)
+            SELECT id, workspace_id, sku, outcome, judgments_json, raw_judgments_json, model_call_ids_json, '{}',
+             evidence_hash, rule_hash, anchor_hash, model_policy_digest, rule_version, prompt_template_version,
+             status, revision, linked_plan_id, decided_by, decided_at, decision_note, created_at, updated_at
+            FROM family_membership_proposals;`);
+          db.exec('DROP TABLE family_membership_proposals;');
+          db.exec('ALTER TABLE family_membership_proposals_new RENAME TO family_membership_proposals;');
+          db.exec('CREATE INDEX IF NOT EXISTS idx_family_membership_proposals_ws ON family_membership_proposals(workspace_id);');
+          db.exec('CREATE INDEX IF NOT EXISTS idx_family_membership_proposals_sku ON family_membership_proposals(workspace_id, sku);');
+          console.log('[Migrations] Rebuilt family_membership_proposals with unresolved status + request_json.');
+        })();
+      } finally {
+        if (fkWasOn) db.exec('PRAGMA foreign_keys = ON');
+      }
+    } else if (!proposalCols.some((c) => c.name === 'request_json')) {
+      db.exec(`ALTER TABLE family_membership_proposals ADD COLUMN request_json TEXT NOT NULL DEFAULT '{}'`);
+    }
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_family_membership_proposals_ws
+        ON family_membership_proposals(workspace_id);`,
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_family_membership_proposals_sku
+        ON family_membership_proposals(workspace_id, sku);`,
+    );
+  } catch (e) {
+    console.error('[Migrations] Family membership proposal migration failed:', e);
+  }
+
+  installManualEvidenceIdentityBindingSchema(db);
+  installAcceptedItemEvidenceSchema(db);
+  installListingCompletenessExceptionSchema(db);
+  installItemAcquisitionBudgetSchema(db);
+  installSecuritySettingsSchema(db);
+  // Brave→Serper cutover: widen the ledger CHECK for existing databases
+  // (fresh installs get the widened constraint from the installer) and
+  // carry any stored Brave credential forward under the Serper key.
+  try {
+    const ddl = db.query(
+      `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'item_acquisition_budget_reservations'`,
+    ).get() as { sql: string } | undefined;
+    if (ddl?.sql && !ddl.sql.includes('serper_search')) {
+      // Atomic swap: an interrupted startup must never commit a partial
+      // rebuild (dropped ledger, stranded _new table, reset accounting).
+      db.transaction(() => {
+        db.exec(`DROP TABLE IF EXISTS item_acquisition_budget_reservations_new`);
+        db.exec(`
+          CREATE TABLE item_acquisition_budget_reservations_new (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            batch_id TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('model', 'brave_search', 'serper_search', 'browser')),
+            policy_hash TEXT NOT NULL,
+            pricing_hash TEXT NOT NULL,
+            reserved_resources_json TEXT NOT NULL,
+            actual_resources_json TEXT,
+            cost_micros INTEGER,
+            actual_cost_micros INTEGER,
+            billing_status TEXT NOT NULL CHECK (billing_status IN ('pending', 'known', 'unknown', 'not_applicable')),
+            status TEXT NOT NULL CHECK (status IN ('reserved', 'dispatched', 'settled', 'released')),
+            release_reason TEXT,
+            created_at TEXT NOT NULL,
+            dispatched_at TEXT,
+            settled_at TEXT,
+            CHECK (workspace_id <> '' AND batch_id <> '' AND item_id <> '')
+          );
+        `);
+        db.exec(`INSERT INTO item_acquisition_budget_reservations_new SELECT * FROM item_acquisition_budget_reservations`);
+        db.exec(`DROP TABLE item_acquisition_budget_reservations`);
+        db.exec(`ALTER TABLE item_acquisition_budget_reservations_new RENAME TO item_acquisition_budget_reservations`);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_item_status
+            ON item_acquisition_budget_reservations(workspace_id, item_id, status);
+        `);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_batch_status
+            ON item_acquisition_budget_reservations(workspace_id, batch_id, status);
+        `);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_item_acquisition_budget_run
+            ON item_acquisition_budget_reservations(workspace_id, item_id, run_id, status);
+        `);
+      })();
+    }
+    // Retired provider cleanup: a Brave-issued secret is not a Serper
+    // credential and must never be relabeled as one (wrong-provider
+    // exposure) nor resurrected after operator removal. Drop the Brave row;
+    // the operator supplies a real Serper key through Settings.
+    db.query(`DELETE FROM api_keys WHERE service = 'brave_search'`).run();
+  } catch (e) {
+    console.error('[Migrations] Brave→Serper acquisition cutover failed:', e);
+  }
+
 
   const row = db.query('SELECT value FROM app_meta WHERE key = ?').get('schema_version') as
     | { value: string }

@@ -556,7 +556,7 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
       : `Blocked: ${input.hybridIdentityErrors} identity errors (wrong product or variant confusion) detected`,
   });
 
-  // 2. Critical Field Regressions: No regressions on title/brand/price vs baseline
+  // 2. Critical Field Regressions: No regressions on title or brand vs baseline
   const crPassed = input.criticalFieldRegressions === 0;
   checks.push({
     name: 'No Critical Field Regressions',
@@ -568,8 +568,8 @@ export function deriveBaselineThresholds(input: BaselineThresholdInput): GateThr
     rule: 'actual <= 0',
     passed: crPassed,
     reason: crPassed
-      ? '✓ Zero critical-field regressions on title, brand, or price'
-      : `Blocked: ${input.criticalFieldRegressions} critical field regressions versus baseline on title/brand/price`,
+      ? '✓ Zero critical-field regressions on title or brand'
+      : `Blocked: ${input.criticalFieldRegressions} critical field regressions versus baseline on title/brand`,
   });
 
   // 3. Field Completeness & Correctness: Demonstrated improvement within the

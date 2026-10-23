@@ -1,3 +1,5 @@
+import type { Database } from 'bun:sqlite';
+
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -106,6 +108,11 @@ interface ReadFileResult {
   bytes: Uint8Array;
   text: string;
   value: unknown;
+}
+
+interface ManifestReadResult {
+  dir: CheckedDirectory;
+  file: ReadFileResult;
 }
 
 function fsErrorCode(error: unknown): string | null {
@@ -304,7 +311,7 @@ function readRequiredFile(dir: CheckedDirectory, fileName: string): ReadFileResu
   }
 }
 
-function readManifest(workspacePath: string): { dir: CheckedDirectory; file: ReadFileResult } {
+function readManifest(workspacePath: string): ManifestReadResult {
   const dir = checkedClassificationDirectory(workspacePath);
   try {
     const entries = fs.readdirSync(dir.path);
@@ -520,6 +527,7 @@ function loadClassificationConfigBundleV2Internal(
     attributes: attributesFile.entries,
     attributeProfiles: attributeProfilesFile.entries,
     attributeMappings: attributeMappingsFile.entries,
+    classificationOutputBindings: attributeMappingsFile.classificationOutputBindings,
     curationTargets: curationTargetsFile.entries,
     brands: brandsFile.entries,
     guidance: guidanceFile.entries,
@@ -665,7 +673,7 @@ function loadPinnedReleaseAuthority(workspacePath: string, pinnedRevision: strin
   let dataSharing = compiled.dataSharing;
   let curationTargets = compiled.curationTargets;
 
-  let manifest: ReturnType<typeof readManifest> | null = null;
+  let manifest: ManifestReadResult;
   try {
     manifest = readManifest(workspacePath);
   } catch {
@@ -891,11 +899,15 @@ function loadLegacyRuntimeAuthority(
  * Cheap enough for every runtime load; the full tree re-scan gate is added by
  * the activation caller through `verifyCatalogEvidenceTree`.
  */
-export function createRuntimeActivationContext(workspacePath: string, workspaceId: string): VerifiedActivationContext {
+export function createRuntimeActivationContext(
+  workspacePath: string,
+  workspaceId: string,
+  db?: Database,
+): VerifiedActivationContext {
   return {
     catalogFields: readLiveCatalogFields(workspacePath, workspaceId),
     verifyCatalogEvidence: createCatalogEvidenceVerifier(workspacePath, workspaceId),
-    ...(workspaceId ? { verifiedPageIds: listVerifiedPageOptions(workspaceId).map(page => page.id) } : {}),
+    ...(workspaceId ? { verifiedPageIds: listVerifiedPageOptions(workspaceId, db).map(page => page.id) } : {}),
   };
 }
 

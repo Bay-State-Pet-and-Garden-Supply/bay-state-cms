@@ -63,8 +63,8 @@ const AUTH_PAGE_SELECTORS = [
   '#cphMainContent_lblHomeError',
 ];
 
-/** ASP.NET product-detail links (search results grid). */
-const PRODUCT_DETAIL_HREF_RE = /\/ProductDetail\.aspx/i;
+/** ASP.NET product-page links used by search result templates. */
+const PRODUCT_DETAIL_HREF_RE = /\/ProductDetail\.aspx|\/index\.aspx\?[^#]*\bsku=\d+(?:&|$)/i;
 
 /** Injectable page fetcher (tests); production uses the bounded session runner. */
 export interface OrgillConnectorDeps {

@@ -69,7 +69,7 @@ export function ScopePin({ scope, onPin, onClear, error, busy }: ScopePinProps) 
           <button
             type="button"
             onClick={onClear}
-            aria-label="Clear pinned scope"
+            aria-label="Clear focus"
             style={{
               border: 'none',
               background: 'transparent',
@@ -87,7 +87,7 @@ export function ScopePin({ scope, onPin, onClear, error, busy }: ScopePinProps) 
           type="button"
           onClick={() => setExpanded((e) => !e)}
           aria-expanded={expanded}
-          aria-label={label ? 'Edit pinned scope' : 'Pin a scope'}
+          aria-label={label ? 'Change focus' : 'Choose what to focus on'}
           style={{
             border: `1px solid ${colors.cardBorder}`,
             background: colors.whiteSurface,
@@ -99,7 +99,7 @@ export function ScopePin({ scope, onPin, onClear, error, busy }: ScopePinProps) 
             cursor: 'pointer',
           }}
         >
-          {label ? `◎ ${label}` : '+ Pin scope'}
+          {label ? `◎ ${label}` : '+ Choose focus'}
         </button>
       )}
 
@@ -121,11 +121,13 @@ export function ScopePin({ scope, onPin, onClear, error, busy }: ScopePinProps) 
             gap: 8,
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, color: colors.ledgerCharcoal }}>Pin working scope</div>
+          <p style={{ margin: 0, fontSize: 11, color: colors.mulchBrown }}>
+            Choose the products or details you want to include.
+          </p>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            aria-label="Scope kind"
+            aria-label="What should help focus on?"
             style={{
               padding: '6px 8px',
               borderRadius: rounded.sm,
@@ -147,8 +149,8 @@ export function ScopePin({ scope, onPin, onClear, error, busy }: ScopePinProps) 
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit();
             }}
-            placeholder={kind === 'sku_set' ? 'SKU1, SKU2, …' : kind === 'change_set' ? 'Change Set id' : 'ProductField24'}
-            aria-label="Scope identifier"
+            placeholder={kind === 'sku_set' ? 'Product codes, separated by commas' : 'Product detail name from Settings'}
+            aria-label="Details to focus on"
             style={{
               padding: '6px 8px',
               borderRadius: rounded.sm,
@@ -166,10 +168,10 @@ export function ScopePin({ scope, onPin, onClear, error, busy }: ScopePinProps) 
               className="btn btn-primary"
               style={{ fontSize: 12, padding: '5px 12px' }}
             >
-              {busy ? '…' : 'Pin'}
+              {busy ? 'Saving...' : 'Set focus'}
             </button>
             <button type="button" onClick={() => setExpanded(false)} className="btn btn-outline" style={{ fontSize: 12, padding: '5px 12px' }}>
-              Close
+              Cancel
             </button>
           </div>
         </div>

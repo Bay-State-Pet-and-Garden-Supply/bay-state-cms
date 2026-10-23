@@ -8,25 +8,25 @@ web
 
 ## Users
 
-ShopSite store managers, catalog curators, and e-commerce operations specialists managing Bay State Pet & Garden Supply catalog inventory, product attributes, spreadsheet onboarding, and ShopSite 15 CGI synchronization.
+Store managers are the primary users. Workflows must work for people with no prior software or AI experience; technical catalog staff are secondary users.
 
 ## Product Purpose
 
-Bay State CMS is a standalone local content management system for ShopSite 15 stores. It bridges bulk spreadsheet product onboarding, OCR package analysis, AI-assisted product intelligence research (Agent Lab), catalog curation, Git-versioned change set promotion, and automated ShopSite XML CGI synchronization.
+Bay State CMS is a local tool that helps store managers bring products in from spreadsheets, review product details and pictures, and prepare catalog changes for their ShopSite store.
 
 ## Positioning
 
-A local-first, Git-backed catalog management system with evidence-based curation and deterministic ShopSite XML sync. Unlike generic CMS tools, it preserves undocumented ShopSite product/page fields and provides full change-set auditability before publishing.
+A practical, safe catalog tool that explains each step in familiar words. The system handles its technical work behind the scenes and shows managers what needs attention before a change reaches the store.
 
 ## Operating Context
 
-Local desktop operation, handling bulk spreadsheets, web scraping extractions, high-density product data tables, image verification, AI agent runs, and ShopSite CGI XML sync pipelines.
+Local desktop use for spreadsheet onboarding, product review, photo checks, and preparing catalog changes for the store.
 
 ## Capabilities and Constraints
 
 - **Local State & Git Source of Truth:** SQLite via `bun:sqlite` for dynamic runtime state; Git CLI workspace directory for canonical catalog approval.
 - **5-Stage Onboarding Pipeline:** Discovery -> Extraction -> Curation -> Review -> Promotion.
-- **Product Intelligence (Agent Lab):** Bounded AI research sandbox for product attribute discovery and commerce asset verification.
+- **Price Authority:** Keep the exact price entered during onboarding. Never read, validate, compare, or replace it using a third-party product page; later workflows cannot change it.
 - **ShopSite Integration:** XML normalizer/denormalizer preserving unknown tags, batched `db_xml.cgi` / `dbupload.cgi` syncing.
 - **Security & Integrity:** Environment token auth, log redaction of passwords/tokens, strict schema validations.
 
@@ -38,7 +38,7 @@ Local desktop operation, handling bulk spreadsheets, web scraping extractions, h
 
 ## Product Principles
 
-1. **Operate First:** Frictionless task completion, high-density data legibility, fast search and keyboard affordances outrank visual fluff.
-2. **Deterministic Governance:** AI agents research and propose; deterministic CMS code validates, reviews, promotes, and publishes.
-3. **Auditability & Integrity:** Every catalog change is backed by Git commits and evidence trails.
-4. **Clean Brand Presence:** Professional, state-of-the-art admin interface grounded in Bay State's signature forest green brand palette.
+1. **Manager First:** Use familiar words, explain the next action and its consequence, and never require managers to understand AI, Git, syncing, or internal processing.
+2. **Price Stays Fixed:** The onboarding price is the sole authority and remains unchanged in every later step.
+3. **Safe Publishing:** Show proposed changes clearly and require review before they reach the store.
+4. **Clean Brand Presence:** Ground the admin interface in Bay State's trusted neighborhood-store identity.

@@ -41,6 +41,7 @@ import { domainFromUrl, getAttentionConsequence } from './attention-logic';
 import { getBrandOptions } from '../brand-combobox-logic';
 import { matchExistingBrand } from '../../../../shared/brand-matcher';
 import './attention.css';
+import { ReviewListingChecklistPanel } from '../review/ReviewListingChecklistPanel';
 import './semantic-conflict.css';
 
 interface OfficialSiteResolutionWorkspaceProps {
@@ -53,11 +54,12 @@ interface OfficialSiteResolutionWorkspaceProps {
 type Phase =
   | 'loading'
   | 'load-error'
+  | 'listing'
   | 'url' // candidate decision / manual URL
   | 'variant' // choose_variant matrix
   | 'extractor' // extractor status after URL confirmation (or directly)
   | 'manual' // parent #101: operator manual evidence for family-page-only brands
-  | 'conflicts' // distributor evidence conflict decision
+  | 'conflicts' // source conflict decision
   | 'semantic' // Curation blocked by semantic validation findings
   | 'retry' // processing failure
   | 'done'; // blocker resolved — close when ready
@@ -103,14 +105,13 @@ export function OfficialSiteResolutionWorkspace({
     | 'retry'
     | 'conflict'
     | 'sourcing-route'
-    | 'rerun-cohort'
+    | 'assign-brand'
     | 'assign-brand'
     | 'assign-domain'
     | null
   >(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [releaseResult, setReleaseResult] = useState<DomainReleaseResponse | null>(null);
-  /** Honest resolution note rendered in the done phase (semantic re-run etc.). */
   const [resolutionNote, setResolutionNote] = useState<string | null>(null);
   const [variantDetail, setVariantDetail] = useState<any | null>(null);
 
@@ -132,9 +133,17 @@ export function OfficialSiteResolutionWorkspace({
       setEvidenceAttemptCount(detail.evidenceAttempts?.length ?? 0);
       setResolutionNote(null);
       // load variant resolution if present
-      try { const vd = (detail as any).variantResolution; if (vd) setVariantDetail(vd); else setVariantDetail(null); } catch {}
+      try {
+        const vd = (detail as { variantResolution?: unknown }).variantResolution;
+        if (vd) setVariantDetail(vd);
+        else setVariantDetail(null);
+      } catch {
+        // Keep the current variant detail when optional resolution data is unreadable.
+      }
       const reason = ws.workState.attentionReason;
-      if (reason === 'choose_variant') {
+      if (reason === 'listing_completeness_unresolved') {
+        setPhase('listing');
+      } else if (reason === 'choose_variant') {
         setPhase('variant');
       } else if (reason === 'source_conflict') {
         setPhase('conflicts');
@@ -480,42 +489,6 @@ export function OfficialSiteResolutionWorkspace({
     }
   };
 
-  // ── Semantic conflict (Curation blocked) ────────────────────────────────
-
-  /**
-   * Re-run the whole family's Curation via the canonical cohort re-run
-   * endpoint (POST /api/onboarding/cohorts/:id/re-run). Cohort-owned
-   * resolution: members reset to curation/pending in one cohort-atomic
-   * transaction, then the cohort claims and re-freezes automatically.
-   */
-  const handleReRunCohort = async () => {
-    if (!family?.cohortId) return;
-    setBusy('rerun-cohort');
-    setMutationError(null);
-    try {
-      const res = await fetch(
-        `/api/onboarding/cohorts/${encodeURIComponent(family.cohortId)}/re-run`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' } },
-      );
-      const data = (await res.json().catch(() => ({}))) as { error?: unknown };
-      if (!res.ok) {
-        const errMsg =
-          typeof data.error === 'string' ? data.error : 'Could not re-run family curation';
-        throw new Error(errMsg);
-      }
-      // The cohort re-run supersedes the old run and resets the members; the
-      // worker claims the cohort automatically. Stay honest: resolution is
-      // pending re-curation, not a guaranteed pass.
-      setResolutionNote(
-        'Family Curation re-queued — all members re-run automatically, and this product returns to Review once the findings are resolved.',
-      );
-      setPhase('done');
-    } catch (err) {
-      setMutationError(err instanceof Error ? err.message : 'Could not re-run family curation');
-    } finally {
-      setBusy(null);
-    }
-  };
 
   // ── Derived context ──────────────────────────────────────────────────────
 
@@ -524,14 +497,6 @@ export function OfficialSiteResolutionWorkspace({
   const reason = workState?.attentionReason ?? null;
   const consequence = getAttentionConsequence(reason, workState?.detail);
   const family = workState?.family ?? null;
-  // Curation-semantic findings from the committed curation payload. The
-  // projection only maps to semantic_validation_blocked when status is
-  // 'blocked', so findings are authoritative here (deterministic messages).
-  const semanticValidation = item?.curationData?.semanticValidation ?? null;
-  const semanticFindings =
-    semanticValidation && semanticValidation.status === 'blocked' && Array.isArray(semanticValidation.findings)
-      ? semanticValidation.findings
-      : [];
 
   if (phase === 'loading') {
     return (
@@ -592,8 +557,7 @@ export function OfficialSiteResolutionWorkspace({
         </div>
         {family ? (
           <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.8125rem', color: 'var(--color-mulch-brown)' }}>
-            Family: <strong>{family.label}</strong> — {family.readyCount} / {family.memberCount} members ready
-            {family.waitingOnItemIds.length > 0 ? ` (waiting on ${family.waitingOnItemIds.length} sibling${family.waitingOnItemIds.length === 1 ? '' : 's'})` : ''}
+            Family: <strong>{family.label}</strong>
           </div>
         ) : null}
         {isDistributor && qualificationView ? (
@@ -619,13 +583,14 @@ export function OfficialSiteResolutionWorkspace({
             {mutationError}
           </div>
         ) : null}
+        {workState?.attentionReason === 'listing_completeness_unresolved' ? (
+          <ReviewListingChecklistPanel itemId={itemId} />
+        ) : null}
 
         {phase === 'variant' && variantDetail ? (
           <ChooseVariantPanel
-            resolutionId={variantDetail.id}
-            identityMatrixHash={variantDetail.identityMatrixHash}
-            candidates={variantDetail.candidates.map((c:any)=>({ variantKey:c.variantKey, title:c.title, sku:c.identifiers?.find((i:any)=>i.kind==='sku')?.value ?? null, gtin:c.identifiers?.find((i:any)=>i.kind==='gtin')?.value ?? null, price:c.price ?? null, available:c.available, image:c.images?.[0]?.url ?? null, options:c.options }))}
-            onSelect={async (key)=>{ await selectVariant(itemId, { resolutionId: variantDetail.id, identityMatrixHash: variantDetail.identityMatrixHash, variantKey: key }); setResolutionNote(`Variant selected — extraction re-queued.`); setPhase('done'); }}
+            candidates={variantDetail.candidates.map((c:any)=>({ variantKey:c.variantKey, title:c.title, available:c.available, image:c.images?.[0]?.url ?? null, options:c.options }))}
+            onSelect={async (key)=>{ await selectVariant(itemId, { resolutionId: variantDetail.id, identityMatrixHash: variantDetail.identityMatrixHash, variantKey: key }); setResolutionNote('Your choice is saved.'); setPhase('done'); }}
           />
         ) : null}
 

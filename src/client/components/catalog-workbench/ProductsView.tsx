@@ -384,6 +384,41 @@ function ProductImage({ src, alt, title }: { src: string; alt: string; title: st
   );
 }
 
+function productStatusLabel(status: string): string {
+  switch (status) {
+    case 'active': return 'Active';
+    case 'draft': return 'Draft';
+    case 'archived': return 'Archived';
+    case 'inactive': return 'Inactive';
+    default: return 'Status unavailable';
+  }
+}
+
+function storeStatusLabel(status: string): string {
+  switch (status) {
+    case 'synced':
+    case 'import_reconciled':
+      return 'Matches your store';
+    case 'drifted':
+      return 'Different from your store';
+    case 'pending':
+      return 'Update in progress';
+    case 'failed':
+      return 'Update needs attention';
+    case 'not_synced':
+      return 'Not in your store';
+    default:
+      return 'Status unavailable';
+  }
+}
+
+function storeStatusColor(status: string): string {
+  if (status === 'synced' || status === 'import_reconciled') return 'var(--color-seedling-green, #16844D)';
+  if (status === 'drifted' || status === 'failed') return 'var(--color-signet-burgundy, #760C19)';
+  if (status === 'pending') return 'var(--color-muted-gold, #E9B520)';
+  return '#9ca3af';
+}
+
 interface ProductsViewProps {
   onSelectProduct: (sku: string) => void;
 }
@@ -661,15 +696,15 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
             type="button"
             style={styles.btnOutline}
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label={sidebarOpen ? 'Hide Filter Sidebar' : 'Show Filter Sidebar'}
+            aria-label={sidebarOpen ? 'Hide product filters' : 'Show product filters'}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
-            {sidebarOpen ? 'Hide Filters' : 'Filter Products'}
+            {sidebarOpen ? 'Hide filters' : 'Show filters'}
           </button>
           <span style={{ fontSize: 13, color: '#525252' }}>
-            <strong>{total.toLocaleString()}</strong> catalog products
+            <strong>{total.toLocaleString()}</strong> product{total === 1 ? '' : 's'}
           </span>
         </div>
       </div>
@@ -679,38 +714,38 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
         <aside className={`catalog-sidebar ${!sidebarOpen ? 'collapsed' : ''}`}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-card-border, #E8E6D9)', paddingBottom: 10 }}>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--color-uniform-green, #14532D)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Filters
+              Find products
             </h3>
             {(activeSearch || status || minPrice || maxPrice || inventoryStatus || Object.keys(customFilters).length > 0) && (
-              <button type="button" className="clear-all-btn" style={{ padding: 0 }} onClick={handleResetAll}>Clear all</button>
+              <button type="button" className="clear-all-btn" style={{ padding: 0 }} onClick={handleResetAll}>Clear filters</button>
             )}
           </div>
 
           {/* Text Search */}
           <div className="filter-section">
-            <label className="filter-title">Search (Press /)</label>
+            <label className="filter-title">Search products</label>
             <form onSubmit={handleSearch} style={{ display: 'flex', gap: 6 }}>
               <input
                 ref={searchInputRef}
                 className="sidebar-input"
-                placeholder="Search name, SKU, desc..."
+                placeholder="Product name or code..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-              <button style={styles.btnPrimary} type="submit">Go</button>
+              <button style={styles.btnPrimary} type="submit">Search</button>
             </form>
           </div>
 
           {/* Status filter */}
           <div className="filter-section">
-            <label className="filter-title">Status</label>
+            <label className="filter-title">Store status</label>
             <select className="sidebar-select" value={status} onChange={e => handleStatusChange(e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="enabled">Enabled Only</option>
-              <option value="disabled">Disabled Only</option>
-              <option value="active">Active (Enabled)</option>
-              <option value="draft">Draft (Disabled)</option>
-              <option value="archived">Archived (Disabled)</option>
+              <option value="">All products</option>
+              <option value="enabled">Available in your store</option>
+              <option value="disabled">Not available in your store</option>
+              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
 
@@ -721,7 +756,7 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
               <input
                 type="number"
                 className="price-input"
-                placeholder="Min $"
+                placeholder="From $"
                 value={minPrice}
                 onChange={e => { setMinPrice(e.target.value); setPage(1); }}
               />
@@ -729,7 +764,7 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
               <input
                 type="number"
                 className="price-input"
-                placeholder="Max $"
+                placeholder="To $"
                 value={maxPrice}
                 onChange={e => { setMaxPrice(e.target.value); setPage(1); }}
               />
@@ -792,8 +827,8 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                   type="button"
                   className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
                   onClick={() => handleViewModeChange('grid')}
-                  title="Storefront Grid"
-                  aria-label="Storefront Grid View"
+                  title="Grid view"
+                  aria-label="Grid view"
                   style={{ padding: '6px 10px' }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -807,8 +842,8 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                   type="button"
                   className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
                   onClick={() => handleViewModeChange('list')}
-                  title="Table List"
-                  aria-label="Table List View"
+                  title="List view"
+                  aria-label="List view"
                   style={{ padding: '6px 10px' }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -827,8 +862,8 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                   type="button"
                   onClick={() => setShowSettings(!showSettings)}
                   className="cog-btn"
-                  title="Media Settings"
-                  aria-label="Configure Media Settings"
+                  title="Image settings"
+                  aria-label="Image settings"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="3" />
@@ -838,7 +873,7 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
 
                 {showSettings && (
                   <div className="settings-popover">
-                    <h4 style={{ margin: '0 0 8px 0', fontSize: 13, fontWeight: 700, color: 'var(--color-uniform-green, #14532D)' }}>Media Settings</h4>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: 13, fontWeight: 700, color: 'var(--color-uniform-green, #14532D)' }}>Image settings</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <label style={{ fontSize: 11, fontWeight: 600, color: '#525252' }}>Media Base URL</label>
                       <input
@@ -877,14 +912,14 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                         <span className="card-badge" style={{
                           background: p.status === 'active' ? 'var(--color-uniform-green, #14532D)' : p.status === 'draft' ? 'var(--color-muted-gold, #E9B520)' : '#737373',
                         }}>
-                          {p.status}
+                          {productStatusLabel(p.status)}
                         </span>
                       </div>
                       <div className="card-badge-right-container">
                         <span className="card-badge" style={{
-                          background: p.syncStatus === 'synced' ? 'var(--color-seedling-green, #16844D)' : p.syncStatus === 'pending' ? 'var(--color-muted-gold, #E9B520)' : p.syncStatus === 'failed' ? 'var(--color-signet-burgundy, #760C19)' : '#9ca3af',
+                          background: storeStatusColor(p.syncStatus),
                         }}>
-                          {p.syncStatus}
+                          {storeStatusLabel(p.syncStatus)}
                         </span>
                       </div>
                       <div className="card-image-container">
@@ -895,7 +930,7 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                         />
                       </div>
                       <div className="card-content">
-                        <div className="card-sku">{p.sku}</div>
+                        <div className="card-sku">Product code: {p.sku}</div>
                         <h3 className="card-title" title={decodeHtmlEntities(p.title)}>{decodeHtmlEntities(p.title)}</h3>
                         {p.customFields && Object.keys(p.customFields).length > 0 && (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
@@ -923,11 +958,11 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                 <table style={styles.table}>
                   <thead>
                     <tr>
-                      <th style={styles.th}>SKU</th>
-                      <th style={styles.th}>Name</th>
+                      <th style={styles.th}>Product code</th>
+                      <th style={styles.th}>Product name</th>
                       <th style={styles.th}>Price</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}>Sync</th>
+                      <th style={styles.th}>Product status</th>
+                      <th style={styles.th}>Store status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -957,15 +992,15 @@ export function ProductsView({ onSelectProduct }: ProductsViewProps) {
                             ...styles.badge,
                             background: p.status === 'active' ? 'var(--color-uniform-green, #14532D)' : p.status === 'draft' ? 'var(--color-muted-gold, #E9B520)' : '#737373',
                           }}>
-                            {p.status}
+                            {productStatusLabel(p.status)}
                           </span>
                         </td>
                         <td style={styles.td}>
                           <span style={{
                             ...styles.badge,
-                            background: p.syncStatus === 'synced' ? 'var(--color-seedling-green, #16844D)' : p.syncStatus === 'pending' ? 'var(--color-muted-gold, #E9B520)' : p.syncStatus === 'failed' ? 'var(--color-signet-burgundy, #760C19)' : '#9ca3af',
+                            background: storeStatusColor(p.syncStatus),
                           }}>
-                            {p.syncStatus}
+                            {storeStatusLabel(p.syncStatus)}
                           </span>
                         </td>
                       </tr>

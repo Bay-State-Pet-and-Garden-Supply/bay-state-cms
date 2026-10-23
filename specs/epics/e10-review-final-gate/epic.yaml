@@ -1,27 +1,27 @@
 id: e10
 title: "Review stage rebuild — the final human gate before promotion (#review-final-gate)"
 wsjf: 15
-status: planned
+status: done
 plan: specs/review-ui-rebuild-plan.md
 stories:
   - id: e10s01
     title: "Server review-completeness gate — promoter-mirroring blockers on review-complete"
-    status: planned
+    status: done
     spec: e10s01-review-completeness-gate.md
   - id: e10s02
     title: "Full-field review form with source-type mutability matrix"
-    status: planned
+    status: done
     spec: e10s02-full-field-review-form.md
   - id: e10s03
     title: "Readiness checklist, jump-to-fix, final confirmation gate (WCAG 2.2)"
-    status: planned
+    status: done
     spec: e10s03-readiness-gating-ui.md
   - id: e10s04
     title: "Image pick/approve surface at review time (decisions signed off: curation_data.reviewedMedia, VITE_REVIEW_UI_V2, overwrite semantics)"
-    status: planned
+    status: done
     spec: e10s04-image-pick-surface.md
   - id: e10s05
     title: "VITE_REVIEW_UI_V2 rollout + legacy ReviewDrawerShell retirement policy"
-    status: planned
+    status: done
     spec: e10s05-rollout-retirement.md
 sequencing: "e10s01 first (fixes gate contract); e10s02+e10s03 parallel; e10s04 independent once unblocked; e10s05 last."

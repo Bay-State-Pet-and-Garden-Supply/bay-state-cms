@@ -336,7 +336,7 @@ export function generatePromotionReport(args: {
     mdParts.push(`- **Platform:** ${v.platform ?? 'generic'} | **Partition:** ${v.partition ?? 'all'} | **Label Version:** \`${v.labelVersion ?? gateResult.labelVersion}\` | **Samples Evaluated:** ${v.sampleCount}`);
     mdParts.push(`- **Served Rate:** ${(v.servedRate.value * 100).toFixed(1)}% (95% CI: [${(v.servedRate.confidenceInterval.lower * 100).toFixed(1)}%, ${(v.servedRate.confidenceInterval.upper * 100).toFixed(1)}%]) vs ${(v.baselineServedRate * 100).toFixed(1)}% baseline`);
     mdParts.push(`- **Identity Accuracy:** ${(v.identityAccuracy.value * 100).toFixed(1)}% (${v.acceptedIdentityErrors} accepted identity errors)`);
-    mdParts.push(`- **Critical Field Regressions:** ${v.criticalFieldRegressions} on title/brand/price`);
+    mdParts.push(`- **Critical Field Regressions:** ${v.criticalFieldRegressions} on title/brand`);
     mdParts.push(`- **Image Precision:** ${(v.imagePrecision.value * 100).toFixed(1)}% vs ${(v.baselineImagePrecision * 100).toFixed(1)}% baseline`);
     mdParts.push(`- **Field Correctness:** ${(v.fieldCorrectness.value * 100).toFixed(1)}% vs ${(v.baselineFieldCorrectness * 100).toFixed(1)}% baseline`);
     mdParts.push(`- **Operator Maintenance Savings:** ${v.costMetrics.operatorMinutesSaved.toFixed(1)} minutes/domain (${v.costMetrics.hybridOperatorMinutes.toFixed(1)}m hybrid (${hybProv}) vs ${v.costMetrics.baselineOperatorMinutes.toFixed(1)}m baseline (${baseProv}))`);

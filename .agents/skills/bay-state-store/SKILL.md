@@ -15,26 +15,26 @@ Bay State Pet & Garden sells pet supplies (dog/cat food, treats, health: Esbilac
 
 ## House style for a new product draft
 
-Apply every rule below when drafting. The reason for the rigidity is downstream: FileName feeds SEO URLs, PF24/25 feed taxonomy, and ShopSite matching keys off SKU — a malformed draft creates cleanup work on the live store.
+Apply every rule below when drafting. FileName feeds SEO, SKU identifies the product, and classification proposes one canonical Category + Product Type pair from product evidence. ShopSite ProductField24/25 are only populated through an exact, frozen, approved mapping; this skill never writes to the live store.
 
 - **Name:** `BRAND product size` — brand first, then product, then size/weight (e.g. `PET AG Esbilac Puppy Milk Replacer RTU 16 oz`). Never lead with the size.
 - **SKU + GTIN:** 12-digit UPC in both `<SKU>` and `<GTIN>`. They mirror each other on this store.
 - **FileName:** slugified lowercase name + `.html` (`pet-ag-esbilac-puppy-milk-replacer-rtu-16-oz.html`).
-- **ProductField1:** uncertified-unnamed live slot (2026-10-15 screenshot shows no display name) that historically carries operations flags (`skufix…`, `needfix…`, `instock…`, `disabled…`) alongside `newMMDDYY` new-arrival markers (892 rows in the 2026-10-13 full-catalog census). The CMS no longer stamps new-date markers there (refused classification slot, issue #355) — set the `newMMDDYY` date code only through an `arrival_date` mapping if one is ever configured; never overwrite an existing PF1 value as a classification action.
-- **ProductField16:** brand, normalized to distributor casing (`RESCUE!`, not `rescue!`). This normalization is CMS drafting policy, not a fact about the live catalog: the 2026-10-13 census shows 1,004 distinct PF16 values with systematic `Kong`/`KONG` splits, ~30% empty, and 97 piped multi-brand values. Never have the classifier invent or overwrite Brand; multi-brand values need an explicit rule, not silent normalization.
-- **ProductField24 / ProductField25:** category / product-type taxonomy — **required on every new product, and must be clean** (owner decisions). Live labels certified 2026-10-15 (`Facet - Category` / `Facet - Product Type`; see `docs/audits/extra-fields-certification-2026-10-15.md`). The live taxonomy is known-messy, so existing PF24/25 values on sibling products are evidence of the mess, never precedent: always derive the correct category/product type from the product itself, and propose clean values even when they differ from what similar products carry. This is store drafting policy, not live-confirmed labeling: the 2026-10-13 full-catalog census shows PF24 58.7% / PF25 57.2% populated with live `Food`/`Treats`/`toys` values that are not clean subcategories.
+- **ProductField1:** uncertified-unnamed live slot (2026-10-15 screenshot shows no display name) that historically carries operations flags (`skufix…`, `needfix…`, `instock…`, `disabled…`) alongside `newMMDDYY` new-arrival markers (892 rows in the 2026-10-13 full-catalog census). Classification never writes PF1; preserve existing values and leave arrival-date merchandising outside the classifier.
+- **ProductField16:** the store's Brand facet, normalized to distributor casing only from explicit product/manufacturer evidence. This is separate product-drafting work, not classifier output: Brand may be optional classification evidence, but the classifier never returns or mutates it. The 2026-10-13 census shows 1,004 distinct PF16 values with systematic `Kong`/`KONG` splits, ~30% empty, and 97 piped multi-brand values; multi-brand values need an explicit rule, not silent normalization.
+- **ProductField24 / ProductField25:** the certified live labels are `Facet - Category` / `Facet - Product Type` (see `docs/audits/extra-fields-certification-2026-10-15.md`). Classification determines one canonical pair from basic product evidence and the versioned canonical-pair taxonomy; existing PF24/25 values are messy and never precedent. A pair must be reviewed. Populate these ShopSite fields only when the frozen approved authority contains exact website values for both; otherwise abstain from projection and report the missing mapping instead of inventing values. The 2026-10-13 census found PF24 58.7% / PF25 57.2% populated, including inconsistent `Food` / `Treats` / `toys` values.
 - **ProductOnPages:** assign only pages from the store's defined page list (211 pages in the ShopSite pages table) — page names are **not free text**. Every assigned name must match a real page `Name` exactly; never invent one. Validate against `references/store-pages.md` (bootstrap list harvested from real exports + fixture — partial, not authoritative); anything not on that list must be verified against verified-options before use. For the full 211-page list, run POST `/pages/import/download` (`dbname=pages`) → preview → activate, then read `GET /pages/verified-options`. Emit uses the modern `<ProductOnPages><PageLink><Name>` layout (see `shopsite-product-fields`).
 - **SearchKeywords:** `Name, breadcrumb path` (e.g. `RESCUE! Reusable Yellowjacket Trap, Mosquito, Paper wasp, Pest Control, Pest Control & Animal Repellents`).
 - **Images:** primary in a `brand/` subdirectory (`rescue/rescue-reusable-yellowjacket-trap.jpg`); additional images as numbered sequences (`-2.jpg`, `-3.jpg`, … → `MoreInfoImage1`–`N`).
 - **New products ship disabled:** `<ProductDisabled>checked</ProductDisabled>`. The owner enables products manually on ShopSite after reviewing them there — never draft or flip a product to enabled.
-- **Observed safe defaults:** `<MinimumQuantity>0</MinimumQuantity>`, `<ProductType>Tangible</ProductType>`, `<Taxable>checked</Taxable>`. Keep them unless the product says otherwise.
+- **Observed safe defaults:** `<MinimumQuantity>0</MinimumQuantity>`, native `<ProductType>Tangible</ProductType>`, and `<Taxable>checked</Taxable>`. Native `<ProductType>` means physical vs digital (`Tangible` / `Download`); it is not the classifier's Product Type facet (`ProductField25`). Keep these defaults unless the product says otherwise.
 
 ## Taxonomy improvement mandate
 
-The live taxonomy is known-messy — treat all existing category data (PF24/25 values, ProductOnPages assignments, page names) as suspect, never as ground truth. When drafting or reviewing:
-- Derive PF24/25 from the product itself; propose clean values even when siblings disagree.
-- Flag incoherent taxonomy found on existing products as review notes (the owner fixes live data separately).
-- Page-tree redesign (merges, renames, dead pages) is out of scope for now — improve values within the existing structure.
+The live taxonomy is known-messy — treat existing PF24/25 values and ProductOnPages assignments as suspect, not as classification evidence or precedent. When drafting or reviewing:
+- Determine one canonical Category + Product Type pair from product evidence and the versioned taxonomy; do not copy a sibling's classification.
+- Project to PF24/25 only through exact website values in the frozen approved authority. If the mapping is unavailable, report the unresolved projection; never guess a ShopSite value.
+- Flag incoherent existing taxonomy as a review note. ProductOnPages is a separate page assignment, not the canonical pair. Page-tree redesign (merges, renames, dead pages) is out of scope.
 
 ## Known open question — do not enforce either way
 
@@ -44,7 +44,7 @@ The live taxonomy is known-messy — treat all existing category data (PF24/25 v
 
 1. Name matches `BRAND product size`; FileName is its slug.
 2. SKU/GTIN are matching 12-digit UPCs.
-3. PF16 brand correctly cased; PF24/25 present **and coherent** on new drafts (fail if missing; propose clean values when siblings disagree rather than copying them). PF1 `newMMDDYY` on new products only — never overwrite an existing PF1 operations value.
+3. Brand casing follows explicit product/manufacturer evidence; the classifier may use Brand as optional evidence but never outputs it. Resolve the canonical pair for review; PF24/25 projection requires exact approved mappings, otherwise report the gap without inventing values. Never stamp PF1 arrival codes through classification or overwrite an existing PF1 value.
 4. Every ProductOnPages name exists in the defined ShopSite page list (fail on unknown names; propose the right existing page, do not copy messy existing assignments).
 5. SearchKeywords follow the `Name, breadcrumb` pattern.
 6. Images in `brand/` paths with clean `-N` sequences.

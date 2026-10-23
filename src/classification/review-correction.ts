@@ -23,6 +23,9 @@ export function validateFrozenReviewCorrection(proposal: ClassificationProposal,
       throw new Error(protectedTargetRefusal(effectiveTarget ?? proposal.targetId).reason);
     }
   }
+  if (proposal.proposalType === 'primary_product_type' && (correction.hasRevisedValue || correction.hasRevisedTargetId)) {
+    throw new Error('Legacy Product Type proposals are history-only and cannot be corrected; restart or reclassify to establish canonical Product Classification authority.');
+  }
   if (!correction.hasRevisedValue && !correction.hasRevisedTargetId) return correction;
   if (!snapshot) throw new Error('Frozen runtime snapshot is required to validate a correction.');
   if (proposal.proposalType === 'field_assignment' && correction.hasRevisedTargetId && correction.revisedTargetId === null) {
@@ -34,11 +37,6 @@ export function validateFrozenReviewCorrection(proposal: ClassificationProposal,
   if (correction.hasRevisedValue && correction.revisedValue === null) {
     if (proposal.proposalType === 'category_page') return { hasRevisedValue: true, revisedValue: null, hasRevisedTargetId: true, revisedTargetId: null };
     if (proposal.proposalType === 'field_assignment' && !snapshot.attributes.some(attribute => attribute.id === (correction.hasRevisedTargetId ? correction.revisedTargetId : proposal.targetId))) throw new Error('Cleared field is not configured in the frozen taxonomy.');
-    return correction;
-  }
-  if (proposal.proposalType === 'primary_product_type') {
-    const id = correction.hasRevisedTargetId ? correction.revisedTargetId : getProductTypeIdFromValue(correction.revisedValue);
-    if (id != null && !snapshot.productTypes.some(type => type.id === id)) throw new Error('Corrected Product Type is not in the run’s frozen configured options.');
     return correction;
   }
   if (proposal.proposalType === 'product_classification') {
@@ -77,14 +75,17 @@ export function validateFrozenReviewCorrection(proposal: ClassificationProposal,
  * model (issue #350). The corrected pair must be an approved configured
  * combination; corrections to either member invalidate dependents identically
  * (invalidation is owned by the review service reading the pair kind).
- * A legacy type-only correction resolves its category through the approved
- * mapping — an unmapped type is a configuration gap, never silent invention.
+ * Historical type-only proposals are history-only; they require restart or
+ * reclassification before the canonical correction contract can be used.
  */
 export function validateClassificationCorrection(
   proposal: ClassificationProposal,
   correction: ReviewCorrection,
   snapshot: Pick<RuntimeClassificationSnapshot, 'productTypes' | 'categories'>,
 ): ReviewCorrection {
+  if (proposal.proposalType !== 'product_classification') {
+    throw new Error('Only a canonical Product Classification proposal can be corrected.');
+  }
   if (!correction.hasRevisedValue && correction.hasRevisedTargetId) {
     // Target-only correction on either pair kind (issue #354): the category
     // resolves through the approved type→category mapping — an unmapped type

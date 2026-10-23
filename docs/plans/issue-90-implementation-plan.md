@@ -5,6 +5,7 @@
 **Source:** GitHub issue #90 as represented by `docs/plans/issue-variant-page-resolution.md:1-68`  
 **Primary owners:** Onboarding Discovery, Extraction Worker, operator work-state/API/UI  
 **Delivery style:** TDD-first, one sequential writer, small reviewable milestones
+> [!NOTE] ADR 0043 supersedes all price-related requirements in this plan. Variant workflows use identity and option evidence only; the onboarding price remains unchanged.
 
 ---
 
@@ -14,7 +15,7 @@ When several onboarding items represent variants on one official product page (f
 
 1. discover or synthesize its own identity-preserving deep link;
 2. bind to one normalized variant using deterministic, reviewable evidence;
-3. extract only that variant's identifiers, options, price, weight, and primary image;
+3. extract only that variant's identifiers, options, weight, and primary image;
 4. retain product-level description/media only where the variant payload does not provide a conflicting variant-specific value;
 5. stop, without copying the page's default variant, when the evidence is ambiguous; and
 6. let an operator choose from the exact detected matrix without entering or trusting arbitrary variant payload data from the browser.
@@ -52,7 +53,7 @@ The implementation must preserve the issue's six-item order and report against t
 | `docs/adr/0024-deterministic-extraction-evidence.md` | Record exact source URL/final URL, matrix identity hash, variant key, parser version, field source paths, and source content/artifact hashes. No untraceable overwrite. |
 | `docs/adr/0031-extraction-ladder-wiring.md` | Keep `applyLadderEnrichment` additive-only and no-new-network-by-default. Selected-variant materialization is a separate, explicit composition step; it does not silently turn the enrichment ladder into an overwriting layer. Shopify `.js` uses the caller's guarded transport and only under the variant-resolution rollout mode. |
 
-If reviewers determine that an authoritative variant overlay replacing profile-derived `price`, `primaryImage`, or `weight` is incompatible with ADR-0031 rather than merely outside its additive enrichment scope, **stop Milestone 4 and add an ADR-0031 amendment before code proceeds**. Do not weaken the additive ladder by implication.
+If reviewers determine that an authoritative variant overlay replacing profile-derived `primaryImage` or `weight` is incompatible with ADR-0031 rather than merely outside its additive enrichment scope, **stop Milestone 4 and add an ADR-0031 amendment before code proceeds**. Prices are excluded from variant resolution; the onboarding price remains unchanged.
 
 ### 3.2 Operational and repository constraints
 
@@ -103,7 +104,7 @@ Line ranges are the inspected baseline; use symbols as the durable anchors if un
 1. **Consolidate, do not add a third resolver.** `variant-resolver.ts` and `variant-url-resolver.ts` overlap. The former becomes the canonical pure parser/matcher; the latter remains the bounded network/candidate orchestration adapter.
 2. **The current fetch set is not actually bounded.** `candidates.slice(0, 3)` is followed by adding every official and sitemap candidate. Replace it with a hard cap after deterministic sort/dedupe.
 3. **Duplicate GTIN is not proof.** If two candidates carry the same normalized GTIN, GTIN alone must produce `ambiguous`. A candidate may be selected only when a second independent exact identifier (trusted SKU/MPN) or a complete exact option tuple points uniquely to the same row.
-4. **Do not use similarity alone to complete extraction.** Price/name scores can rank candidates for the operator but cannot create a resolved result unless the winner crosses a fixed threshold **and** a fixed margin and includes option/identifier evidence.
+4. **Do not use similarity alone to complete extraction.** Resolve only when a unique trusted identifier or complete exact option tuple selects one candidate. Page prices are never retrieved or used.
 5. **`allowShopifyProductJson` must remain explicit.** Enable it only in variant observe/active modes, through injected `safeProfileFetch`, for one same-origin `.js` endpoint, with current response/time limits. Never flip its default in generic ladder callers.
 6. **Image and product URL canonicalization are different.** Keep `canonicalizeUrl` in `image-utils.ts` image-only. Rename ladder's local `normalizeForDedupe` to `normalizeImageForDedupe`. Add a separate product URL identity helper with tests proving `?variant=` survives.
 7. **Existing browser interaction is too permissive.** It compares the full expected name to option text by substring. First place it behind a default-off flag; later execute an exact, per-axis action plan derived from a positively selected variant. It must never guess directly from the whole item name.
@@ -123,14 +124,14 @@ Create `src/shared/schemas/variant-resolution.ts` with strict Zod contracts (all
 - `VariantIdentifier`: `{ kind: gtin | sku | mpn | platform_id, value, normalizedValue, sourcePath }`.
 - `VariantOption`: `{ axis, value, normalizedAxis, normalizedValue, sourcePath }`.
 - `VariantImage`: `{ url, role: primary | gallery, width?, height?, sourcePath }`.
-- `NormalizedVariantCandidate`: stable `variantKey`, platform ID, title, identifiers, ordered options, availability, price/currency, weight, dimensions, images, deep link, and field evidence paths.
+- `NormalizedVariantCandidate`: stable `variantKey`, platform ID, title, identifiers, ordered options, availability, weight, dimensions, images, deep link, and field evidence paths. It has no price field.
 - `VariantMatrix`: schema/parser version, platform, canonical parent URL, source final URL/content hash, bounded candidates, and parse warnings (stable codes, no raw HTML).
-- `VariantMatchInput`: expected GTIN/SKU/MPN only when independently trusted, item/register name, brand, price, and deterministic `variantTokens`/option hints.
+- `VariantMatchInput`: expected GTIN/SKU/MPN only when independently trusted, item/register name, brand, and deterministic `variantTokens`/option hints. Price is never a matching input.
 - `VariantMatchDecision`: `resolved | ambiguous | no_match | unsupported | too_many_variants | stale_selection`, ranked diagnostics, unique selected key when resolved, stable reason codes, and `matchedBy` evidence.
 - `VariantSelectionReceipt`: resolution ID, identity-matrix hash, parser version, selected key, decision origin `automatic | operator`, selected deep link, and matched evidence paths.
 - `VariantResolutionSummary`: client-safe persisted view with candidates, excluding raw source payload.
 
-**Hash contract:** canonical JSON with sorted object keys; candidates sorted by `variantKey`; identifier/option arrays sorted by kind/axis/value. The **identity matrix hash** includes parser version, parent identity URL, variant keys/IDs, identifiers, options, and deep links; excludes volatile stock, price, and image bytes. Source content hash remains separate for evidence. This makes identity drift stale without making ordinary price changes invalidate an operator choice.
+**Hash contract:** canonical JSON with sorted object keys; candidates sorted by `variantKey`; identifier/option arrays sorted by kind/axis/value. The **identity matrix hash** includes parser version, parent identity URL, variant keys/IDs, identifiers, options, and deep links; excludes volatile stock and image bytes. Page price data is never included in the matrix or used to invalidate a selection. Source content hash remains separate for evidence.
 
 **Bounds:** maximum 250 normalized variants, 8 options, 12 identifiers, 32 images per variant, 2,048 characters per URL, and 512 characters per label. Overflow produces a stable unresolved status; it never truncates then auto-selects.
 
@@ -143,7 +144,7 @@ Implement one matcher in `src/onboarding/variant-resolver.ts` with this ordered 
 3. If GTIN occurs on multiple rows, mark `duplicate_identifier`; do not resolve from GTIN alone. Resolve only if a trusted exact SKU/MPN or complete exact option tuple independently identifies one of those rows.
 4. Otherwise, a **unique exact trusted SKU or MPN** resolves.
 5. Otherwise, a **complete exact option tuple** resolves only when each supplied axis maps to one normalized axis and exactly one candidate matches. Size aliases (`SM ↔ small`, `LG ↔ large`, `MINI`) are versioned dictionaries; substring matching is prohibited.
-6. Otherwise compute deterministic ranking from exact option tokens, explicit variant title tokens, availability, and price proximity. Resolve only with an option/identifier signal, score at or above a named constant, and a named margin over runner-up. Name/price alone remain `ambiguous` or `no_match`.
+6. Otherwise compute deterministic ranking from exact option tokens, explicit variant title tokens, and availability. Resolve only with an option/identifier signal, score at or above a named constant, and a named margin over runner-up. Name similarity alone remains `ambiguous` or `no_match`; page prices are never retrieved or used.
 7. Unavailable candidates remain visible, but automatic selection prefers/permits them only if an exact trusted identifier proves identity; UI labels them unavailable.
 8. Any tie, malformed duplicate key, conflicting identifiers, incomplete axis map, or parser disagreement fails closed.
 
@@ -168,7 +169,7 @@ A multi-variant extraction may complete only when the worker returns a receipt m
 `materializeSelectedVariant` (new `src/onboarding/selected-variant-materializer.ts`) applies only these variant-authoritative fields:
 
 - title: deterministic parent + non-default variant label; no duplicated title;
-- `price`/currency;
+- Page prices are never extracted or included in selected-variant payloads.
 - `primaryImage` and variant-associated additional images;
 - `weight`, dimensions, SKU/MPN/GTIN;
 - normalized `variantAttributes` option map;
@@ -269,11 +270,11 @@ Create:
 
 Fixture contracts:
 
-- BetterBone has exactly three target variants `SM`, `LG`, `MINI`, distinct platform IDs/deep links, SKU/GTIN, grams/weight, price, and images. At least one parent default is deliberately **not** the requested variant.
+- BetterBone has exactly three target variants `SM`, `LG`, `MINI`, distinct platform IDs/deep links, SKU/GTIN, grams/weight, and images. At least one parent default is deliberately **not** the requested variant.
 - Duplicate-GTIN fixture has two variants sharing a GTIN and distinguishable only by SKU/options.
 - Large-image fixture includes product-level images plus explicit per-variant image/`variant_ids` associations and transform queries.
-- ProductGroup fixture includes `gtin12`, SKU, `variesBy`, `additionalProperty`, offers/price, image, weight, and absolute variant URL.
-- Woo fixture uses HTML-escaped/single-quoted `data-product_variations` and includes `variation_id`, attributes, SKU, stock, display price, dimensions/weight where present, and image.
+- ProductGroup fixture includes `gtin12`, SKU, `variesBy`, `additionalProperty`, image, weight, and absolute variant URL; page price fields are ignored.
+- Woo fixture uses HTML-escaped/single-quoted `data-product_variations` and includes `variation_id`, attributes, SKU, stock, dimensions/weight where present, and image; display prices are ignored.
 - BigCommerce/Magento fixtures cover only safely embedded public matrices. No Storefront API, GraphQL, session token, or live endpoint is introduced.
 - Swatch fixture has two axes and deceptive substring labels (`Small`/`Small Breed`, `Beef`/`Beef & Chicken`) to prove exact option selection.
 
@@ -371,7 +372,7 @@ Add table tests for:
 - duplicate GTIN remains ambiguous with GTIN only;
 - duplicate GTIN resolves only when an independent exact trusted SKU/MPN or complete tuple selects the same candidate;
 - SKU text merely appearing inside an arbitrary product name is not a trusted SKU input;
-- price/name can rank but never resolve without option/identifier evidence;
+- Name similarity alone can never resolve a candidate; price is never a matching signal.
 - ties, conflicts, unavailable variants, malformed keys, parser disagreements, and >250 variants fail closed;
 - output ordering and diagnostics are byte-stable across input candidate ordering.
 
@@ -494,12 +495,12 @@ Create `src/tests/unit/selected-variant-materializer.test.ts` and replace deprec
 Assert for all BetterBone siblings:
 
 - requested selected key equals response receipt key/matrix hash;
-- selected title/GTIN/SKU/options/price/weight are distinct and correct;
+- selected title/GTIN/SKU/options/weight are distinct and correct;
 - selected variant image is primary even when page `og:image` and default variant point to another sibling;
 - large image-map association uses explicit variant IDs and retains transform query when it matters to retrieval;
 - a sibling-associated image is excluded from that item's variant-specific set;
 - product-level gallery may follow the selected image with product-level provenance and image dedupe remains image-specific;
-- missing selected price/image/weight does not copy the first/default variant's value;
+- missing selected image/weight does not copy the first/default variant's value; no page price enters any payload;
 - base description/brand remains when non-conflicting;
 - variant materialization does not mutate the generic ladder fill helper;
 - malformed or mismatched receipt fails before completed payload creation.
@@ -649,7 +650,7 @@ Modify:
 - `src/client/components/onboarding/attention/OfficialSiteResolutionWorkspace.tsx:1-205` plus phase render — add `variant` phase and submit handler.
 - `src/client/components/onboarding/attention/attention.css` — minimal existing-token styles only.
 
-The panel renders inside the existing focus-trapped drawer (satisfies “modal” without nested focus traps). It must show option labels, SKU/MPN, masked/complete GTIN as permitted by existing product UI policy, price/currency, availability, and thumbnail with alt/fallback. It uses a radio group or selectable cards, keyboard navigation, explicit confirmation, saving/success/error states, and stale reload behavior.
+The panel renders inside the existing focus-trapped drawer (satisfies “modal” without nested focus traps). It must show option labels, SKU/MPN, masked/complete GTIN as permitted by existing product UI policy, availability, and thumbnail with alt/fallback; it must not display a page price. It uses a radio group or selectable cards, keyboard navigation, explicit confirmation, saving/success/error states, and stale reload behavior.
 
 UI tests assert:
 
@@ -680,7 +681,7 @@ The test must prove:
 2. one official parent page is discovered;
 3. Discovery persists three distinct `?variant=<id>` URLs and three current selection receipts;
 4. profile request/response round trip retains each selected key/hash;
-5. Extraction produces three distinct payloads (SKU/GTIN/options/weight/price/primary image), not three copies of the default;
+5. Extraction produces three distinct payloads (SKU/GTIN/options/weight/primary image), not three copies of the default;
 6. source/final URLs retain variant identity after persistence/API serialization;
 7. all three become extraction-completed and can satisfy the existing cohort barrier;
 8. replacing one item with duplicate-GTIN ambiguous evidence parks only that member in `needs_attention/choose_variant`; siblings remain correct; selecting it resumes Extraction.
@@ -925,7 +926,7 @@ Do **not**:
 - use an LLM/model/OCR for variant identity or option selection;
 - scrape arbitrary search results, perform paid crawls, or call live storefront APIs in tests;
 - add BigCommerce Storefront API, Magento GraphQL, cart/session mutation, inventory writes, or credentials;
-- treat unavailable/price/title similarity as sufficient automatic identity;
+- treat unavailable status or title similarity as sufficient automatic identity;
 - reinterpret historical frozen selection receipts with live parser rules;
 - merge variant query URLs through image canonicalization;
 - replace the extraction ladder's additive fill policy;

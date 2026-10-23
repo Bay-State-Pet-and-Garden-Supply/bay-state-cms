@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED",
+  "measurement_performed": false,
+  "development_dispatch_attempt_performed": true,
+  "qualification_eligible": false,
+  "baseline_sha": "91b52e9b489a7435d0a96e095da46952edac4cd7",
+  "baseline_reason": "origin/main equals git merge-base origin/main HEAD at protocol publication; pre-expansion incumbent.",
+  "candidate_observation_not_freeze": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a",
+  "candidate_freeze_sha": null,
+  "metrics": null,
+  "population": {"original_rows":337,"distinct_skus":332,"development_rows":169,"development_distinct_skus":166,"holdout_rows":168,"holdout_distinct_skus":166,"support":"INSUFFICIENT_FOR_REQUIRED_STRATUM_VERDICTS"},
+  "development_diagnostic": {
+    "source_run_id": "2026-10-22T14-38-23-226Z-47cea9e7-bd7a-47cf-bb4c-0243c2666c4c",
+    "reconstruction": ".baystate-cms/qualification/onboarding-outcome-v1/diagnostics/2026-10-22T15-07-19-679Z/summary.json",
+    "scope": "Persisted local observations reconstructed against the hash-verified development manifest; not gold, billed cost, or a frozen equal-input receipt.",
+    "per_arm": {"source_rows":169,"imported_rows":166,"duplicate_rows":3,"blocked_items":166,"source_candidates":331,"selected_sources":0,"recorded_model_calls":0,"model_policy_state":"disabled"},
+    "discovery_outcomes_per_arm": {"needs_input_setup":51,"needs_input_no_candidates":60,"needs_input_ambiguous":31,"needs_input_candidates":24},
+    "candidate_acquisition_reservations": 0,
+    "external_billed_spend_usd": null,
+    "zero_spend_mechanism_run": "2026-10-22T15-07-19-566Z-59ec1864-b869-416b-a339-a5a91bdb767c",
+    "positive_cap_refusal_run": "2026-10-22T15-08-09-255Z-f3dd1248-9ccd-493d-87bb-a614a5e099dd"
+  },
+  "blockers": ["BLOCKED_POPULATION_SUPPORT", "BLOCKED_EQUAL_INPUTS", "BLOCKED_LABELS_OR_REVIEW", "BLOCKED_METRIC_CAPTURE", "BLOCKED_EXISTING_CAPABILITY_RECEIPT", "BLOCKED_CANDIDATE_FREEZE", "BLOCKED_BUDGET_OR_MODEL_POLICY", "BLOCKED_NATIVE_OR_CATALOG_EVIDENCE", "BLOCKED_STORE_AUTHORIZATION_OR_CANARY", "BLOCKED_INSUFFICIENT_SUPPORT", "BLOCKED_COMPARABILITY", "BLOCKED_UNKNOWN_COST", "BLOCKED_PREREQUISITE"]
+}

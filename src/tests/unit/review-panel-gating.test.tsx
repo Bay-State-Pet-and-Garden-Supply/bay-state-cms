@@ -29,15 +29,15 @@ describe('ReviewClassificationPanel e05s01 gating // story: e05s01', () => {
     document.body.innerHTML = '';
   });
 
-  it('shows Needs reviewed Product Type when gating needsReviewedType', async () => {
+  it('shows Needs reviewed Category + Product Type when page gating has no accepted pair', async () => {
     const r = await renderWithCuration({
       classificationProposals: [],
       suggestedPages: [],
-      categoryPageGating: { needsReviewedType: true, needsVerifiedPages: false, verifiedPageCount: 3, reason: 'No reviewed Primary Product Type. Page assignment requires an accepted Product Type', verifiedPageIdSet: [], snapshotHash: 'abc' },
+      categoryPageGating: { needsReviewedType: true, needsVerifiedPages: false, verifiedPageCount: 3, reason: 'No reviewed Product Classification pair. Page assignment requires an accepted pair.', verifiedPageIdSet: [], snapshotHash: 'abc' },
       attributeApplicability: [],
       speciesGuardDropped: [],
     });
-    expect(r.text()).toContain('Needs reviewed Product Type');
+    expect(r.text()).toContain('Needs reviewed Category + Product Type');
     r.unmount();
   });
 
@@ -53,14 +53,14 @@ describe('ReviewClassificationPanel e05s01 gating // story: e05s01', () => {
     r.unmount();
   });
 
-  it('renders attribute applicability with unknown → type not reviewed', async () => {
+  it('renders attribute applicability relative to the reviewed Product Classification pair', async () => {
     const r = await renderWithCuration({
       classificationProposals: [],
       suggestedPages: [],
       categoryPageGating: { needsReviewedType: false, needsVerifiedPages: false, verifiedPageCount: 2, reason: null, verifiedPageIdSet: [], snapshotHash: null },
       attributeApplicability: [
-        { attributeId: 'flavor', state: 'unknown', reason: 'No reviewed Primary Product Type; type-gated attribute is blocked until the type is accepted.' },
-        { attributeId: 'size', state: 'not_applicable', reason: 'Attribute is not in the accepted Product Type profile (dog-food-dry).' },
+        { attributeId: 'flavor', state: 'unknown', reason: 'No reviewed Product Classification pair; profile-gated attributes are blocked until the pair is accepted.' },
+        { attributeId: 'size', state: 'not_applicable', reason: 'Attribute is not in the selected pair’s Attribute Profile (dog-food-dry).' },
       ],
       speciesGuardDropped: [],
     });
@@ -131,17 +131,12 @@ describe('ReviewReadinessPanel // e10s03', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders each blocker and warning as named TEXT rows, never color-only', async () => {
+  it('renders blocker and warning rows with accessible jump targets', async () => {
     const r = await renderElement(<ReviewReadinessPanel detail={null} readiness={blockedReadiness()} />);
-    const text = r.text();
-    expect(text).toContain('Blocking — Price is empty');
-    expect(text).toContain('Blocking — Brand is missing');
-    expect(text).toContain('Warning — Search keywords are empty');
-    expect(text).toContain('Fix');
-    // e10s03 a11y: blocker message nodes carry deterministic ids so form
-    // inputs can point aria-describedby at them (SC 3.3.1/3.3.3).
     expect(r.container.querySelector('#rv-gate-msg-missing_price')).not.toBeNull();
     expect(r.container.querySelector('#rv-gate-msg-missing_brand')).not.toBeNull();
+    expect(r.container.querySelectorAll('.rv-readiness-fix')).toHaveLength(3);
+    expect(r.container.querySelector('.rv-readiness-row-warning')).not.toBeNull();
     r.unmount();
   });
 

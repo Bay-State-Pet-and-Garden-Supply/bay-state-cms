@@ -39,7 +39,7 @@ export function versionToExtractorProfile(version: ProfileVersion): ExtractorPro
     id: version.id,
     domain: version.domain,
     titleSelector: sel.titleSelector ?? sel.title_selector ?? null,
-    priceSelector: sel.priceSelector ?? sel.price_selector ?? null,
+    priceSelector: null,
     descriptionSelector: sel.descriptionSelector ?? sel.description_selector ?? null,
     brandSelector: sel.brandSelector ?? sel.brand_selector ?? null,
     imagesSelector: sel.imagesSelector ?? sel.images_selector ?? sel.imageSelector ?? sel.image_selector ?? null,
@@ -64,7 +64,6 @@ const InspectBodySchema = z.object({
     .object({
       name: z.string().optional(),
       brandHint: z.string().nullable().optional(),
-      price: z.string().nullable().optional(),
       gtin: z.string().nullable().optional(),
       sku: z.string().nullable().optional(),
     })

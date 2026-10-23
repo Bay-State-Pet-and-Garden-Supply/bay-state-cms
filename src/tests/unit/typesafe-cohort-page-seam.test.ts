@@ -530,7 +530,7 @@ describe('TypeSafe Jev Cohort Page Seam Verification (Issue #301)', () => {
       }
     });
 
-    it('assigns brand-page shortcut with isBrandShortcut: true in multiple mode', async () => {
+    it('excludes brand pages from cohort category-page decisions in multiple mode', async () => {
       (globalThis as any).fetch = async (_url: any, init: any) => {
         const body = JSON.parse(init.body);
         return mockSystemOneResponse(body, (qid) => (qid.includes('dry-dog-food') ? 0.95 : 0.05));
@@ -549,10 +549,8 @@ describe('TypeSafe Jev Cohort Page Seam Verification (Issue #301)', () => {
       const dry = results.get('SKU-DOG-DRY-1');
       expect(dry?.status).toBe('assigned');
       if (dry?.status === 'assigned') {
-        const brandShortcut = dry.pages.find(p => p.pageId === 'page-fromm');
-        expect(brandShortcut).toBeDefined();
-        expect(brandShortcut?.isBrandShortcut).toBe(true);
-        expect(brandShortcut?.pageName).toBe('Brand - Fromm');
+        expect(dry.pages.some(p => p.pageId === 'page-fromm')).toBe(false);
+        expect(dry.pages.some(p => p.isBrandShortcut)).toBe(false);
       }
     });
 
@@ -1154,14 +1152,14 @@ describe('TypeSafe Jev Cohort Page Seam Verification (Issue #301)', () => {
       if (dogRes?.status === 'assigned') {
         const pages = dogRes.pages.map(p => p.pageId);
         expect(pages).toContain('page-dry-dog-food');
-        expect(pages).toContain('page-fromm'); // Brand shortcut
+        expect(pages).not.toContain('page-fromm'); // Brand placement is outside Category Page ownership.
         expect(pages).not.toContain('page-cat-wet');
       }
 
       if (catRes?.status === 'assigned') {
         const pages = catRes.pages.map(p => p.pageId);
         expect(pages).toContain('page-cat-wet');
-        expect(pages).toContain('page-fromm'); // Brand shortcut
+        expect(pages).not.toContain('page-fromm'); // Brand placement is outside Category Page ownership.
         expect(pages).not.toContain('page-dry-dog-food');
       }
 

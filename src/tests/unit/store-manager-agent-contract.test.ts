@@ -46,6 +46,15 @@ describe('Store Manager prompt — authority & grounding contract', () => {
     expect(prompt).toMatch(/use read tools for every current catalog claim/i);
     expect(prompt).toMatch(/never invent a count, sku, value, id, state, or result/i);
   });
+  it('sets manager-friendly language and immutable input-price rules', () => {
+    const prompt = buildStoreManagerSystemPrompt();
+    expect(prompt).toMatch(/older, nontechnical store managers/i);
+    expect(prompt).toMatch(/short, clear, respectful sentences/i);
+    expect(prompt).toMatch(/avoid terms like AI, Git, syncing/i);
+    expect(prompt).toMatch(/price entered when the product is added is fixed and immutable/i);
+    expect(prompt).toMatch(/never extract, compare, or use prices from third-party websites/i);
+    expect(prompt).toMatch(/never recommend or make a price change/i);
+  });
 
   it('encodes the full persistent-action lifecycle', () => {
     const prompt = buildStoreManagerSystemPrompt();

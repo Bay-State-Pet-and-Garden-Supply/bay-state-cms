@@ -46,6 +46,7 @@ describe('BrightDataScraperClient (Cloud Scraper API)', () => {
       specifications: {
         'Lifestage': 'Adult',
         'Breed Size': 'All Breeds',
+        'Sale Price': '$17.99',
       },
       images: ['https://image.chewy.com/1.jpg'],
     });
@@ -56,5 +57,9 @@ describe('BrightDataScraperClient (Cloud Scraper API)', () => {
     expect(evidence?.retailer).toBe('chewy.com');
     expect(evidence?.rawBreadcrumb).toEqual(['Dog', 'Dog Food', 'Dry Kibble']);
     expect(evidence?.specifications?.['Lifestage']).toBe('Adult');
+    expect(evidence?.specifications).toEqual({
+      Lifestage: 'Adult',
+      'Breed Size': 'All Breeds',
+    });
   });
 });

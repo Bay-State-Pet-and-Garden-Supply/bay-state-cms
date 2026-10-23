@@ -1,27 +1,7 @@
 /**
- * Epic #46 Phase 2 — automation-owned progression: automatic continuation
- * helpers.
- *
- * The operating model: automation owns ordinary stage advancement; humans own
- * exceptions (URL verification, profile setup, conflicts), final review, and
- * release. These helpers implement the deterministic continuation rules:
- *
- * - `advanceDiscoveryItemToExtraction` — a Discovery item that completed with
- *   a confirmed URL (auto-selected by the worker, or operator-set via
- *   select-source/set-url) automatically continues to Extraction. The
- *   human-held discovery holds (no domain mapped / no candidate passed
- *   verification) leave `source_url` NULL and are NEVER auto-advanced.
- * - `advanceCurationItemToReview` — a completed Curation automatically enters
- *   Review (the human QA gate). Guarded: a member whose committed cohort
- *   semantic validation is `blocked` stays at curation/completed (the Needs
- *   Attention surface), and a cohort child whose parent run is still
- *   `freezing`/`running` is never advanced before the parent terminal write.
- * - `sweepAutoAdvance` — poll-loop sweep that applies both rules to every
- *   eligible item in a workspace (cheap: two indexed-scope queries; the
- *   per-item hydration runs only for completed rows).
- *
- * Every automatic transition emits an SSE `item:status` event so the
- * progression stays observable/auditable to the UI and telemetry.
+ * Automation-owned progression between completed item stages.
+ * Release authority is checked by the item-local review and promotion gates;
+ * cohort parent completion is not a prerequisite for an independent item.
  */
 import {
   findItemById,
@@ -32,10 +12,10 @@ import {
   advanceExtractionToCuration,
   advanceCurationToReview,
 } from '../db/repositories/onboarding-item-repo';
-import { getActiveCohortForItem } from '../db/repositories/curation-cohort-repo';
-import { getCurrentCohortRun } from '../db/repositories/classification-cohort-run-repo';
+import { listOfficialPageDecisions } from '../db/repositories/official-page-decision-repo';
+import { listSourcesByItem } from '../db/repositories/onboarding-source-repo';
+import { findBatchById } from '../db/repositories/onboarding-batch-repo';
 import { onboardingEvents } from './sse-emitter';
-import { getDb } from '../db/connection';
 import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
 
 /** Slice 5b native: canonical comparison of a hydrated (either-spelling) stage. */
@@ -47,35 +27,57 @@ function isCanonicalStage(rawStage: unknown, canonical: StageV2): boolean {
   }
 }
 
-/** Parent-run statuses that mean the cohort is still executing. */
-const COHORT_PARENT_IN_FLIGHT = new Set(['freezing', 'running']);
+/**
+ * Issue #303 follow-up: cross-leg rotation + keyset cursors so a permanently
+ * held prefix on ANY leg can never starve the other legs. Each leg keeps a
+ * keyset cursor (last inspected row id); each poll also rotates the STARTING
+ * leg round-robin, so a leg whose pool never drains (e.g. 200 held
+ * Extraction rows) cannot consume every poll's budget before Curation is
+ * visited. Per-leg legs additionally reserve bounded capacity
+ * (`ceil(limit / 3)` each): leftover budget still flows to the other legs,
+ * but one leg can never take the whole poll.
+ *
+ * Pagination is cursor-based at the repository layer (LIMIT + keyset on
+ * `(row_number, id)`), so per-poll work stays bounded regardless of the
+ * completed-row count — no full-pool materialize-and-rotate before the first
+ * yield. A missing cursor id (fresh DB, advanced-away row) wraps from the
+ * head; an unknown keyset cursor restarts from the head once per poll.
+ * In-memory only — a restart re-scans from the head, which is merely one
+ * redundant bounded pass.
+ */
+const sweepCursors = new Map<string, string>();
+const sweepStartLeg = new Map<string, number>();
+
+function sweepCursorKey(workspaceId: string, leg: string): string {
+  return `${workspaceId}:${leg}`;
+}
+
+/**
+ * Bounded page of one sweep leg starting after `cursorId` (keyset on
+ * `(row_number, id)` via the repository). Wraps once from the head when the
+ * cursor is absent/unknown or the page past it is empty.
+ */
+function listLegPage(
+  leg: 'discovery' | 'extraction' | 'curation',
+  workspaceId: string,
+  cursorId: string | undefined,
+  limit: number,
+): Array<{ id: string }> {
+  const list =
+    leg === 'discovery' ? listDiscoveryCompletedWithUrl : leg === 'extraction' ? listExtractionCompleted : listCurationCompleted;
+  if (cursorId === undefined) return list(workspaceId, { limit });
+  const after = list(workspaceId, { afterId: cursorId, limit });
+  // Unknown cursor (advanced-away row, cross-workspace id) OR end of pool:
+  // wrap once from the head so later rows keep progressing.
+  if (after.length > 0) return after;
+  return list(workspaceId, { limit });
+}
 
 export interface AutoAdvanceResult {
   advanced: boolean;
   reason?: string;
 }
 
-/**
- * True when the item's active classification run is a cohort child whose
- * parent cohort run is still `freezing`/`running` — or the parent row is
- * missing (orphaned child → fail closed, never advanced). Members are only
- * review-eligible once the parent reached a terminal state (the post-loop
- * Brand coherence check may still block them mid-flight).
- */
-function cohortParentInFlight(item: { curationData?: { classificationRunId?: string | null } | null }): boolean {
-  const runId = item.curationData?.classificationRunId;
-  if (!runId) return false;
-  const db = getDb();
-  const child = db.query(
-    'SELECT cohort_run_id FROM classification_runs WHERE id = ?',
-  ).get(runId) as { cohort_run_id: string | null } | undefined;
-  if (!child?.cohort_run_id) return false;
-  const parent = db.query(
-    'SELECT status FROM classification_cohort_runs WHERE id = ?',
-  ).get(child.cohort_run_id) as { status: string } | undefined;
-  if (!parent) return true;
-  return COHORT_PARENT_IN_FLIGHT.has(parent.status);
-}
 
 /**
  * Advance one Discovery-completed item (with a confirmed URL) to Extraction.
@@ -87,8 +89,27 @@ export function advanceDiscoveryItemToExtraction(itemId: string): AutoAdvanceRes
   if (!isCanonicalStage(item.stage, 'find_product_page') || item.stageStatus !== 'completed') {
     return { advanced: false, reason: `not_eligible:${item.stage}/${item.stageStatus}` };
   }
-  if (!item.sourceUrl) {
-    return { advanced: false, reason: 'no_source_url' };
+  const batch = findBatchById(item.batchId);
+  if (!batch) return { advanced: false, reason: 'batch_not_found' };
+  if (item.sourceType === 'distributor_record') {
+    if (!item.sourcingDecision || item.acceptedEvidenceAttemptIds.length === 0) {
+      return { advanced: false, reason: 'distributor_binding_missing' };
+    }
+  } else {
+    const decision = listOfficialPageDecisions(item.id).find((entry) =>
+      entry.workspaceId === batch.workspaceId &&
+      entry.itemId === item.id &&
+      entry.url === item.sourceUrl &&
+      Boolean(entry.sourceRunId),
+    );
+    const selectedSource = listSourcesByItem(item.id).find((entry) =>
+      entry.url === item.sourceUrl &&
+      entry.isSelected &&
+      entry.discoveryRunId === decision?.sourceRunId,
+    );
+    if (!decision || !selectedSource) {
+      return { advanced: false, reason: 'official_decision_binding_missing' };
+    }
   }
   if (advanceDiscoveryToExtraction(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
@@ -102,13 +123,8 @@ export function advanceDiscoveryItemToExtraction(itemId: string): AutoAdvanceRes
 }
 
 /**
- * Advance one Extraction-completed item (with persisted extraction data) to
- * Curation readiness. Guards:
- * - the item must be `extraction/completed` with extraction data;
- * - a member of a candidate cohort whose current run is still
- *   `freezing`/`running` is never stage-advanced mid-execution (the cohort
- *   path owns its lifecycle; post-run the member advances normally).
- * Emits an SSE `item:status` (pending, stage curation) on success.
+ * Advance one Extraction-completed item with persisted extraction data to
+ * its item-local Curation stage.
  */
 export function advanceExtractionItemToCuration(itemId: string): AutoAdvanceResult {
   const item = findItemById(itemId);
@@ -118,13 +134,6 @@ export function advanceExtractionItemToCuration(itemId: string): AutoAdvanceResu
   }
   if (!item.extractionData) {
     return { advanced: false, reason: 'no_extraction_data' };
-  }
-  const cohort = getActiveCohortForItem(item.id);
-  if (cohort) {
-    const run = getCurrentCohortRun(cohort.id);
-    if (run && COHORT_PARENT_IN_FLIGHT.has(run.status)) {
-      return { advanced: false, reason: 'cohort_parent_in_flight' };
-    }
   }
   if (advanceExtractionToCuration(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
@@ -138,13 +147,9 @@ export function advanceExtractionItemToCuration(itemId: string): AutoAdvanceResu
 }
 
 /**
- * Advance one Curation-completed item to Review (the human gate). Guards:
- * - the item must be `curation/completed` with a committed curation payload;
- * - a `semanticValidation.status === 'blocked'` member stays (the review gate
- *   refuses blocked members, so it is not review-ready);
- * - a cohort child whose parent is still executing stays until the parent is
- *   terminal.
- * Emits an SSE `item:status` (pending, stage review) on success.
+ * Advance one completed item-local Curation run to Review. Review completion
+ * and promotion enforce currentness and readiness; no cohort output is a
+ * prerequisite for showing this item to its reviewer.
  */
 export function advanceCurationItemToReview(itemId: string): AutoAdvanceResult {
   const item = findItemById(itemId);
@@ -154,17 +159,6 @@ export function advanceCurationItemToReview(itemId: string): AutoAdvanceResult {
   }
   if (!item.curationData) {
     return { advanced: false, reason: 'no_curation_data' };
-  }
-  const semanticValidation = (item.curationData as { semanticValidation?: unknown }).semanticValidation;
-  if (
-    semanticValidation &&
-    typeof semanticValidation === 'object' &&
-    (semanticValidation as { status?: unknown }).status === 'blocked'
-  ) {
-    return { advanced: false, reason: 'semantic_validation_blocked' };
-  }
-  if (cohortParentInFlight(item)) {
-    return { advanced: false, reason: 'cohort_parent_in_flight' };
   }
   if (advanceCurationToReview(itemId)) {
     onboardingEvents.emitItemStatus(item.batchId, itemId, 'pending', {
@@ -184,28 +178,109 @@ export interface AutoAdvanceSweepResult {
 }
 
 /**
- * Poll-loop sweep: apply all automatic-continuation rules to every eligible
- * item in the workspace. Idempotent and cheap (three scoped list queries; the
- * guarded per-item UPDATEs are no-ops once advanced). Failures are isolated
- * per item and never throw.
+ * Issue #303: per-iteration work budget for the poll-loop auto-advance
+ * sweep. The lists are unbounded (every completed row in the workspace), and
+ * `poll()` runs the sweep synchronously before claiming — a large production
+ * batch (thousands of completed rows) holds the event loop for the whole
+ * sweep and starves HTTP throughput. The cap keeps one poll iteration
+ * bounded; leftover rows advance on later polls (claims are atomic and rows
+ * stay `completed` until advanced, so a restart mid-sweep is safe).
+ *
+ * Sized so a single iteration stays well under the 2s poll cadence on
+ * commodity hardware: each advance is one guarded UPDATE plus one SSE emit
+ * (in-process). Tune only via this constant — never per call site.
  */
-export function sweepAutoAdvance(workspaceId: string): AutoAdvanceSweepResult {
+export const AUTO_ADVANCE_SWEEP_LIMIT = 200;
+
+export interface AutoAdvanceSweepOptions {
+  /**
+ * Maximum eligible items advanced per sweep invocation (across all three
+ * legs, discovery → extraction → curation in order). Defaults to
+ * AUTO_ADVANCE_SWEEP_LIMIT; callers pass a smaller value only in tests.
+   */
+  limit?: number;
+  /**
+ * Cooperative yield called after every processed item (default: none for
+ * direct callers — the worker passes its `setImmediate` yield). Lets a
+ * large sweep serve pending HTTP work between items instead of after the
+ * whole sweep.
+   */
+  yieldBetweenItems?: () => Promise<void>;
+}
+
+/**
+ * Poll-loop sweep: apply all automatic-continuation rules to eligible items
+ * in the workspace, bounded to `limit` inspected items per invocation so one
+ * iteration can never hold the event loop for an unbounded row set.
+ * Idempotent and cheap (three bounded keyset pages; the guarded per-item
+ * UPDATEs are no-ops once advanced). Skipped rows stay eligible: a later
+ * poll (or a post-restart re-poll — claims are atomic, sweeps are
+ * idempotent) picks them up. Failures are isolated per item and never throw.
+ *
+ * Fairness: each leg resumes after the row the previous poll inspected last
+ * (keyset cursor, wrapping around) AND the starting leg rotates round-robin
+ * per workspace, with bounded capacity (`ceil(limit / 3)`) reserved per leg.
+ * A permanently held prefix on any leg (e.g. semantic-blocked Curation rows,
+ * or an Extraction pool that never drains) therefore cannot consume every
+ * poll's budget before the other legs are visited.
+ */
+export async function sweepAutoAdvance(workspaceId: string, options: AutoAdvanceSweepOptions = {}): Promise<AutoAdvanceSweepResult> {
+  const limit = options.limit ?? AUTO_ADVANCE_SWEEP_LIMIT;
+  const yieldBetweenItems = options.yieldBetweenItems;
   const result: AutoAdvanceSweepResult = {
     discoveryToExtraction: [],
     extractionToCuration: [],
     curationToReview: [],
   };
-  for (const row of listDiscoveryCompletedWithUrl(workspaceId)) {
-    const adv = advanceDiscoveryItemToExtraction(row.id);
-    if (adv.advanced) result.discoveryToExtraction.push(row.id);
-  }
-  for (const row of listExtractionCompleted(workspaceId)) {
-    const adv = advanceExtractionItemToCuration(row.id);
-    if (adv.advanced) result.extractionToCuration.push(row.id);
-  }
-  for (const row of listCurationCompleted(workspaceId)) {
-    const adv = advanceCurationItemToReview(row.id);
-    if (adv.advanced) result.curationToReview.push(row.id);
+  if (limit <= 0) return result;
+  const perLegCap = Math.max(1, Math.ceil(limit / 3));
+  const legs = [
+    { leg: 'discovery' as const, advance: advanceDiscoveryItemToExtraction, collected: result.discoveryToExtraction },
+    { leg: 'extraction' as const, advance: advanceExtractionItemToCuration, collected: result.extractionToCuration },
+    { leg: 'curation' as const, advance: advanceCurationItemToReview, collected: result.curationToReview },
+  ];
+  const start = sweepStartLeg.get(workspaceId) ?? 0;
+  sweepStartLeg.set(workspaceId, (start + 1) % legs.length);
+  let remaining = limit;
+  for (let i = 0; i < legs.length; i++) {
+    if (remaining <= 0) break;
+    const entry = legs[(start + i) % legs.length]!;
+    remaining -= await sweepLeg(
+      entry.leg,
+      workspaceId,
+      Math.min(perLegCap, remaining),
+      entry.advance,
+      entry.collected,
+      yieldBetweenItems,
+    );
   }
   return result;
+}
+
+/**
+ * Inspect up to `legBudget` rows of one sweep leg via a single bounded
+ * keyset page, advancing the eligibility rule per row. Records the last
+ * inspected row id as the leg's rotation cursor so the next poll resumes
+ * after it instead of re-scanning a held prefix. Returns the inspected
+ * count. Never materializes more than the page ahead of the cursor.
+ */
+async function sweepLeg(
+  leg: 'discovery' | 'extraction' | 'curation',
+  workspaceId: string,
+  legBudget: number,
+  advance: (itemId: string) => AutoAdvanceResult,
+  collected: string[],
+  yieldBetweenItems: (() => Promise<void>) | undefined,
+): Promise<number> {
+  const cursorKey = sweepCursorKey(workspaceId, leg);
+  const page = listLegPage(leg, workspaceId, sweepCursors.get(cursorKey), legBudget);
+  let inspected = 0;
+  for (const row of page) {
+    inspected++;
+    const adv = advance(row.id);
+    if (adv.advanced) collected.push(row.id);
+    sweepCursors.set(cursorKey, row.id);
+    if (yieldBetweenItems) await yieldBetweenItems();
+  }
+  return inspected;
 }

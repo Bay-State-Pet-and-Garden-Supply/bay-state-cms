@@ -231,16 +231,6 @@ function extractPageStructureSignalsFromHtml(html: string): string[] {
     signals.push('microdata:Product');
   }
 
-  // Product price meta
-  if (/product:price:amount/i.test(html)) signals.push('meta:product:price:amount');
-
-  // Product brand meta
-  if (/product:brand/i.test(html)) signals.push('meta:product:brand');
-
-  // price selector presence
-  if (/["']\.price["']|["']#price["']|class\s*=\s*["'][^"']*price[^"']*["']/i.test(html)) {
-    signals.push('selector:price');
-  }
 
   // add-to-cart form / button
   if (/add-to-cart|add_to_cart|data-product-id/i.test(html)) {
@@ -427,9 +417,7 @@ function makePageStructureSignalsExtractor(): string {
       const ogType = document.querySelector('meta[property="og:type"]');
       if (ogType && ogType.getAttribute('content') === 'product') signals.push('meta:og:type=product');
       if (document.querySelector('[itemscope][itemtype*="Product"]')) signals.push('microdata:Product');
-      if (document.querySelector('meta[property="product:price:amount"]')) signals.push('meta:product:price:amount');
       if (document.querySelector('meta[property="product:brand"]')) signals.push('meta:product:brand');
-      if (document.querySelector('.price, #price, [class*="price"]')) signals.push('selector:price');
       if (document.querySelector('[data-product-id], .add-to-cart, .add_to_cart, [class*="add-to-cart"], [class*="add_to_cart"]')) signals.push('interaction:add-to-cart');
       const allS = document.querySelectorAll('script');
       for (const s of allS) {

@@ -1,0 +1,32 @@
+{
+  "newReleaseId": "bay-state-v10",
+  "createdAtOverride": "2026-10-12T00:00:00.000Z",
+  "notes": [
+    "P1 #8 new native type leaves: dog-food-freeze-dried-raw + cat-food-freeze-dried-raw (profile-pet-food, Freeze-Dried Raw invariants); milk-replacer (profile-pet-food, no species/form invariant); aquarium-equipment (profile-accessories, Fish); catnip-loose (profile-accessories, Cat).",
+    "P1 #10 size retirement: breed-size + size to not_exported, PF19/PF27 mappings removed, all facet memberships revoked. Existing live/workspace values untouched; core.weight independent."
+  ],
+  "attributeEdits": [
+    { "attributeId": "breed-size", "exportDisposition": { "kind": "not_exported" } },
+    { "attributeId": "size", "exportDisposition": { "kind": "not_exported" } }
+  ],
+  "mappingRemoves": [
+    { "attributeId": "breed-size" },
+    { "attributeId": "size" }
+  ],
+  "profileMembershipRevocations": [
+    { "profileId": "profile-pet-food", "attributeId": "breed-size" },
+    { "profileId": "profile-pet-food-supplements", "attributeId": "breed-size" },
+    { "profileId": "profile-accessories", "attributeId": "size" },
+    { "profileId": "profile-accessories-grooming", "attributeId": "size" },
+    { "profileId": "profile-fencing-towing", "attributeId": "size" },
+    { "profileId": "profile-garden", "attributeId": "size" },
+    { "profileId": "profile-livestock-equipment", "attributeId": "size" }
+  ],
+  "hierarchyNodeAdds": [
+    { "nodeId": "dog-food-freeze-dried-raw", "label": "Dog Freeze-Dried Raw Food", "parentId": "dog-food", "departmentId": "pet-supplies", "facetProfileId": "profile-pet-food", "scope": { "animalDomain": "dog" }, "invariantAttributes": { "species": "Dog", "food-form": "Freeze-Dried Raw" } },
+    { "nodeId": "cat-food-freeze-dried-raw", "label": "Cat Freeze-Dried Raw Food", "parentId": "cat-food", "departmentId": "pet-supplies", "facetProfileId": "profile-pet-food", "scope": { "animalDomain": "cat" }, "invariantAttributes": { "species": "Cat", "food-form": "Freeze-Dried Raw" } },
+    { "nodeId": "milk-replacer", "label": "Milk Replacer", "parentId": "pet-supplies", "departmentId": "pet-supplies", "facetProfileId": "profile-pet-food", "invariantAttributes": {} },
+    { "nodeId": "aquarium-equipment", "label": "Aquarium Equipment", "parentId": "fish", "departmentId": "pet-supplies", "facetProfileId": "profile-accessories", "scope": { "animalDomain": "fish" }, "invariantAttributes": { "species": "Fish" } },
+    { "nodeId": "catnip-loose", "label": "Loose Catnip", "parentId": "cat", "departmentId": "pet-supplies", "facetProfileId": "profile-accessories", "scope": { "animalDomain": "cat" }, "invariantAttributes": { "species": "Cat" } }
+  ]
+}

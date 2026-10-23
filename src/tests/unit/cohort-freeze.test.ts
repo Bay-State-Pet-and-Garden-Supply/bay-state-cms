@@ -61,13 +61,17 @@ import {
   ExecutionEvidenceProjectionV2Schema,
   parseExecutionEvidenceProjection,
 } from '../../shared/schemas/cohorts';
-import type { CurationCohort, ExecutionEvidenceProjectionMemberV1 } from '../../shared/schemas/cohorts';
+import type { CurationCohort, ExecutionEvidenceProjectionMemberV1, ExecutionEvidenceProjectionMemberV2, ExecutionEvidenceProjectionMemberV3, ExecutionEvidenceProjectionV2, ExecutionEvidenceProjectionV3 } from '../../shared/schemas/cohorts';
 import type { OnboardingItem } from '../../shared/schemas/onboarding';
 import type { CatalogEvidence } from '../../classification/catalog-evidence';
-import type { ClassificationConfig } from '../../shared/schemas/classification';
+import type { ClassificationConfig, ClassificationEvidence } from '../../shared/schemas/classification';
 import type { InsertItemData } from '../../db/repositories/onboarding-item-repo';
 import { computeExtractionHash } from '../../db/repositories/curation-cohort-repo';
 import { reclaimExpiredCohortRuns } from '../../db/repositories/classification-cohort-run-repo';
+import { evidenceExtractionStage } from '../../classification/stages/evidence-extraction';
+import { evidenceFromProjection, matchMemberDeterministically } from '../../classification/cohort-product-type-resolver';
+import type { ResolvedTargetOption } from '../../classification/curation-target-resolver';
+import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 
 let workspacePath: string;
 
@@ -585,7 +589,6 @@ describe('execution-evidence projection builder (PR3 M2)', () => {
     expect(ExecutionEvidenceProjectionV1Schema.safeParse(v2).success).toBe(false);
     // The adapter normalizes V1 → V2 with official-page provenance.
     const normalized = parseExecutionEvidenceProjection(v1Payload);
-// @ts-ignore -- Milestone 5 V3 compat: V2 test fixtures remain byte-readable via parse adapter, new freezes use V3
     expect(normalized.version).toBe('execution-evidence-v2');
     expect(normalized.members[0].itemSourceType).toBe('official_page');
     expect(normalized.members[0].extractionSourceType).toBe('official_page');
@@ -723,7 +726,6 @@ describe('two-phase freeze service (PR3 M2)', () => {
     const snap = getCohortSnapshotByHash(workspaceId, finalized.evidenceSnapshotHash!)!;
     expect(snap).not.toBeNull();
     const projection = parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
-// @ts-ignore -- Milestone 5 V3: new freezes persist V3
     expect(projection.version).toBe('execution-evidence-v3');
     expect(projection.members).toHaveLength(2);
     expect(hashCanonicalJson(projection)).toBe(finalized.evidenceSnapshotHash!);
@@ -2419,5 +2421,257 @@ describe('freeze-delegated distributor_record OCR settles (post-review fixup 2)'
     ) as Record<string, any>;
     expect(afterPass2.ocrOutcome.status).toBe('no_image');
     expect(countPackagingOcrShadowComparisons(items[0].id)).toBe(comparisonsAfterPass1);
+  });
+});
+
+// ─── Issue #361: frozen scan and member execution share one semantic mapping ─
+// The freeze scan (`evidenceFromProjection`, read-only) and the persisted
+// member execution (the frozen evidence stage) interpret the same supplied
+// facts identically. These tests observe downstream supported proposals,
+// provenance, and OCR eligibility at the existing freeze-scan and
+// frozen-member execution seams — never exact copied record arrays,
+// call wiring, or incidental counts.
+
+describe('issue #361 — frozen scan/member semantic agreement (freeze + member execution)', () => {
+  const TYPE_OPTIONS: ResolvedTargetOption[] = [
+    { value: 'dry-dog-food', label: 'Dry Dog Food' },
+    { value: 'dry-cat-food', label: 'Dry Cat Food' },
+  ];
+
+  type FrozenMember = ExecutionEvidenceProjectionMemberV1 | ExecutionEvidenceProjectionMemberV2 | ExecutionEvidenceProjectionMemberV3;
+
+  /** Run the persisted member execution for one frozen projection member. */
+  async function executeMember(
+    wsPath: string,
+    workspaceId: string,
+    memberProjection: FrozenMember,
+    runId: string,
+    childSnapshot: RuntimeClassificationSnapshot,
+  ): Promise<{ status: string; evidence: ClassificationEvidence[] }> {
+    const result = await evidenceExtractionStage.execute(
+      { sku: memberProjection.productSku ?? '', onboardingItemId: memberProjection.onboardingItemId, evidence: [], acceptedProposals: [], allProposals: [] },
+      {
+        workspacePath: wsPath,
+        workspaceId,
+        runId,
+        configSnapshotRef: childSnapshot.configSnapshotRef,
+        snapshot: childSnapshot,
+        cohortFrozenEvidence: memberProjection,
+      } as never,
+    );
+    if (result.status !== 'succeeded') return { status: result.status, evidence: [] };
+    return {
+      status: result.status,
+      evidence: (result as { status: 'succeeded'; output: { evidence: ClassificationEvidence[] } }).output.evidence,
+    };
+  }
+
+  /** Freeze one ready cohort and return the persisted projection + member snapshots. */
+  async function freezeOne(workspaceId: string, wsPath: string): Promise<{
+    projection: ExecutionEvidenceProjectionV2 | ExecutionEvidenceProjectionV3;
+    snapshotsByItem: Record<string, RuntimeClassificationSnapshot>;
+    runIdsByItem: Record<string, string>;
+  }> {
+    const [run] = claimReadyCurationCohorts(workspaceId, 10, 'worker-361', COHORT_LEASE_TTL_MS);
+    const finalized = await freezeCohortForExecution(run, wsPath, workspaceId);
+    expect(finalized.status).toBe('running');
+    const snap = getCohortSnapshotByHash(workspaceId, finalized.evidenceSnapshotHash!)!;
+    const projection = parseExecutionEvidenceProjection(JSON.parse(snap.payloadJson));
+    const snapshotsByItem: Record<string, RuntimeClassificationSnapshot> = {};
+    const runIdsByItem: Record<string, string> = {};
+    for (const member of projection.members) {
+      const row = getDb().query(
+        'SELECT * FROM classification_runs WHERE cohort_run_id = ? AND onboarding_item_id = ?',
+      ).get(run.id, member.onboardingItemId) as { id: unknown; config_snapshot_hash: unknown };
+      runIdsByItem[member.onboardingItemId] = String(row.id);
+      snapshotsByItem[member.onboardingItemId] = getRuntimeSnapshotByHash(workspaceId, String(row.config_snapshot_hash))!;
+    }
+    return { projection, snapshotsByItem, runIdsByItem };
+  }
+
+  it('official-page facts: scan and member execution agree on supported proposal + provenance', async () => {
+    const { workspaceId, workspacePath: wsPath } = newWorkspace();
+    saveV1ConfigWithProductTypes(workspaceId, wsPath, [
+      { id: 'dry-dog-food', name: 'Dry Dog Food' },
+      { id: 'dry-cat-food', name: 'Dry Cat Food' },
+    ]);
+    createReadyCohort(workspaceId, {
+      '100000000361': settledExtraction({ _name: 'Purina Pro Plan Dry Dog Food Chicken 5 lb', title: 'Purina Pro Plan Dry Dog Food Chicken 5 lb' }),
+    });
+    const { projection, snapshotsByItem, runIdsByItem } = await freezeOne(workspaceId, wsPath);
+    const member = projection.members[0];
+    const scanEvidence = evidenceFromProjection(member, {
+      expectedOcrExecutionDigest: computeOcrExecutionDigest(snapshotsByItem[member.onboardingItemId]),
+    });
+    const scanMatch = matchMemberDeterministically(scanEvidence, TYPE_OPTIONS);
+    expect(scanMatch.productTypeId).toBe('dry-dog-food');
+    expect(scanMatch.source).toBe('keyword');
+    expect(scanEvidence.some(e => e.source === 'official_product_page' && e.sourceField === 'name')).toBe(true);
+    const executed = await executeMember(wsPath, workspaceId, member, runIdsByItem[member.onboardingItemId], snapshotsByItem[member.onboardingItemId]);
+    expect(executed.status).toBe('succeeded');
+    // Same meaning downstream: the member execution supports the same proposal with the same provenance.
+    const memberMatch = matchMemberDeterministically(executed.evidence, TYPE_OPTIONS);
+    expect(memberMatch.productTypeId).toBe(scanMatch.productTypeId);
+    expect(executed.evidence.some(e => e.source === 'official_product_page' && e.sourceField === 'name')).toBe(true);
+  });
+
+  it('distributor facts: both consumers keep distributor (never official) provenance and identity-only meaning', async () => {
+    const { workspaceId, workspacePath: wsPath } = newWorkspace();
+    saveV1Config(workspaceId, wsPath);
+    const { items } = createReadyCohort(workspaceId, {
+      '300000000361': settledExtraction({
+        _name: 'Phillips Dry Dog Food Chicken 20 lb',
+        title: 'Phillips Dry Dog Food Chicken 20 lb',
+        description: 'THIS COPY MUST NEVER BE EMITTED',
+        bulletPoints: ['Copy that must not appear'],
+        distributorSku: 'DSKU-361',
+      }),
+    });
+    getDb().query('UPDATE onboarding_items SET source_type = ? WHERE id = ?').run('distributor_record', items[0].id);
+    const { projection, snapshotsByItem, runIdsByItem } = await freezeOne(workspaceId, wsPath);
+    const member = projection.members[0];
+    const scanEvidence = evidenceFromProjection(member, {
+      expectedOcrExecutionDigest: computeOcrExecutionDigest(snapshotsByItem[member.onboardingItemId]),
+    });
+    expect(scanEvidence.some(e => e.source === 'official_product_page')).toBe(false);
+    expect(scanEvidence.some(e => e.source === 'distributor_record' && e.sourceField === 'distributor_sku')).toBe(true);
+    expect(scanEvidence.some(e => e.sourceField === 'description')).toBe(false);
+    const executed = await executeMember(wsPath, workspaceId, member, runIdsByItem[member.onboardingItemId], snapshotsByItem[member.onboardingItemId]);
+    expect(executed.evidence.some(e => e.source === 'official_product_page')).toBe(false);
+    expect(executed.evidence.some(e => e.source === 'distributor_record' && e.sourceField === 'distributor_sku' && e.sourceUrl === null)).toBe(true);
+    expect(executed.evidence.some(e => e.sourceField === 'description')).toBe(false);
+  });
+
+  it('missing facts: both consumers abstain downstream instead of inferring', async () => {
+    const { workspaceId, workspacePath: wsPath } = newWorkspace();
+    saveV1ConfigWithProductTypes(workspaceId, wsPath, [
+      { id: 'dry-dog-food', name: 'Dry Dog Food' },
+      { id: 'dry-cat-food', name: 'Dry Cat Food' },
+    ]);
+    createReadyCohort(workspaceId, {
+      '100000000362': settledExtraction({
+        _name: 'Generic Pet Product 25 lb',
+        title: null,
+        description: null,
+        brand: null,
+        weight: null,
+        bulletPoints: [],
+        searchKeywords: null,
+        customFields: {},
+      }),
+    });
+    const { projection, snapshotsByItem, runIdsByItem } = await freezeOne(workspaceId, wsPath);
+    const member = projection.members[0];
+    const scanMatch = matchMemberDeterministically(evidenceFromProjection(member, {
+      expectedOcrExecutionDigest: computeOcrExecutionDigest(snapshotsByItem[member.onboardingItemId]),
+    }), TYPE_OPTIONS);
+    expect(scanMatch).toEqual({ productTypeId: null, confidence: null, source: null });
+    const executed = await executeMember(wsPath, workspaceId, member, runIdsByItem[member.onboardingItemId], snapshotsByItem[member.onboardingItemId]);
+    const memberMatch = matchMemberDeterministically(executed.evidence, TYPE_OPTIONS);
+    expect(memberMatch).toEqual({ productTypeId: null, confidence: null, source: null });
+  });
+
+  it('eligible explicit package wording supports both consumers while changed inputs or authority exclude it', async () => {
+    const { workspaceId, workspacePath: wsPath } = newWorkspace();
+    const { bundle } = writeActiveV2Bundle(wsPath);
+    upsertConfigSnapshot(workspaceId, bundle);
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === '/img.png') {
+          return new Response(Buffer.alloc(2048, 7), { headers: { 'Content-Type': 'image/png' } });
+        }
+        if (url.pathname === '/api/chat') {
+          return Response.json({ message: { content: JSON.stringify({ productName: 'Package Dry Dog Food', flavorVariety: 'Chicken' }) } });
+        }
+        return new Response('not found', { status: 404 });
+      },
+    });
+    try {
+      upsertApiKey('ollama_vlm', 'enabled', `http://127.0.0.1:${server.port}`, 'vlm-model-361');
+      createReadyCohort(workspaceId, {
+        '100000000363': settledExtraction({
+          _name: 'Generic Pet Product 25 lb',
+          title: null,
+          description: null,
+          bulletPoints: [],
+          searchKeywords: null,
+          customFields: {},
+          primaryImage: `http://127.0.0.1:${server.port}/img.png`,
+          additionalImages: [],
+          ocrOutcome: null,
+          packagingOcrData: null,
+          packagingTitle: null,
+        }),
+      });
+      const { projection, snapshotsByItem, runIdsByItem } = await freezeOne(workspaceId, wsPath);
+      const member = projection.members[0];
+      const snapshot = snapshotsByItem[member.onboardingItemId];
+      const runId = runIdsByItem[member.onboardingItemId];
+      const expectedOcrExecutionDigest = computeOcrExecutionDigest(snapshot);
+      const scanEvidence = evidenceFromProjection(member, { expectedOcrExecutionDigest });
+      const executed = await executeMember(wsPath, workspaceId, member, runId, snapshot);
+      expect(executed.status).toBe('succeeded');
+      for (const evidence of [scanEvidence, executed.evidence]) {
+        expect(matchMemberDeterministically(evidence, TYPE_OPTIONS).productTypeId).toBe('dry-dog-food');
+        expect(evidence.find(e => e.sourceField === 'name' && e.metadata?.provenance === 'packaging_ocr')).toMatchObject({
+          source: 'visual_product_evidence',
+          value: 'Package Dry Dog Food',
+          metadata: { model: 'vlm-model-361' },
+        });
+        expect(evidence.find(e => e.sourceField === 'flavor' && e.metadata?.provenance === 'packaging_ocr')).toMatchObject({
+          source: 'visual_product_evidence',
+          attributeId: 'flavor',
+          value: 'Chicken',
+        });
+      }
+      const ineligibleMembers: FrozenMember[] = [
+        { ...member, extraction: { ...member.extraction, primaryImage: 'https://img.example.com/tampered-361.jpg' } },
+        { ...member, extraction: { ...member.extraction, ocr: { ...member.extraction.ocr, ocrExecutionDigest: 'f'.repeat(64) } } },
+        { ...member, extraction: { ...member.extraction, ocr: { ...member.extraction.ocr, ocrExecutionDigest: null } } },
+      ];
+      for (const ineligible of ineligibleMembers) {
+        const scan = evidenceFromProjection(ineligible, { expectedOcrExecutionDigest });
+        const execution = await executeMember(wsPath, workspaceId, ineligible, runId, snapshot);
+        expect(execution.status).toBe('succeeded');
+        for (const evidence of [scan, execution.evidence]) {
+          expect(evidence.some(e => e.metadata?.provenance === 'packaging_ocr')).toBe(false);
+          expect(matchMemberDeterministically(evidence, TYPE_OPTIONS).productTypeId).toBeNull();
+        }
+      }
+      expect(evidenceFromProjection(member, { expectedOcrExecutionDigest: null }).some(e => e.metadata?.provenance === 'packaging_ocr')).toBe(false);
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  it('separate siblings: each SKU stands on its own facts in both consumers', async () => {
+    const { workspaceId, workspacePath: wsPath } = newWorkspace();
+    saveV1ConfigWithProductTypes(workspaceId, wsPath, [
+      { id: 'dry-dog-food', name: 'Dry Dog Food' },
+      { id: 'dry-cat-food', name: 'Dry Cat Food' },
+    ]);
+    createReadyCohort(workspaceId, {
+      '100000000364': settledExtraction({ _name: 'Purina Pro Plan Food Chicken 5 lb', title: 'Purina Pro Plan Dry Dog Food 5 lb' }),
+      '100000000365': settledExtraction({ _name: 'Purina Pro Plan Food Salmon 3 lb', title: 'Purina Pro Plan Dry Cat Food 3 lb' }),
+    });
+    const { projection, snapshotsByItem, runIdsByItem } = await freezeOne(workspaceId, wsPath);
+    const expectedTypesBySku: Record<string, string> = {
+      '100000000364': 'dry-dog-food',
+      '100000000365': 'dry-cat-food',
+    };
+    // Member execution preserves the same per-SKU divergence (no inheritance).
+    for (const [sku, expectedType] of Object.entries(expectedTypesBySku)) {
+      const member = projection.members.find(candidate => candidate.productSku === sku)!;
+      const executed = await executeMember(wsPath, workspaceId, member, runIdsByItem[member.onboardingItemId], snapshotsByItem[member.onboardingItemId]);
+      const memberMatch = matchMemberDeterministically(executed.evidence, TYPE_OPTIONS);
+      const scanMatch = matchMemberDeterministically(evidenceFromProjection(member, {
+        expectedOcrExecutionDigest: computeOcrExecutionDigest(snapshotsByItem[member.onboardingItemId]),
+      }), TYPE_OPTIONS);
+      expect(scanMatch.productTypeId).toBe(expectedType);
+      expect(memberMatch.productTypeId).toBe(expectedType);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import type * as cheerio from 'cheerio';
-import type { ScrapedProductEvidence } from '../corpus-schema.js';
+import { isThirdPartyPriceSpecification, type ScrapedProductEvidence } from '../corpus-schema.js';
 import { computeEntityId } from '../url-policy.js';
 
 function isTractorSupplyProductUrl(url: string): boolean {
@@ -35,7 +35,7 @@ export function parseTractorSupplyProductHtml(url: string, $: cheerio.CheerioAPI
   $('.specifications-table tr, table.specs tr, #specifications-tab tr').each((_, el) => {
     const key = $(el).find('td:first-child, th').text().trim().replace(/:$/, '');
     const val = $(el).find('td:last-child').text().trim();
-    if (key && val && key !== val) {
+    if (key && val && key !== val && !isThirdPartyPriceSpecification(key)) {
       specifications[key] = val;
     }
   });

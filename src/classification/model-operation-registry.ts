@@ -13,7 +13,7 @@
  * compatible plan (legacy v1 snapshot, or a plan missing the operation) fails
  * closed — it is never routed against an unfrozen rule set.
  */
-import type { ProtectedOperation, ModelPolicyView, ProviderLocality } from './model-policy-gateway';
+import type { ProtectedOperation, ModelPolicyView, ProviderLocality, ClassificationDataSharingPolicy } from './model-policy-gateway';
 import type { ClassificationStageName } from './types';
 import { hashCanonicalJson } from '../shared/stable-id';
 import { SHOP_SITE_BUILT_IN_OUTPUT_POLICY_VERSION } from '../shopsite/built-in-output-policy';
@@ -26,7 +26,7 @@ export type { ProtectedOperation };
 export { CATEGORY_PAGE_CORRECTNESS_VERSION } from './category-page-correctness';
 
 /** Bump ONLY when the operation→rule/prompt/parameter contract changes. */
-export const MODEL_OPERATION_REGISTRY_VERSION = 3;
+export const MODEL_OPERATION_REGISTRY_VERSION = 6;
 
 /**
  * Built-in ShopSite output policy version participating in runs. Single
@@ -50,10 +50,14 @@ export const PROMPT_TEMPLATE_VERSIONS: Readonly<Record<ProtectedOperation, strin
   cohort_page_assignment_parent: 'cohort-page-assignment-parent-prompt-v3',
   title_consolidation: 'title-consolidation-prompt-v1',
   cohort_title_consolidation: 'cohort-title-consolidation-prompt-v1',
-  distributor_copy_consolidation: 'distributor-copy-consolidation-prompt-v1',
+  distributor_copy_consolidation: 'distributor-copy-consolidation-prompt-v2-accepted-facts',
   discovery_name_consolidation: 'discovery-name-consolidation-prompt-v1',
   sitemap_selection: 'sitemap-selection-prompt-v1',
   value_gap_resolution: 'value-gap-resolution-prompt-v1',
+  profile_generation: 'profile-generation-prompt-v1',
+  listing_evidence_check: 'listing-evidence-check-prompt-v1',
+  family_membership_proposal: 'family-membership-proposal-prompt-v1',
+  item_acquisition_action_selection: 'item-acquisition-action-selection-prompt-v1',
 };
 
 /**
@@ -70,10 +74,14 @@ export const RULE_VERSIONS: Readonly<Record<ProtectedOperation, string>> = {
   cohort_page_assignment_parent: 'cohort-page-assignment-parent-rules-v3',
   title_consolidation: 'title-consolidation-rules-v1',
   cohort_title_consolidation: 'cohort-title-consolidation-rules-v2', // B1 family-title consistency (T2-T7) + title-lint — FAMILY_TITLE_CONSISTENCY_VERSION v2
-  distributor_copy_consolidation: 'distributor-copy-consolidation-rules-v1',
+  distributor_copy_consolidation: 'distributor-copy-consolidation-rules-v2-claim-checked',
   discovery_name_consolidation: 'discovery-name-consolidation-rules-v1',
   sitemap_selection: 'sitemap-selection-rules-v1',
   value_gap_resolution: 'value-gap-resolution-rules-v1',
+  profile_generation: 'profile-generation-rules-v1',
+  listing_evidence_check: 'listing-evidence-check-rules-v1',
+  family_membership_proposal: 'family-membership-proposal-rules-v1',
+  item_acquisition_action_selection: 'item-acquisition-action-selection-rules-v1',
 };
 
 /**
@@ -96,6 +104,10 @@ export const OPERATION_PARAMETERS: Readonly<
   discovery_name_consolidation: { temperature: 0.1, maxTokens: null },
   sitemap_selection: { temperature: 0.0, maxTokens: null },
   value_gap_resolution: { temperature: 0.0, maxTokens: null },
+  profile_generation: { temperature: 0.0, maxTokens: null },
+  listing_evidence_check: { temperature: 0.0, maxTokens: null },
+  family_membership_proposal: { temperature: 0.0, maxTokens: null },
+  item_acquisition_action_selection: { temperature: 0.0, maxTokens: 256 },
 };
 
 /**
@@ -116,6 +128,10 @@ export const OPERATION_TO_STAGE: Readonly<Record<ProtectedOperation, Classificat
   discovery_name_consolidation: 'name_consolidation',
   sitemap_selection: null,
   value_gap_resolution: 'value_gap_abstain',
+  profile_generation: null,
+  listing_evidence_check: null,
+  family_membership_proposal: null,
+  item_acquisition_action_selection: null,
 };
 
 /** Run-bound protected operations (those mapped to a classification stage). */
@@ -141,6 +157,8 @@ export interface ModelExecutionPlanEntry {
   provider: string;
   model: string;
   locality: ProviderLocality | null;
+  /** Independent text-sharing authority for the generative copy operation only. */
+  textDataSharing?: ClassificationDataSharingPolicy;
   /** True when provider/model came from a stage override. */
   fromOverride: boolean;
   promptTemplateVersion: string;
@@ -249,26 +267,42 @@ export function buildModelExecutionPlan(
   view: ModelPolicyView,
   localVlmConfig?: { baseUrl: string; model: string } | null,
 ): ModelExecutionPlan {
-  const entries: ModelExecutionPlanEntry[] = RUN_BOUND_OPERATIONS.map(operation => {
-    const stage = OPERATION_TO_STAGE[operation] as ClassificationStageName;
-    const override = view.stageOverrides[stage];
-    const fromOverride = Boolean(override?.provider ?? override?.model);
-    const provider = override?.provider ?? view.defaultProvider;
-    const model = override?.model ?? view.defaultModel;
-    return {
-      operation,
-      stage,
+  const entries: ModelExecutionPlanEntry[] = RUN_BOUND_OPERATIONS
+    .filter(operation => operation !== 'distributor_copy_consolidation')
+    .map(operation => {
+      const stage = OPERATION_TO_STAGE[operation] as ClassificationStageName;
+      const override = view.stageOverrides[stage];
+      const fromOverride = Boolean(override?.provider ?? override?.model);
+      const provider = override?.provider ?? view.defaultProvider;
+      const model = override?.model ?? view.defaultModel;
+      return {
+        operation,
+        stage,
+        provider,
+        model,
+        locality: view.providerLocalities[provider] ?? null,
+        fromOverride,
+        promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS[operation],
+        ruleVersion: RULE_VERSIONS[operation],
+        ...(operation === 'evidence_extraction' && localVlmConfig
+          ? { localVlmBaseUrl: localVlmConfig.baseUrl, localVlmModel: localVlmConfig.model }
+          : {}),
+      };
+    });
+  if (view.copyGeneration) {
+    const { provider, model, textDataSharing } = view.copyGeneration;
+    entries.push({
+      operation: 'distributor_copy_consolidation',
+      stage: 'name_consolidation',
       provider,
       model,
       locality: view.providerLocalities[provider] ?? null,
-      fromOverride,
-      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS[operation],
-      ruleVersion: RULE_VERSIONS[operation],
-      ...(operation === 'evidence_extraction' && localVlmConfig
-        ? { localVlmBaseUrl: localVlmConfig.baseUrl, localVlmModel: localVlmConfig.model }
-        : {}),
-    };
-  });
+      textDataSharing,
+      fromOverride: false,
+      promptTemplateVersion: PROMPT_TEMPLATE_VERSIONS.distributor_copy_consolidation,
+      ruleVersion: RULE_VERSIONS.distributor_copy_consolidation,
+    });
+  }
   const payload = {
     version: 1 as const,
     registryVersion: MODEL_OPERATION_REGISTRY_VERSION,

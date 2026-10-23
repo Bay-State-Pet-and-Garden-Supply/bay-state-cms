@@ -58,7 +58,6 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
         fields: {
           title: { available: true, expectedValue: `Product ${id}` },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '14.99' },
           sku: { available: true, expectedValue: `SKU-${id}` },
           gtin: { available: false, notes: 'Not on PDP' },
         },
@@ -120,15 +119,6 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
           status: 'correct',
           correct: true,
         },
-        price: {
-          field: 'price',
-          available: true,
-          extractedValue: '14.99',
-          expectedValue: '14.99',
-          provenance: 'custom-selector',
-          status: 'correct',
-          correct: true,
-        },
       },
       imageScores: {
         extractedImages: [`https://example.com/images/${sample.sampleId}-primary.jpg`],
@@ -170,15 +160,6 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
           available: true,
           extractedValue: 'Earthbath',
           expectedValue: 'Earthbath',
-          provenance: 'structured',
-          status: 'correct',
-          correct: true,
-        },
-        price: {
-          field: 'price',
-          available: true,
-          extractedValue: '14.99',
-          expectedValue: '14.99',
           provenance: 'structured',
           status: 'correct',
           correct: true,
@@ -386,7 +367,7 @@ describe('Profile Audit: Shared Promotion Eligibility Helper (Issue #185 / T1 Pr
       expect(res.isPromotable).toBe(true);
       expect(res.promotabilityVerdict).toBe('PROMOTABLE');
       expect(res.promotabilityReasons).toContain('✓ Zero observed identity errors (100% correct identity match)');
-      expect(res.promotabilityReasons).toContain('✓ Zero critical-field regressions on title, brand, or price');
+      expect(res.promotabilityReasons).toContain('✓ Zero critical-field regressions on title or brand');
       expect(res.recommendation).toContain('PROCEED TO CONTRACT WORK');
     });
 

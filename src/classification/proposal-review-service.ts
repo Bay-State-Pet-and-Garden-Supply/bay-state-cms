@@ -2,11 +2,12 @@ import { getDb } from '../db/connection';
 import { DecisionConflictError, getProposalsByRun, getLiveDecisionsByRun, insertDecisionRow, recordHistoryEvent, assertProposalReviewLiveness } from '../db/repositories/classification-run-repo';
 import { enqueueRefreshItem } from '../db/repositories/classification-refresh-repo';
 import type { ClassificationProposalDecision } from '../shared/types';
-import { getCategoryIdFromValue, getEffectiveClassificationPair, getEffectiveProposalValue, getProductTypeIdFromValue } from './assignment-projection';
-import { getRuntimeSnapshotByHash } from './runtime-snapshot';
-import { invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
+import { getCategoryIdFromValue, getEffectiveClassificationPair, getProductTypeIdFromValue } from './assignment-projection';
+import { getEffectiveProposalTargetId, getEffectiveProposalValue } from './effective-proposal';
+import { getRuntimeSnapshotByHash, snapshotHash as computeSnapshotHash } from './runtime-snapshot';
+import { getConditionalUniversalAttributeIds, invalidateDependentTypeReview, isTypeDependentProposal, listCurrentRunProposals } from '../db/repositories/classification-dependent-review-repo';
 import { validateFrozenReviewCorrection } from './review-correction';
-import { isBrandPageProposal, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
+import { isBrandPageProposal, isProtectedCatalogField, isProtectedTargetId, protectedTargetRefusal } from './classification-ownership';
 import { pageNameFromPageValue } from '../shared/proposal-display';
 
 export interface ProposalReviewInput {
@@ -150,45 +151,13 @@ function resolveCorrection(
     };
   }
 
-  if (proposalType !== 'primary_product_type' || (!hasRevisedValue && !hasRevisedTargetId)) {
-    return {
-      ok: true,
-      correction: {
-        hasRevisedValue,
-        ...(hasRevisedValue ? { revisedValue } : {}),
-        hasRevisedTargetId,
-        ...(hasRevisedTargetId ? { revisedTargetId: revisedTargetId ?? null } : {}),
-      },
-    };
-  }
-  // Product Type is one semantic identity even though legacy proposals stored
-  // it in both value and target. New decisions always persist a paired,
-  // canonical correction; existing one-sided history remains readable through
-  // getEffectivePrimaryProductTypeId().
-  const valueId = hasRevisedValue ? getProductTypeIdFromValue(revisedValue) : null;
-  if (hasRevisedValue && revisedValue !== null && valueId === null) {
-    return { ok: false, reason: `Decision ${decision.proposalId} has an invalid Primary Product Type value.` };
-  }
-
-  if (hasRevisedTargetId
-    && revisedTargetId !== null
-    && (typeof revisedTargetId !== 'string' || revisedTargetId.length === 0)) {
-    return { ok: false, reason: `Decision ${decision.proposalId} has an invalid Primary Product Type target.` };
-  }
-  const targetId = hasRevisedTargetId ? revisedTargetId ?? null : valueId;
-
-  if (hasRevisedValue && hasRevisedTargetId && valueId !== targetId) {
-    return { ok: false, reason: `Decision ${decision.proposalId} has conflicting Primary Product Type value and target IDs.` };
-  }
-
-  const effectiveId = hasRevisedTargetId ? targetId : valueId;
   return {
     ok: true,
     correction: {
-      hasRevisedValue: true,
-      revisedValue: effectiveId === null ? null : { productTypeId: effectiveId },
-      hasRevisedTargetId: true,
-      revisedTargetId: effectiveId,
+      hasRevisedValue,
+      ...(hasRevisedValue ? { revisedValue } : {}),
+      hasRevisedTargetId,
+      ...(hasRevisedTargetId ? { revisedTargetId: revisedTargetId ?? null } : {}),
     },
   };
 }
@@ -271,46 +240,86 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
   if (invalid) return { ok: false, code: 'decision_conflict', reason: `Proposal ${invalid.id} is ${invalid.superseded_at ? 'superseded' : 'stale'}; review its current replacement.` };
 
   const proposalTypeById = new Map(proposalRows.map(row => [row.id, row.proposal_type]));
+  const legacyDecision = input.decisions.find(decision => proposalTypeById.get(decision.proposalId) === 'primary_product_type');
+  if (legacyDecision) {
+    return {
+      ok: false,
+      code: 'invalid_decisions',
+      reason: `Legacy Product Type proposal ${legacyDecision.proposalId} is history-only; restart or reclassify to establish canonical Product Classification authority.`,
+    };
+  }
   const reviewSnapshot = run.config_snapshot_hash ? getRuntimeSnapshotByHash(input.workspaceId, run.config_snapshot_hash) : null;
   const originalProposals = getProposalsByRun(input.runId);
-  // ADR 0041 / issue #349: a historical Brand proposal remains attributable
-  // but can never gain review authority. Refuse accepted decisions on
-  // protected targets — including protected revised targets — with an
-  // attributable code instead of applying or silently rerouting them.
-  // Rejections/deferrals carry no write authority and pass through. Issue
-  // #353: the same refusal covers Brand pages — a category_page proposal
-  // whose effective display name carries the `Brand -` prefix is outside
-  // classifier ownership (verified identity or not) and can never gain
-  // review authority, including via a revised value/target.
+  // Historical inspection/reject/defer does not grant output authority. Every
+  // acceptance or correction needs a compatible captured configuration before
+  // any decision/history write; a bare target or mapping is not permission.
+  const needsOutputAuthority = (decision: DecisionInput): boolean => decision.decision === 'accepted'
+    || hasOwn(decision, 'revisedValue') || hasOwn(decision, 'proposedValue')
+    || hasOwn(decision, 'revisedTargetId') || hasOwn(decision, 'targetId');
+  if (input.decisions.some(needsOutputAuthority)) {
+    if (!reviewSnapshot) {
+      return { ok: false, code: 'configuration_gap', reason: 'Accepting or revising output requires the run’s captured runtime configuration.' };
+    }
+    try {
+      if (!Array.isArray(reviewSnapshot.attributes) || !Array.isArray(reviewSnapshot.attributeMappings)
+        || !Array.isArray(reviewSnapshot.curationTargets) || !reviewSnapshot.configSnapshotRef?.hash
+        || reviewSnapshot.workspaceId !== input.workspaceId || reviewSnapshot.productSku !== input.productSku
+        || reviewSnapshot.snapshotHash !== run.config_snapshot_hash
+        || computeSnapshotHash(reviewSnapshot) !== run.config_snapshot_hash) {
+        return { ok: false, code: 'configuration_gap', reason: 'Captured runtime configuration does not match this SKU/workspace or its immutable hash.' };
+      }
+    } catch {
+      return { ok: false, code: 'configuration_gap', reason: 'Captured runtime configuration is invalid.' };
+    }
+  }
   for (const decision of input.decisions) {
-    if (decision.decision !== 'accepted') continue;
+    if (!needsOutputAuthority(decision)) continue;
     const original = originalProposals.find(proposal => proposal.id === decision.proposalId);
     if (!original) continue;
+    const revisedTarget = hasOwn(decision, 'revisedTargetId')
+      ? (decision.revisedTargetId ?? null)
+      : hasOwn(decision, 'targetId')
+        ? (decision.targetId ?? null)
+        : getEffectiveProposalTargetId(original);
     if (original.proposalType === 'category_page') {
-      const revisedValue = hasOwn(decision, 'revisedValue') ? decision.revisedValue : undefined;
-      const revisedTarget = hasOwn(decision, 'revisedTargetId')
-        ? (decision.revisedTargetId ?? null)
-        : hasOwn(decision, 'targetId')
-          ? (decision.targetId ?? null)
-          : original.targetId;
-      const effectiveName = revisedValue !== undefined
-        ? pageNameFromPageValue(revisedValue)
-        : pageNameFromPageValue(getEffectiveProposalValue(original));
-      if (isBrandPageProposal(effectiveName)) {
+      const revisedValue = hasOwn(decision, 'revisedValue') ? decision.revisedValue
+        : hasOwn(decision, 'proposedValue') ? decision.proposedValue : getEffectiveProposalValue(original);
+      if (isBrandPageProposal(pageNameFromPageValue(original.proposedValue))
+        || isBrandPageProposal(pageNameFromPageValue(revisedValue))) {
         const refusal = protectedTargetRefusal(revisedTarget ?? original.targetId);
         return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
       }
       continue;
     }
     if (original.proposalType !== 'field_assignment') continue;
-    const revisedTarget = hasOwn(decision, 'revisedTargetId')
-      ? (decision.revisedTargetId ?? null)
-      : hasOwn(decision, 'targetId')
-        ? (decision.targetId ?? null)
-        : original.targetId;
-    if (isProtectedTargetId(original.targetId) || isProtectedTargetId(revisedTarget)) {
-      const refusal = protectedTargetRefusal(revisedTarget ?? original.targetId);
-      return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+    const ownershipMappings = reviewSnapshot!.attributeMappings;
+    const mappingsView = ownershipMappings as Parameters<typeof isProtectedTargetId>[1];
+    // Both identities must remain permitted: neither correcting a protected
+    // original nor clearing an unknown destination can launder authority.
+    for (const candidateTarget of [original.targetId, revisedTarget]) {
+      if (candidateTarget === null && original.targetId !== null) continue;
+      if (isProtectedTargetId(candidateTarget, mappingsView)) {
+        const refusal = protectedTargetRefusal(candidateTarget);
+        return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+      }
+      const attribute = reviewSnapshot!.attributes.find(attribute => attribute.id === candidateTarget);
+      const bindings = ownershipMappings.filter(mapping => mapping.attributeId === candidateTarget);
+      const configuredTargets = reviewSnapshot!.curationTargets.filter(target => target.kind === 'product_field'
+        && target.attributeId === candidateTarget && (target.enabled || target.mandatory));
+      if (!attribute || configuredTargets.length === 0) {
+        return { ok: false, code: 'configuration_gap',
+          reason: `Decision ${decision.proposalId}: field "${candidateTarget}" is not a permitted attribute/target in the captured configuration.` };
+      }
+      if (bindings.length !== 1 || bindings[0].isStale || !bindings[0].catalogField
+        || configuredTargets.some(target => target.catalogField && target.catalogField !== bindings[0].catalogField)) {
+        return { ok: false, code: 'configuration_gap',
+          reason: `Decision ${decision.proposalId}: field "${candidateTarget}" has no unique current captured field binding.` };
+      }
+      const resolvedField = bindings[0].catalogField;
+      if (isProtectedCatalogField(resolvedField, candidateTarget, ownershipMappings)) {
+        const refusal = protectedTargetRefusal(resolvedField);
+        return { ok: false, code: refusal.code, reason: `Decision ${decision.proposalId}: ${refusal.reason}` };
+      }
     }
   }
 
@@ -426,8 +435,9 @@ export function submitProposalDecisions(input: ProposalReviewInput): ProposalRev
           const hasWithheldDependents = currentProposals.some(proposal => proposal.proposalType === 'reviewable_abstention'
             && ['product_attribute_proposals', 'category_page_proposals'].includes(proposal.targetId ?? '')
             && String((proposal.proposedValue as { reason?: string })?.reason ?? '').includes('No reviewed Product Classification'));
+          const conditionalUniversalAttributeIds = snapshot ? getConditionalUniversalAttributeIds(snapshot, nextTypeId) : new Set<string>();
           const needsInitialDependents = !hadHumanReviewedType
-            && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot)));
+            && (!snapshot || !currentProposals.some(proposal => isTypeDependentProposal(proposal, snapshot, conditionalUniversalAttributeIds)));
           refreshRequired = input.reviewOrigin !== 'agent_review' && nextTypeId !== null
             && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId || hasWithheldDependents || needsInitialDependents);
           if (input.reviewOrigin !== 'agent_review' && (nextTypeId !== previousTypeId || nextCategoryId !== previousCategoryId)) {

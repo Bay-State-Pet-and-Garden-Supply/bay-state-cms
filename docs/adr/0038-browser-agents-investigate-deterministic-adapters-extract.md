@@ -4,6 +4,8 @@
 
 **Related:** ADR 0008 (profile scope), ADR 0009 (separate browser worker), ADR 0030 (Agent Lab decommission), ADR 0031 (extraction ladder); [design and seam audit](../plans/browser-investigation-design.md).
 
+**Partial design supersession:** [ADR 0042](0042-evidence-first-item-local-onboarding.md) permits a separate per-product browser-assisted acquisition route with item-level evidence acceptance. This ADR still governs **Browser Investigation** and profile publication: investigation observations remain untrusted proposals, not product evidence; the new route and its production qualification are not claimed implemented.
+
 ## Decision
 
 Browser Investigation is an explicitly requested, workspace-scoped control-plane operation for domain onboarding or drift repair. Its observations are untrusted proposal evidence. A deterministic compiler converts supported recommendations into per-field source ordering and minimal selector exceptions in an inactive Domain Extractor Profile draft. Normal product extraction never invokes an investigation provider or model-driven browser; approved strategies execute through the existing deterministic production worker. Existing deterministic rendered-page extraction remains possible where required by an approved profile—rendering is not Browser Investigation.

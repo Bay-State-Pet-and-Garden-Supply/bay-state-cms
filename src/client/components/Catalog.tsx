@@ -28,8 +28,8 @@ export function Catalog({ onSelectProduct, onShowChangeSets }: Props) {
     <div style={CONTAINER_STYLE}>
       <style>{WORKBENCH_TAB_CSS}</style>
       <ViewHeader
-        title="Catalog Workbench"
-        description="Manage products, schema fields, attribute mappings, and store category pages"
+        title="Product catalog"
+        description="Find products and review the details saved for your store."
       />
       <WorkbenchTabs
         tabs={WORKBENCH_TABS}

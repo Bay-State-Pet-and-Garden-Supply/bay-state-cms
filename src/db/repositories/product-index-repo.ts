@@ -178,6 +178,33 @@ export function updateProductIndex(row: Partial<ProductIndexRow> & { sku: string
   db.run(`UPDATE product_index SET ${sets.join(', ')} WHERE sku = ?`, params);
 }
 
+/**
+ * Delete one catalog index row by SKU (issue #363 owned-only restore:
+ * a created-for-the-first-time write whose commit never landed must be
+ * removable without touching unrelated products).
+ */
+export function deleteProductIndexBySku(sku: string): void {
+  const db = getDb();
+  db.run('DELETE FROM product_index WHERE sku = ?', [sku]);
+}
+/**
+ * Owned-write restore (issue #363): reinstate one SKU's catalog index row
+ * from the snapshot taken before approval, or delete the row when the
+ * snapshot is null (a created-for-the-first-time write whose commit never
+ * landed). Callers snapshot via `findProductBySku` and restore here — no
+ * direct `product_index` SQL outside this repository.
+ */
+export function restoreProductIndexSnapshot(row: ProductIndexRow | null, sku: string): void {
+  // Delete-then-insert mirrors the owned-write restore it replaces: a live
+  // row for the SKU (written by the uncommitted approval) must go before
+  // the snapshot row returns, otherwise INSERT conflicts on the id key.
+  deleteProductIndexBySku(sku);
+  if (row === null) {
+    return;
+  }
+  insertProductIndex(row);
+}
+
 function deleteProductIndex(sku: string): void {
   const db = getDb();
   db.run('DELETE FROM product_index WHERE sku = ?', [sku]);

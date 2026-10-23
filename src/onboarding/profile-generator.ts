@@ -13,9 +13,8 @@
  * - The whole feature is opt-in via the `BAYSTATE_CMS_PROFILE_GENERATION_ENABLED`
  *   environment variable. When disabled, no LLM calls are made and
  *   `generateExtractorProfile` returns `null`.
- * - Validation rejects selectors that produce empty titles, price text
- *   that does not contain a numeric currency, or text that the
- *   extraction-validator considers blocked/offline/mismatched.
+ * - Validation rejects empty titles and text that the extraction-validator
+ *   considers blocked/offline/mismatched.
  * - `readyForReview` is only `true` when confidence is high and no
  *   low-stability selectors were used. It is an ADVISORY signal that
  *   the proposal is ready for an operator to review. Promotion to
@@ -29,6 +28,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import { extractProductJsonFromHtml } from './shopify-json';
 import type { Element } from 'domhandler';
 import { getLlmConfig, callLlm, callLlmForTask, getLlmConfigForTask, MissingLlmTaskConfigError, type LlmConfig } from './llm-client';
 import { redactTransportText } from '../classification/model-policy-gateway';
@@ -44,7 +44,6 @@ import {
   type Stability,
 } from '../shared/selector-utils';
 import { validateExtraction, type ValidationResult } from './extraction-validator';
-import { extractProductJsonFromHtml } from './shopify-json';
 import { collectImageSourcesFromElement, cleanAndDeduplicateImages, addImageSource } from './image-utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -183,8 +182,46 @@ const PRODUCT_SCRIPT_KEYWORDS = [
   'window.Shopify',
   '"variants"',
   '"product"',
-  'application/ld+json',
 ];
+const PRICE_LIKE_FIELD = /(?:price|cost|sale)/i;
+
+function removePagePriceFields(value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) removePagePriceFields(item);
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (PRICE_LIKE_FIELD.test(key)) {
+      delete record[key];
+    } else {
+      removePagePriceFields(record[key]);
+    }
+  }
+}
+
+function removePriceMarkedElements($: cheerio.CheerioAPI): void {
+  $('*').each((_, el) => {
+    const attributes = (el as Element).attribs ?? {};
+    const hasPriceMarker = Object.entries(attributes).some(([name, value]) =>
+      PRICE_LIKE_FIELD.test(name) ||
+      (/^(class|id|itemprop|property|name|data-testid|aria-label)$/i.test(name) && PRICE_LIKE_FIELD.test(value)),
+    );
+    if (hasPriceMarker) $(el).remove();
+  });
+}
+
+function sanitizeJsonLd(content: string): string | null {
+  try {
+    const value: unknown = JSON.parse(content);
+    removePagePriceFields(value);
+    return JSON.stringify(value) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 
 /** Hard cap on the minimized HTML returned to the LLM. */
 const MAX_MINIMIZED_BYTES = 200_000;
@@ -193,10 +230,9 @@ const MAX_MINIMIZED_BYTES = 200_000;
 const MAX_LLM_DOM_BYTES = 60_000;
 
 /**
- * Strip non-product, noisy HTML before sending to the LLM. Removes
- * decorative/noise tags, most script tags, and limits the size of the
- * output. Product-relevant scripts (JSON-LD, Shopify product JSON,
- * variant blobs) are preserved.
+ * Strip noisy HTML and price-bearing data before sending a product page to
+ * the LLM. Price fields, price-labeled DOM elements, and unparseable
+ * price-bearing scripts are omitted.
  *
  * The output is taken from `<main>`, the first `.product`/`.pdp`/etc.
  * container, or `<body>` as a fallback.
@@ -210,22 +246,30 @@ export function getMinimizedDom(html: string): string {
   for (const tag of NOISY_TAGS) {
     $(tag).remove();
   }
+  removePriceMarkedElements($);
 
-  // Strip most script tags, but keep product-relevant ones. Track kept
-  // script markup separately so it can be appended to the minimized
-  // output even when the scoping step discards the original location.
+  // Strip scripts from the original DOM and append only sanitized product
+  // data so a raw page script cannot carry a third-party price to the LLM.
   const keptScripts: string[] = [];
   $('script').each((_, el) => {
     const node = $(el);
     const type = (node.attr('type') ?? '').toLowerCase();
     const content = node.html() ?? '';
     if (type === 'application/ld+json') {
-      keptScripts.push(`<script type="application/ld+json">${content}</script>`);
+      const safeContent = sanitizeJsonLd(content);
+      if (safeContent !== null) {
+        keptScripts.push(`<script type="application/ld+json">${safeContent}</script>`);
+      }
+      node.remove();
       return;
     }
     if (PRODUCT_SCRIPT_KEYWORDS.some((kw) => content.includes(kw))) {
-      keptScripts.push(`<script>${content}</script>`);
-      return;
+      const product = extractProductJsonFromHtml(content);
+      if (product) {
+        keptScripts.push(`<script>window.productJSON = ${JSON.stringify(product)};</script>`);
+      } else if (!PRICE_LIKE_FIELD.test(content)) {
+        keptScripts.push(`<script>${content}</script>`);
+      }
     }
     node.remove();
   });
@@ -324,12 +368,6 @@ function nearbyLabelsOf(
   return labels.slice(0, 3);
 }
 
-/**
- * Currency-like patterns used to detect price-bearing elements when
- * scanning candidates.
- */
-const CURRENCY_PATTERN = /[\$€£¥]\s?\d|(?:usd|eur|gbp)\s?\d/i;
-const PLAIN_NUMERIC_PRICE = /^\s*[\$€£¥]?\s?\d{1,5}(?:[.,]\d{2})?\s*$/;
 
 /** Decide which "kind" hints apply to an element. */
 function kindHintsFor(
@@ -347,16 +385,12 @@ function kindHintsFor(
 
   const itemprop = $(el).attr('itemprop');
   if (itemprop === 'name') hints.push('title');
-  if (itemprop === 'price') hints.push('price');
   if (itemprop === 'description') hints.push('description');
   if (itemprop === 'brand') hints.push('brand');
   if (itemprop === 'image') hints.push('image');
 
-  if (CURRENCY_PATTERN.test(text) || PLAIN_NUMERIC_PRICE.test(text)) {
-    hints.push('price');
-  }
-
   for (const [kind, substrings] of Object.entries(SEMANTIC_HINT_SUBSTRINGS)) {
+    if (kind === 'price') continue;
     if (substrings.some((sub) => classAndIdLower.includes(sub.toLowerCase()))) {
       hints.push(kind);
     }
@@ -627,7 +661,7 @@ function buildVariantOptionCandidates(html: string, baseUrl?: string): VariantOp
 
 // ─── LLM integration (Task 9) ──────────────────────────────────────────────
 
-// priceSelector is NOT generated — user explicitly stated "never scrape price".
+// Page price selectors are never generated; the onboarding input is the only price authority.
 const SELECTOR_PROFILE_KEYS = [
   'titleSelector',
   'descriptionSelector',
@@ -1024,9 +1058,8 @@ export async function generateExtractorProfile(
 // ─── Validation (Task 10) ──────────────────────────────────────────────────
 
 /**
- * Validate a generated `GeneratedSelectorProfile` against the source
- * HTML. Title is required; price, description, brand, and images are
- * optional but each boosts or lowers confidence when present.
+ * HTML. Title is required; description, brand, and images are optional
+ * and contribute to confidence when present.
  *
  * If `expected` is provided, the extracted title is passed through
  * `validateExtraction`; `blocked`, `offline`, and `mismatch` results
@@ -1233,8 +1266,6 @@ export interface ProfileGenerationTriggerInput {
  *     or the existing profile selectors are unlikely to have produced
  *     the validated title).
  *  5. There is a concrete improvement target: a missing description.
- *     Price-only and brand-only missing cases are explicitly excluded
- *     — manufacturer pages frequently omit prices.
  *  6. The extraction confidence is above `MIN_TRIGGER_CONFIDENCE`.
  */
 // fallow-ignore-next-line unused-export
@@ -1255,8 +1286,7 @@ export function shouldAttemptProfileGeneration(
 
   // Even with no profile, we need a concrete improvement target. If the
   // page is missing a title, we never get this far (validation would
-  // have failed). For description we attempt to generate. We do NOT
-  // trigger for price-only or brand-only missing.
+  // have failed).
   const hasImprovementTarget =
     !input.extractionResult.description;
   if (!hasImprovementTarget) return false;

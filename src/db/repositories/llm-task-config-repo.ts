@@ -1,5 +1,7 @@
 import { getDb } from '../connection';
 import { randomUUID } from 'node:crypto';
+import type { LlmTask } from '../../shared/schemas/onboarding';
+export type { LlmTask } from '../../shared/schemas/onboarding';
 
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'max';
 
@@ -16,25 +18,7 @@ const LLM_PROVIDERS: ReadonlyArray<LlmProvider> = [
   'ollama',
 ];
 
-/**
- * Known AI tasks that can be routed through the LLM client. The
- * planner locked-in set (decisions 15-19) defines these as distinct
- * AI capabilities, each with its own model choice. Adding a new task
- * is a one-line change here plus a new UI row in the settings page.
- */
-export type LlmTask =
-  | 'product_name_consolidation'
-  | 'discovery_candidate_selection'
-  | 'profile_generation'
-  | 'profile_revision'
-  | 'product_curation'
-  | 'category_classification'
-  | 'classification_evidence_extraction'
-  | 'product_type_classification'
-  | 'category_page_assignment'
-  | 'attribute_value_classification'
-  | 'product_field_refactor'
-  | 'store_manager_assistant';
+
 
 export const LLM_TASKS: ReadonlyArray<LlmTask> = [
   'product_name_consolidation',

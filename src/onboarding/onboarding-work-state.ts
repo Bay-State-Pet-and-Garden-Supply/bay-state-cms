@@ -52,6 +52,8 @@ import {
 import type { OnboardingItem } from '../shared/schemas/onboarding';
 import type { WorkStateFilters } from '../shared/schemas/onboarding-work-state';
 import { toCanonicalStage, type StageV2 } from '../shared/onboarding-stage-vocabulary';
+import { loadItemListingReadiness, type ItemListingReadiness } from '../classification/item-listing-readiness';
+import { evaluateListingCompletenessGate } from '../classification/listing-evidence-gate';
 
 /**
  * Slice 5b native: canonical stage of a hydrated (either-spelling) item.
@@ -85,16 +87,12 @@ import {
   type FindingDetail,
   type WorkStateProjectionHealth,
   type WorkStateProjectionHealthIssue,
-  FindingCodeEnum,
-  SuggestedActionEnum,
   EMPTY_WORK_STATE_COUNTS,
   WORK_STATE_PROJECTION_VERSION,
   computeWorkStateFilterHash,
-  encodeWorkStateCursor,
   encodeWorkStateDbCursor,
   validateWorkStateCursor,
   validateWorkStateDbCursor,
-  validateAnyWorkStateCursor,
   WorkStateCursorError,
   buildWorkStateSortKey,
 } from '../shared/schemas/onboarding-work-state';
@@ -122,6 +120,8 @@ export interface WorkStateContext {
   cohortByItem: Map<string, FamilyCohortState>;
   changeSetStatusBySku: Map<string, string>;
   exportDraftLinksByItem?: Map<string, ExportDraftLink>;
+  /** Current live checklist results for items at a review/release stage. */
+  listingReadinessByItem?: Map<string, ItemListingReadiness>;
   candidateCountByItem: Map<string, number>;
   variantResolutionByItem: Map<string, { id: string; status: string; candidates: unknown[]; identityMatrixHash: string; platform: string }>;
   /**
@@ -195,7 +195,7 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
   const reviewStates = (() => {
     try {
       return listReviewStates(batchId);
-    } catch (e) {
+    } catch (_e) {
       healthIssues.push({ source: 'onboarding_review_state', code: 'review_state_failed', affectedCount: items.length });
       hasCriticalIssue = true;
       return new Map<string, OnboardingReviewState>();
@@ -284,6 +284,23 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     hasCriticalIssue = true;
   }
   const stageResultsByRunId = stageRes.data;
+  const listingReadinessByItem = new Map<string, ItemListingReadiness>();
+  for (const item of items) {
+    if (
+      item.stageStatus === 'failed' ||
+      item.stageStatus === 'skipped' ||
+      !(stageIs(item.stage, 'prepare_listing') || stageIs(item.stage, 'review_listings') || stageIs(item.stage, 'create_drafts'))
+    ) continue;
+    if (!workspaceId) {
+      healthIssues.push({ source: 'item_listing_readiness', code: 'workspace_unavailable', affectedCount: 1 });
+      continue;
+    }
+    try {
+      listingReadinessByItem.set(item.id, loadItemListingReadiness(workspaceId, item.id));
+    } catch {
+      healthIssues.push({ source: 'item_listing_readiness', code: 'readiness_load_failed', affectedCount: 1 });
+    }
+  }
   if (hasCriticalIssue) {
     // Attach flag for caller to decide 503 vs degraded 200. Per-item corrupt (corrupt_curation_data) alone is not critical.
     // Only bulk DB failures are critical. If the only issues are per-item corrupt, hasCriticalIssue would be false.
@@ -300,6 +317,7 @@ export function buildBatchWorkStateContext(batchId: string, items: OnboardingIte
     cohortByItem,
     changeSetStatusBySku,
     exportDraftLinksByItem,
+    listingReadinessByItem,
     candidateCountByItem,
     variantResolutionByItem,
     variantDispositionByItem,
@@ -352,23 +370,6 @@ interface DerivationInput {
   variantDisposition?: { disposition: string; reason: string | null; markedBy: string | null; updatedAt: string } | null;
 }
 
-/** Map a semantic finding code to the granular curation sub-activity it blocks. */
-function curationSubActivityForFindingCode(code: string | undefined | null): WorkActivity | null {
-  switch (code) {
-    case 'family_brand':
-      return 'semantic_validation';
-    case 'coordinated_title':
-      return 'title_coordination';
-    case 'coordinated_page':
-    case 'coordinated_page_name_mismatch':
-      return 'page_coordination';
-    case 'member_attribute_applicability':
-    case 'member_cardinality':
-      return 'attribute_curation';
-    default:
-      return null;
-  }
-}
 
 /** Map a persisted classification stage name to the granular WorkActivity for observability. */
 function stageNameToWorkActivity(stageName: string): WorkActivity | null {
@@ -391,147 +392,41 @@ function stageNameToWorkActivity(stageName: string): WorkActivity | null {
   }
 }
 
-/** Derive the most specific curation sub-activity for a curation-stage item. */
+/** Derive curation progress only from the item's own persisted run pointer. */
 function deriveCurationSubActivity(item: OnboardingItem, ctx: WorkStateContext): WorkActivity {
-  const curData = item.curationData as Record<string, unknown> | null;
-  const sv = curData?.semanticValidation as { status?: string; findings?: unknown } | undefined;
-  if (sv?.status === 'blocked' && Array.isArray(sv.findings) && sv.findings.length > 0) {
-    const first = sv.findings[0] as Record<string, unknown> | null;
-    const firstCode = first && typeof first === 'object' && typeof (first as Record<string, unknown>).code === 'string' ? (first as Record<string, unknown>).code as string : null;
-    const mapped = curationSubActivityForFindingCode(firstCode);
-    if (mapped) return mapped;
-  }
-  // Live run stage projection: check bulk-loaded cohort run and classification stage results.
-  try {
-    const cohortStatus = ctx.cohortRunStatusByItem.get(item.id);
-    if (cohortStatus === 'freezing') return 'cohort_freezing';
-    // If cohort is running, continue to stage lookup below
-    const runId = ctx.latestRunIdByItem.get(item.id);
-    if (runId) {
-      const stageRows = ctx.stageResultsByRunId.get(runId);
-      if (stageRows && stageRows.length > 0) {
-        for (const r of stageRows) {
-          if (r.status === 'running') {
-            const mapped = stageNameToWorkActivity(r.stage_name);
-            if (mapped) return mapped;
-          }
-        }
-        let lastSucceededIdx = -1;
-        for (let i = 0; i < stageRows.length; i++) {
-          if (stageRows[i].status === 'succeeded' || stageRows[i].status === 'abstained') lastSucceededIdx = i;
-          else break;
-        }
-        const nextPending = stageRows[lastSucceededIdx + 1];
-        if (nextPending && nextPending.status === 'pending') {
-          const mapped = stageNameToWorkActivity(nextPending.stage_name);
+  const runId = typeof item.curationData?.classificationRunId === 'string'
+    ? item.curationData.classificationRunId
+    : null;
+  if (runId) {
+    const stageRows = ctx.stageResultsByRunId.get(runId);
+    if (stageRows && stageRows.length > 0) {
+      for (const row of stageRows) {
+        if (row.status === 'running') {
+          const mapped = stageNameToWorkActivity(row.stage_name);
           if (mapped) return mapped;
         }
-        for (const r of stageRows) {
-          if (r.status === 'pending') {
-            const mapped = stageNameToWorkActivity(r.stage_name);
-            if (mapped) return mapped;
-          }
+      }
+      let lastSucceededIdx = -1;
+      for (let index = 0; index < stageRows.length; index++) {
+        if (stageRows[index].status === 'succeeded' || stageRows[index].status === 'abstained') lastSucceededIdx = index;
+        else break;
+      }
+      const nextPending = stageRows[lastSucceededIdx + 1];
+      if (nextPending?.status === 'pending') {
+        const mapped = stageNameToWorkActivity(nextPending.stage_name);
+        if (mapped) return mapped;
+      }
+      for (const row of stageRows) {
+        if (row.status === 'pending') {
+          const mapped = stageNameToWorkActivity(row.stage_name);
+          if (mapped) return mapped;
         }
       }
     }
-  } catch {
-    // Projection must never throw; fall through to curation
   }
   return 'curation';
 }
 
-function safeFindingCode(value: unknown): FindingCode | null {
-  if (typeof value !== 'string') return null;
-  const parsed = FindingCodeEnum.safeParse(value);
-  return parsed.success ? parsed.data : null;
-}
-
-function safeSuggestedAction(value: unknown): SuggestedAction | null {
-  if (typeof value !== 'string') return null;
-  const parsed = SuggestedActionEnum.safeParse(value);
-  return parsed.success ? parsed.data : null;
-}
-
-function extractFindingDetails(curationData: Record<string, unknown> | null): {
-  findingCode: FindingCode | null;
-  findingSummary: string | null;
-  conflictingValues: string[] | null;
-  suggestedAction: SuggestedAction | null;
-  findingDetails: FindingDetail[] | null;
-} {
-  const svRaw = (curationData as Record<string, unknown> | null)?.semanticValidation;
-  if (!svRaw || typeof svRaw !== 'object' || Array.isArray(svRaw)) {
-    return { findingCode: null, findingSummary: null, conflictingValues: null, suggestedAction: null, findingDetails: null };
-  }
-  const sv = svRaw as { status?: unknown; findings?: unknown };
-  if (!Array.isArray(sv.findings) || sv.findings.length === 0) {
-    return { findingCode: null, findingSummary: null, conflictingValues: null, suggestedAction: null, findingDetails: null };
-  }
-  const validFindings = sv.findings.filter((f): f is Record<string, unknown> => f !== null && typeof f === 'object' && !Array.isArray(f));
-  if (validFindings.length === 0) {
-    return { findingCode: null, findingSummary: null, conflictingValues: null, suggestedAction: null, findingDetails: null };
-  }
-  const first = validFindings[0];
-  const findingCode = safeFindingCode(first.code);
-  const findingSummary = typeof first.message === 'string' ? first.message : null;
-  const conflictingValues = Array.isArray(first.conflictingValues)
-    ? (first.conflictingValues as unknown[]).filter((v): v is string => typeof v === 'string')
-    : null;
-  const suggestedAction = safeSuggestedAction(first.suggestedAction);
-  const fallbackSummary = findingSummary ?? (typeof first.message === 'string' ? first.message : null);
-  const findingDetails: FindingDetail[] = validFindings
-    .filter(f => typeof f.code === 'string' && typeof f.message === 'string' && safeFindingCode(f.code) !== null)
-    .map(f => ({
-      code: safeFindingCode(f.code) as FindingCode,
-      memberSku: typeof f.memberSku === 'string' ? f.memberSku : '',
-      message: f.message as string,
-      conflictingValues: Array.isArray(f.conflictingValues)
-        ? (f.conflictingValues as unknown[]).filter((v): v is string => typeof v === 'string')
-        : null,
-      suggestedAction: safeSuggestedAction(f.suggestedAction),
-    }));
-  return {
-    findingCode,
-    findingSummary: findingSummary ?? fallbackSummary,
-    conflictingValues: conflictingValues && conflictingValues.length > 0 ? conflictingValues : null,
-    suggestedAction,
-    findingDetails: findingDetails.length > 0 ? findingDetails : null,
-  };
-}
-
-/** Centralized semantic-block projection. Returns needs_attention input when blocked, else null. */
-function semanticBlockedInput(item: OnboardingItem): DerivationInput | null {
-  const sv = (item.curationData as Record<string, unknown> | null)?.semanticValidation as { status?: unknown; findings?: unknown } | undefined;
-  if (!sv || sv.status !== 'blocked') return null;
-  const curData = item.curationData as Record<string, unknown> | null;
-  const extracted = extractFindingDetails(curData);
-  const findings = Array.isArray((sv as Record<string, unknown>).findings) ? (sv as Record<string, unknown>).findings as unknown[] : [];
-  const firstMessage =
-    extracted.findingSummary ??
-    (findings.length > 0 && findings[0] !== null && typeof findings[0] === 'object' && typeof (findings[0] as Record<string, unknown>).message === 'string'
-      ? ((findings[0] as Record<string, unknown>).message as string)
-      : 'A hard cohort semantic validation finding blocks this item.');
-  const granularActivity = item.curationData ? 'semantic_validation' as WorkActivity : null;
-  // Use derived activity from findings when available, else generic
-  let activity: WorkActivity | null = granularActivity;
-  if (extracted.findingCode) {
-    const mapped = curationSubActivityForFindingCode(extracted.findingCode);
-    if (mapped) activity = mapped;
-  }
-  return {
-    category: 'needs_attention',
-    activity,
-    label: 'Curation blocked by semantic validation',
-    detail: firstMessage,
-    attentionReason: 'semantic_validation_blocked',
-    attentionAction: 'resolve_semantic_conflict',
-    findingCode: extracted.findingCode,
-    findingSummary: extracted.findingSummary ?? firstMessage,
-    conflictingValues: extracted.conflictingValues,
-    suggestedAction: extracted.suggestedAction,
-    findingDetails: extracted.findingDetails,
-  };
-}
 
 function build(
   item: OnboardingItem,
@@ -673,6 +568,22 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
       attentionReason,
       attentionAction,
     });
+  const listingReadinessAttention = (): OnboardingWorkState | null => {
+    const readiness = ctx.listingReadinessByItem?.get(item.id);
+    const evaluation = readiness?.evaluation ?? null;
+    const gate = evaluateListingCompletenessGate(evaluation);
+    if (gate.ok) return null;
+    const unmet = evaluation?.requirements
+      .filter(requirement => requirement.required && !['satisfied', 'not_applicable', 'excepted'].includes(requirement.state))
+      .map(requirement => `${requirement.label} (${requirement.state})${requirement.reason ? `: ${requirement.reason}` : ''}`) ?? [];
+    const detail = unmet.length > 0 ? unmet.join('; ') : gate.reason;
+    return attention(
+      'listing_completeness_unresolved',
+      'resolve_listing_completeness',
+      'Listing information needs attention',
+      detail,
+    );
+  };
 
   // ── Terminal / out-of-flow states ────────────────────────────────────────
   if (item.stageStatus === 'skipped') {
@@ -696,15 +607,6 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
     );
   }
 
-  const semanticBlock = semanticBlockedInput(item);
-  if (semanticBlock && (stageIs(item.stage, 'prepare_listing') || stageIs(item.stage, 'review_listings'))) {
-    // Override activity with granular if available via ctx
-    const granular = deriveCurationSubActivity(item, ctx);
-    if (granular !== 'curation' && semanticBlock.activity === 'semantic_validation') {
-      semanticBlock.activity = granular;
-    }
-    return build(item, row, cohort, semanticBlock);
-  }
 
   const variantRes = ctx.variantResolutionByItem?.get(item.id);
   if (
@@ -714,7 +616,9 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
     item.stageStatus === 'needs_input'
   ) {
     try {
-      const { getEffectiveVariantResolutionMode } = require('./variant-flags');
+      const { getEffectiveVariantResolutionMode } = require('./variant-flags') as {
+        getEffectiveVariantResolutionMode: () => string;
+      };
       if (getEffectiveVariantResolutionMode() === 'active') {
         return build(item, row, cohort, {
           category: 'needs_attention',
@@ -742,6 +646,8 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
         if (changeSetStatus === 'pushed') {
           return build(item, row, cohort, { category: 'completed', activity: 'export', label: 'Exported', detail: 'Change set pushed to the store' });
         }
+        const readinessBlock = listingReadinessAttention();
+        if (readinessBlock) return readinessBlock;
         return build(item, row, cohort, {
           category: 'ready_to_export',
           activity: 'export',
@@ -752,6 +658,8 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
       if (item.stageStatus === 'failed') {
         return attention('processing_failed', 'retry_processing', 'Export failed');
       }
+      const readinessBlock = listingReadinessAttention();
+      if (readinessBlock) return readinessBlock;
       if (row?.approvedAt && !row.reviewInvalidatedAt) {
         return build(item, row, cohort, { category: 'approved', activity: 'export', label: 'Approved — ready to export', detail: error });
       }
@@ -767,6 +675,8 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
       if (item.stageStatus === 'failed') {
         return attention('processing_failed', 'retry_processing', 'Review failed');
       }
+      const readinessBlock = listingReadinessAttention();
+      if (readinessBlock) return readinessBlock;
       return build(item, row, cohort, {
         category: 'ready_for_review',
         activity: 'review',
@@ -780,6 +690,8 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
 
     case 'prepare_listing': {
       if (item.stageStatus === 'completed') {
+        const readinessBlock = listingReadinessAttention();
+        if (readinessBlock) return readinessBlock;
         return build(item, row, cohort, { category: 'ready_for_review', activity: 'review', label: 'Ready for review' });
       }
       if (item.stageStatus === 'failed') {
@@ -787,25 +699,6 @@ function deriveItemWorkStateInner(item: OnboardingItem, ctx: WorkStateContext): 
       }
       const granularActivity = deriveCurationSubActivity(item, ctx);
       const activityForProcessing = granularActivity !== 'curation' ? granularActivity : 'curation';
-      if (cohort) {
-        if (cohort.cohortState === 'ready' || cohort.cohortStatus === 'ready') {
-          return build(item, row, cohort, { category: 'processing', activity: activityForProcessing, label: 'Curating product family' });
-        }
-        if (cohort.cohortState === 'blocked') {
-          return build(item, row, cohort, {
-            category: 'waiting_on_family',
-            activity: activityForProcessing,
-            label: 'Family blocked',
-            detail: cohort.blockedReason,
-          });
-        }
-        return build(item, row, cohort, {
-          category: 'waiting_on_family',
-          activity: activityForProcessing,
-          label: 'Family not ready yet',
-          detail: cohort.blockedReason ?? `Waiting on ${cohort.waitingOnItemIds.length} sibling${cohort.waitingOnItemIds.length === 1 ? '' : 's'}`,
-        });
-      }
       return build(item, row, cohort, { category: 'processing', activity: activityForProcessing, label: 'Curating product' });
     }
 
@@ -1119,8 +1012,8 @@ export function getBatchWorkStateItems(batchId: string, filters: WorkStateFilter
   let lastCollectedCursor: { rowNumber: number; id: string } | null = null;
   let chunk: { items: any[]; lastCursor: any; hasMore: boolean } | null = null;
   let hasMoreDb = true;
-  let healthIssues: WorkStateProjectionHealthIssue[] = [];
-  let projectionHealth: WorkStateProjectionHealth = buildProjectionHealth([]);
+  const healthIssues: WorkStateProjectionHealthIssue[] = [];
+  const projectionHealth: WorkStateProjectionHealth = buildProjectionHealth([]);
   // Bounded: fetch exactly ONE chunk (50 rows) per request, project/filter only that chunk.
   {
     chunk = listItemsByBatchChunked(batchId, CHUNK_SIZE, lastScannedCursor);
@@ -1166,10 +1059,9 @@ export function getBatchWorkStateItems(batchId: string, filters: WorkStateFilter
     }
   }
   // Merge health
-  if (healthIssues.length > 0) {
-    const existing = projectionHealth.issues ?? [];
-    projectionHealth = buildProjectionHealth([...existing, ...healthIssues]);
-  }
+  const mergedHealth = healthIssues.length > 0
+    ? buildProjectionHealth([...(projectionHealth.issues ?? []), ...healthIssues])
+    : projectionHealth;
   const paged = collected.slice(0, limit);
   let nextCursor: string | null = null;
   if (paged.length === limit && paged.length > 0) {
@@ -1190,7 +1082,7 @@ export function getBatchWorkStateItems(batchId: string, filters: WorkStateFilter
       filterHash: computeWorkStateFilterHash(filters),
     });
   }
-  return { items: paged, nextCursor, projectionHealth, scannedRows, queryCount };
+  return { items: paged, nextCursor, projectionHealth: mergedHealth, scannedRows, queryCount };
 }
 
 /** Project a batch's items using an ALREADY-LOADED item list (items route). */
@@ -1237,11 +1129,25 @@ export function getItemWorkState(itemId: string): OnboardingWorkState | undefine
   const effectiveRunId = explicitRunId ?? latestRunIdByItemRaw.get(item.id) ?? null;
   const runIdByItem = effectiveRunId ? new Map([[item.id, effectiveRunId]]) : new Map();
   const stageResultsByRunId = effectiveRunId ? bulkGetClassificationStageResults([effectiveRunId]) : new Map();
+  const listingReadinessByItem = new Map<string, ItemListingReadiness>();
+  if (
+    workspaceId &&
+    item.stageStatus !== 'failed' &&
+    item.stageStatus !== 'skipped' &&
+    (stageIs(item.stage, 'prepare_listing') || stageIs(item.stage, 'review_listings') || stageIs(item.stage, 'create_drafts'))
+  ) {
+    try {
+      listingReadinessByItem.set(item.id, loadItemListingReadiness(workspaceId, item.id));
+    } catch {
+      // Missing live readiness remains fail-closed in the work-state projection.
+    }
+  }
   const ctx: WorkStateContext = {
     reviewStates: new Map(reviewRow ? [[item.id, reviewRow]] : []),
     cohortByItem,
     changeSetStatusBySku,
     exportDraftLinksByItem,
+    listingReadinessByItem,
     candidateCountByItem,
     variantResolutionByItem,
     variantDispositionByItem,

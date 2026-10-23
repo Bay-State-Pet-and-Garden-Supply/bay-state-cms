@@ -206,6 +206,9 @@ const FORBIDDEN_POINTER_FRAGMENTS = [
 function assertPointerToken(token: string): void {
   if (!JSON_POINTER_TOKEN_RE.test(token)) fail('invalid_params', 'pointer token has invalid characters');
   const lowered = token.toLowerCase();
+  if (/(?:price|cost|sale)/i.test(lowered)) {
+    fail('invalid_params', 'price data is unavailable to browser investigation');
+  }
   for (const frag of FORBIDDEN_POINTER_FRAGMENTS) {
     if (lowered.includes(frag)) fail('invalid_params', 'pointer token traverses prototype or expressions');
   }
@@ -309,8 +312,25 @@ export function parseStrictScriptJson(text: string, limits: ScriptJsonLimits): P
   } catch {
     fail('invalid_params', 'script content is not strict JSON');
   }
+  removePagePriceFields(value);
   const nodeCount = countJsonNodes(value, limits);
   return { value, nodeCount };
+}
+
+function removePagePriceFields(value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) removePagePriceFields(item);
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (/(?:price|cost|sale)/i.test(key)) {
+      delete record[key];
+    } else {
+      removePagePriceFields(record[key]);
+    }
+  }
 }
 
 function countJsonNodes(value: unknown, limits: ScriptJsonLimits): number {

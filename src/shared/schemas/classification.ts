@@ -218,6 +218,13 @@ export const GuidanceConfigSchema = z.object({
 
 export type GuidanceConfig = z.infer<typeof GuidanceConfigSchema>;
 
+export const GenerativeCopyWorkloadSchema = z.object({
+  provider: z.string().min(1).max(128),
+  model: z.string().min(1).max(200),
+  textDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']),
+}).strict();
+export type GenerativeCopyWorkload = z.infer<typeof GenerativeCopyWorkloadSchema>;
+
 /**
  * Model policy configuration for model-policies.json.
  * Defines default provider/model and stage-specific overrides.
@@ -239,6 +246,8 @@ export const ModelPolicyConfigSchema = z.object({
     .default(() => ({})),
   imageDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']).default('local_only'),
   textDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']).default('local_only'),
+  /** Separate approved text-generation authority; absence never falls back to a judgment route. */
+  copyGeneration: GenerativeCopyWorkloadSchema.nullable().optional(),
 });
 
 export type ModelPolicyConfig = z.infer<typeof ModelPolicyConfigSchema>;
@@ -460,6 +469,15 @@ export const ProductTypeConfigV2Schema = z.object({
    * Category side and validate with an explicit gap finding instead.
    */
   categoryId: ClassificationSlugSchema.nullable().optional(),
+  /**
+   * Exact approved ShopSite Facet Category / Facet Product Type values.
+   * Optional only so historic bundles remain parseable; active validation
+   * requires this mapping before the bundle can be used for writes.
+   */
+  websiteValues: z.object({
+    category: z.string().min(1),
+    productType: z.string().min(1),
+  }).strict().optional(),
   /** Invariant attribute values deterministically implied by this Product Type. */
   invariantAttributes: z
     .record(ClassificationSlugSchema, z.union([z.string(), z.array(z.string()).nonempty()]))
@@ -548,6 +566,15 @@ export const AttributeMappingConfigV2Schema = z.object({
 }).strict();
 export type AttributeMappingConfigV2 = z.infer<typeof AttributeMappingConfigV2Schema>;
 
+/** Governed destination for one member of the canonical Product Classification pair. */
+export const CanonicalClassificationOutputBindingV2Schema = z.object({
+  role: z.enum(['category', 'product-type']),
+  catalogField: z.string().min(1),
+  serialization: ScalarSerializationV2Schema,
+  isStale: z.boolean(),
+}).strict();
+export type CanonicalClassificationOutputBindingV2 = z.infer<typeof CanonicalClassificationOutputBindingV2Schema>;
+
 export const CurationTargetConfigV2Schema = z.object({
   id: ClassificationSlugSchema,
   kind: CurationTargetKindEnum,
@@ -625,6 +652,8 @@ export const ModelPolicyConfigV2Schema = z.object({
   }).strict()),
   imageDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']),
   textDataSharing: z.enum(['local_only', 'this_device_only', 'trusted_lan_allowed', 'cloud_allowed']),
+  /** Separate approved text-generation authority; absence never falls back to a judgment route. */
+  copyGeneration: GenerativeCopyWorkloadSchema.nullable().optional(),
   mlFeatures: MlFeaturesPolicySchema,
 }).strict();
 export type ModelPolicyConfigV2 = z.infer<typeof ModelPolicyConfigV2Schema>;
@@ -703,7 +732,10 @@ export const ProductTypesFileV2Schema = entriesEnvelopeV2(ProductTypeConfigV2Sch
 export const CategoriesFileV2Schema = entriesEnvelopeV2(CategoryConfigV2Schema);
 export const AttributesFileV2Schema = entriesEnvelopeV2(ProductAttributeConfigV2Schema);
 export const AttributeProfilesFileV2Schema = entriesEnvelopeV2(AttributeProfileConfigV2Schema);
-export const AttributeMappingsFileV2Schema = entriesEnvelopeV2(AttributeMappingConfigV2Schema);
+export const AttributeMappingsFileV2Schema = entriesEnvelopeV2(AttributeMappingConfigV2Schema).extend({
+  /** Kept in mappings.json, but separate from ordinary Classification Attribute mappings. */
+  classificationOutputBindings: z.array(CanonicalClassificationOutputBindingV2Schema).default(() => []),
+}).strict();
 export const CurationTargetsFileV2Schema = entriesEnvelopeV2(CurationTargetConfigV2Schema);
 export const BrandsFileV2Schema = entriesEnvelopeV2(BrandConfigV2Schema);
 export const GuidanceFileV2Schema = entriesEnvelopeV2(GuidanceConfigV2Schema);
@@ -737,6 +769,8 @@ export const ClassificationConfigBundleV2Schema = z.object({
   attributes: z.array(ProductAttributeConfigV2Schema),
   attributeProfiles: z.array(AttributeProfileConfigV2Schema),
   attributeMappings: z.array(AttributeMappingConfigV2Schema),
+  /** Explicit, separately governed ShopSite destinations for the canonical Category + Product Type pair. */
+  classificationOutputBindings: z.array(CanonicalClassificationOutputBindingV2Schema).optional(),
   curationTargets: z.array(CurationTargetConfigV2Schema),
   brands: z.array(BrandConfigV2Schema),
   guidance: z.array(GuidanceConfigV2Schema),
@@ -1085,6 +1119,49 @@ export const SubmitCatalogDecisionsRequestSchema = SubmitProposalDecisionsReques
 
 export type SubmitCatalogDecisionsRequest = z.infer<typeof SubmitCatalogDecisionsRequestSchema>;
 
+export const CanonicalReadinessCodeEnum = z.enum([
+  'ready',
+  'run_not_found',
+  'run_not_completed',
+  'pair_unresolved',
+  'core_mapping_unresolved',
+  'profile_unresolved',
+  'required_values_missing',
+]);
+export const RequiredValueStatusEnum = z.enum([
+  'missing',
+  'valued',
+  'not_applicable',
+  'optional_unvalued',
+  'required_unknown',
+  'optional_unknown',
+]);
+export const RequiredValueGapSchema = z.object({
+  attributeId: z.string(),
+  catalogField: z.string().nullable(),
+  status: RequiredValueStatusEnum,
+});
+/**
+ * Server-computed readiness for the reviewed Product Classification and its
+ * frozen Attribute Profile. Consumers display this result; they do not
+ * recompute classification rules.
+ */
+export const CanonicalClassificationReadinessSchema = z.object({
+  ok: z.boolean(),
+  code: CanonicalReadinessCodeEnum,
+  reason: z.string(),
+  details: z.object({
+    categoryId: z.string().nullable(),
+    productTypeId: z.string().nullable(),
+    profileId: z.string().nullable(),
+    requiredValues: z.array(RequiredValueGapSchema),
+  }),
+});
+export type CanonicalReadinessCode = z.infer<typeof CanonicalReadinessCodeEnum>;
+export type RequiredValueGap = z.infer<typeof RequiredValueGapSchema>;
+export type CanonicalClassificationReadinessResult = z.infer<typeof CanonicalClassificationReadinessSchema>;
+
+
 /**
  * Request body to apply accepted classification proposals as a change-set draft.
  */
@@ -1093,6 +1170,33 @@ export const ApplyCatalogClassificationRequestSchema = z.object({
 });
 
 export type ApplyCatalogClassificationRequest = z.infer<typeof ApplyCatalogClassificationRequestSchema>;
+
+export const ClassificationDraftProjectionRefusalSchema = z.object({
+  proposalId: z.string(),
+  targetId: z.string().nullable(),
+  reason: z.string(),
+});
+
+/** Current reviewed draft projection, recomputed from frozen run authority. */
+export const ClassificationDraftProjectionPreviewSchema = z.object({
+  status: z.enum(['succeeded', 'failed', 'abstained']),
+  message: z.string().nullable(),
+  error: z.string().nullable(),
+  projection: z.object({
+    fieldAssignments: z.record(z.string(), z.string()),
+    pageAssignments: z.array(z.string()),
+    removedPages: z.array(z.string()),
+    selectionMode: z.enum(['refused', 'accepted', 'provisional_preview']),
+    refusals: z.array(ClassificationDraftProjectionRefusalSchema),
+    provisionalFieldAssignments: z.record(z.string(), z.string()),
+    pendingPageAssignments: z.array(z.string()),
+    pendingRemovedPages: z.array(z.string()),
+    provisionalRefusals: z.array(ClassificationDraftProjectionRefusalSchema),
+    title: z.object({ value: z.string(), source: z.string() }).nullable(),
+  }).nullable(),
+});
+
+export type ClassificationDraftProjectionPreview = z.infer<typeof ClassificationDraftProjectionPreviewSchema>;
 
 /**
  * Enriched run detail returned by GET /api/products/:sku/classification.
@@ -1119,6 +1223,8 @@ export const CatalogClassificationRunDetailSchema = z.object({
     status: ClassificationStageStatusEnum,
     errorMessage: z.string().nullable(),
   })),
+  classificationReadiness: CanonicalClassificationReadinessSchema.nullable().optional(),
+  draftProjection: ClassificationDraftProjectionPreviewSchema.nullable().optional(),
   projection: z.object({
     fields: z.array(z.object({
       catalogField: z.string(),
@@ -1135,6 +1241,7 @@ export const CatalogClassificationRunDetailSchema = z.object({
 });
 
 export type CatalogClassificationRunDetail = z.infer<typeof CatalogClassificationRunDetailSchema>;
+
 
 export const TypeReviewDetailSchema = z.object({
   reviewed: z.object({

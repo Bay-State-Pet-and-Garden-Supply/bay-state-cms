@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
  * correction commands. Composite UNIQUE(workspace_id, batch_id, operation,
  * idempotency_key) + request_hash for payload mismatch 409.
  */
-export type OperationKind = 'approve' | 'export' | 'gap_correction';
+export type OperationKind = 'approve' | 'export' | 'gap_correction' | 'listing_evidence_verify';
 export interface OperationReceipt {
   id: string;
   workspaceId: string;

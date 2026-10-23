@@ -47,7 +47,7 @@ describe('SKU-local evidence (issue #351)', () => {
   });
 
   it('snapshot variant with no reviewed facts is unresolved, not execution-filled', () => {
-    const resolved = getEffectiveCurationTypeForSnapshot(undefined, 'dry-dog-food');
+    const resolved = getEffectiveCurationTypeForSnapshot(undefined);
     expect(resolved.source).toBe('none');
     expect(resolved.effectiveTypeId).toBeNull();
   });

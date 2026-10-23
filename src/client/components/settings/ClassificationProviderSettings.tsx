@@ -6,6 +6,7 @@ import {
   type ClassificationPolicySettingsResponse,
   type EffectiveStageRouteView,
   type ConnectionOptionView,
+  type GenerativeCopyWorkloadView,
   type PreviewPolicyResultResponse,
 } from '../../api';
 import { colors, fonts, rounded } from '../../theme';
@@ -16,6 +17,12 @@ interface StageFormState {
   model: string;
   fallbackConnectionId: string;
   fallbackModel: string;
+}
+interface CopyGenerationFormState {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  textDataSharing: 'local_only' | 'this_device_only' | 'trusted_lan_allowed' | 'cloud_allowed';
 }
 
 const EMPTY_STAGE_FORM: StageFormState = {
@@ -40,6 +47,11 @@ function buildInitialStageForms(
     };
   }
   return forms;
+}
+function buildInitialCopyGenerationForm(s: ClassificationPolicySettingsResponse): CopyGenerationFormState {
+  return s.copyGeneration
+    ? { enabled: true, ...s.copyGeneration }
+    : { enabled: false, provider: '', model: '', textDataSharing: 'local_only' };
 }
 
 function buildStageOverridesPayload(
@@ -438,6 +450,59 @@ function DataSharingCard({
     </div>
   );
 }
+function CopyGenerationCard({
+  form,
+  connections,
+  onChange,
+}: {
+  form: CopyGenerationFormState;
+  connections: ConnectionOptionView[];
+  onChange: (field: keyof CopyGenerationFormState, value: string | boolean) => void;
+}): React.ReactElement {
+  const writerConnections = connections.filter((connection) => connection.enabled && connection.transport !== 'systemone');
+  const configuredConnectionUnavailable = form.provider && !connections.some((connection) => connection.id === form.provider);
+  return (
+    <div style={{ background: colors.whiteSurface, padding: '1.25rem', borderRadius: rounded.lg, border: `1px solid ${colors.cardBorder}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+        <div>
+          <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem', color: colors.ledgerCharcoal }}>Grounded Copy Writer</h3>
+          <p style={{ margin: 0, fontSize: '0.8125rem', color: colors.mulchBrown }}>
+            Optional, separately authorized prose generation from accepted item facts. No judgment/default provider is inherited.
+          </p>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', color: colors.ledgerCharcoal }}>
+          <input type="checkbox" checked={form.enabled} onChange={(event) => onChange('enabled', event.target.checked)} />
+          Enable writer
+        </label>
+      </div>
+      {form.enabled && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.75rem', color: colors.ledgerCharcoal }}>
+            Writer connection
+            <select value={form.provider} onChange={(event) => onChange('provider', event.target.value)} style={{ padding: '0.45rem', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.sm }}>
+              <option value="">Choose an explicit text-generation connection</option>
+              {configuredConnectionUnavailable && <option value={form.provider}>{form.provider} (unavailable — choose another or disable)</option>}
+              {writerConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.label} ({connection.transport})</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.75rem', color: colors.ledgerCharcoal }}>
+            Writer model (required)
+            <input value={form.model} onChange={(event) => onChange('model', event.target.value)} placeholder="Enter explicit model id" style={{ padding: '0.45rem', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.sm }} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.75rem', color: colors.ledgerCharcoal }}>
+            Writer text-data sharing
+            <select value={form.textDataSharing} onChange={(event) => onChange('textDataSharing', event.target.value)} style={{ padding: '0.45rem', border: `1px solid ${colors.cardBorder}`, borderRadius: rounded.sm }}>
+              <option value="local_only">Local only</option>
+              <option value="this_device_only">This device only</option>
+              <option value="trusted_lan_allowed">Trusted LAN allowed</option>
+              <option value="cloud_allowed">Cloud allowed</option>
+            </select>
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PreviewOutcome({
   previewResult,
@@ -462,7 +527,7 @@ function PreviewOutcome({
       >
         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Cannot Apply Changes:</div>
         <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-          {previewResult.validationErrors.map((err, idx) => (
+          {previewResult.validationErrors.map((err: string, idx: number) => (
             <li key={idx}>{err}</li>
           ))}
         </ul>
@@ -486,12 +551,22 @@ function PreviewOutcome({
           Preview Token: <code style={{ fontFamily: fonts.mono }}>{previewResult.previewToken?.slice(0, 16)}...</code>
         </div>
       </div>
+      <div style={{ fontSize: '0.8125rem', color: colors.ledgerCharcoal }}>
+        <strong>Grounded-copy writer route:</strong>{' '}
+        {previewResult.diff.copyGeneration.from
+          ? `${previewResult.diff.copyGeneration.from.provider} / ${previewResult.diff.copyGeneration.from.model} (${previewResult.diff.copyGeneration.from.textDataSharing})`
+          : 'disabled'}
+        {' → '}
+        {previewResult.diff.copyGeneration.to
+          ? `${previewResult.diff.copyGeneration.to.provider} / ${previewResult.diff.copyGeneration.to.model} (${previewResult.diff.copyGeneration.to.textDataSharing})`
+          : 'disabled'}
+      </div>
 
       {previewResult.dataSharingEffects.length > 0 && (
         <div style={{ fontSize: '0.8125rem', color: colors.ledgerCharcoal }}>
           <span style={{ fontWeight: 600 }}>Data-Sharing Effects:</span>
           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.25rem', color: colors.mulchBrown }}>
-            {previewResult.dataSharingEffects.map((eff, idx) => (
+            {previewResult.dataSharingEffects.map((eff: string, idx: number) => (
               <li key={idx}>{eff}</li>
             ))}
           </ul>
@@ -635,7 +710,7 @@ function SettingsHeader({
             Classification Stage Providers
           </h2>
           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: colors.mulchBrown }}>
-            Configure provider connections for Curation classification stages. Stage overrides in Model Policy are the sole authority.
+            Configure provider connections for Curation stages and an optional, separately authorized grounded-copy writer.
           </p>
         </div>
         {settings && (
@@ -659,6 +734,9 @@ export function ClassificationProviderSettings(): React.ReactElement {
   const [textDataSharing, setTextDataSharing] = useState<'local_only' | 'cloud_allowed'>('local_only');
   const [imageDataSharing, setImageDataSharing] = useState<'local_only' | 'cloud_allowed'>('local_only');
   const [stageForms, setStageForms] = useState<Record<string, StageFormState>>({});
+  const [copyGenerationForm, setCopyGenerationForm] = useState<CopyGenerationFormState>({
+    enabled: false, provider: '', model: '', textDataSharing: 'local_only',
+  });
 
   // Preview state
   const [previewing, setPreviewing] = useState(false);
@@ -678,6 +756,7 @@ export function ClassificationProviderSettings(): React.ReactElement {
       setTextDataSharing(s.textDataSharing);
       setImageDataSharing(s.imageDataSharing);
       setStageForms(buildInitialStageForms(s));
+      setCopyGenerationForm(buildInitialCopyGenerationForm(s));
       setPreviewResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -701,6 +780,14 @@ export function ClassificationProviderSettings(): React.ReactElement {
     setPreviewResult(null); // invalidate prior preview
     setSuccessMsg(null);
   };
+  const handleCopyGenerationChange = (field: keyof CopyGenerationFormState, value: string | boolean) => {
+    setCopyGenerationForm((prev) => ({ ...prev, [field]: value } as CopyGenerationFormState));
+    setPreviewResult(null);
+    setSuccessMsg(null);
+  };
+  const copyGenerationPayload = (): GenerativeCopyWorkloadView | null => copyGenerationForm.enabled
+    ? { provider: copyGenerationForm.provider, model: copyGenerationForm.model, textDataSharing: copyGenerationForm.textDataSharing }
+    : null;
 
   const handlePreview = async () => {
     if (!settings) return;
@@ -712,6 +799,7 @@ export function ClassificationProviderSettings(): React.ReactElement {
         stageOverrides: buildStageOverridesPayload(settings.stages, stageForms),
         textDataSharing,
         imageDataSharing,
+        copyGeneration: copyGenerationPayload(),
       });
       setPreviewResult(res.preview);
     } catch (err) {
@@ -732,6 +820,7 @@ export function ClassificationProviderSettings(): React.ReactElement {
         stageOverrides: buildStageOverridesPayload(settings.stages, stageForms),
         textDataSharing,
         imageDataSharing,
+        copyGeneration: copyGenerationPayload(),
       });
 
       setSuccessMsg(`Classification policy updated successfully! (Bundle: ${res.result.bundleHash.slice(0, 8)}${res.result.commitHash ? `, Commit: ${res.result.commitHash.slice(0, 8)}` : ''})`);
@@ -773,6 +862,7 @@ export function ClassificationProviderSettings(): React.ReactElement {
           setPreviewResult(null);
         }}
       />
+      <CopyGenerationCard form={copyGenerationForm} connections={settings?.availableConnections ?? []} onChange={handleCopyGenerationChange} />
 
       {/* The 3 Stage Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

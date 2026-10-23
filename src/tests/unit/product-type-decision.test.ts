@@ -8,11 +8,14 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { upsertProviderConnection } from '../../db/repositories/provider-connection-repo';
 import { createRun } from '../../db/repositories/classification-run-repo';
+import { upsertApiKey } from '../../db/repositories/api-key-repo';
 import { getModelCallsByRun } from '../../db/repositories/classification-model-call-repo';
 import { buildModelPolicyView } from '../../classification/model-policy-gateway';
+import { buildModelExecutionPlan, buildRuntimeRuleVersions } from '../../classification/model-operation-registry';
 import { HeartbeatLostError } from '../../classification/heartbeat-errors';
 import type { ResolvedTarget } from '../../classification/curation-target-resolver';
 import type { ClassificationEvidence, ModelPolicyConfigV2 } from '../../shared/schemas/classification';
+import type { RuntimeClassificationSnapshot } from '../../classification/runtime-snapshot';
 import {
   resolveProductTypeDecision,
   buildProductTypeChoiceQuestion,
@@ -485,5 +488,97 @@ describe('canonical product type decision (issue #297)', () => {
         assertHeld,
       }),
     ).rejects.toThrow(HeartbeatLostError);
+  });
+
+  it('legacy chat-LLM path keeps sibling framing when the evidence packet is max-size', async () => {
+    const run = createRun(workspaceId, 'SKU-SIBLING-SURVIVAL', null, 'hash-sibling-survival');
+    // A LOCAL legacy provider routes the decision through the chat-LLM
+    // fallback; the transport resolves through the `ollama` `api_keys` row
+    // (credential + loopback base URL).
+    upsertApiKey('ollama', 'ollama-default', 'http://localhost:11434/v1', 'qwen2.5vl:latest');
+    const localPolicy: ModelPolicyConfigV2 = {
+      defaultProvider: 'ollama',
+      defaultModel: 'qwen2.5vl:latest',
+      providerLocalities: { ollama: 'local' },
+      stageOverrides: {},
+      textDataSharing: 'local_only',
+      imageDataSharing: 'local_only',
+      mlFeatures: {
+        productionRetrieval: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+        pageReranking: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+        confidenceCalibration: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+        productionEmbeddings: { state: 'disabled', qualificationReceiptDigest: null, activatedBy: null, activatedAt: null },
+      },
+    };
+    const policyView = buildModelPolicyView(localPolicy);
+
+    // The audited legacy transport requires a plan-compatible frozen
+    // snapshot (same pattern as the provenance suites).
+    const snapshotHash = 'sibling-survival-snapshot-hash';
+    const snapshot = {
+      schemaVersion: 2,
+      snapshotHash,
+      workspaceId,
+      productSku: 'SKU-SIBLING-SURVIVAL',
+      createdAt: '2026-08-01T12:00:00.000Z',
+      config: {},
+      configSnapshotRef: { id: 'x', hash: 'y', sourceCommit: null, createdAt: '2026-08-01T12:00:00.000Z' },
+      modelExecutionPlan: buildModelExecutionPlan(policyView, null),
+      runtimeRuleVersions: buildRuntimeRuleVersions(),
+    } as unknown as RuntimeClassificationSnapshot;
+    // Max-size own-evidence packet: 3,000 chars of non-keyword filler so a
+    // naive append-then-truncate would silently drop any sibling suffix.
+    const filler = 'z'.repeat(3000);
+    const maxEvidence: ClassificationEvidence[] = [
+      {
+        id: 'ev-sib-1',
+        runId: 'run-sibling',
+        stageName: 'evidence_extraction',
+        productSku: 'SKU-SIBLING-SURVIVAL',
+        attributeId: null,
+        source: 'official_product_page',
+        reliability: 'high',
+        sourceUrl: null,
+        sourceField: 'title',
+        snippet: filler,
+        value: filler,
+        metadata: null,
+        capturedAt: new Date().toISOString(),
+      },
+    ];
+
+    const siblingContext = {
+      siblings: [{ productTypeId: 'dog-food', label: 'Dry Dog Food', confidence: 0.9 }],
+    };
+
+    const prompts: string[] = [];
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const bodyText = String(init?.body ?? '');
+      const marker = '"user","content":"';
+      const start = bodyText.indexOf(marker);
+      if (start >= 0) prompts.push(bodyText.slice(start + marker.length, start + marker.length + 4000));
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{"values":["Dog Food"],"scores":[0.9],"confidence":0.8}' } }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }) as unknown as typeof globalThis.fetch;
+
+    const decision = await resolveProductTypeDecision({
+      target: sampleTarget,
+      evidence: maxEvidence,
+      sku: 'SKU-SIBLING-SURVIVAL',
+      runId: run.id,
+      modelPolicy: policyView,
+      snapshot,
+      siblingContext,
+    });
+    expect(decision.status).toBe('resolved');
+    // The dispatched legacy prompt carries the advisory sibling framing even
+    // with a max-size evidence packet — the suffix provably survives.
+    expect(prompts.length).toBeGreaterThan(0);
+    expect(prompts.some(p => p.includes('Family context'))).toBe(true);
+    expect(prompts.some(p => p.includes('dog-food'))).toBe(true);
   });
 });

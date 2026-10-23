@@ -163,7 +163,7 @@ function countsPayload() {
     projectionHealth: { status: 'healthy', version: '1.0.0', computedAt: new Date().toISOString(), issues: [] },
     matchingTotal: 10,
     counts: {
-      processing: 7, needs_attention: 2, waiting_on_family: 0, ready_for_review: 3,
+      processing: 7, needs_attention: 2, ready_for_review: 3,
       approved: 0, ready_to_export: 0, completed: 0, skipped: 0,
     },
     stageStatusMatrix: {

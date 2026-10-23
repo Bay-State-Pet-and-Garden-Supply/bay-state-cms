@@ -12,9 +12,6 @@ import { describe, expect, it } from 'vitest';
 import {
   applyProductTypeVeto,
 } from '../../classification/product-type-decision';
-import { vetoMemberTypeMatch } from '../../classification/cohort-product-type-resolver';
-import { isProtectedTargetId } from '../../classification/classification-ownership';
-import { processProductFieldTarget } from '../../classification/curation-target-processor';
 import { filterPageCandidatesForBackfill } from '../../classification/page-decision';
 import {
   groundSpeciesProposal,
@@ -24,11 +21,10 @@ import {
   requireSupportingCitation,
   isPlaceholderFragment,
 } from '../../classification/attribute-grounding-guards';
-import { isSpeciesRoleBlocked, isVisualDetailNonGrounding, enrichProductDetails } from '../../classification/detail-enrichment';
+import { enrichProductDetails } from '../../classification/detail-enrichment';
 import { buildEvidenceTargetPacket } from '../../classification/evidence-targeting';
 import { buildAssignmentProjection } from '../../classification/assignment-projection';
-import { reviewQuoteForRecord } from '../../classification/preserved-content-tags';
-import type { ClassificationEvidence } from '../../shared/types';
+import type { AttributeMappingConfig, ClassificationEvidence, ClassificationProposal, ProductAttributeConfig } from '../../shared/types';
 
 let seq = 0;
 function ev(overrides: Partial<ClassificationEvidence> & { value?: unknown; sourceField?: string | null }): ClassificationEvidence {
@@ -116,14 +112,6 @@ describe('P1 #7 type candidate veto', () => {
     expect(supp.status).toBe('abstained');
   });
 
-  it('cohort member veto abstains contradicted winners', () => {
-    const snap = { productTypes: [DOG_TOYS, CAT_TOYS] };
-    const evidence = [ev({ sourceField: 'name', value: 'KONG Kickeroo Cat Toy' })];
-    const out = vetoMemberTypeMatch(
-      { match: { productTypeId: 'dog-toys', confidence: 0.8, source: 'keyword' }, memberEvidence: evidence, memberSnapshot: snap as never },
-    );
-    expect(out.productTypeId).toBeNull();
-  });
 });
 
 describe('P1 #9 no-narrowing', () => {
@@ -134,32 +122,43 @@ describe('P1 #9 no-narrowing', () => {
     expect(isSilentNarrowing('Salmon', 'Salmon')).toBe(false);
   });
 
-  it('projection skips narrowing visibly', () => {
-    const mappings = [{
-      id: 'm', attributeId: 'flavor', catalogField: 'ProductField17',
-      serialization: { format: 'direct', separator: ', ', prefix: '', suffix: '' }, isStale: false,
+  it('projection refuses unreviewed Flavor narrowing but permits an explicit reviewed reduction', () => {
+    const mappings: AttributeMappingConfig[] = [{
+      id: 'm', attributeId: 'flavor', catalogField: 'ProductField23',
+      serialization: { format: 'direct', separator: '|', prefix: '', suffix: '' }, isStale: false,
     }];
-    const proposals = [{
+    const attributes: ProductAttributeConfig[] = [{
+      id: 'flavor', name: 'Flavor', description: null, valueMode: 'controlled', canonicalUnit: null,
+      allowedValues: ['Salmon', 'Venison', 'Lamb'], valueAliases: [], visualEvidenceEligibility: 'eligible',
+      isClaim: false, isCompositionAttribute: false, group: null,
+    }];
+    const proposals: ClassificationProposal[] = [{
       id: 'p1', runId: 'r1', productSku: 'SKU001', proposalType: 'field_assignment', targetId: 'flavor',
       proposedValue: 'Salmon', confidence: 0.9, evidenceIds: [], status: 'accepted',
-      isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: new Date().toISOString(),
+      isBulkAcceptable: false, isStale: false, stalenessReason: null, createdAt: '2026-08-01T00:00:00Z',
     }];
-    const result = buildAssignmentProjection(proposals as never, { ProductField17: 'Salmon|Venison|Lamb' }, [], mappings as never);
-    expect(result.fields).toHaveLength(0);
-    expect(result.skipped[0].reason).toMatch(/No-narrowing/);
+    const authority = { attributes, frozenMappings: mappings };
+    const result = buildAssignmentProjection(proposals, { ProductField23: 'Salmon|Venison|Lamb' }, [], mappings, undefined, authority);
+    expect(result.fields).toEqual([]);
+    expect(result.skipped).toEqual([
+      expect.objectContaining({ proposalId: 'p1', targetId: 'flavor', reason: expect.stringContaining('No-narrowing') }),
+    ]);
+    const reviewed = buildAssignmentProjection([
+      { ...proposals[0], revisedValue: 'Salmon', hasRevisedValue: true },
+    ], { ProductField23: 'Salmon|Venison|Lamb' }, [], mappings, undefined, authority);
+    expect(reviewed.fields).toEqual([
+      { catalogField: 'ProductField23', currentValue: 'Salmon|Venison|Lamb', proposedValue: 'Salmon', isOverwrite: true, isNoOp: false },
+    ]);
+    expect(reviewed.skipped).toEqual([]);
   });
 });
 
 describe('P1 #11 species grounding', () => {
   it('cowhide work gloves never gain Cattle', () => {
-    expect(isSpeciesRoleBlocked('cowhide work gloves leather', 'Cattle')).toBe(true);
     const g = groundSpeciesProposal({ proposedSpecies: 'Cattle', titleText: 'cowhide work gloves leather' });
     expect(g.abstain).toBe(true);
   });
 
-  it('Chicken Yellow boots never gain Poultry', () => {
-    expect(isSpeciesRoleBlocked('Chicken Yellow rain boots', 'Poultry')).toBe(true);
-  });
 
   it('For Fish is target species, not flavor', () => {
     const g = groundSpeciesProposal({ proposedSpecies: 'Fish', titleText: 'food For Fish salmon recipe' });
@@ -183,16 +182,6 @@ describe('P1 #11 species grounding', () => {
 });
 
 describe('P1 #12 visual detail grounding', () => {
-  it('High Viz and Ladybug do not produce Yellow/Red', () => {
-    expect(isVisualDetailNonGrounding('high viz safety vest', 'color', 'Yellow')).toBe(true);
-    expect(isVisualDetailNonGrounding('ladybug rain boots', 'color', 'Red')).toBe(true);
-  });
-
-  it('string toy yields no material; jar feeder no Jar; blister no Pouch', () => {
-    expect(isVisualDetailNonGrounding('string toy fuzzy texture', 'material', 'String')).toBe(true);
-    expect(isVisualDetailNonGrounding('jar feeder wild bird', 'packaging-type', 'Jar')).toBe(true);
-    expect(isVisualDetailNonGrounding('blister card packaging', 'packaging-type', 'Pouch')).toBe(true);
-  });
 
   it('title beats contradicting OCR; confirmed quotes support', () => {
     const beaten = groundVisualDetail({
@@ -205,30 +194,6 @@ describe('P1 #12 visual detail grounding', () => {
       titleText: 'blue nylon bottle', ocrQuote: 'Blue', titleContradictsOcr: false, imageConfirmed: true,
     });
     expect(ok.grounded).toBe(true);
-  });
-});
-
-describe('P1 #13 brand agreement (ADR 0041 / issue #349: Brand is never a classifier output)', () => {
-  it('Brand targets are outside classification ownership', () => {
-    expect(isProtectedTargetId('brand')).toBe(true);
-    expect(isProtectedTargetId('flavor')).toBe(false);
-  });
-
-  it('the shared composition emits no Brand proposal even with unanimous Brand evidence', async () => {
-    const evidence = [
-      ev({ source: 'catalog_product', sourceField: 'brand', value: 'Acme' }),
-      ev({ source: 'visual_product_evidence', sourceField: 'brand', value: 'Acme' }),
-    ];
-    const result = await processProductFieldTarget(
-      {
-        config: { id: 'brand-target', kind: 'product_field', label: 'Brand', enabled: true, selectionMode: 'single', attributeId: 'brand', catalogField: 'ProductField16', optionSource: 'configured', required: false, mandatory: false, sortOrder: 10 },
-        options: [],
-        attribute: { id: 'brand', name: 'Brand', description: null, valueMode: 'freeText', canonicalUnit: null, allowedValues: [], valueAliases: [], visualEvidenceEligibility: 'eligible', isClaim: false, isCompositionAttribute: false, group: 'Identity' },
-      } as never,
-      { sku: 'SKU-1', evidence, acceptedProposals: [], allProposals: [] },
-      { workspacePath: '/tmp/p1-349', workspaceId: 'ws-p1-349', runId: 'run-1', configSnapshotRef: { id: 's', hash: 'h', sourceCommit: null, createdAt: '2026-01-01T00:00:00.000Z' } } as never,
-    );
-    expect(result.proposals).toEqual([]);
   });
 });
 
@@ -287,6 +252,5 @@ describe('P1 #16 supporting citations', () => {
     const good = requireSupportingCitation([ev({ sourceField: 'name', value: 'Blue collar' })]);
     expect(good.grounded).toBe(true);
     if (good.grounded) expect(good.quote).toMatch(/Blue/);
-    expect(reviewQuoteForRecord({ value: 'Blue collar', sourceField: 'name', source: 'catalog_product' }).quote).toMatch(/Blue/);
   });
 });

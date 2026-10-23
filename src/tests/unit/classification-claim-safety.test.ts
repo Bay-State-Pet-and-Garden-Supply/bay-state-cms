@@ -236,7 +236,7 @@ describe('validateProposalSafety — controlled membership and measured units', 
   });
 
   it('rejects a non-finite measured value', () => {
-    const measured = makeAttribute({ id: 'weight', valueMode: 'measured', allowedValues: [] });
+    const measured = makeAttribute({ id: 'weight', valueMode: 'measured', canonicalUnit: 'lb', allowedValues: [] });
     const report = validateProposalSafety(
       [makeProposal({ targetId: 'weight', proposedValue: 'heavy' })],
       { attributes: [measured], evidence: [makeEvidence()] },
@@ -246,7 +246,7 @@ describe('validateProposalSafety — controlled membership and measured units', 
   });
 
   it('accepts a finite measured value', () => {
-    const measured = makeAttribute({ id: 'weight', valueMode: 'measured', allowedValues: [] });
+    const measured = makeAttribute({ id: 'weight', valueMode: 'measured', canonicalUnit: 'lb', allowedValues: [] });
     const report = validateProposalSafety(
       [makeProposal({ targetId: 'weight', proposedValue: '15 lb' })],
       { attributes: [measured], evidence: [makeEvidence()] },

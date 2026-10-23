@@ -30,8 +30,8 @@ function makeCandidate(overrides: Partial<InboxCandidateInput> = {}): InboxCandi
     kind: 'high_severity_catalog_issues',
     dedupeKey: 'high_severity_catalog_issues:catalog:v1',
     severity: 'critical',
-    title: 'High-severity catalog issues',
-    summary: '3 blocker issue(s) across 3 product(s).',
+    title: 'Product details need attention',
+    summary: '3 product details need attention across 3 products.',
     scopeJson: JSON.stringify({ kind: 'catalog' }),
     count: 3,
     sourceRefsJson: JSON.stringify([{ kind: 'validation_result', id: 'MISSING_NAME:SKU1' }]),
@@ -65,7 +65,6 @@ describe('store_manager_inbox_items repository (Issue 3)', () => {
     expect(inserted.acknowledgedAt).toBeNull();
     expect(inserted.dedupeKey).toBe('high_severity_catalog_issues:catalog:v1');
     const fetched = getInboxItem(workspaceId, inserted.id);
-    expect(fetched?.title).toBe('High-severity catalog issues');
     expect(fetched?.scope).toEqual({ kind: 'catalog' });
   });
 

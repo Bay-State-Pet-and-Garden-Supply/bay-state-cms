@@ -4,14 +4,17 @@ import { ShopSiteProductCodec, assertNoPreservedCorruption } from './product-cod
 import { deterministicStringify } from '../git/deterministic-json';
 import { createImagesZip, assertZipHasImages } from './zip-generator';
 import type { Product } from '../shared/types';
-
+import type { LinkedManifest } from '../shared/schemas/change-set';
 export interface ExportPackageResult {
   exportDir: string;
   xmlPath: string;
   manifestPath: string;
   instructionsPath: string;
-  zipPath: string;
+  /** Null when every referenced image is absent from disk (XML-only package). */
+  zipPath: string | null;
   productCount: number;
+  /** Set when the package shipped XML-only because images are absent from disk. */
+  missingImagesWarning?: string;
 }
 
 /**
@@ -26,6 +29,12 @@ export async function createExportPackage(
     xmlVersion?: string;
     newProductTag?: string;
     changeSetTitle?: string;
+    approvedCommit?: string;
+    linkedManifest?: LinkedManifest;
+    /** Issue #373: exact hash of the complete-family upload payload bytes. */
+    pushPayloadHash?: string;
+    /** Issue #373: stable SKU document order of the complete upload set. */
+    pushSkus?: string[];
   },
 ): Promise<ExportPackageResult> {
   const exportDir = path.join(workspacePath, 'exports', changeSetId);
@@ -44,14 +53,36 @@ export async function createExportPackage(
   const xmlPath = path.join(exportDir, 'shopsite-products.xml');
   fs.writeFileSync(xmlPath, xml, 'utf-8');
 
-  // Generate images zip
+  // Generate images zip. When every referenced image is absent from disk
+  // (P2 #24), ship an XML-only package with an explicit warning instead of
+  // failing: the XML references stay intact and the manifest records that
+  // no ZIP was claimed. Malformed preserved XML still fails closed above.
   const zipPath = path.join(exportDir, 'shopsite-images.zip');
   await createImagesZip(workspacePath, products, zipPath);
+  let missingImagesWarning: string | undefined;
+  try {
+    assertZipHasImages(zipPath, products);
+  } catch {
+    try {
+      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+    } catch {
+      // ignore cleanup failure
+    }
+    const totalRefs = products.reduce((count, p) => {
+      let n = p.core?.media?.primary ? 1 : 0;
+      n += (p.core?.media?.additional || []).filter(Boolean).length;
+      return count + n;
+    }, 0);
+    missingImagesWarning =
+      `${totalRefs} image(s) referenced by this change set are absent from disk; ` +
+      `exported XML only with no images ZIP. Run the image repair tool to re-download ` +
+      `images from onboarding extraction data, then re-export.`;
+  }
 
-  // Fail hard if all referenced images are missing from disk
-  assertZipHasImages(zipPath, products);
-
-  // Generate manifest
+  // Generate manifest. Issue #363: approved export data and its dependency
+  // manifest describe the same immutable catalog commit — the package is
+  // commit-bound, never mutable-workspace-bound.
+  const linkedManifest = options?.linkedManifest;
   const manifest = {
     schemaVersion: 1,
     changeSetId,
@@ -61,8 +92,13 @@ export async function createExportPackage(
     productSkus: products.map(p => p.sku),
     xmlVersion: options?.xmlVersion ?? '15.0',
     notes: 'Export package for ShopSite product import.',
+    imagesZip: missingImagesWarning ? null : path.basename(zipPath),
+    ...(options?.approvedCommit ? { approvedCommit: options.approvedCommit } : {}),
+    ...(linkedManifest ? { linkedManifest } : {}),
+    ...(options?.pushPayloadHash ? { pushPayloadHash: options.pushPayloadHash } : {}),
+    ...(options?.pushSkus ? { pushSkus: options.pushSkus } : {}),
+    ...(missingImagesWarning ? { warning: missingImagesWarning } : {}),
   };
-
   const manifestPath = path.join(exportDir, 'manifest.json');
   fs.writeFileSync(manifestPath, deterministicStringify(manifest), 'utf-8');
 
@@ -76,8 +112,9 @@ export async function createExportPackage(
     xmlPath,
     manifestPath,
     instructionsPath,
-    zipPath,
+    zipPath: missingImagesWarning ? null : zipPath,
     productCount: products.length,
+    ...(missingImagesWarning ? { missingImagesWarning } : {}),
   };
 }
 

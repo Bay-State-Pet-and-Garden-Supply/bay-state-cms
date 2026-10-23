@@ -201,7 +201,7 @@ export async function extractProductFromHtml(
       url,
       data: merged,
       expected: expected
-        ? { name: expected.name, brandHint: expected.brandHint, price: expected.price, gtin: (expected as { gtin?: string }).gtin }
+        ? { name: expected.name, brandHint: expected.brandHint, gtin: expected.gtin }
         : undefined,
       fetchFn,
     });
@@ -249,6 +249,19 @@ export async function extractViaHttpDetailed(
   }
 
   return detailed;
+}
+
+/**
+ * Fetch and parse a confirmed official page using only static extraction
+ * layers (no profile selectors, no browser, no model). Catalog writes are
+ * skipped: the caller owns admission and index enrichment.
+ */
+export async function extractConfirmedPageStatic(
+  url: string,
+  expected: { name: string; brandHint?: string | null; gtin?: string },
+  fetchFn: NetworkFetch = fetch,
+): Promise<HttpExtractionDetailed> {
+  return extractViaHttpDetailed(url, null, expected, fetchFn, { skipCatalogWrites: true });
 }
 
 /**
@@ -369,7 +382,6 @@ async function extractProductDataWithProfile(
       expected: {
         name: expected.name,
         brandHint: expected.brandHint,
-        price: expected.price,
         // ADR-0031: forwarded so the worker-side ladder enrichment can run
         // real identity classification (ExtractRequest.expected.upc).
         upc: expected.gtin || null,
@@ -382,21 +394,27 @@ async function extractProductDataWithProfile(
       if (domain) recordDomainStatus(domain, 'ok');
 
       // Spreadsheet price override — applied ONLY when the spreadsheet
-      // actually carries a price. A ladder-enriched page price must survive
-      // with its provenance intact (ADR-0031).
+      // actually carries a price. Page prices are never collected (ADR 0043).
       const result = workerResult.data;
+      result.price = expected?.price ?? null;
       if (expected?.price) {
-        result.price = expected.price;
         result.fieldProvenance = { ...result.fieldProvenance, price: 'spreadsheet-import' };
+      } else if (result.fieldProvenance && typeof result.fieldProvenance === 'object' && 'price' in result.fieldProvenance) {
+        const { price: _workerPrice, ...provenance } = result.fieldProvenance as Record<string, unknown>;
+        result.fieldProvenance = provenance as typeof result.fieldProvenance;
+      }
+      if (result.customFields && typeof result.customFields === 'object' && 'salePrice' in result.customFields) {
+        const { salePrice: _salePrice, ...customFields } = result.customFields as unknown as Record<string, string>;
+        result.customFields = customFields;
       }
 
       return result;
     }
 
     // Worker failed — preserve structured variant failure codes + canonical matrix for job-queue gate (M4)
-    if (!workerResult.ok && (workerResult as any).failureCode) {
-      const code = (workerResult as any).failureCode as string;
-      const msg = `variant:${code}:${workerResult.error}`;
+    if (!workerResult.ok && (workerResult as { failureCode?: string | null }).failureCode) {
+      const code = (workerResult as { failureCode: string }).failureCode;
+      const msg = `variant:${code}:${(workerResult as { error: string }).error}`;
       console.warn(`[PageExtractor] Worker extraction failed (variant gate): ${msg}`);
       if (domain) recordDomainStatus(domain, 'offline', msg);
       const payload: any = (workerResult as any).matrixDecision ? { ...(workerResult as any).matrixDecision } : {};
@@ -410,7 +428,7 @@ async function extractProductDataWithProfile(
     }
     let errorDetail: string;
     if (!workerResult.ok) {
-      errorDetail = workerResult.error;
+      errorDetail = (workerResult as { error: string }).error;
     } else {
       errorDetail = 'Worker returned ok:false with no title';
     }
@@ -594,9 +612,6 @@ function extractCustomSelectorsCheerio(
       }
     }
   }
-  if (profile.priceSelector) {
-    data.price = $(profile.priceSelector).first().text().trim() || '';
-  }
   if (profile.descriptionSelector) {
     data.description = $(profile.descriptionSelector).first().text().trim() || '';
   }
@@ -641,6 +656,15 @@ function extractJsonLdCheerio($: cheerio.CheerioAPI): Record<string, unknown> | 
     scripts.push($(el).text() || '');
   });
 
+  const withoutOffers = (product: Record<string, unknown>): Record<string, unknown> => {
+    const { offers: _offers, ...signals } = product;
+    const brand = signals.brand;
+    if (brand && typeof brand === 'object' && !Array.isArray(brand)) {
+      const { price: _brandPrice, ...brandSignals } = brand as Record<string, unknown>;
+      signals.brand = brandSignals;
+    }
+    return signals;
+  };
   for (const script of scripts) {
     try {
       const data = JSON.parse(script);
@@ -648,12 +672,12 @@ function extractJsonLdCheerio($: cheerio.CheerioAPI): Record<string, unknown> | 
         const product = (data['@graph'] as Record<string, unknown>[]).find(
           (item: Record<string, unknown>) => item['@type'] === 'Product',
         );
-        if (product) return product;
+        if (product) return withoutOffers(product);
       }
-      if (data['@type'] === 'Product') return data;
+      if (data['@type'] === 'Product') return withoutOffers(data);
       if (Array.isArray(data)) {
         const product = data.find((item: Record<string, unknown>) => item['@type'] === 'Product');
-        if (product) return product;
+        if (product) return withoutOffers(product);
       }
     } catch {
       // ignore
@@ -667,7 +691,7 @@ function extractMetaTagsCheerio($: cheerio.CheerioAPI): Record<string, string> {
   $('meta').each((_, el) => {
     const property = $(el).attr('property') ?? $(el).attr('name') ?? '';
     const content = $(el).attr('content') ?? '';
-    if (property && content) {
+    if (property && content && !/^product:price:/i.test(property)) {
       tags[property] = content;
     }
   });
@@ -691,7 +715,7 @@ function extractMicrodataCheerio($: cheerio.CheerioAPI): Record<string, string> 
       ?? $(el).attr('src')
       ?? $(el).text().trim()
       ?? '';
-    if (name && value) {
+    if (name && name.toLowerCase() !== 'price' && value) {
       data[name] = value;
     }
   });
@@ -746,23 +770,6 @@ function extractHtmlHeuristicsCheerio($: cheerio.CheerioAPI): Record<string, str
     if (list.length > 0) {
       data.bulletPoints = list;
       break;
-    }
-  }
-
-  const priceSelectors = [
-    '.product-price', '.pdp-price', '#product-price',
-    '[data-testid="product-price"]', '.price-current',
-    '.price', '[itemprop="price"]',
-  ];
-
-  for (const sel of priceSelectors) {
-    const text = $(sel).first().text().trim();
-    if (text) {
-      const match = text.match(/\$?(\d+\.?\d*)/);
-      if (match) {
-        data.price = match[0];
-        break;
-      }
     }
   }
 
@@ -873,10 +880,6 @@ async function extractCustomSelectors(
         }
       }
     }
-    if (prof.priceSelector) {
-      const el = document.querySelector(prof.priceSelector);
-      data.price = el?.textContent?.trim() || '';
-    }
     if (prof.descriptionSelector) {
       const el = document.querySelector(prof.descriptionSelector);
       data.description = el?.textContent?.trim() || '';
@@ -953,6 +956,15 @@ async function extractJsonLd(page: import('playwright').Page): Promise<Record<st
     (els) => els.map(el => el.textContent ?? ''),
   );
 
+  const withoutOffers = (product: Record<string, unknown>): Record<string, unknown> => {
+    const { offers: _offers, ...signals } = product;
+    const brand = signals.brand;
+    if (brand && typeof brand === 'object' && !Array.isArray(brand)) {
+      const { price: _browserBrandPrice, ...brandSignals } = brand as Record<string, unknown>;
+      signals.brand = brandSignals;
+    }
+    return signals;
+  };
   for (const script of scripts) {
     try {
       const data = JSON.parse(script);
@@ -961,14 +973,14 @@ async function extractJsonLd(page: import('playwright').Page): Promise<Record<st
         const product = (data['@graph'] as Record<string, unknown>[]).find(
           (item: Record<string, unknown>) => item['@type'] === 'Product',
         );
-        if (product) return product;
+        if (product) return withoutOffers(product);
       }
       // Direct Product type
-      if (data['@type'] === 'Product') return data;
+      if (data['@type'] === 'Product') return withoutOffers(data);
       // Array of items
       if (Array.isArray(data)) {
         const product = data.find((item: Record<string, unknown>) => item['@type'] === 'Product');
-        if (product) return product;
+        if (product) return withoutOffers(product);
       }
     } catch {
       // Invalid JSON, skip
@@ -987,7 +999,7 @@ async function extractMetaTags(page: import('playwright').Page): Promise<Record<
     for (const meta of metas) {
       const property = meta.getAttribute('property') ?? meta.getAttribute('name') ?? '';
       const content = meta.getAttribute('content') ?? '';
-      if (property && content) {
+      if (property && content && !/^product:price:/i.test(property)) {
         tags[property] = content;
       }
     }
@@ -1009,7 +1021,6 @@ async function extractMicrodata(page: import('playwright').Page): Promise<Record
     const data: Record<string, string> = {};
     const scope = document.querySelector('[itemscope][itemtype*="Product"]');
     if (!scope) return data;
-
     const props = scope.querySelectorAll('[itemprop]');
     for (const prop of props) {
       const name = prop.getAttribute('itemprop') ?? '';
@@ -1017,7 +1028,7 @@ async function extractMicrodata(page: import('playwright').Page): Promise<Record
         ?? (prop as HTMLImageElement).src
         ?? prop.textContent?.trim()
         ?? '';
-      if (name && value) {
+      if (name && name.toLowerCase() !== 'price' && value) {
         data[name] = value;
       }
     }
@@ -1078,25 +1089,6 @@ async function extractHtmlHeuristics(page: import('playwright').Page): Promise<R
       }
     }
 
-    // Price
-    const priceSelectors = [
-      '.product-price', '.pdp-price', '#product-price',
-      '[data-testid="product-price"]', '.price-current',
-      '.price', '[itemprop="price"]',
-    ];
-
-    for (const sel of priceSelectors) {
-      const el = document.querySelector(sel);
-      if (el?.textContent?.trim()) {
-        const priceText = el.textContent.trim();
-        // Extract price number
-        const match = priceText.match(/\$?(\d+\.?\d*)/);
-        if (match) {
-          data.price = match[0];
-          break;
-        }
-      }
-    }
 
     // Brand
     const brandSelectors = [
@@ -1290,28 +1282,11 @@ function mergeExtractionLayers(
   );
   if (description) { confidenceScore++; confidenceFactors++; } else { confidenceFactors++; }
 
-  // Price
-  const jsonLdPrice = raw.jsonLd?.offers as Record<string, unknown> | undefined;
-  const priceFromJsonLd = jsonLdPrice?.price as string | undefined
-    ?? (jsonLdPrice as Record<string, unknown>)?.lowPrice as string | undefined;
-
-  let price = pick('price',
-    [raw.custom?.price as string, 'custom-selector'],
-    [priceFromJsonLd, 'json-ld'],
-    [raw.microdata.price, 'microdata'],
-    [raw.metaTags['product:price:amount'], 'meta'],
-    [raw.htmlHeuristics.price as string, 'html'],
-  );
-
-  // Clean raw price text to numeric representation if extracted via custom-selector
-  if (price && provenance.price === 'custom-selector') {
-    const match = price.match(/\$?(\d+\.?\d*)/);
-    if (match) {
-      price = match[0];
-    }
+  // Price is populated only from the spreadsheet by the caller.
+  const price = expected?.price || null;
+  if (price) {
+    provenance.price = 'spreadsheet-import';
   }
-
-  if (price) { confidenceScore++; confidenceFactors++; } else { confidenceFactors++; }
 
   // Images
   const rawAllImages = (raw.custom?.images as string[]) ?? [];

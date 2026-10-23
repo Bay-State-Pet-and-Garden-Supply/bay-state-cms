@@ -60,9 +60,23 @@ describe('§7.1 pre-retirement mount matrix (full ledger)', () => {
     const failures: string[] = [];
     for (const c of cases) {
       const actual = resolveLinearShell(c.input);
-      if (!deepEqual(actual, c.expected)) {
+      // `waiting_on_family` retired with the family UI: it resolves as an
+      // unsupported tab. Fallback follows the production resolver: 'stage'
+      // when the shell mounts BatchWorkspace with the v2 shell, 'default'
+      // in classic mode, and unconditionally 'stage' when the root never
+      // mounts BatchWorkspace (Unavailable/PipelineBoard early return).
+      const retiredFallback = (() => {
+        const { workspaceEnabled: W, diagnosticsEnabled: D, boardQuery: Q, shellV2Enabled: S } = c.input;
+        const mountsBatch = (W && !D) || (W && D && !Q);
+        if (!mountsBatch) return 'stage' as const;
+        return S ? 'stage' as const : 'default' as const;
+      })();
+      const expected = (c.input.legacyTab as string) === 'waiting_on_family'
+        ? { ...c.expected, destination: { kind: 'unsupported' as const, fallback: retiredFallback } }
+        : c.expected;
+      if (!deepEqual(actual, expected)) {
         failures.push(
-          `${JSON.stringify(c.input)} => expected ${JSON.stringify(c.expected)} got ${JSON.stringify(actual)}`,
+          `${JSON.stringify(c.input)} => expected ${JSON.stringify(expected)} got ${JSON.stringify(actual)}`,
         );
       }
     }

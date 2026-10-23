@@ -18,15 +18,14 @@ import { hashCanonicalJson } from '../stable-id';
 export const EXTRACTION_POLICY_VERSION = 1 as const;
 
 /**
- * Extraction fields a proposal may cover, in canonical display order
- * (user story 11: title, brand, description, price, images, SKU, GTIN,
- * variants, availability).
+ * Fields that can be collected from product pages. Price is excluded.
+ * Remaining fields, in order: title, brand, description, images, SKU, GTIN,
+ * variants, availability.
  */
 export const POLICY_FIELDS = [
   'title',
   'brand',
   'description',
-  'price',
   'images',
   'sku',
   'gtin',
@@ -357,7 +356,6 @@ export function isPolicyBindingIntact(selectors: unknown, validationSummary: unk
  */
 export const FIELD_TO_SELECTOR_SLOT: Readonly<Record<PolicyField, string>> = {
   title: 'titleSelector',
-  price: 'priceSelector',
   description: 'descriptionSelector',
   brand: 'brandSelector',
   images: 'imagesSelector',
@@ -367,8 +365,13 @@ export const FIELD_TO_SELECTOR_SLOT: Readonly<Record<PolicyField, string>> = {
   availability: 'availabilitySelector',
 };
 
-const CORE_SELECTOR_SLOTS = new Set(['titleSelector', 'priceSelector', 'descriptionSelector', 'brandSelector', 'imagesSelector']);
+const CORE_SELECTOR_SLOTS: Record<string, true> = {
+  titleSelector: true,
+  descriptionSelector: true,
+  brandSelector: true,
+  imagesSelector: true,
+};
 
 export function isCoreSelectorSlot(slot: string): boolean {
-  return CORE_SELECTOR_SLOTS.has(slot);
+  return slot in CORE_SELECTOR_SLOTS;
 }

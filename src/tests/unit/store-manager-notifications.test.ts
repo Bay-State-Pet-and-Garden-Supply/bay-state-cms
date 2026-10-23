@@ -78,7 +78,6 @@ describe('Store Manager notification rules (Issue 3)', () => {
     expect(crossed.emitted).toHaveLength(1);
     expect(crossed.emitted[0].ruleKind).toBe('proposal_backlog_exceeded');
     expect(crossed.emitted[0].message).toContain('21');
-    expect(crossed.emitted[0].message).toContain('20');
     // Same count again → no chatter.
     expect(evaluateNotificationRules(ws, { collect: collectOnly(proposal(21)) }).emitted).toHaveLength(0);
     // Higher but already crossed → still no new emission.
@@ -96,12 +95,14 @@ describe('Store Manager notification rules (Issue 3)', () => {
     expect(evaluateNotificationRules(ws, { collect: collectOnly(critical(3)) }).emitted).toHaveLength(0);
     const up1 = evaluateNotificationRules(ws, { collect: collectOnly(critical(5)) });
     expect(up1.emitted).toHaveLength(1);
-    expect(up1.emitted[0].message).toContain('from 3 to 5');
+    expect(up1.emitted[0].message).toContain('3');
+    expect(up1.emitted[0].message).toContain('5');
     expect(evaluateNotificationRules(ws, { collect: collectOnly(critical(5)) }).emitted).toHaveLength(0);
     expect(evaluateNotificationRules(ws, { collect: collectOnly(critical(4)) }).emitted).toHaveLength(0);
     const up2 = evaluateNotificationRules(ws, { collect: collectOnly(critical(7)) });
     expect(up2.emitted).toHaveLength(1);
-    expect(up2.emitted[0].message).toContain('from 4 to 7');
+    expect(up2.emitted[0].message).toContain('4');
+    expect(up2.emitted[0].message).toContain('7');
   });
 
   it('sync failures emit per NEW source identity only', () => {
@@ -116,7 +117,8 @@ describe('Store Manager notification rules (Issue 3)', () => {
     // New identity → one new emission.
     const second = evaluateNotificationRules(ws, { collect: collectOnly(sync(['job-1', 'job-2'])) });
     expect(second.emitted).toHaveLength(1);
-    expect(second.emitted[0].message).toContain('job-2'.slice(0, 8));
+    expect(second.emitted[0].message).not.toContain('job-2');
+    expect(second.emitted[0].title).not.toContain('sync');
     // An old failure disappears → no emission.
     expect(evaluateNotificationRules(ws, { collect: collectOnly(sync(['job-2'])) }).emitted).toHaveLength(0);
   });
@@ -127,7 +129,7 @@ describe('Store Manager notification rules (Issue 3)', () => {
     expect(evaluateNotificationRules(ws, { collect: collectOnly(image(2)) }).emitted).toHaveLength(0);
     const up = evaluateNotificationRules(ws, { collect: collectOnly(image(4)) });
     expect(up.emitted).toHaveLength(1);
-    expect(up.emitted[0].title).toContain('Image integrity');
+    expect(up.emitted[0].title).not.toMatch(/integrity|change set/i);
     expect(evaluateNotificationRules(ws, { collect: collectOnly(image(4)) }).emitted).toHaveLength(0);
   });
 

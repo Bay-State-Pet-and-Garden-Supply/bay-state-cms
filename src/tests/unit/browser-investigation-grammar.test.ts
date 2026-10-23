@@ -89,7 +89,7 @@ describe('inspection grammar versioning', () => {
     ) as InspectNetworkResponseOp;
     expect(network.op).toBe('inspect_network_response');
     const pointer: ReadJsonPointerOp = parseInspectionOp(
-      op({ op: 'read_json_pointer', valueRef: VAL, pointer: ['offers', 'price'] }),
+      op({ op: 'read_json_pointer', valueRef: VAL, pointer: ['product', 'sku'] }),
     ) as ReadJsonPointerOp;
     expect(pointer.op).toBe('read_json_pointer');
     const anyOp: InspectionOp = pointer;
@@ -178,7 +178,7 @@ describe('selector and attribute bounds', () => {
 });
 
 describe('JSON pointer discipline', () => {
-  it('rejects prototype traversal, descent, filters, and expressions', () => {
+  it('rejects prototype traversal, price fields, descent, filters, and expressions', () => {
     for (const pointer of [
       ['__proto__'],
       ['constructor'],
@@ -188,6 +188,8 @@ describe('JSON pointer discipline', () => {
       ['a(b)'],
       ['${x}'],
       ['a=>b'],
+      ['offers', 'price'],
+      ['compare_at_price'],
     ]) {
       expect(
         () => parseInspectionOp(op({ op: 'read_json_pointer', valueRef: VAL, pointer })),
@@ -205,9 +207,10 @@ describe('JSON pointer discipline', () => {
     ).toThrowError(/invalid_params/);
   });
 
-  it('reads own properties only', () => {
-    const value = { offers: { price: '19.99' } };
-    expect(readOwnJsonPointer(value, ['offers', 'price'])).toMatchObject({ value: '19.99' });
+  it('reads safe own properties and refuses third-party prices', () => {
+    const value = { offers: { price: '19.99' }, sku: 'SKU-1' };
+    expect(readOwnJsonPointer(value, ['sku'])).toMatchObject({ value: 'SKU-1' });
+    expect(() => readOwnJsonPointer(value, ['offers', 'price'])).toThrowError(/invalid_params/);
     expect(() => readOwnJsonPointer(value, ['offers', 'missing'])).toThrowError(/invalid_params/);
     expect(() => readOwnJsonPointer(value, ['constructor'])).toThrowError(/invalid_params/);
     expect(() => readOwnJsonPointer('scalar', ['a'])).toThrowError(/invalid_params/);
@@ -233,6 +236,13 @@ describe('strict script-JSON parsing', () => {
     ]) {
       expect(() => parseStrictScriptJson(text, limits), text.slice(0, 24)).toThrowError(/invalid_params/);
     }
+  });
+  it('removes price-like page fields before returning script JSON', () => {
+    const parsed = parseStrictScriptJson(
+      '{"sku":"SKU-1","offers":{"price":"19.99","availability":"InStock"},"compare_at_price":"29.99"}',
+      limits,
+    );
+    expect(parsed.value).toEqual({ sku: 'SKU-1', offers: { availability: 'InStock' } });
   });
 
   it('enforces size, depth, and node caps', () => {

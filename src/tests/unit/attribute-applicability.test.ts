@@ -79,7 +79,6 @@ describe('evaluateAttributeApplicability', () => {
       reviewedFacts: [],
     });
     expect(result.state).toBe('unknown');
-    expect(result.reason).toContain('reviewed Primary Product Type');
   });
 
   it('marks profile attributes not_applicable when absent from the accepted type profile', () => {

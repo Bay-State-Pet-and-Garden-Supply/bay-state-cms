@@ -114,7 +114,6 @@ function passingRunner(): PolicyWorkerRunner {
         title: expected.name,
         brand: expected.brandHint ?? 'ShopBrand',
         description: 'Deterministic binding-run extraction.',
-        price: expected.price ?? '$9.99',
         primaryImage: 'https://shop.example.com/images/alpha.jpg',
         additionalImages: [],
         customFields: {

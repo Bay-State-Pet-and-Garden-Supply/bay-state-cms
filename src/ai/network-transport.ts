@@ -7,7 +7,52 @@
 
 import type { ProviderConnection } from './provider-connections';
 import { validateConnectionTrustZone } from './provider-connections';
+import {
+  getItemAcquisitionBudgetSignal,
+  getItemAcquisitionModelOutputLimit,
+  reserveItemAcquisitionModelAttempt,
+} from '../onboarding/item-acquisition-budget';
 
+
+const responseByteCounters = new WeakMap<Response, { value: number }>();
+
+/** Wrap an HTTP response stream with an enforced byte ceiling without buffering it in advance. */
+export function limitFetchResponseBytes(response: Response, maximumBytes: number): Response {
+  const counter = { value: 0 };
+  if (!response.body) {
+    responseByteCounters.set(response, counter);
+    return response;
+  }
+  const reader = response.body.getReader();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await reader.read();
+        if (next.done) {
+          controller.close();
+          return;
+        }
+        counter.value += next.value.byteLength;
+        if (counter.value > maximumBytes) {
+          void reader.cancel().catch(() => undefined);
+          controller.error(new Error('model_response_budget_exceeded'));
+          return;
+        }
+        controller.enqueue(next.value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    cancel(reason) { return reader.cancel(reason); },
+  });
+  const bounded = new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+  responseByteCounters.set(bounded, counter);
+  return bounded;
+}
+
+export function fetchResponseBytes(response: Response): number | undefined {
+  return responseByteCounters.get(response)?.value;
+}
 // ─── Error Hierarchy ──────────────────────────────────────────────────────────
 
 export abstract class AiTransportError extends Error {
@@ -70,6 +115,7 @@ export class AiPolicyDeniedError extends AiTransportError {
 
 export interface FetchWithDeadlinesOptions extends RequestInit {
   timeoutMs?: number;
+  maxResponseBytes?: number;
 }
 
 /**
@@ -81,6 +127,7 @@ export async function fetchWithDeadlines(
 ): Promise<Response> {
   const {
     timeoutMs = 60000,
+    maxResponseBytes,
     signal: callerSignal,
     ...fetchInit
   } = options;
@@ -109,7 +156,7 @@ export async function fetchWithDeadlines(
       );
     }
 
-    return response;
+    return maxResponseBytes === undefined ? response : limitFetchResponseBytes(response, maxResponseBytes);
   } catch (err: any) {
     const msg = String(err?.message || '');
     const isTimeout = msg.includes('timed out') || err?.name === 'AbortError' || err?.name === 'TimeoutError';
@@ -181,7 +228,7 @@ export async function executeOpenAiChat(
     headers.Authorization = `Bearer ${conn.credential}`;
   }
 
-  const bodyPayload: Record<string, any> = {
+  const bodyPayload: Record<string, unknown> = {
     model: modelId,
     messages,
     stream: false,
@@ -193,81 +240,112 @@ export async function executeOpenAiChat(
   if (options.reasoningEffort !== undefined) bodyPayload.reasoning_effort = options.reasoningEffort;
   if (options.responseFormat) bodyPayload.response_format = options.responseFormat;
   if (options.tools && options.tools.length > 0) bodyPayload.tools = options.tools;
+  const outputTokenLimit = getItemAcquisitionModelOutputLimit(conn.id, modelId);
+  if (outputTokenLimit !== null) bodyPayload.max_tokens = Math.min(options.maxTokens ?? outputTokenLimit, outputTokenLimit);
+  const serializedBody = JSON.stringify(bodyPayload);
+  const timeoutMs = conn.inferenceTimeoutMs ?? 60000;
+  const itemAttempt = reserveItemAcquisitionModelAttempt({
+    provider: conn.id,
+    model: modelId,
+    requestBytes: Buffer.byteLength(serializedBody, 'utf8'),
+    requestedOutputTokens: typeof bodyPayload.max_tokens === 'number' ? bodyPayload.max_tokens : 0,
+    timeoutMs,
+  });
+  const attemptStartedAt = Date.now();
 
-  let response: Response;
   try {
-    response = await fetchWithDeadlines(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(bodyPayload),
-      timeoutMs: conn.inferenceTimeoutMs ?? 60000,
-      signal: options.signal,
-    });
-  } catch (err: any) {
-    if (err instanceof AiTransportError) {
-      throw new (err.constructor as any)(err.message, conn.id, modelId, err.statusCode);
+    let response: Response;
+    try {
+      itemAttempt?.markDispatched();
+      response = await fetchWithDeadlines(url, {
+        method: 'POST',
+        headers,
+        body: serializedBody,
+        timeoutMs,
+        signal: getItemAcquisitionBudgetSignal(options.signal),
+        ...(itemAttempt ? { maxResponseBytes: itemAttempt.maxResponseBytes } : {}),
+      });
+    } catch (err: any) {
+      if (err instanceof AiTransportError) {
+        throw new (err.constructor as any)(err.message, conn.id, modelId, err.statusCode);
+      }
+      throw new AiAvailabilityError(
+        `Network failure connecting to "${conn.label}" at ${url}: ${err.message}`,
+        conn.id,
+        modelId,
+      );
     }
-    throw new AiAvailabilityError(
-      `Network failure connecting to "${conn.label}" at ${url}: ${err.message}`,
-      conn.id,
-      modelId,
-    );
+
+    if (response.status === 404) {
+      const errText = await response.text().catch(() => '');
+      throw new AiMisconfigurationError(
+        `Model "${modelId}" not found on "${conn.label}" (HTTP 404). Host is online but model is missing/unloaded: ${errText.slice(0, 150)}`,
+        conn.id,
+        modelId,
+        404,
+      );
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new AiMisconfigurationError(
+        `Authentication failed for "${conn.label}" (HTTP ${response.status}). Check API key/credential.`,
+        conn.id,
+        modelId,
+        response.status,
+      );
+    }
+
+    if (response.status >= 500) {
+      const errText = await response.text().catch(() => '');
+      throw new AiAvailabilityError(
+        `Server error from "${conn.label}" (HTTP ${response.status}): ${errText.slice(0, 150)}`,
+        conn.id,
+        modelId,
+        response.status,
+      );
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new AiAvailabilityError(
+        `HTTP ${response.status} from "${conn.label}": ${errText.slice(0, 150)}`,
+        conn.id,
+        modelId,
+        response.status,
+      );
+    }
+
+    const parsed: unknown = await response.json();
+    const data = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    const choices = Array.isArray(data.choices) ? data.choices : [];
+    const firstChoice = choices[0] && typeof choices[0] === 'object' ? choices[0] as Record<string, unknown> : {};
+    const message = firstChoice.message && typeof firstChoice.message === 'object' ? firstChoice.message as Record<string, unknown> : {};
+    const content = typeof message.content === 'string' ? message.content : '';
+    const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : undefined;
+    const usage = data.usage && typeof data.usage === 'object' ? data.usage as Record<string, unknown> : null;
+    const promptTokens = typeof usage?.prompt_tokens === 'number' && Number.isSafeInteger(usage.prompt_tokens) && usage.prompt_tokens >= 0 ? usage.prompt_tokens : undefined;
+    const completionTokens = typeof usage?.completion_tokens === 'number' && Number.isSafeInteger(usage.completion_tokens) && usage.completion_tokens >= 0 ? usage.completion_tokens : undefined;
+    const totalTokens = typeof usage?.total_tokens === 'number' && Number.isSafeInteger(usage.total_tokens) && usage.total_tokens >= 0 ? usage.total_tokens : undefined;
+    itemAttempt?.settle({
+      responseBytes: fetchResponseBytes(response) ?? itemAttempt.maxResponseBytes,
+      inputTokens: promptTokens,
+      outputTokens: completionTokens,
+      durationMs: Date.now() - attemptStartedAt,
+    });
+
+    return {
+      content,
+      toolCalls,
+      usage: usage
+        ? {
+            promptTokens: promptTokens ?? 0,
+            completionTokens: completionTokens ?? 0,
+            totalTokens: totalTokens ?? 0,
+          }
+        : undefined,
+    };
+  } catch (error) {
+    try { itemAttempt?.settleUnknown(); } catch { /* scope finalization retains any unresolved dispatch */ }
+    throw error;
   }
-
-  if (response.status === 404) {
-    const errText = await response.text().catch(() => '');
-    throw new AiMisconfigurationError(
-      `Model "${modelId}" not found on "${conn.label}" (HTTP 404). Host is online but model is missing/unloaded: ${errText.slice(0, 150)}`,
-      conn.id,
-      modelId,
-      404,
-    );
-  }
-
-  if (response.status === 401 || response.status === 403) {
-    throw new AiMisconfigurationError(
-      `Authentication failed for "${conn.label}" (HTTP ${response.status}). Check API key/credential.`,
-      conn.id,
-      modelId,
-      response.status,
-    );
-  }
-
-  if (response.status >= 500) {
-    const errText = await response.text().catch(() => '');
-    throw new AiAvailabilityError(
-      `Server error from "${conn.label}" (HTTP ${response.status}): ${errText.slice(0, 150)}`,
-      conn.id,
-      modelId,
-      response.status,
-    );
-  }
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new AiAvailabilityError(
-      `HTTP ${response.status} from "${conn.label}": ${errText.slice(0, 150)}`,
-      conn.id,
-      modelId,
-      response.status,
-    );
-  }
-
-  const data = (await response.json()) as any;
-  const choice = data?.choices?.[0];
-  const message = choice?.message;
-  const content = message?.content ?? '';
-  const toolCalls = message?.tool_calls;
-
-  return {
-    content,
-    toolCalls,
-    usage: data?.usage
-      ? {
-          promptTokens: data.usage.prompt_tokens ?? 0,
-          completionTokens: data.usage.completion_tokens ?? 0,
-          totalTokens: data.usage.total_tokens ?? 0,
-        }
-      : undefined,
-  };
 }

@@ -80,6 +80,16 @@ export function getCachedConnectionHealth(connectionId: string): ConnectionHealt
 }
 
 /**
+ * Returns the cached health report (including any pinned quota alert) for a
+ * connection within its TTL, or `null` when no valid cached report exists.
+ */
+export function getCachedConnectionHealthReport(connectionId: string): ConnectionHealthReport | null {
+  const cached = HEALTH_CACHE.get(connectionId);
+  if (!cached || cached.expiresAt <= Date.now()) return null;
+  return cached.report;
+}
+
+/**
  * Shared health-report builders (extraction to bring probeConnectionHealth
  * below the complexity/size thresholds). Messages, statuses, and caching
  * semantics are preserved verbatim.
@@ -304,8 +314,35 @@ export async function checkModelAvailability(
 }
 
 /**
- * Clears the health cache for a connection or all connections.
+ * Pin an operator-visible quota-exhaustion alert on a connection (issue #333).
+ *
+ * Records a `misconfigured` health report carrying an ACTIONABLE message
+ * (top up credits or re-point the route) so the dashboard surface that
+ * already renders per-connection health (AI Compute settings) shows the
+ * quota condition without any new notification infrastructure. Deliberately
+ * `misconfigured`, never `unreachable`: a cached `misconfigured` state is
+ * never converted into an availability failure, so this alert cannot trigger
+ * failover or change routing — it is display-only. A forced re-probe
+ * (`forceRefresh`) or TTL expiry naturally clears it.
  */
+const QUOTA_ALERT_TTL_MS = 30 * 60 * 1000;
+
+export function recordConnectionQuotaExhaustion(connectionId: string, detail: string): ConnectionHealthReport {
+  const report: ConnectionHealthReport = {
+    connectionId,
+    status: 'misconfigured',
+    latencyMs: 0,
+    models: [],
+    lastChecked: new Date().toISOString(),
+    errorMessage: detail,
+  };
+  HEALTH_CACHE.set(connectionId, { report, expiresAt: Date.now() + QUOTA_ALERT_TTL_MS });
+  return report;
+}
+
+ /**
+  * Clears the health cache for a connection or all connections.
+  */
 export function clearHealthCache(connectionId?: string): void {
   if (connectionId) {
     HEALTH_CACHE.delete(connectionId);

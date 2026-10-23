@@ -15,7 +15,6 @@ interface SeedPreviewData {
   title: string | null;
   description: string | null;
   brand?: string | null;
-  price?: string | null;
   images: string[];
   variantOptions: string[];
   strategy: 'shopify-json' | 'css';
@@ -34,7 +33,6 @@ interface ProfileExtractionPreviewProps {
     title?: string | null;
     description?: string | null;
     brand?: string | null;
-    price?: string | null;
     images?: string[];
     customFields?: Record<string, string>;
     variantOptions?: string[];
@@ -229,8 +227,6 @@ export function ProfileExtractionPreview(
     seedPreview?.description ?? onDemandResult?.description ?? null;
   const resolvedBrand =
     seedPreview?.brand ?? onDemandResult?.brand ?? null;
-  const resolvedPrice =
-    seedPreview?.price ?? onDemandResult?.price ?? null;
   const resolvedImages =
     seedPreview && seedPreview.images.length > 0
       ? seedPreview.images
@@ -238,12 +234,14 @@ export function ProfileExtractionPreview(
 
   // Resolve custom fields: from props first, then onDemandResult
   const resolvedCustomFields: Record<string, string> = {};
-  if (props.customFields && Object.keys(props.customFields).length > 0) {
-    Object.assign(resolvedCustomFields, props.customFields);
+  if (props.customFields) {
+    for (const [key, value] of Object.entries(props.customFields)) {
+      if (!/price|cost|sale/i.test(key)) resolvedCustomFields[key] = value;
+    }
   }
   if (onDemandResult?.customFields) {
     for (const [k, v] of Object.entries(onDemandResult.customFields)) {
-      if (v && !resolvedCustomFields[k]) {
+      if (v && !/price|cost|sale/i.test(k) && !resolvedCustomFields[k]) {
         resolvedCustomFields[k] = v;
       }
     }
@@ -272,21 +270,10 @@ export function ProfileExtractionPreview(
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  const strategyLabel =
-    seedPreview?.strategy === 'shopify-json' ? 'Shopify JSON' : 'CSS Selectors';
-  const strategyBadgeStyle =
-    seedPreview?.strategy === 'shopify-json'
-      ? { ...s.strategyBadge, ...s.badgeBlue }
-      : { ...s.strategyBadge, ...s.badgeGray };
-
   return (
     <div style={s.container}>
-      {/* Strategy badge */}
-      {seedPreview?.strategy && (
-        <span style={strategyBadgeStyle}>{strategyLabel}</span>
-      )}
 
-      {/* Title + Brand + Price row */}
+      {/* Product name and brand */}
       <div style={s.section}>
         {resolvedTitle ? (
           <h2 style={s.title}>{resolvedTitle}</h2>
@@ -297,11 +284,6 @@ export function ProfileExtractionPreview(
           {resolvedBrand && (
             <span style={{ fontSize: 13, color: '#6b7280' }}>
               {resolvedBrand}
-            </span>
-          )}
-          {resolvedPrice && (
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#16a34a' }}>
-              {resolvedPrice}
             </span>
           )}
         </div>
@@ -368,10 +350,10 @@ export function ProfileExtractionPreview(
       {/* Full extraction preview table (when fieldValues is provided) */}
       {props.fieldValues && Object.keys(props.fieldValues).length > 0 && (
         <div style={{ ...s.section, borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 12 }}>
-          <div style={s.sectionHeader}>Full extraction preview</div>
+          <div style={s.sectionHeader}>Product page details</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: 13, fontFamily: 'monospace' }}>
             {Object.entries(props.fieldValues)
-              .filter(([, v]) => v != null && v !== '')
+              .filter(([key, v]) => !/price|cost|sale/i.test(key) && v != null && v !== '')
               .map(([key, value]) => (
                 <React.Fragment key={key}>
                   <span style={{ fontWeight: 500, color: '#4b5563', paddingRight: 8 }}>
