@@ -37,6 +37,7 @@ export const PaidEffectBillingDimensionSchema = z.object({
   name: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
   unit: z.string().trim().min(1).max(64),
   maxUnits: SafeNonnegativeIntegerSchema,
+  cumulativeMaxUnits: SafeNonnegativeIntegerSchema.optional(),
   priceMicros: SafeNonnegativeIntegerSchema,
   priceUnits: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
 }).strict();

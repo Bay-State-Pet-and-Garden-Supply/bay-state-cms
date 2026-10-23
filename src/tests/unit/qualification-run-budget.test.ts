@@ -54,7 +54,7 @@ afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
-function contractInput(maxUnits: number, priceMicros: number, priceUnits = 1) {
+function contractInput(maxUnits: number, priceMicros: number, priceUnits = 1, cumulativeMaxUnits?: number) {
   const maximum = (BigInt(maxUnits) * BigInt(priceMicros) + BigInt(priceUnits) - 1n) / BigInt(priceUnits);
   if (maximum > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('fixture charge is not a safe integer');
   return {
@@ -62,7 +62,7 @@ function contractInput(maxUnits: number, priceMicros: number, priceUnits = 1) {
     contractId: 'fixture-billing-contract',
     provider: 'fixture-provider',
     model: 'fixture-model',
-    dimensions: [{ name: 'units', unit: 'request-unit', maxUnits, priceMicros, priceUnits }],
+    dimensions: [{ name: 'units', unit: 'request-unit', maxUnits, ...(cumulativeMaxUnits === undefined ? {} : { cumulativeMaxUnits }), priceMicros, priceUnits }],
     attemptOverheadMicros: 0,
     maxChargeMicros: Number(maximum),
     authoritativeUsageSource: 'provider_usage' as const,
@@ -73,8 +73,8 @@ function contractInput(maxUnits: number, priceMicros: number, priceUnits = 1) {
   };
 }
 
-function makeAuthorization(ceiling: number, maxUnits = 1, priceMicros = 60, priceUnits = 1): PaidEffectAuthorization {
-  const contract = verifiedContract(contractInput(maxUnits, priceMicros, priceUnits));
+function makeAuthorization(ceiling: number, maxUnits = 1, priceMicros = 60, priceUnits = 1, cumulativeMaxUnits?: number): PaidEffectAuthorization {
+  const contract = verifiedContract(contractInput(maxUnits, priceMicros, priceUnits, cumulativeMaxUnits));
   return PaidEffectAuthorizationSchema.parse({
     schemaVersion: 1,
     authorizationId: 'qualification-budget-fixture',
@@ -85,14 +85,15 @@ function makeAuthorization(ceiling: number, maxUnits = 1, priceMicros = 60, pric
   });
 }
 
-function openFixture(ceiling = 300, maxUnits = 1, priceMicros = 60, priceUnits = 1) {
+function openFixture(ceiling = 300, maxUnits = 1, priceMicros = 60, priceUnits = 1, cumulativeMaxUnits?: number) {
   const db = new Database(':memory:');
   openedDatabases.push(db);
-  const authorization = makeAuthorization(ceiling, maxUnits, priceMicros, priceUnits);
+  const authorization = makeAuthorization(ceiling, maxUnits, priceMicros, priceUnits, cumulativeMaxUnits);
   const coordinator = new PaidEffectBudgetCoordinator(db, authorization);
   const client = createPaidEffectBudgetClient((request) => coordinator.handleRequest(request), new AbortController().signal);
   return { db, authorization, coordinator, client, contract: authorization.billingContracts[0]! };
 }
+
 
 function scope(arm: 'baseline' | 'candidate' = 'baseline', outputId = `output-${arm}`): QualificationPaidEffectScope {
   return {
@@ -145,6 +146,18 @@ describe('qualification paid-effect budget lifecycle', () => {
     const snapshot = fixture.coordinator.snapshot(scope());
     expect(snapshot.totalEncumberedMicros).toBe(60);
     expect(snapshot.totalEncumberedMicros).toBeLessThanOrEqual(snapshot.authorizedCeilingMicros);
+  });
+  it('denies Serper request unit 2,500 while retaining the 2,499-unit pool usage in the ledger', async () => {
+    const fixture = openFixture(0, 1, 0, 1, 2_499);
+    for (let attempt = 1; attempt <= 2_499; attempt += 1) {
+      await fixture.client.reserve(scope(), descriptor(fixture.contract, `serper-pool-attempt-${attempt}`));
+    }
+    await expect(fixture.client.reserve(scope(), descriptor(fixture.contract, 'serper-pool-attempt-2500')))
+      .rejects.toMatchObject({ code: 'budget_exhausted' });
+    const snapshot = fixture.coordinator.snapshot(scope());
+    expect(snapshot.uniqueEffects).toBe(2_499);
+    expect(snapshot.effects).toHaveLength(2_499);
+    expect(snapshot.effects.reduce((sum, effect) => sum + (effect.descriptor.requestedUnits.units ?? 0), 0)).toBe(2_499);
   });
 
   it('pairs logical effects across arms and outputs while assigning each retry a separate physical idempotency key', async () => {

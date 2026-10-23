@@ -352,6 +352,18 @@ export function createQualificationRunBudgetRepo(db: Database) {
           return mapReservation(db, existing);
         }
         const rows = getRows(db, authorization.authorizationId);
+        for (const dimension of contract.dimensions) {
+          if (dimension.cumulativeMaxUnits === undefined) continue;
+          let consumedUnits = 0;
+          for (const row of rows) {
+            if (row.state === 'released' || row.billing_contract_hash !== descriptor.billingContractHash) continue;
+            const priorDescriptor = parseJson(row.descriptor_json, 'descriptor', (value) => PaidEffectAttemptDescriptorSchema.parse(value));
+            const priorUnits = priorDescriptor.requestedUnits[dimension.name] ?? 0;
+            consumedUnits = checkedAdd(consumedUnits, priorUnits);
+          }
+          const requestedUnits = descriptor.requestedUnits[dimension.name] ?? 0;
+          if (requestedUnits > dimension.cumulativeMaxUnits - consumedUnits) throw new Error('paid_effect_budget_exhausted');
+        }
         const totals = checkedSum(rows);
         if (totals.total > authorization.approvedCeilingMicros || maximumChargeMicros > authorization.approvedCeilingMicros - totals.total) {
           throw new Error('paid_effect_budget_exhausted');
