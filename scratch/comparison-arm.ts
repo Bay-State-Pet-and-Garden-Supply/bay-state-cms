@@ -22,6 +22,16 @@ export interface PopulationRow { upc: string; register_name: string; price: numb
 export interface PreparedArm { arm: ArmBootstrapOptions['arm']; imported: number; batchId: string; itemIds: string[]; workspacePath: string }
 export interface ArmPreflightResult { arm: ArmBootstrapOptions['arm']; prepared?: PreparedArm; imported: number; denial?: string }
 
+/** Policy rejection: frozen authorization/cap/contract refuses paid release.
+ * Operational failures (ledger open, coordinator construct) are NOT this class
+ * and propagate as structured failures instead of policy denials. */
+export class PolicyDeniedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PolicyDeniedError';
+  }
+}
+
 function redacted(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).replace(/(?:sk-[A-Za-z0-9_-]{16,}|Bearer\s+\S+|[A-Za-z0-9_]*(?:TOKEN|SECRET|KEY)=[^\s,;]+|[A-Za-z0-9_-]{32,})/gi, '[REDACTED]').slice(0, 1000);
 }
@@ -138,17 +148,17 @@ export function buildRunPaidEffect(
   budget: { runId: string; capUsd: number; authorizationUsdMicros: number; billingReferences: Array<{ provider: string; contractId: string }> },
   coordinator?: PaidEffectBudgetCoordinator,
 ): RunPaidEffect {
-  if (!options.budgetDbPath) throw new Error('Qualification release requires a shared budget ledger path.');
+  if (!options.budgetDbPath) throw new PolicyDeniedError('Qualification release requires a shared budget ledger path.');
   const cap = Math.min(Math.round(budget.capUsd * 1_000_000), budget.authorizationUsdMicros);
   if (!Number.isFinite(cap) || cap <= 0 || cap > 3_000_000) {
-    throw new Error('Qualification paid release requires a positive approved cap within the $3 CLI/freeze ceiling.');
+    throw new PolicyDeniedError('Qualification paid release requires a positive approved cap within the $3 CLI/freeze ceiling.');
   }
   // Freeze r8-smoke1 pins the legacy 'serper-subscription' id; the pilot contract it
   // authorizes is serperPilotContract ('serper-pilot-2499-credits'). Accept both ids
   // here; a future freeze cut records the pilot id explicitly.
   const serperContract = budget.billingReferences.find(ref => ref.provider === 'serper_search' &&
     (ref.contractId === 'serper-pilot-2499-credits' || ref.contractId === 'serper-subscription'));
-  if (!serperContract) throw new Error('Frozen qualification authorization does not include a Serper billing contract; paid release denied.');
+  if (!serperContract) throw new PolicyDeniedError('Frozen qualification authorization does not include a Serper billing contract; paid release denied.');
   const ledgerDb = coordinator ? undefined : new Database(options.budgetDbPath);
   const authorization = pilotBudgetAuthorization({ runId: budget.runId, arms: ['baseline', 'candidate'] });
   const boundedAuthorization = { ...authorization, approvedCeilingMicros: Math.min(authorization.approvedCeilingMicros, cap) };

@@ -79,4 +79,12 @@ describe('isolated comparison arm bootstrap', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('lets operational builder failures propagate instead of mislabeling them as policy', async () => {
+    const { PolicyDeniedError } = await import('../../../scratch/comparison-arm');
+    expect(new PolicyDeniedError('x')).toBeInstanceOf(Error);
+    expect(new PolicyDeniedError('x').name).toBe('PolicyDeniedError');
+    // Operational errors (ledger open, coordinator construct) are not policy:
+    expect(new Error('paid_effect_journal_unavailable') instanceof PolicyDeniedError).toBe(false);
+  });
 });

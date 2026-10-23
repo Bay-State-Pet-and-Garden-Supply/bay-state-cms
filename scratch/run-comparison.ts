@@ -19,7 +19,7 @@ import {
   writeJson,
   type Row,
 } from './onboarding-outcome';
-import { buildRunPaidEffect, preflightComparisonArm, releaseComparisonArm, type ArmBootstrapOptions, type ArmPreflightResult, type ArmResult, type PopulationRow } from './comparison-arm';
+import { buildRunPaidEffect, preflightComparisonArm, releaseComparisonArm, PolicyDeniedError, type ArmBootstrapOptions, type ArmPreflightResult, type ArmResult, type PopulationRow } from './comparison-arm';
 import { captureComparisonArm, unavailableComparisonCapture, writeComparisonCapture, type ComparisonCaptureBundle } from './comparison-capture';
 import { projectComparisonRows, type ComparisonInput } from './comparison-report';
 import type { PaidEffectBudgetSnapshot } from '../src/db/repositories/qualification-run-budget-repo';
@@ -167,11 +167,14 @@ async function main(): Promise<void> {
           sharedBudgetCoordinator = paidEffect.coordinator;
           return await releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap, paidEffect });
         } catch (error) {
-          // Frozen-contract/cap rejection is a structured per-arm denial, not a
-          // top-level crash: the prepared population stays held, raw output,
-          // capture, and report rows still generate below.
-          const denial = error instanceof Error ? error.message : String(error);
-          return { arm, stop: 'denied' as const, imported: prepared.imported, polls: 0, state: null, denial } as ArmResult;
+          if (error instanceof PolicyDeniedError) {
+            // Frozen authorization/cap/contract rejection is a structured per-arm
+            // denial: the prepared population stays held, raw output, capture,
+            // and report rows still generate below.
+            const denial = error.message;
+            return { arm, stop: 'denied' as const, imported: prepared.imported, polls: 0, state: null, denial } as ArmResult;
+          }
+          throw error;
         }
       },
       options.cap > 0 && options.mode === 'comparison',
