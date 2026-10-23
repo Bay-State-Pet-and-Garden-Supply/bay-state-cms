@@ -381,3 +381,59 @@ describe('Page Verifier — verifyCandidate end-to-end', () => {
     expect(result!.decisionReason).toContain('needs_review');
   });
 });
+
+describe('Page Verifier — observedIdentity', () => {
+  const candidate: import('../../db/repositories/onboarding-source-repo').InsertSourceData = {
+    url: 'https://brand.example.com/products/dog-food',
+    title: 'Acme Dog Food',
+    confidence: 0.9,
+    domain: 'brand.example.com',
+    sourceMethod: 'sitemap_upc',
+  };
+  const listingCandidate: import('../../db/repositories/onboarding-source-repo').InsertSourceData = {
+    url: 'https://brand.example.com/collections/all',
+    title: 'All products',
+    confidence: 0.9,
+    domain: 'brand.example.com',
+    sourceMethod: 'sitemap_name',
+  };
+  const context: import('../../onboarding/page-verifier').VerificationContext = {
+    upc: '017800010009',
+    expectedName: 'Acme Dog Food 15lb',
+    brandHint: 'Acme',
+    officialDomains: ['brand.example.com'],
+  };
+  it('returns observed product identity from heading, JSON-LD brand, and Shopify variants', async () => {
+    const html = `
+      <html><head><title>Different document title</title>
+      <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Product","name":"Acme Dog Food","brand":{"@type":"Brand","name":"Acme"},"gtin12":"017800010009"}
+      </script></head><body><h1>Visible H1 product name</h1>
+      <script>window.productJSON = {"title":"Acme Dog Food","variants":[{"id":1,"title":"15 lb","barcode":"017800010009"},{"id":2,"title":"30 lb","barcode":"017800010016"}]};</script></body></html>`;
+    const result = await verifyCandidate(candidate, context, (async () => new Response(html)) as unknown as typeof fetch);
+    expect(result?.observedIdentity).toMatchObject({
+      pageName: 'Visible H1 product name',
+      pageBrand: 'Acme',
+      pageKind: 'product',
+      variants: [
+        { label: '15 lb', gtin: '017800010009' },
+        { label: '30 lb', gtin: '017800010016' },
+      ],
+      observedGtins: ['017800010009'],
+      coverageComplete: true,
+    });
+  });
+
+  it('classifies a listing page in observed identity', async () => {
+    const html = '<html><head><title>All products</title></head><body><h1>All products</h1></body></html>';
+    const result = await verifyCandidate(listingCandidate, context, (async () => new Response(html)) as unknown as typeof fetch);
+    expect(result?.observedIdentity.pageKind).toBe('listing');
+  });
+
+  it('returns null brand and no variants when absent', async () => {
+    const html = '<html><head><title>Plain page</title></head><body><h1>Plain product</h1></body></html>';
+    const result = await verifyCandidate(candidate, context, (async () => new Response(html)) as unknown as typeof fetch);
+    expect(result?.observedIdentity.pageBrand).toBeNull();
+    expect(result?.observedIdentity.variants).toEqual([]);
+  });
+});

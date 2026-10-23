@@ -75,9 +75,9 @@ export interface WorkbenchTab {
 export const WORKBENCH_TABS: WorkbenchTab[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'products', label: 'Products' },
-  { id: 'fields', label: 'Catalog Fields' },
-  { id: 'types', label: 'Types & Attributes' },
-  { id: 'pages', label: 'Product Pages' },
-  { id: 'mappings', label: 'Mappings' },
-  { id: 'health', label: 'Schema Health' },
+  { id: 'fields', label: 'Product Details' },
+  { id: 'types', label: 'Product Types' },
+  { id: 'pages', label: 'Store Categories' },
+  { id: 'mappings', label: 'Product Setup' },
+  { id: 'health', label: 'Catalog Checks' },
 ];

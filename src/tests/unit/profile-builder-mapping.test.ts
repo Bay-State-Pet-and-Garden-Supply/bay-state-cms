@@ -90,7 +90,7 @@ describe('profileToDraft', () => {
     expect(draft.runtime).toBe('rendered');
     expect(draft.titleSelector).toBe('h1.product-title');
     expect(draft.titleOptionalSelectors).toEqual(['.subtitle']);
-    expect(draft.priceSelector).toBe('.price-amount');
+    expect(draft.priceSelector).toBeNull();
     expect(draft.descriptionSelector).toBe('.desc-long');
     expect(draft.brandSelector).toBe('.brand-name');
     expect(draft.imagesSelector).toBe('.gallery img');
@@ -293,7 +293,7 @@ describe('draftToTestPayload', () => {
     expect(payload.brandSelector).toBe('.brand');
     expect(payload.descriptionSelector).toBe('.desc');
     expect(payload.imagesSelector).toBe('.gallery');
-    expect(payload.priceSelector).toBe('.price');
+    expect(payload.priceSelector).toBeNull();
     expect(payload.shopifyJSONPath).toBe(true);
     expect(payload.customSelectors).toEqual({ weightSelector: '.weight' });
   });

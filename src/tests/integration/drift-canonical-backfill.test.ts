@@ -107,16 +107,16 @@ describe('Drift 3b (#256): remaining writers + safe backfill', () => {
     try { fs.unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  it('approval writes the canonical value without advancing remote/sync pointers', () => {
+  it('approves non-price catalog edits without advancing remote or sync pointers', () => {
     const decoded = ShopSiteProductCodec.decode(BASE_XML, { workspaceId });
     const product = decoded.products.find((p) => p.sku === 'BACKFILL-001')!;
-    product.core.price = '21.99';
+    product.core.name = 'Backfill Widget Updated';
     const before = findProductBySku('BACKFILL-001')!;
     const beforePulled = before.lastPulledRemoteHash;
     const beforeSynced = before.lastSyncedRemoteHash;
     const beforeSyncedAt = before.lastSyncedAt;
 
-    const cs = createChangeSet({ workspaceId, title: 'price bump', baseCommit: 'test' });
+    const cs = createChangeSet({ workspaceId, title: 'catalog edit', baseCommit: 'test' });
     upsertChangeSetItem({
       changeSetId: cs.id,
       sku: product.sku,
@@ -130,13 +130,11 @@ describe('Drift 3b (#256): remaining writers + safe backfill', () => {
 
     const after = findProductBySku('BACKFILL-001')!;
     expect(after.productHash).toBe(comparisonHashForProduct(product));
-    // Approval never advances remote-observation or successful-sync pointers.
     expect(after.lastPulledRemoteHash).toBe(beforePulled);
     expect(after.lastSyncedRemoteHash).toBe(beforeSynced);
     expect(after.lastSyncedAt).toBe(beforeSyncedAt);
     expect(after.syncStatus).toBe('not_synced');
 
-    // Restore baseline file for later tests.
     const restored = ShopSiteProductCodec.decode(BASE_XML, { workspaceId }).products.find((p) => p.sku === 'BACKFILL-001')!;
     writeProductFile(workspacePath, restored);
     commitAll('Restore after approval test');
@@ -149,8 +147,11 @@ describe('Drift 3b (#256): remaining writers + safe backfill', () => {
     });
   });
 
-  it('drift acceptance writes the canonical comparison value', () => {
-    const changed = BASE_XML.replace('19.99', '24.99');
+  it('accepts a store change only when its price still matches onboarding', () => {
+    const changed = BASE_XML.replace(
+      '<QuantityOnHand>10</QuantityOnHand>',
+      '<QuantityOnHand>42</QuantityOnHand>',
+    );
     const detected = detectDrift(workspaceId, workspacePath, changed, {
       resolvePageIdentity: () => null,
       pageImportHash: null,
@@ -159,12 +160,13 @@ describe('Drift 3b (#256): remaining writers + safe backfill', () => {
     const drift = detected.drifts.find((d) => d.sku === 'BACKFILL-001')!;
     const accepted = acceptRemoteForDrift(workspacePath, drift);
     expect(accepted.product.sku).toBe('BACKFILL-001');
+    expect(accepted.product.core.price).toBe('19.99');
+    expect(accepted.product.core.inventory.quantityOnHand).toBe(42);
     const idx = findProductBySku('BACKFILL-001')!;
     expect(idx.productHash).toBe(comparisonHashForProduct(accepted.product));
     expect(idx.productHash).toBe(drift.remoteHash);
     expect(idx.syncStatus).toBe('synced');
 
-    // Restore baseline.
     const restored = ShopSiteProductCodec.decode(BASE_XML, { workspaceId }).products.find((p) => p.sku === 'BACKFILL-001')!;
     writeProductFile(workspacePath, restored);
     commitAll('Restore after accept test');
@@ -175,6 +177,20 @@ describe('Drift 3b (#256): remaining writers + safe backfill', () => {
       lastPulledRemoteHash: comparisonHashForProduct(restored),
       lastSyncedRemoteHash: comparisonHashForProduct(restored),
     });
+    detectDrift(workspaceId, workspacePath, BASE_XML, { resolvePageIdentity: () => null, pageImportHash: null });
+  });
+
+  it('refuses store price changes and leaves the onboarding price unchanged', () => {
+    const changed = BASE_XML.replace('19.99', '24.99');
+    const detected = detectDrift(workspaceId, workspacePath, changed, {
+      resolvePageIdentity: () => null,
+      pageImportHash: null,
+    });
+    expect(detected.driftCount).toBeGreaterThan(0);
+    const drift = detected.drifts.find((d) => d.sku === 'BACKFILL-001')!;
+    expect(() => acceptRemoteForDrift(workspacePath, drift)).toThrow(/store price differs/i);
+    expect(readProductFile(workspacePath, 'BACKFILL-001')!.core.price).toBe('19.99');
+    expect(findProductBySku('BACKFILL-001')!.price).toBe('19.99');
     detectDrift(workspaceId, workspacePath, BASE_XML, { resolvePageIdentity: () => null, pageImportHash: null });
   });
 

@@ -1705,13 +1705,9 @@ export async function prepareDraftPromotion(
         (isDistributorSource && !verifiedV2Distributor ? null : extractionData.description) ||
         null;
 
-      // Construct core product details with price fallback and cleanup.
-      // Price comes ONLY from spreadsheet/manual authority for distributor
-      // sources — extraction price (null by contract, present only in a
-      // tampered payload that the deep-compare gate already rejects) can
-      // never reach a distributor draft.
-      const rawPrice = item.price || (isDistributorSource ? null : extractionData.price) || null;
-      const cleanPrice = rawPrice ? rawPrice.replace(/[$\s,]/g, '') : null;
+      // Input Price Authority (ADR 0043): carry the onboarding value exactly.
+      // Never normalize it, consult a page, or use a fallback.
+      const inputPrice = item.price ?? null;
 
       const processed = processedImagesMap.get(item.id);
       const primaryImage = processed?.primaryImage || null;
@@ -1719,7 +1715,7 @@ export async function prepareDraftPromotion(
 
       const coreProduct = {
         name: finalTitle,
-        price: cleanPrice,
+        price: inputPrice,
         salePrice: null,
         description: draftDescription,
         inventory: {

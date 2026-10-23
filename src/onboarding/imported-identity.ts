@@ -338,7 +338,7 @@ export function captureImportedIdentity(
     name: normalizedName,
     brandHint,
     departmentHint: departmentRaw.trim() || null,
-    price: priceRaw.trim() || null,
+    price: priceRaw || null,
     quantity: quantityRaw.trim() || null,
     sourceUrl: sourceUrlRaw.trim() || null,
     rowNumber,

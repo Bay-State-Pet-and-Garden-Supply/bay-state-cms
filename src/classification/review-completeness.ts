@@ -135,14 +135,13 @@ export function resolveEffectivePromotedName(ctx: ReviewCompletenessContext): st
 }
 
 /**
- * Price through the promoter chain (draft-promoter.ts ~777–778):
- * item price first; extraction price for official sources only — distributor
- * drafts never receive extraction-sourced price (Amendment B M5b-2).
+ * Input Price Authority (ADR 0043): the promoted price is the unmodified
+ * onboarding item price. Only an empty/whitespace value is missing; return
+ * the original string unchanged.
  */
 export function resolveEffectivePromotedPrice(ctx: ReviewCompletenessContext): string | null {
-  const isDistributor = ctx.sourceType === 'distributor_record';
-  const rawPrice = ctx.itemPrice || (isDistributor ? null : ctx.extractionData?.price) || null;
-  return rawPrice ? rawPrice.replace(/[$\s,]/g, '').trim() || null : null;
+  const rawPrice = ctx.itemPrice;
+  return typeof rawPrice === 'string' && rawPrice.trim().length > 0 ? rawPrice : null;
 }
 
 /**
@@ -324,14 +323,9 @@ export function evaluateReviewCompleteness(ctx: ReviewCompletenessContext): Revi
     warnings.push('name_from_fallback_source');
   }
 
-  // 2. Price (promoter mandatory check #2). EXACT promoter mirror
-  // (draft-promoter.ts ~777 + ~979): item.price is the ONLY distributor
-  // price authority (extraction price is ignored for distributor sources),
-  // and its emptiness fails promotion for EVERY source type. A missing
-  // item price therefore blocks review completion here too — never a
-  // silent pass-now/fail-at-promotion dead end. The reviewer fixes it by
-  // editing the item price (editable for both source types per the e10s02
-  // matrix adjudication; nothing upstream forces distributor price null).
+  // 2. Price (promoter mandatory check #2). Exact input-price mirror:
+  // Input Price Authority (ADR 0043) — item.price is immutable and is the
+  // only price authority. A blank input price blocks review completion.
   const effectivePrice = resolveEffectivePromotedPrice(ctx);
   if (!effectivePrice) {
     blockers.push('missing_price');

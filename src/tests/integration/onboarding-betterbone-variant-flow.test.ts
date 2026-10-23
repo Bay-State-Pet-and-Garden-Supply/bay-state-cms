@@ -103,7 +103,6 @@ describe('BetterBone variant flow — full cohort integration (8 steps, real DB)
         expectedName: it.name,
         brandHint: it.brandHint,
         brandDomains: ['betterbone.com'],
-        price: parseFloat(it.price),
         fetchFn: fetchForVariant as any,
         variantTokens,
       });
@@ -156,16 +155,16 @@ describe('BetterBone variant flow — full cohort integration (8 steps, real DB)
       expect(r.automatic_variant_key).toBeTruthy();
     }
 
-    // Step 5: Extraction produces 3 distinct payloads (SKU/GTIN/options/weight/price/primary image) via materializer
-    const baseExtraction = { title: 'The BetterBone Hard Beef', brand: 'BetterBone', description: 'Parent description', primaryImage: 'https://betterbone.com/cdn/small.jpg', additionalImages: [], price: '19.99', weight: null, dimensions: null, sourceUrl: parent, confidence: 1, fieldProvenance: {}, customFields: {} } as any;
+    // Selected variants contribute identity and imagery, never price; each item keeps its onboarding input.
     const outputs = items.map(it => {
       const row = resRows.find(r=>r.id===`res-${it.id}`)!;
       const cand = matrix.candidates.find(c=>c.variantKey===row.automatic_variant_key)!;
       const receipt = { variantKey: cand.variantKey, identityMatrixHash: row.identity_matrix_hash, parserVersion: 1 } as any;
+      const baseExtraction = { title: 'The BetterBone Hard Beef', brand: 'BetterBone', description: 'Parent description', primaryImage: 'https://betterbone.com/cdn/small.jpg', additionalImages: [], price: it.price, weight: null, dimensions: null, sourceUrl: parent, confidence: 1, fieldProvenance: {}, customFields: {} } as any;
       return materializeSelectedVariant({ base: baseExtraction, selected: cand as any, receipt });
     });
     expect(new Set(outputs.map(o=>o.title)).size).toBe(3);
-    expect(new Set(outputs.map(o=>o.price)).size).toBe(3);
+    expect(outputs.map(o=>o.price)).toEqual(items.map(it=>it.price));
     expect(new Set(outputs.map(o=>o.primaryImage)).size).toBe(3);
     const variantKeys = outputs.map(o=> (o as any).selectedVariant?.variantKey ?? (o as any).selectedVariant?.selectedVariantKey);
     expect(new Set(variantKeys).size).toBe(3);

@@ -75,7 +75,6 @@ export function ProfileRevisionFeedbackForm(
   const [notes, setNotes] = useState<string>(defaultNotes ?? '');
   const [perImage, setPerImage] = useState<Record<string, 'correct' | 'exclude' | 'include'>>({});
   const [looksLikeRecs, setLooksLikeRecs] = useState<boolean>(false);
-  const [ignorePrice, setIgnorePrice] = useState<boolean>(false);
   const [showAdvancedCss, setShowAdvancedCss] = useState<boolean>(false);
   const [manualSelectorHint, setManualSelectorHint] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -155,13 +154,6 @@ export function ProfileRevisionFeedbackForm(
           looksLikeRecommendations: looksLikeRecs || undefined,
           notes: combinedNotes,
         };
-      } else if (isPrice) {
-        feedback = {
-          kind: 'price',
-          ignoreForDomain: ignorePrice || undefined,
-          expectedValue: expectedValue || undefined,
-          notes: combinedNotes,
-        };
       } else {
         feedback = {
           kind: 'text',
@@ -177,6 +169,14 @@ export function ProfileRevisionFeedbackForm(
     }
   };
 
+  if (isPrice) {
+    return (
+      <p role="note">
+        Prices are set during onboarding. This page does not change them.
+      </p>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {isImage && (
@@ -184,8 +184,8 @@ export function ProfileRevisionFeedbackForm(
           <div>
             <p style={{ fontSize: 12, color: '#4b5563', margin: '0 0 8px' }}>
               For each image, mark it as <strong>correct</strong> (use it), <strong>exclude</strong>
-              {' '}it, or <strong>include</strong> a new one. The AI uses this to revise the
-              selector on the next pass.
+              {' '}it, or <strong>include</strong> a new one.
+              These choices help the system select the right product photos.
             </p>
             <ImagePreviewGrid
               previews={(currentImages ?? []).map((p) => ({
@@ -260,40 +260,6 @@ export function ProfileRevisionFeedbackForm(
         </div>
       )}
 
-      {isPrice && (
-        <div>
-          <p style={{ fontSize: 12, color: '#4b5563', margin: '0 0 8px' }}>
-            Manufacturer pages often omit prices. Tell the AI how to handle this domain.
-          </p>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4b5563', marginBottom: 6 }}>
-            <input
-              type="checkbox"
-              checked={ignorePrice}
-              onChange={(e) => setIgnorePrice(e.target.checked)}
-              disabled={busy}
-            />
-            <span>Ignore price for this domain (no price selector needed)</span>
-          </label>
-          <label style={{ display: 'block', fontSize: 12, color: '#4b5563', marginBottom: 4 }}>
-            Expected price (optional):
-          </label>
-          <input
-            type="text"
-            value={expectedValue}
-            onChange={(e) => setExpectedValue(e.target.value)}
-            disabled={busy}
-            placeholder="e.g. $19.99"
-            style={{
-              width: '100%',
-              padding: '6px 10px',
-              border: '1px solid #d1d5db',
-              borderRadius: 4,
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      )}
 
       {/*** Paste-element to selector section ***/}
       {sourcePageUrl && (

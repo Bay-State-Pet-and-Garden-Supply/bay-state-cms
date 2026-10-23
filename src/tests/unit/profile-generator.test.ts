@@ -93,16 +93,21 @@ describe('getMinimizedDom', () => {
     expect(out).toContain('Main content');
   });
 
-  it('preserves JSON-LD scripts (application/ld+json)', () => {
+  it('keeps price-free JSON-LD and Shopify product details for selector suggestions', () => {
     const out = getMinimizedDom(SAMPLE_PRODUCT_HTML);
     expect(out).toContain('application/ld+json');
     expect(out).toContain('@type');
-  });
-
-  it('preserves scripts containing productJSON', () => {
-    const out = getMinimizedDom(SAMPLE_PRODUCT_HTML);
     expect(out).toContain('productJSON');
     expect(out).toContain('variants');
+    expect(out).not.toContain('"price"');
+    expect(out).not.toContain('19.99');
+  });
+
+  it('removes price-labeled page content before sending it for selector suggestions', () => {
+    const out = getMinimizedDom(SAMPLE_PRODUCT_HTML);
+    expect(out).toContain('product-description');
+    expect(out).not.toContain('product-price');
+    expect(out).not.toContain('$19.99');
   });
 
   it('removes ordinary tracking scripts', () => {

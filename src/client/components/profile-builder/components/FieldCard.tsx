@@ -307,7 +307,7 @@ function FieldCardPreview({
       if (!top || !cap?.html) {
         vals[s.id] = null;
       } else {
-        vals[s.id] = evaluateValuesInstant({ html: cap.html }, top.selector) ?? evaluateValuesInstant({ html: cap.html }, selector);
+        vals[s.id] = evaluateValuesInstant({ html: cap.html }, top.selector, fieldKey) ?? evaluateValuesInstant({ html: cap.html }, selector, fieldKey);
       }
     }
     return vals;
@@ -319,8 +319,8 @@ function FieldCardPreview({
     if (!firstSample) return null;
     const cap = captures[firstSample.id];
     if (!cap?.html) return null;
-    return evaluateValuesInstant({ html: cap.html }, selector);
-  }, [selector, samples, captures]);
+    return evaluateValuesInstant({ html: cap.html }, selector, fieldKey);
+  }, [selector, samples, captures, fieldKey]);
 
   const elements: Array<{ id: string; x: number; y: number; w: number; h: number; text: string; tag?: string }> = (snapshot.elements as Array<{ id: string; x: number; y: number; w: number; h: number; text: string; tag?: string }>) ?? [];
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {

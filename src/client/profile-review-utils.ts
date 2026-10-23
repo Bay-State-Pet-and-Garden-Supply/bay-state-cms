@@ -229,6 +229,7 @@ export function buildReviewFields(input: BuildReviewFieldsInput): ReviewFieldRow
   const rows: ReviewFieldRow[] = [];
 
   for (const key of allKeys) {
+    if (/(?:price|cost|sale)/i.test(key)) continue;
     // Determine the proposed selector
     let proposedSelector: string | null = null;
     if (revisionSelectors[key] && typeof revisionSelectors[key] === 'string') {
@@ -282,11 +283,9 @@ export function buildReviewFields(input: BuildReviewFieldsInput): ReviewFieldRow
     if (!sampleValue && fieldSamples) {
       const seed = fieldSamples.seedPreview as Record<string, unknown> | undefined;
       if (seed) {
-        // Map common seed fields
         const seedMap: Record<string, string> = {
           titleSelector: 'title',
           descriptionSelector: 'description',
-          priceSelector: 'price',
           brandSelector: 'brand',
         };
         const seedKey = seedMap[key];

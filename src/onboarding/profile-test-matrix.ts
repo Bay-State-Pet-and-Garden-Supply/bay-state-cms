@@ -43,7 +43,6 @@ export interface MatrixCell {
 export interface ExtractedProductPreview {
   title?: string | null;
   brand?: string | null;
-  price?: string | null;
   description?: string | null;
   images?: string[];
   customFields?: Record<string, string>;

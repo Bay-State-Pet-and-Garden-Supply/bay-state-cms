@@ -83,7 +83,6 @@ interface PolicyHelperFns {
       title: string;
       brand: string | null;
       description: string | null;
-      price: string | null;
       primaryImage: string | null;
       additionalImages: string[];
       provenance: Record<string, string>;
@@ -249,7 +248,6 @@ function embeddedPolicyEvidence(
 /** Policy field → profile selector slot (core columns, else namespaced custom keys). */
 const POLICY_FIELD_SELECTOR_SLOT: Record<PolicyField, string> = {
   title: 'titleSelector',
-  price: 'priceSelector',
   description: 'descriptionSelector',
   brand: 'brandSelector',
   images: 'imagesSelector',
@@ -324,8 +322,6 @@ function readShopifyScalarField(
       return ctx.evidence.productVendor;
     case 'description':
       return ctx.evidence.productDescription;
-    case 'price':
-      return ctx.selected.price;
     case 'sku':
       return selectedIdentifier(ctx, 'sku');
     case 'gtin':
@@ -367,8 +363,6 @@ function readJsonLdPolicyField(field: PolicyField, ctx: PolicyReadContext): Poli
       return jsonLdBrandName(j.brand);
     case 'description':
       return typeof j.description === 'string' ? j.description : null;
-    case 'price':
-      return jsonLdOfferPrice(j.offers);
     case 'images':
       return jsonLdImageUrls(j.image, ctx.finalUrl, ctx.helpers.resolveUrl);
     default:
@@ -382,13 +376,9 @@ function jsonLdBrandName(raw: unknown): string | null {
   return typeof name === 'string' ? name : null;
 }
 
-function jsonLdOfferPrice(offers: unknown): string | null {
-  const first = Array.isArray(offers) ? offers[0] : (offers as { price?: unknown } | undefined);
-  return first?.price != null ? String(first.price) : null;
-}
 
 /** Microdata itemprops backing scalar policy fields (images handled separately). */
-const MICRODATA_FIELD_PROPS = { title: 'name', brand: 'brand', description: 'description', price: 'price' } as const;
+const MICRODATA_FIELD_PROPS = { title: 'name', brand: 'brand', description: 'description' } as const;
 
 /** Read one policy field from microdata. */
 function readMicrodataPolicyField(field: PolicyField, ctx: PolicyReadContext): PolicyFieldValue {
@@ -408,7 +398,6 @@ function microdataImages(ctx: PolicyReadContext): string[] {
 const META_FIELD_KEYS: Readonly<Record<string, string[]>> = {
   title: ['og:title', 'page:title'],
   description: ['og:description', 'description'],
-  price: ['product:price:amount'],
 };
 
 /** Read one policy field from meta tags. */
@@ -516,7 +505,6 @@ function policyMatchInputOf(request: ExtractRequest): {
   platformVariantId: string | null;
   name: string;
   brandHint: string | null;
-  price: string | null;
   variantTokens: undefined;
 } {
   const expected = request.expected as ExtractRequest['expected'] & { sku?: string | null; platformVariantId?: string | null };
@@ -527,7 +515,6 @@ function policyMatchInputOf(request: ExtractRequest): {
     platformVariantId: expectedText(expected?.platformVariantId),
     name: typeof expected?.name === 'string' ? expected.name : '',
     brandHint: expectedText(expected?.brandHint),
-    price: expectedText(expected?.price),
     variantTokens: undefined,
   };
 }
@@ -882,7 +869,6 @@ function assemblePolicyData(
       title: bound.values.get('title') as string,
       brand: (bound.values.get('brand') as string | undefined) ?? null,
       description: (bound.values.get('description') as string | undefined) ?? null,
-      price: (bound.values.get('price') as string | undefined) ?? null,
       primaryImage: cleanImages[0] ?? null,
       additionalImages: cleanImages.slice(1, 17),
       provenance: {

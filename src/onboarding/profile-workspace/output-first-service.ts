@@ -47,7 +47,6 @@ export interface OutputFirstInspectOptions {
   expected?: {
     name?: string;
     brandHint?: string | null;
-    price?: string | null;
     gtin?: string | null;
     sku?: string | null;
   };
@@ -116,7 +115,6 @@ export async function inspectProfileUrl(
     expected ? {
       name: expected.name,
       brandHint: expected.brandHint ?? undefined,
-      price: expected.price ?? undefined,
       gtin: expected.gtin ?? undefined,
     } : undefined,
     zeroNetworkFetch,
@@ -160,7 +158,7 @@ export async function inspectProfileUrl(
     conflictMap.set(c.field, c);
   }
 
-  const standardFields = ['title', 'brand', 'price', 'description', 'sku', 'gtin'] as const;
+  const standardFields = ['title', 'brand', 'description', 'sku', 'gtin'] as const;
   for (const f of standardFields) {
     const val = (hybrid.data as Record<string, unknown>)[f] as string | null | undefined;
     const source = hybrid.fieldProvenance[f] || 'none';
@@ -231,11 +229,8 @@ export async function inspectProfileUrl(
   }
 
   // B. Missing Fields (critical required fields: title, brand).
-  // NOTE: price is intentionally NOT required here. Register prices are
-  // authoritative and web-scraped prices must never block profile approval
-  // (priceSelector is deprecated / never generated — see profile-fields.ts
-  // and profile-generator.ts). Extraction may still display a page price
-  // informationally, but its absence is never an exception.
+  // Product-page prices are never extracted or used during profile review.
+  // The onboarding input remains the only source of a product price.
   const criticalFields = ['title', 'brand'] as const;
   for (const f of criticalFields) {
     if (fields[f].status === 'missing') {
@@ -358,7 +353,6 @@ export interface ValidateSiblingUrlsOptions {
     expected?: {
       name?: string;
       brandHint?: string | null;
-      price?: string | null;
       gtin?: string | null;
       sku?: string | null;
     };
@@ -389,8 +383,6 @@ export async function validateSiblingUrls(
     if (!inspection.fields.title?.value) {
       failureReasons.push('Missing title');
     }
-    // NOTE: no 'Missing price' gate — register prices are authoritative;
-    // a page without a scrapable price must still validate.
 
     const hasCriticalExceptions = inspection.exceptionQueue.some((e) => e.severity === 'critical');
     if (hasCriticalExceptions) {

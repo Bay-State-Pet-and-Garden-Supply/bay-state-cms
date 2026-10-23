@@ -605,12 +605,12 @@ describe('dirty-state + confirm diff derivations // e10s02/s03', () => {
   });
 
 describe('effectiveGateValues price parity // e10s03 review fix', () => {
-  it('falls back to extraction price for official items when item.price is empty (promoter chain)', () => {
+  it('never falls back to extraction price — item.price is the only authority (ADR 0043)', () => {
     const detail = makeDetail();
     (detail.item as any).price = null;
     detail.extraction = { title: null, primaryImage: 'https://x/i.jpg', price: '$8.25' } as any;
     const values = effectiveGateValues(detail);
-    expect(values.price).toBe('$8.25');
+    expect(values.price).toBeNull();
   });
 
   it('never falls back to extraction price for distributor rows', () => {

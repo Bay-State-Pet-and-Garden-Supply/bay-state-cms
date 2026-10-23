@@ -589,10 +589,8 @@ export function OfficialSiteResolutionWorkspace({
 
         {phase === 'variant' && variantDetail ? (
           <ChooseVariantPanel
-            resolutionId={variantDetail.id}
-            identityMatrixHash={variantDetail.identityMatrixHash}
-            candidates={variantDetail.candidates.map((c:any)=>({ variantKey:c.variantKey, title:c.title, sku:c.identifiers?.find((i:any)=>i.kind==='sku')?.value ?? null, gtin:c.identifiers?.find((i:any)=>i.kind==='gtin')?.value ?? null, price:c.price ?? null, available:c.available, image:c.images?.[0]?.url ?? null, options:c.options }))}
-            onSelect={async (key)=>{ await selectVariant(itemId, { resolutionId: variantDetail.id, identityMatrixHash: variantDetail.identityMatrixHash, variantKey: key }); setResolutionNote(`Variant selected — extraction re-queued.`); setPhase('done'); }}
+            candidates={variantDetail.candidates.map((c:any)=>({ variantKey:c.variantKey, title:c.title, available:c.available, image:c.images?.[0]?.url ?? null, options:c.options }))}
+            onSelect={async (key)=>{ await selectVariant(itemId, { resolutionId: variantDetail.id, identityMatrixHash: variantDetail.identityMatrixHash, variantKey: key }); setResolutionNote('Your choice is saved.'); setPhase('done'); }}
           />
         ) : null}
 

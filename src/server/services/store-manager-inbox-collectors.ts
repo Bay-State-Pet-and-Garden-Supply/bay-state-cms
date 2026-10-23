@@ -103,8 +103,8 @@ function collectHighSeverityCatalogIssues(workspaceId: string, ctx: InboxCollect
       kind: 'high_severity_catalog_issues',
       dedupeKey: dedupeKeyFor('high_severity_catalog_issues', 'catalog'),
       severity: 'critical',
-      title: 'High-severity catalog issues',
-      summary: `${blockers.length} blocker issue(s) across ${distinctSkus} product(s).`,
+      title: 'Product details need attention',
+      summary: `${blockers.length} product ${blockers.length === 1 ? 'detail needs' : 'details need'} attention across ${distinctSkus} ${distinctSkus === 1 ? 'product' : 'products'}.`,
       scope: { kind: 'catalog' },
       count: blockers.length,
       sourceRefs,
@@ -128,8 +128,8 @@ function collectProposalsAwaitingReview(workspaceId: string, ctx: InboxCollector
       kind: 'proposals_awaiting_review',
       dedupeKey: dedupeKeyFor('proposals_awaiting_review', 'catalog'),
       severity: 'info',
-      title: 'Proposals awaiting review',
-      summary: `${count} catalog-health proposal(s) waiting for review.`,
+      title: 'Suggested changes are ready',
+      summary: `${count} suggested ${count === 1 ? 'change is' : 'changes are'} ready for your review.`,
       scope: { kind: 'catalog' },
       count,
       sourceRefs: samples.slice(0, maxRefs).map((s) => ({ kind: 'proposal', id: s.id })),
@@ -154,8 +154,8 @@ function collectFailedSyncJobs(workspaceId: string, ctx: InboxCollectorContext):
       kind: 'failed_sync_jobs',
       dedupeKey: dedupeKeyFor('failed_sync_jobs', 'sync'),
       severity: 'critical',
-      title: 'Failed sync jobs',
-      summary: `${jobs.length} sync job(s) failed.`,
+      title: 'Store updates did not finish',
+      summary: `${jobs.length} ${jobs.length === 1 ? 'store update did' : 'store updates did'} not finish. Open Store Updates for details.`,
       scope: { kind: 'catalog' },
       count: jobs.length,
       sourceRefs: jobs.slice(0, maxRefs).map((j) => ({ kind: 'sync_job', id: j.id })),
@@ -180,8 +180,8 @@ function collectImageRepairsRecommended(workspaceId: string, ctx: InboxCollector
       kind: 'image_repairs_recommended',
       dedupeKey: dedupeKeyFor('image_repairs_recommended', sourceKey),
       severity: 'warning',
-      title: `Image repairs recommended — ${r.changeSetTitle.slice(0, 80) || 'Change Set'}`,
-      summary: `${r.itemCount} item(s) reference local image paths in Change Set ${r.changeSetId.slice(0, 8)} (status ${r.changeSetStatus}).`,
+      title: 'Product pictures need attention',
+      summary: `${r.itemCount} ${r.itemCount === 1 ? 'product has' : 'products have'} pictures saved only on this computer, so they may not appear in your store.`,
       scope: { kind: 'change_set', changeSetId: r.changeSetId },
       count: r.itemCount,
       sourceRefs: r.sampleSkus.slice(0, maxRefs).map((sku) => ({ kind: 'sku', id: sku })),
@@ -211,7 +211,6 @@ function collectCurationStalled(workspaceId: string, ctx: InboxCollectorContext)
         item.updatedAt < staleBeforeIso,
     );
     if (stale.length === 0) continue;
-    const statuses = [...new Set(stale.map((i) => i.stageStatus))].sort().join('/');
     const latestUpdated = stale.reduce((m, i) => (i.updatedAt > m ? i.updatedAt : m), stale[0].updatedAt);
     const sourceKey = `batch:${batch.id}`;
     candidates.push({
@@ -219,8 +218,8 @@ function collectCurationStalled(workspaceId: string, ctx: InboxCollectorContext)
       kind: 'curation_stalled',
       dedupeKey: dedupeKeyFor('curation_stalled', sourceKey),
       severity: 'warning',
-      title: `Curation stalled — ${batch.name.slice(0, 80)}`,
-      summary: `${stale.length} Curation item(s) stalled (${statuses}) since ${latestUpdated.slice(0, 10)}.`,
+      title: `Products are taking longer than expected — ${batch.name.slice(0, 80)}`,
+      summary: `${stale.length} ${stale.length === 1 ? 'product has' : 'products have'} not finished being prepared. Last updated ${latestUpdated.slice(0, 10)}.`,
       scope: { kind: 'onboarding_batch', batchId: batch.id },
       count: stale.length,
       sourceRefs: stale.slice(0, maxRefs).map((i) => ({ kind: 'onboarding_item', id: i.id })),
@@ -241,14 +240,13 @@ function collectScheduledRunFailures(workspaceId: string, ctx: InboxCollectorCon
   const windowMs = ctx.scheduleFailureWindowMs ?? 7 * 24 * 60 * 60 * 1000;
   const sinceIso = new Date((ctx.now?.() ?? new Date()).getTime() - windowMs).toISOString();
   const occurrences = listRecentFailedOccurrences(workspaceId, sinceIso, 50);
-  const bySchedule = new Map<string, { count: number; latestErrorCode: string; latestAt: string; occurrences: Array<{ id: string }> }>();
+  const bySchedule = new Map<string, { count: number; latestAt: string; occurrences: Array<{ id: string }> }>();
   for (const occ of occurrences) {
-    const entry = bySchedule.get(occ.scheduleId) ?? { count: 0, latestErrorCode: occ.errorCode ?? 'unknown', latestAt: occ.completedAt ?? occ.updatedAt, occurrences: [] };
+    const entry = bySchedule.get(occ.scheduleId) ?? { count: 0, latestAt: occ.completedAt ?? occ.updatedAt, occurrences: [] };
     entry.count += 1;
     entry.occurrences.push({ id: occ.id });
     if ((occ.completedAt ?? occ.updatedAt) > entry.latestAt) {
       entry.latestAt = occ.completedAt ?? occ.updatedAt;
-      entry.latestErrorCode = occ.errorCode ?? 'unknown';
     }
     bySchedule.set(occ.scheduleId, entry);
   }
@@ -262,8 +260,8 @@ function collectScheduledRunFailures(workspaceId: string, ctx: InboxCollectorCon
       kind: 'scheduled_run_failed',
       dedupeKey: dedupeKeyFor('scheduled_run_failed', `schedule:${schedule.id}`),
       severity: 'warning',
-      title: `Scheduled run failing — ${schedule.name.slice(0, 80)}`,
-      summary: `${entry.count} recent failed run(s) (${entry.latestErrorCode}). Review occurrence history before re-enabling.`,
+      title: `Automatic task needs attention — ${schedule.name.slice(0, 80)}`,
+      summary: `${entry.count} ${entry.count === 1 ? 'attempt did' : 'attempts did'} not finish. Check this task before turning it on again.`,
       scope: { kind: 'catalog' },
       count: entry.count,
       sourceRefs: [

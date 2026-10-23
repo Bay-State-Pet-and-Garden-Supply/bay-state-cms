@@ -53,20 +53,20 @@ function normalizeFieldKey(field: string): string {
   const f = field.toLowerCase().replace(/selector$/i, '').replace(/optionalselectors$/i, '').trim();
   if (f === 'images' || f === 'image' || f === 'mainimage' || f === 'photo') return 'image';
   if (f === 'title' || f === 'name' || f === 'productname') return 'title';
-  if (f === 'price' || f === 'regularprice' || f === 'saleprice') return 'price';
   if (f === 'description' || f === 'desc' || f === 'body') return 'description';
   if (f === 'brand' || f === 'vendor' || f === 'manufacturer') return 'brand';
   return f;
 }
 
 /**
- * Rank candidate recipes for a field given a capture (dom+html) and optional clicked element text.
- * Field semantics: map field to appropriate tag/hint and jsonld property (title->name, description->description, price->offers.price, etc.)
+ * Rank candidate recipes for a product-page field.
+ * Supported fields include title, description, brand, and images.
  */
 export function rankCandidates(capture: { dom: string; html: string }, rawField: string, clickedElementText?: string): RankedRecipe[] {
   const html = (capture.html ?? capture.dom ?? '') as string;
   const dom = (capture.dom ?? html) as string;
   const lower = html.toLowerCase();
+  if (/price|cost|sale/i.test(rawField)) return [];
   const field = normalizeFieldKey(rawField);
   const _clickedNorm = clickedElementText ? clickedElementText.toLowerCase().replace(/\s+/g, ' ').trim() : '';
   const candidates: RankedRecipe[] = [];
@@ -93,8 +93,6 @@ export function rankCandidates(capture: { dom: string; html: string }, rawField:
   if (isShopify) {
     if (field === 'title') {
       candidates.push({ selector: 'h1.product-title, h1.product__title, .product__title h1, h1[class*="title" i]', stability: 'medium', source: 'shopify', score: 70 });
-    } else if (field === 'price') {
-      candidates.push({ selector: '.price-item--regular, .product__price, span.money', stability: 'medium', source: 'shopify', score: 70 });
     } else if (field === 'description') {
       candidates.push({ selector: '.product__description, .product-single__description, .rte', stability: 'medium', source: 'shopify', score: 70 });
     } else if (field === 'brand') {
@@ -108,7 +106,6 @@ export function rankCandidates(capture: { dom: string; html: string }, rawField:
   const semanticHints: Record<string, { hint: string; tag: string; selector: string }> = {
     title: { hint: 'product-title', tag: 'h1', selector: 'h1.product-title' },
     description: { hint: 'description', tag: 'div', selector: '.product-description, .description' },
-    price: { hint: 'price', tag: 'span', selector: '.price, span.price' },
     brand: { hint: 'brand', tag: 'span', selector: '.product-brand, .brand' },
     image: { hint: 'product-image', tag: 'img', selector: '.product-gallery img, img.product-image' },
   };
@@ -120,7 +117,7 @@ export function rankCandidates(capture: { dom: string; html: string }, rawField:
   }
 
   // 5) Generic fallback — low score (always produced as final fallback)
-  const genericTag = field === 'price' ? 'span' : field === 'image' ? 'img' : field === 'description' ? 'div' : 'h1';
+  const genericTag = field === 'image' ? 'img' : field === 'description' ? 'div' : 'h1';
   candidates.push({ selector: genericTag, stability: 'low', source: 'generic', score: 10 });
 
   // 6) Meta tag fallback (OpenGraph) if present
@@ -245,8 +242,8 @@ export function evaluateImagesInstant(capture: { html: string; url?: string }, s
 /**
  * Instant local eval for value previews across HTML captures.
  */
-export function evaluateValuesInstant(capture: { html: string }, selector: string): string | null {
-  if (!capture || !capture.html || !selector) return null;
+export function evaluateValuesInstant(capture: { html: string }, selector: string, field?: string): string | null {
+  if (!capture || !capture.html || !selector || /price|cost|sale/i.test(field ?? selector)) return null;
   try {
     const $ = getParsedCheerio(capture.html);
 
@@ -262,10 +259,7 @@ export function evaluateValuesInstant(capture: { html: string }, selector: strin
           if (!obj) return;
           if (prop === 'Product.name' && obj.name) found = String(obj.name).trim();
           else if (prop === 'Product.description' && obj.description) found = String(obj.description).trim();
-          else if (prop === 'Product.offers.price') {
-            const p = obj.offers?.price ?? obj.offers?.[0]?.price ?? obj.price;
-            if (p) found = String(p).trim();
-          } else if (prop === 'Product.brand') {
+          else if (prop === 'Product.brand') {
             const b = obj.brand?.name ?? obj.brand;
             if (b) found = String(b).trim();
           } else if (prop === 'Product.image') {

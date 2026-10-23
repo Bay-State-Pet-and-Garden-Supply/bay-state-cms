@@ -1,5 +1,5 @@
 import type * as cheerio from 'cheerio';
-import type { ScrapedProductEvidence } from '../corpus-schema.js';
+import { isThirdPartyPriceSpecification, type ScrapedProductEvidence } from '../corpus-schema.js';
 import { computeEntityId } from '../url-policy.js';
 
 function isBurpeeProductUrl(url: string): boolean {
@@ -55,7 +55,7 @@ export function parseBurpeeProductHtml(url: string, $: cheerio.CheerioAPI): Scra
     const val = $(el).is('dt')
       ? $(el).next('dd').text().trim()
       : $(el).find('.value, td:last-child').text().trim();
-    if (key && val && key !== val) {
+    if (key && val && key !== val && !isThirdPartyPriceSpecification(key)) {
       specifications[key] = val;
     }
   });

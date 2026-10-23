@@ -3,7 +3,6 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses, type UIMessage } from 'ai';
 import {
   fetchStoreManagerModels,
-  formatModelPricing,
   fetchStoreManagerCommands,
   executeStoreManagerCommand,
   resolveStoreManagerScope,
@@ -75,14 +74,14 @@ const ALL_FLAGS_OFF: StoreManagerConsoleFlags = {
 
 /** Server-owned console views (labels/icons are presentation only — capability is server-gated). */
 const CONSOLE_VIEWS: OperationsViewDescriptor[] = [
-  { id: 'chat', label: 'Chat', icon: '💬' },
-  { id: 'inbox', label: 'Inbox', icon: '📥' },
-  { id: 'schedules', label: 'Schedules', icon: '⏰' },
-  { id: 'triggers', label: 'Triggers', icon: '⚡' },
-  { id: 'playbooks', label: 'Playbooks', icon: '📋' },
-  { id: 'bulk', label: 'Bulk Review', icon: '📦' },
-  { id: 'history', label: 'History', icon: '🕘' },
-  { id: 'preferences', label: 'Preferences', icon: '⚙' },
+  { id: 'chat', label: 'Catalog Help', icon: '💬' },
+  { id: 'inbox', label: 'Needs attention', icon: '📥' },
+  { id: 'schedules', label: 'Scheduled tasks', icon: '⏰' },
+  { id: 'triggers', label: 'Automatic rules', icon: '⚡' },
+  { id: 'playbooks', label: 'Saved routines', icon: '📋' },
+  { id: 'bulk', label: 'Review multiple products', icon: '📦' },
+  { id: 'history', label: 'Recent activity', icon: '🕘' },
+  { id: 'preferences', label: 'Settings', icon: '⚙' },
 ];
 
 const generateUuid = () =>
@@ -104,7 +103,6 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
   // is NEVER converted into an explicit selection.
   const [selectedModel, setSelectedModel] = useState<StoreManagerModelSelection | null>(null);
   const [modelOptions, setModelOptions] = useState<StoreManagerModelDescriptor[]>([]);
-  const [modelSetupMessage, setModelSetupMessage] = useState<string | null>(null);
   const [modelsLoading, setModelsLoading] = useState(true);
 
   // Operations console (Issue 2): slash commands, pinned scope, preferences.
@@ -162,12 +160,10 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
       .then(data => {
         if (cancelled) return;
         setModelOptions(data.models);
-        setModelSetupMessage(data.setupMessage ?? null);
       })
-      .catch(err => {
+      .catch(() => {
         if (cancelled) return;
         setModelOptions([]);
-        setModelSetupMessage(err instanceof Error ? err.message : 'Failed to load available models.');
       })
       .finally(() => {
         if (!cancelled) setModelsLoading(false);
@@ -238,28 +234,6 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
     currentThreadIdRef.current = currentThreadId;
   }, [currentThreadId]);
 
-  // Dropdown wire format: 'Auto (configured route)' selects route_default;
-  // descriptor options are composite `${provider}::${id}` so the server keeps
-  // the connection id (two connections may expose the same model id).
-  const MODEL_ROUTE_DEFAULT_VALUE = '__route_default__';
-  const modelDropdownValue =
-    selectedModel === null
-      ? ''
-      : typeof selectedModel === 'string'
-        ? selectedModel
-        : selectedModel.mode === 'route_default'
-          ? MODEL_ROUTE_DEFAULT_VALUE
-          : `${selectedModel.target.connectionId}::${selectedModel.target.modelId}`;
-  const handleModelSelectionChange = (value: string) => {
-    if (!value) return setSelectedModel(null);
-    if (value === MODEL_ROUTE_DEFAULT_VALUE) return setSelectedModel({ mode: 'route_default' });
-    const sep = value.indexOf('::');
-    if (sep === -1) return setSelectedModel(value); // legacy bare model id
-    setSelectedModel({
-      mode: 'explicit',
-      target: { connectionId: value.slice(0, sep), modelId: value.slice(sep + 2) },
-    });
-  };
 
   // Set up the default transport pointing to our Hono chat route
   const transport = useRef(
@@ -290,14 +264,6 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
   // accepted.
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const totalThreadCost = messages.reduce((sum: number, msg: any) => {
-    const meta = msg?.metadata;
-    if (meta && typeof meta.estimatedCostUsd === 'number') {
-      return sum + meta.estimatedCostUsd;
-    }
-    return sum;
-  }, 0);
-  const formattedCost = totalThreadCost > 0 ? `$${totalThreadCost.toFixed(4)}` : '$0.00';
 
   // #34: per-approval decision state (blocks duplicate clicks while a decision
   // is being submitted).
@@ -520,8 +486,8 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
     try {
       const resolved = await resolveStoreManagerScope(scope);
       setPinnedScope(resolved);
-    } catch (err) {
-      setScopeError(err instanceof Error ? err.message : 'Scope pin failed.');
+    } catch {
+      setScopeError("That focus couldn't be set. Check the details and try again.");
     } finally {
       setScopeBusy(false);
     }
@@ -688,7 +654,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
     const { toolName, state, output, errorText, input } = part;
     const isLoading = state === 'input-streaming' || state === 'input-available';
 
-    const renderSkuList = (skus: string[], productTitle = 'Audit Context') => {
+    const renderSkuList = (skus: string[], productTitle = 'Related products') => {
       if (!skus || skus.length === 0) return <em>None</em>;
       return (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
@@ -721,7 +687,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                   padding: '0 2px',
                   fontWeight: 'bold',
                 }}
-                title={selectedProducts.some(p => p.sku === sku) ? 'Remove Context' : 'Attach Context'}
+                title={selectedProducts.some(p => p.sku === sku) ? 'Remove product from questions' : 'Ask about this product'}
               >
                 {selectedProducts.some(p => p.sku === sku) ? '✕' : '+'}
               </button>
@@ -779,19 +745,19 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                     <div style={{ fontSize: 14, fontWeight: 700, color: colors.ledgerCharcoal }}>{output.metrics?.totalProducts}</div>
                   </div>
                   <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                    <div style={{ color: colors.seedlingGreen, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Synced Products</div>
+                    <div style={{ color: colors.seedlingGreen, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Up-to-date products</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: colors.seedlingGreen }}>
                       {output.metrics?.syncedProducts}
                     </div>
                   </div>
                   <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                    <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Drifted Products</div>
+                    <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Different from your store</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: colors.signetBurgundy }}>
                       {output.metrics?.driftedProducts}
                     </div>
                   </div>
                   <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                    <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>With Warnings</div>
+                    <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Need a closer look</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: colors.signetBurgundy }}>
                       {output.metrics?.productsWithWarnings}
                     </div>
@@ -799,7 +765,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                 </div>
                 {output.recentSyncJobs && output.recentSyncJobs.length > 0 && (
                   <div style={{ fontSize: 11, color: colors.mulchBrown, marginTop: 6, fontFamily: fonts.mono }}>
-                    <strong>Last Sync Status:</strong> {output.recentSyncJobs[0].status} ({output.recentSyncJobs[0].productCount} items)
+                    <strong>Last store update:</strong> {output.recentSyncJobs[0].status === 'succeeded' ? 'Complete' : output.recentSyncJobs[0].status === 'failed' ? 'Needs attention' : output.recentSyncJobs[0].status === 'running' ? 'In progress' : 'Check details'} ({output.recentSyncJobs[0].productCount} products)
                   </div>
                 )}
               </div>
@@ -808,17 +774,17 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             {toolName === 'getCatalogHealthReport' && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                  <div style={{ color: colors.seedlingGreen, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Healthy</div>
+                  <div style={{ color: colors.seedlingGreen, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>No issues found</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: colors.seedlingGreen }}>
                     {output.healthyProducts}/{output.totalProducts}
                   </div>
                 </div>
                 <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                  <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Blockers</div>
+                  <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Need attention</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: colors.signetBurgundy }}>{output.totalErrors}</div>
                 </div>
                 <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                  <div style={{ color: colors.mulchBrown, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Warnings</div>
+                  <div style={{ color: colors.mulchBrown, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Please review</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: colors.mulchBrown }}>{output.totalWarnings}</div>
                 </div>
               </div>
@@ -829,9 +795,9 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                 <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${colors.cardBorder}`, textAlign: 'left', color: colors.mulchBrown }}>
-                      <th style={{ padding: '6px 0' }}>Product</th>
-                      <th style={{ padding: '6px 0' }}>Severity</th>
-                      <th style={{ padding: '6px 0' }}>Code / Message</th>
+                      <th style={{ padding: '6px 0' }}>Product code</th>
+                      <th style={{ padding: '6px 0' }}>Importance</th>
+                      <th style={{ padding: '6px 0' }}>What needs attention</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -865,7 +831,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                                 fontWeight: 'bold',
                                 padding: 0,
                               }}
-                              title={selectedProducts.some(p => p.sku === issue.sku) ? 'Remove Context' : 'Attach Context'}
+                              title={selectedProducts.some(p => p.sku === issue.sku) ? 'Remove product from questions' : 'Ask about this product'}
                             >
                               {selectedProducts.some(p => p.sku === issue.sku) ? '✕' : '+'}
                             </button>
@@ -880,11 +846,11 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                               fontSize: 10,
                             }}
                           >
-                            {issue.severity}
+                            {issue.severity === 'blocker' ? 'Must fix' : 'Please review'}
                           </span>
                         </td>
                         <td style={{ padding: '6px 0', color: colors.ledgerCharcoal }}>
-                          <code style={{ fontFamily: fonts.mono, fontSize: 11 }}>{issue.code}</code>: {issue.message}
+                          {issue.message}
                         </td>
                       </tr>
                     ))}
@@ -896,7 +862,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             {toolName === 'searchProducts' && Array.isArray(output) && (
               <div>
                 <div style={{ fontWeight: 600, color: colors.mulchBrown, fontSize: 11, marginBottom: 6 }}>
-                  Found {output.length} products:
+                  {output.length} products found:
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {output.map((prod: any) => (
@@ -940,13 +906,13 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                             fontSize: '11px',
                             fontWeight: 'bold',
                           }}
-                          title={selectedProducts.some(p => p.sku === prod.sku) ? 'Remove Context' : 'Attach Context'}
+                          title={selectedProducts.some(p => p.sku === prod.sku) ? 'Remove product from questions' : 'Ask about this product'}
                         >
                           {selectedProducts.some(p => p.sku === prod.sku) ? '✕' : '+'}
                         </button>{' '}
                         - {prod.title}
                       </span>
-                      <span style={{ fontSize: 11, color: colors.mulchBrown, fontFamily: fonts.mono }}>${prod.price || '0.00'}</span>
+                      <span style={{ fontSize: 11, color: colors.mulchBrown, fontFamily: fonts.mono }}>{prod.price == null || prod.price === '' ? 'Price not available' : `Price entered: ${prod.price}`}</span>
                     </div>
                   ))}
                 </div>
@@ -957,15 +923,15 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 8 }}>
                   <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                    <div style={{ color: colors.mulchBrown, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Scanned</div>
+                    <div style={{ color: colors.mulchBrown, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Products checked</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: colors.ledgerCharcoal }}>{output.totalProductsScanned}</div>
                   </div>
                   <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                    <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Missing/Empty</div>
+                    <div style={{ color: colors.signetBurgundy, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Missing information</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: colors.signetBurgundy }}>{output.missingCount}</div>
                   </div>
                   <div style={{ background: colors.whiteSurface, padding: 8, borderRadius: rounded.xs, border: `1px solid ${colors.cardBorder}` }}>
-                    <div style={{ color: colors.uniformGreen, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Unique Values</div>
+                    <div style={{ color: colors.uniformGreen, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Different entries</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: colors.uniformGreen }}>{output.uniqueValueCount}</div>
                   </div>
                 </div>
@@ -973,7 +939,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                 {output.duplicateGroups && output.duplicateGroups.length > 0 && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ fontWeight: 700, color: colors.signetBurgundy, fontSize: 12 }}>
-                      Duplicate Groups Detected ({output.duplicateGroups.length}{output.totalDuplicateGroupCount > output.duplicateGroups.length ? ` of ${output.totalDuplicateGroupCount}` : ''})
+                      Repeated values to review ({output.duplicateGroups.length}{output.totalDuplicateGroupCount > output.duplicateGroups.length ? ` of ${output.totalDuplicateGroupCount}` : ''})
                     </div>
                     <div style={{ maxHeight: 120, overflowY: 'auto', marginTop: 4 }}>
                       {output.duplicateGroups.map((g: any, i: number) => (
@@ -1007,10 +973,10 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             {toolName === 'proposeProductFieldNormalization' && (
               <div>
                 <div style={{ fontWeight: 700, color: colors.uniformGreen, fontSize: 12, marginBottom: 4 }}>
-                  {output.proposalCount} Proposals Generated
+                  {output.proposalCount} suggestions ready for review
                 </div>
                 <div style={{ fontSize: 11, color: colors.mulchBrown, marginBottom: 8 }}>
-                  Affects {output.affectedProductCount} products. Proposed mapping:
+                  Affects {output.affectedProductCount} products. Suggested changes:
                 </div>
                 <div style={{ maxHeight: 150, overflowY: 'auto' }}>
                   {output.proposals.map((prop: any) => (
@@ -1040,14 +1006,14 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                             border: `1px solid ${prop.safeAutoApply ? colors.seedlingGreen : colors.signetBurgundy}`,
                           }}
                         >
-                          {prop.safeAutoApply ? 'Safe Auto-Apply' : 'Requires Approval'}
+                          {prop.safeAutoApply ? 'Can be applied automatically' : 'Needs your approval'}
                         </span>
                       </div>
                       <div style={{ color: colors.mulchBrown, fontSize: 11, marginTop: 4 }}>
-                        Reason: {prop.reason} | Confidence: {Math.round(prop.confidence * 100)}%
+                        Why this was suggested: {prop.reason}
                       </div>
                       <div style={{ marginTop: 4 }}>
-                        Affected SKUs: {renderSkuList(prop.affectedSkus, `Value: ${prop.newValue}`)}
+                        Products affected: {renderSkuList(prop.affectedSkus, `Value: ${prop.newValue}`)}
                       </div>
                     </div>
                   ))}
@@ -1058,7 +1024,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             {toolName === 'explainNextActions' && output.actions && (
               <div>
                 <div style={{ fontWeight: 700, color: colors.ledgerCharcoal, fontSize: 12, marginBottom: 4 }}>
-                  🚀 Recommended Actions Checklist:
+                  What you can do next:
                 </div>
                 <ul style={{ paddingLeft: 16, margin: 0, fontSize: 13, color: '#334155' }}>
                   {output.actions.map((act: string, idx: number) => (
@@ -1072,46 +1038,33 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
 
             {toolName === 'generateNormalizationProposals' && (
               <div style={{ color: '#15803d', fontWeight: 600 }}>
-                ✅ Successfully generated and stored {output.proposalCount} proposals in the database.
+                ✅ {output.proposalCount} {output.proposalCount === 1 ? 'suggestion is' : 'suggestions are'} ready to review.
               </div>
             )}
 
             {toolName === 'applyNormalizationProposal' && (
               <div style={{ color: '#15803d', fontWeight: 600 }}>
-                🎉 Successfully applied proposal! Changes staged inside Change Set: <code>{output.changeSetId}</code>
+                Suggested product changes are ready to review.
               </div>
             )}
 
             {toolName === 'dismissNormalizationProposal' && (
               <div style={{ color: '#64748b', fontWeight: 600 }}>
-                Dismissed proposal successfully.
+                Suggestion dismissed.
               </div>
             )}
 
             {!['getDashboardStats', 'getCatalogHealthReport', 'listCatalogHealthIssues', 'searchProducts', 'getProductFieldAudit', 'proposeProductFieldNormalization', 'generateNormalizationProposals', 'applyNormalizationProposal', 'dismissNormalizationProposal', 'explainNextActions'].includes(toolName) && (
-              <details style={{ fontSize: 11, color: '#334155', cursor: 'pointer' }}>
-                <summary style={{ outline: 'none', color: '#2563eb', fontWeight: 600 }}>Show Raw JSON Output</summary>
-                <pre
-                  style={{
-                    background: '#fff',
-                    padding: 8,
-                    borderRadius: 4,
-                    border: '1px solid #e2e8f0',
-                    marginTop: 4,
-                    overflowX: 'auto',
-                    maxHeight: 200,
-                  }}
-                >
-                  {JSON.stringify(output, null, 2).slice(0, 8000)}
-                </pre>
-              </details>
+              <div style={{ fontSize: 12, color: colors.mulchBrown, marginTop: 8 }}>
+                I couldn't show these details clearly. Try asking another question, or contact support for help.
+              </div>
             )}
           </div>
         )}
 
         {state === 'output-error' && errorText && (
           <div style={{ borderTop: '1px solid #fee2e2', paddingTop: 8, marginTop: 8, color: '#ef4444', fontSize: 12 }}>
-            ❌ <strong>Error:</strong> {errorText}
+            I couldn't complete that request. Please try again, or contact support if the problem continues.
           </div>
         )}
       </div>
@@ -1308,29 +1261,13 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <ViewHeader
-              title={
-                activeView === 'chat'
-                  ? 'Store Manager AI Assistant'
-                  : activeView === 'schedules'
-                    ? 'Store Manager Schedules'
-                    : activeView === 'triggers'
-                      ? 'Event Triggers'
-                      : activeView === 'playbooks'
-                        ? 'Automation Playbooks'
-                        : activeView === 'bulk'
-                          ? 'Bulk Catalog Review'
-                          : activeView === 'inbox'
-                            ? 'Manager Inbox'
-                            : activeView === 'history'
-                              ? 'Run History & Audit Log'
-                              : 'Operational Preferences'
-              }
+              title={CONSOLE_VIEWS.find((view) => view.id === activeView)?.label ?? 'Settings'}
               description={
                 activeView === 'chat'
                   ? currentThreadTitle
-                    ? `Thread: "${currentThreadTitle}"`
-                    : 'Interactive catalog auditing and refactoring advisor.'
-                  : 'Workspace-wide store operations management.'
+                    ? `Conversation: "${currentThreadTitle}"`
+                    : 'Ask a question about your products or catalog.'
+                  : 'Manage store tasks and settings.'
               }
               style={{ marginBottom: 0 }}
               badge={
@@ -1340,13 +1277,27 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                     fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: rounded.full,
-                    background: status === 'streaming' ? colors.uniformGreen : status === 'submitted' ? colors.signetBurgundy : colors.seedlingGreen,
+                    background: !modelsLoading && !selectedModel
+                      ? colors.signetBurgundy
+                      : status === 'streaming'
+                        ? colors.uniformGreen
+                        : status === 'submitted'
+                          ? colors.signetBurgundy
+                          : colors.seedlingGreen,
                     color: colors.feedBagCream,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                   }}
                 >
-                  {status === 'streaming' ? 'Streaming...' : status === 'submitted' ? 'Submitting...' : 'Ready'}
+                  {modelsLoading
+                    ? 'Preparing...'
+                    : !selectedModel
+                      ? 'Unavailable'
+                      : status === 'streaming'
+                        ? 'Preparing reply...'
+                        : status === 'submitted'
+                          ? 'Sending...'
+                          : 'Ready'}
                 </span>
               }
             />
@@ -1360,79 +1311,18 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
               error={scopeError}
               busy={scopeBusy}
             />
-
-            {/* Model selection dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: colors.ledgerCharcoal }}>AI Model:</label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={modelDropdownValue}
-                  onChange={e => handleModelSelectionChange(e.target.value)}
-                  disabled={status === 'streaming' || status === 'submitted' || modelsLoading || modelOptions.length === 0}
-                  style={{
-                    background: colors.whiteSurface,
-                    border: `1px solid ${colors.cardBorder}`,
-                    borderRadius: rounded.md,
-                    padding: '5px 24px 5px 10px',
-                    fontSize: '12px',
-                    color: colors.ledgerCharcoal,
-                    fontWeight: 600,
-                    cursor: (status === 'streaming' || status === 'submitted' || modelOptions.length === 0) ? 'not-allowed' : 'pointer',
-                    outline: 'none',
-                    appearance: 'none',
-                  }}
-                >
-                  {modelsLoading ? (
-                    <option value="">Loading…</option>
-                  ) : modelOptions.length === 0 ? (
-                    <option value="">No models</option>
-                  ) : (
-                    <>
-                      <option value={MODEL_ROUTE_DEFAULT_VALUE} title="Uses the Store Manager route configured in AI Compute.">Use configured Store Manager route</option>
-                      {modelOptions.map(opt => (
-                        <option
-                          key={`${opt.provider}::${opt.id}`}
-                          value={`${opt.provider}::${opt.id}`}
-                          title={`Override: ${opt.capabilitySummary}`}
-                        >
-                          Override: {opt.providerLabel} · {opt.id} ({formatModelPricing(opt)})
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: '8px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'none',
-                    fontSize: '8px',
-                    color: colors.mulchBrown,
-                  }}
-                >
-                  ▼
-                </div>
-              </div>
-            </div>
-
-            <a
-              href="/?view=settings&tab=ai"
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: colors.signetBurgundy,
-                textDecoration: 'none',
-              }}
+            <div
+              role="status"
+              aria-live="polite"
+              style={{ fontSize: '12px', color: colors.mulchBrown, fontWeight: 600 }}
             >
-              Manage AI Compute →
-            </a>
-
-            <div style={{ fontSize: '11px', fontWeight: 700, color: colors.uniformGreen, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span>Cost:</span>
-              <span style={{ fontFamily: fonts.mono, fontSize: '12px' }}>{formattedCost}</span>
+              {modelsLoading
+                ? 'Preparing help...'
+                : selectedModel
+                  ? 'Help is ready'
+                  : "Catalog Help isn't available yet. Please ask the person who set up the app."}
             </div>
+
 
             <NotificationCenter
               notifications={notifications}
@@ -1459,7 +1349,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
         {/* Left Sidebar - Chat History (Contextual to Chat View) */}
         {activeView === 'chat' && (
           <aside
-            aria-label="Chat threads"
+            aria-label="Conversations"
             style={{
               width: isSidebarOpen ? '260px' : '0px',
               minWidth: isSidebarOpen ? '260px' : '0px',
@@ -1484,12 +1374,12 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                   textAlign: 'center',
                 }}
               >
-                + New Chat Thread
+                + New conversation
               </button>
               <button
                 onClick={() => setIsSidebarOpen(false)}
-                title="Collapse sidebar"
-                aria-label="Collapse threads sidebar"
+                title="Hide conversations"
+                aria-label="Hide conversations"
                 style={{
                   background: colors.whiteSurface,
                   border: `1px solid ${colors.cardBorder}`,
@@ -1506,7 +1396,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: colors.mulchBrown, textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>
-                Conversations (Last 7 Days)
+                Conversations
               </div>
               
               {threads.length === 0 ? (
@@ -1658,7 +1548,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                       boxShadow: '0 1px 2px rgba(33,20,20,0.04)',
                     }}
                   >
-                    ▶ Conversations (Threads)
+                    ▶ Conversations
                   </button>
                 </div>
               )}
@@ -1670,17 +1560,17 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                 How can I help manage your store catalog?
               </h3>
               <p style={{ color: colors.mulchBrown, fontSize: '14px', margin: '0 0 24px', lineHeight: 1.6 }}>
-                Attach specific products as context or click a starter prompt below to audit fields, check health, and inspect drift.
+                Add products to focus on, or choose one of these common questions.
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                 {[
-                  { title: 'Summarize Catalog Health', prompt: 'Summarize catalog health.' },
-                  { title: 'Show Products with Blockers', prompt: 'Show products with blockers.' },
-                  { title: 'Audit ProductField16 (Brand)', prompt: 'Audit ProductField16.' },
-                  { title: 'Audit ProductField24 (Category)', prompt: 'Audit ProductField24.' },
-                  { title: 'Find Duplicate Brands (ProductField16)', prompt: 'Find duplicate Brand values in ProductField16.' },
-                  { title: 'Find Products Missing Images', prompt: 'Which products are missing images?' },
+                  { title: 'What needs attention?', prompt: 'Which of my products need attention?' },
+                  { title: 'Find products missing information', prompt: 'Which products are missing important information?' },
+                  { title: 'Check product names and brands', prompt: 'Are any product names or brand names inconsistent?' },
+                  { title: 'Find products missing pictures', prompt: 'Which products are missing pictures?' },
+                  { title: 'Summarize my product categories', prompt: 'Summarize my products by category.' },
+                  { title: 'Review suggested changes', prompt: 'Which product changes are waiting for my review?' },
                 ].map((item, idx) => (
                   <button
                     key={idx}
@@ -1820,7 +1710,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                 }}
               >
                 <div className="spinner-ring" style={{ width: 14, height: 14, borderWidth: 2, borderTopColor: colors.uniformGreen }} />
-                Assistant is thinking...
+                Preparing a reply...
               </div>
             </div>
           )}
@@ -1927,7 +1817,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                   type="text"
                   value={modalSearchQuery}
                   onChange={e => setModalSearchQuery(e.target.value)}
-                  placeholder="Type SKU or product name to filter..."
+                  placeholder="Search by product code or name..."
                   style={{
                     width: '100%',
                     background: colors.whiteSurface,
@@ -1955,7 +1845,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                 {modalLoading ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                     <div className="spinner-ring" style={{ width: 32, height: 32, borderTopColor: colors.uniformGreen, marginBottom: 12 }} />
-                    <span style={{ fontSize: '13px', color: colors.mulchBrown }}>Searching catalog...</span>
+                    <span style={{ fontSize: '13px', color: colors.mulchBrown }}>Looking for products...</span>
                   </div>
                 ) : modalProducts.length === 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: colors.mulchBrown }}>
@@ -2013,7 +1903,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               />
                             ) : (
-                              <span style={{ fontSize: '11px', color: colors.mulchBrown, fontWeight: 600 }}>NO IMAGE</span>
+                              <span style={{ fontSize: '11px', color: colors.mulchBrown, fontWeight: 600 }}>No picture</span>
                             )}
                           </div>
 
@@ -2035,7 +1925,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                               {prod.title}
                             </div>
                             <div style={{ fontSize: '10px', color: colors.mulchBrown, fontFamily: fonts.mono }}>
-                              {prod.sku}
+                              Product code: {prod.sku}
                             </div>
                           </div>
 
@@ -2056,7 +1946,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                               transition: 'all 0.15s',
                             }}
                           >
-                            {isSelected ? '✓ Attached' : '+ Attach'}
+                            {isSelected ? '✓ Added to question' : '+ Add to question'}
                           </button>
                         </div>
                       );
@@ -2101,11 +1991,11 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             }}
           >
             <span style={{ fontSize: '10px', fontWeight: 700, color: colors.mulchBrown, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Context ({selectedProducts.length}/{MAX_ATTACHED_PRODUCTS}):
+              Products for this question ({selectedProducts.length}/{MAX_ATTACHED_PRODUCTS}):
             </span>
             {attachmentLimitReached && (
               <span style={{ fontSize: '10px', fontWeight: 700, color: colors.signetBurgundy }}>
-                ⚠ Attachment limit reached ({MAX_ATTACHED_PRODUCTS} max). Remove one before attaching more.
+                You can ask about up to {MAX_ATTACHED_PRODUCTS} products at once. Remove one to add another.
               </span>
             )}
             {selectedProducts.map(p => (
@@ -2125,7 +2015,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
                   boxShadow: '0 1px 2px rgba(33,20,20,0.02)',
                 }}
               >
-                <strong>{p.sku}</strong> - {p.title.substring(0, 20)}{p.title.length > 20 ? '...' : ''}
+                <strong>Product code {p.sku}</strong> — {p.title.substring(0, 20)}{p.title.length > 20 ? '...' : ''}
                 <button
                   type="button"
                   onClick={() => removeProductContext(p.sku)}
@@ -2235,7 +2125,7 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             }}
             title="Attach product context"
           >
-            + Attach Context
+            + Add a product
           </button>
 
           <input
@@ -2244,10 +2134,10 @@ export function StoreManagerAssistant({ onSelectProduct }: StoreManagerAssistant
             onChange={e => setInput(e.target.value)}
             placeholder={
               !selectedModel
-                ? 'No usable AI model configured. Configure AI Compute in Settings.'
+                ? "Catalog Help isn't ready. Please ask the person who set up the app."
                 : selectedProducts.length > 0
-                  ? "Ask a question about the attached product(s)..."
-                  : "Ask about your catalog, product fields, health, or proposals..."
+                  ? 'Ask a question about this product...'
+                  : 'Ask a question about your products or catalog...'
             }
             disabled={status === 'submitted' || status === 'streaming' || !selectedModel}
             style={{

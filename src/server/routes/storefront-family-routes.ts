@@ -1986,7 +1986,6 @@ const CurationEvidenceSchema = z.object({
   title: z.string().nullable().optional(),
   curatedDescription: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
-  price: z.string().nullable().optional(),
   quantity: z.number().optional(),
   primaryImage: z.string().nullable().optional(),
   additionalImages: z.array(z.string()).optional(),
@@ -2149,7 +2148,7 @@ function readMemberRecord(
       if (item) {
         const hashes = currentListingEvidenceHashes(source.itemId, parsedCuration as Record<string, unknown>, { workspacePath, workspaceId: resolvedWorkspaceId });
         if (hashes.evidenceHash) liveEvidenceHash = hashes.evidenceHash;
-        resolvedItemPrice = typeof item.price === 'string' && item.price.trim().length > 0 ? item.price.trim() : null;
+        resolvedItemPrice = typeof item.price === 'string' && item.price.trim().length > 0 ? item.price : null;
         resolvedItemQuantity = typeof item.quantity === 'number' && Number.isInteger(item.quantity) && item.quantity >= 0 ? item.quantity : null;
       }
     } catch {
@@ -2276,7 +2275,6 @@ function seedBlankDraftWithStagedEvidence(draft: Product, fields: {
   brand?: string | null; recipe?: string | null; flavor?: string | null;
   species?: string | null; lifeStage?: string | null; form?: string | null;
   curatedTitle?: string | null; title?: string | null; name?: string | null;
-  price?: string | null; quantity?: number | null;
   primaryImage?: string | null; additionalImages?: string[] | null;
   description?: string | null; curatedDescription?: string | null;
   weight?: string | null; curatedWeight?: string | null;
@@ -2302,8 +2300,7 @@ function seedBlankDraftWithStagedEvidence(draft: Product, fields: {
   // reviewed-media first (the operator-reviewed bundle), then extraction
   // image candidates, then flat curation media fields.
   const title = [fields.curatedTitle, fields.title, fields.name].find((v) => typeof v === 'string' && v.trim().length > 0)?.trim() ?? null;
-  const livePrice = typeof itemRowPrice === 'string' && itemRowPrice.trim().length > 0 ? itemRowPrice.trim() : null;
-  const price = livePrice ?? (typeof fields.price === 'string' && fields.price.trim().length > 0 ? fields.price.trim() : null);
+  const price = typeof itemRowPrice === 'string' && itemRowPrice.trim().length > 0 ? itemRowPrice : null;
   const reviewedPrimary = readReviewedPrimaryImage(parsed);
   const extractionImages = readExtractionImages(parsed);
   const primary = reviewedPrimary

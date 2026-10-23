@@ -525,7 +525,6 @@ export function ReviewWorkspace({ batchId, workspaceId, onChanged }: ReviewWorks
       searchKeywords: (cur?.searchKeywords as string) ?? '',
       ...(v2
         ? {
-            price: (item?.price ?? ('price' in currentInspector.workState ? (currentInspector.workState as any).price : null) ?? ext?.price ?? '') as string,
             quantity: item?.quantity !== null && item?.quantity !== undefined ? String(item.quantity) : '',
           }
         : {}),

@@ -70,6 +70,7 @@ const STRONG_SIGNALS: VerificationResult['signals'] = {
   variantResolved: false,
   canonicalMatchesCandidate: true,
   pageTitle: 'Brand Product',
+  pageHeading: 'Brand Product',
   titleNameOverlap: 0.85,
 };
 
@@ -82,6 +83,7 @@ function strongVerification(candidate: InsertSourceData, domainOfficial = true):
     hasStrongProof: true,
     extractedGtins: [],
     decisionReason: 'UPC match + title overlap',
+    observedIdentity: { pageName: 'Brand Product', pageBrand: null, pageKind: 'product', variants: [], observedGtins: [], artifactRef: null, coverageComplete: true },
   };
 }
 
@@ -228,7 +230,7 @@ describe('brand authority gate (ADR 0017)', () => {
 
   test('mapped brand + official-domain candidate still auto-accepts', async () => {
     upsertBrandSite('BrandX', 'brand.example.com');
-    const item = insertDiscoveryItem({ upc: 'UPC-D', name: 'Official Match', brandHint: 'BrandX' });
+    const item = insertDiscoveryItem({ upc: 'UPC-D', name: 'Brand Product', brandHint: 'BrandX' });
     discoverImpl = makeDiscover([OFFICIAL_CANDIDATE]);
     verifyImpl = async (candidates: InsertSourceData[]) => candidates.map(c => strongVerification(c, true));
 
@@ -301,6 +303,7 @@ describe('brand authority gate (ADR 0017)', () => {
         hasStrongProof: false,
         extractedGtins: [],
         decisionReason: '[needs_review] proof=none | no_structured_gtin_found',
+        observedIdentity: { pageName: 'Brand Product', pageBrand: null, pageKind: 'product', variants: [], observedGtins: [], artifactRef: null, coverageComplete: true },
       },
     ];
 

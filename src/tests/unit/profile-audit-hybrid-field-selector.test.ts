@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { selectHybridFields } from '../../onboarding/profile-audit/hybrid-field-selector';
 import { scoreExtraction } from '../../onboarding/profile-audit/scorer';
 import type { AuditManifestSample } from '../../shared/schemas/profile-audit';
+import { ExtractionDataSchema } from '../../shared/schemas/onboarding';
 
 describe('profile audit gate T3: hybrid field selector and strict image filter', () => {
   const url = 'https://example.com/products/puppy-shampoo';
@@ -63,7 +64,8 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       expect(result.identityResolution.totalCandidates).toBe(2);
       expect(result.identityResolution.selectedVariantKey).toBe('var-16oz');
       expect(result.data.sku).toBe('SKU-16');
-      expect(result.data.price).toBe('14.99');
+      expect(result.data.price).toBeNull();
+      expect(result.fieldProvenance).not.toHaveProperty('price');
     });
 
     it('surfaces parent-page versus variant confusion when selector extracts generic parent title', () => {
@@ -75,7 +77,6 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
           {
             variantKey: 'var-16oz',
             title: 'Puppy Shampoo 16oz Vanilla',
-            price: '14.99',
             available: true,
             identifiers: [{ kind: 'sku', value: 'SKU-16', normalizedValue: 'sku-16' }],
             options: [],
@@ -84,7 +85,6 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
           {
             variantKey: 'var-32oz',
             title: 'Puppy Shampoo 32oz Vanilla',
-            price: '24.99',
             available: true,
             identifiers: [{ kind: 'sku', value: 'SKU-32', normalizedValue: 'sku-32' }],
             options: [],
@@ -362,8 +362,8 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       expect(result.data.title).toBe('Selector Puppy Shampoo 16oz');
     });
 
-    it('surfaces price conflict when selector and structured price disagree numerically', () => {
-      const raw: any = {
+    it('ignores third-party price values from selector and JSON-LD', () => {
+      const raw = {
         custom: { price: '$14.99' },
         jsonLd: {
           offers: { price: '19.99' },
@@ -376,12 +376,9 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
 
       const result = selectHybridFields({ raw, url, html });
 
-      expect(result.conflicts).toHaveLength(1);
-      const c = result.conflicts[0];
-      expect(c.field).toBe('price');
-      expect(c.selectorValue).toBe('$14.99');
-      expect(c.structuredValue).toBe('19.99');
-      expect(c.severity).toBe('critical');
+      expect(result.conflicts).toHaveLength(0);
+      expect(result.data.price).toBeNull();
+      expect(result.fieldProvenance).not.toHaveProperty('price');
     });
 
     it('surfaces SKU conflict when selector and structured SKU disagree', () => {
@@ -462,11 +459,9 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       const raw: any = {
         custom: {
           title: 'Earthbath Oatmeal & Aloe Shampoo',
-          price: '$18.99',
         },
         jsonLd: {
           name: 'Earthbath - Oatmeal & Aloe Shampoo', // Punctuation/spacing only
-          offers: { price: '18.99' },
           description: 'Soothing organic dog shampoo', // Only in JSON-LD
         },
         metaTags: {},
@@ -484,7 +479,7 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
       expect(result.fieldProvenance.description).toBe('json-ld');
     });
 
-    it('scorer marks FIELD_CONFLICT in failureCodes and fieldScores when conflict exists', () => {
+    it('scorer marks supported-field conflicts while ignoring page price', () => {
       const sample: AuditManifestSample = {
         sampleId: 'sample-conflict',
         url,
@@ -499,25 +494,24 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
           identity: { brand: 'Earthbath', productName: 'Puppy Shampoo' },
           fields: {
             title: { available: true, expectedValue: 'Puppy Shampoo 16oz' },
-            price: { available: true, expectedValue: '14.99' },
           },
           images: { primaryImage: null, admissibleImages: [] },
         },
       };
 
-      const outcome: any = {
+      const outcome: Parameters<typeof scoreExtraction>[0] = {
         configuration: 'hybrid_identity_first',
-        data: {
+        data: ExtractionDataSchema.parse({
           title: 'Puppy Shampoo 16oz',
           brand: 'Earthbath',
           price: '14.99',
-          fieldProvenance: { title: 'custom-selector', price: 'custom-selector' },
-        },
+          fieldProvenance: { title: 'custom-selector' },
+        }),
         conflicts: [
           {
-            field: 'price',
-            selectorValue: '14.99',
-            structuredValue: '19.99',
+            field: 'title',
+            selectorValue: 'Puppy Shampoo 16oz',
+            structuredValue: 'Puppy Shampoo 32oz',
             selectorSource: 'custom-selector',
             structuredSource: 'json-ld',
             resolution: 'selector_preferred_with_conflict',
@@ -531,9 +525,11 @@ describe('profile audit gate T3: hybrid field selector and strict image filter',
 
       const scored = scoreExtraction(outcome, sample);
       expect(scored.failureCodes).toContain('FIELD_CONFLICT');
-      expect(scored.fieldScores.price.status).toBe('conflict');
-      expect(scored.fieldScores.price.conflictDetails).toContain('Selector (custom-selector): "14.99"');
-      expect(scored.fieldScores.price.conflictDetails).toContain('Structured (json-ld): "19.99"');
+      expect(scored.fieldScores.title.status).toBe('conflict');
+      expect(scored.fieldScores.title.conflictDetails).toContain('Selector (custom-selector): "Puppy Shampoo 16oz"');
+      expect(scored.fieldScores.title.conflictDetails).toContain('Structured (json-ld): "Puppy Shampoo 32oz"');
+      expect(scored.conflicts?.some(c => c.field === 'price')).toBe(false);
+      expect(scored.fieldScores).not.toHaveProperty('price');
     });
   });
 

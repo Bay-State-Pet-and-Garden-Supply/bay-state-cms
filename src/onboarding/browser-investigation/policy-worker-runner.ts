@@ -14,7 +14,6 @@ import type { PolicyWorkerResult } from './validate';
 type RunnerExpected = {
   name: string;
   brandHint?: string | null;
-  price?: string | null;
   upc?: string;
   sku?: string;
   platformVariantId?: string;
@@ -24,7 +23,6 @@ type RunnerExpected = {
 function runnerExpectedOf(expected: RunnerExpected): {
   name: string;
   brandHint: string | null;
-  price: string | null;
   upc?: string;
   sku?: string;
   platformVariantId?: string;
@@ -32,7 +30,6 @@ function runnerExpectedOf(expected: RunnerExpected): {
   return {
     name: expected.name,
     brandHint: expected.brandHint ?? null,
-    price: expected.price ?? null,
     ...(expected.upc ? { upc: expected.upc } : {}),
     ...(expected.sku ? { sku: expected.sku } : {}),
     ...(expected.platformVariantId ? { platformVariantId: expected.platformVariantId } : {}),
@@ -60,7 +57,6 @@ function dataOf(
     title: (data.title as string | null) ?? null,
     brand: (data.brand as string | null) ?? null,
     description: (data.description as string | null) ?? null,
-    price: (data.price as string | null) ?? null,
     primaryImage: images[0] ?? null,
     additionalImages: images.slice(1),
     customFields: ((data.customFields as Record<string, string> | undefined) ?? {}) as Record<string, string>,

@@ -28,7 +28,6 @@ profileBuilderGenerateDraftRoutes.post('/profile-builder/generate-draft', async 
         fields: [
           { key: 'titleSelector', label: 'Title', origin: 'core', valueType: 'text', multiple: false },
           { key: 'descriptionSelector', label: 'Description', origin: 'core', valueType: 'text', multiple: false },
-          { key: 'priceSelector', label: 'Price', origin: 'core', valueType: 'text', multiple: false },
           { key: 'brandSelector', label: 'Brand', origin: 'core', valueType: 'text', multiple: false },
           { key: 'imagesSelector', label: 'Images', origin: 'core', valueType: 'image', multiple: true },
         ],

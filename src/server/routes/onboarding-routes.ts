@@ -612,9 +612,6 @@ route.post('/onboarding/batches', async (c) => {
     }
 
     const { valid, errors } = applyColumnMapping(rows, mapping);
-    if (valid.length === 0) {
-      return c.json({ error: 'No valid rows to import. Please check your mapping.', validationErrors: errors }, 400);
-    }
 
     // Fetch all existing brand names to match against register names
     const existingBrands = listAllBrandSites().map(b => b.brandName);
@@ -2050,7 +2047,7 @@ route.get('/onboarding/items/:id', async (c) => {
 
 /**
  * PUT /api/onboarding/items/:id
- * Update item details (allows overriding price, title, category, extraction_data_json).
+ * Update listing details. The onboarding price is immutable.
  */
 route.put('/onboarding/items/:id', async (c) => {
   const itemId = c.req.param('id');
@@ -2068,11 +2065,19 @@ route.put('/onboarding/items/:id', async (c) => {
   const ownershipError = itemWorkspaceError(c, item);
   if (ownershipError) return ownershipError;
 
-  // equal what the canonical projection dictates (the materializer re-
-  // validates this on every idempotent retry). Editing the payload or
-  // assigning a URL here would let a tampered payload be restored later or
-  // invent a source URL. Use Continue-with-Official-Site-Discovery to change
-  // the source instead.
+  if (Object.prototype.hasOwnProperty.call(body, 'price')) {
+    return c.json({ error: 'Price comes from onboarding and cannot be changed here.' }, 400);
+  }
+  const extractionPrice = body.extraction_data?.price;
+  const customFieldPrices = Object.entries(body.extraction_data?.customFields ?? {})
+    .filter(([field, value]) => /price|cost|sale/i.test(field) && value != null && value !== '');
+  if (extractionPrice != null || customFieldPrices.length > 0) {
+    return c.json({ error: 'Prices cannot be collected from product pages.' }, 400);
+  }
+
+  // This extraction row is derived from canonical distributor evidence.
+  // Accepting a caller-supplied payload or URL could replace that evidence.
+  // Continue with official-site discovery to choose a different source.
   if (item.sourceType === 'distributor_record' && (body.extraction_data !== undefined || body.source_url !== undefined)) {
     return c.json(
       {
@@ -2083,33 +2088,13 @@ route.put('/onboarding/items/:id', async (c) => {
     );
   }
 
-  // e10s02 adjudication: distributor inventory is upstream-managed — the
-  // review UI renders quantity read-only and never sends the key; reject
-  // direct attempts rather than silently writing (fail-closed parity with
-  // the extraction_data guard above). Price stays writable for BOTH source
-  // types: item.price is the promoter's ONLY distributor price authority
-  // (draft-promoter.ts ~777), so the reviewer must be able to set it when
-  // an import omitted it.
+  // Distributor inventory is upstream-managed — the review UI renders
+  // quantity read-only and never sends the key; reject direct attempts.
   if (item.sourceType === 'distributor_record' && body.quantity !== undefined) {
     return c.json(
       { error: 'Distributor record inventory is managed upstream; quantity cannot be edited here.' },
       400,
     );
-  }
-
-  // Fail closed on negative commerce values — the promoter would otherwise
-  // write them verbatim into the approved draft. Validation runs AFTER
-  // stripping currency symbols/whitespace (same cleaning as the promotion
-  // price chain) so forms like "$-5" or "- $5" cannot smuggle a negative
-  // value past a leading-character check.
-  if (typeof body.price === 'string') {
-    const cleanedPrice = body.price.replace(/[$\s,]/g, '').trim();
-    if (
-      cleanedPrice.startsWith('-') ||
-      (cleanedPrice !== '' && Number.isFinite(Number(cleanedPrice)) && Number(cleanedPrice) < 0)
-    ) {
-      return c.json({ error: 'Price cannot be negative.' }, 400);
-    }
   }
   if (
     body.quantity !== undefined &&
@@ -2140,9 +2125,7 @@ route.put('/onboarding/items/:id', async (c) => {
     if (body.name) {
       db.query('UPDATE onboarding_items SET name = ? WHERE id = ?').run(body.name, itemId);
     }
-    if (body.price !== undefined) {
-      db.query('UPDATE onboarding_items SET price = ? WHERE id = ?').run(body.price, itemId);
-    }
+    // Price is deliberately not updated here; it is immutable onboarding input.
     // e10s02 (review full-field form, plan §3 row 4): quantity is reviewer-
     // editable for official-page items. Integer-or-null; garbage clears to
     // null rather than storing a malformed value.
@@ -3851,14 +3834,14 @@ route.get('/onboarding/settings/extractor-profiles', (c) => {
 
 route.post('/onboarding/settings/extractor-profiles', async (c) => {
   try {
-    const { domain, titleSelector, titleOptionalSelectors, priceSelector, descriptionSelector, brandSelector, imagesSelector, sitemapProductUrlPattern, customSelectors, runtime, shopifyJSONPath, variantSelectionStrategy, customSelectorMetadata } = await c.req.json();
+    const { domain, titleSelector, titleOptionalSelectors, descriptionSelector, brandSelector, imagesSelector, sitemapProductUrlPattern, customSelectors, runtime, shopifyJSONPath, variantSelectionStrategy, customSelectorMetadata } = await c.req.json();
     if (!domain) {
       return c.json({ error: 'domain is required' }, 400);
     }
     const profile = upsertProfile(domain, {
       titleSelector,
       titleOptionalSelectors: Array.isArray(titleOptionalSelectors) ? titleOptionalSelectors : undefined,
-      priceSelector,
+      priceSelector: null,
       descriptionSelector,
       brandSelector,
       imagesSelector,
@@ -4497,7 +4480,7 @@ route.post('/onboarding/settings/domain-diagnostics/:domain/generate-profile', a
 
 route.post('/onboarding/extractor-profiles/test', async (c) => {
   try {
-    const { url, titleSelector, titleOptionalSelectors, priceSelector, descriptionSelector, brandSelector, imagesSelector, variantSelectionStrategy, customSelectors } = await c.req.json();
+    const { url, titleSelector, titleOptionalSelectors, descriptionSelector, brandSelector, imagesSelector, variantSelectionStrategy, customSelectors } = await c.req.json();
     if (!url) {
       return c.json({ error: 'url is required' }, 400);
     }
@@ -4509,14 +4492,13 @@ route.post('/onboarding/extractor-profiles/test', async (c) => {
       expected: {
         name: 'Test Product',
         brandHint: null,
-        price: null,
         spreadsheetHints: {},
       },
       profile: {
         runtime: 'rendered' as const,
         selectors: {
           titleSelector: titleSelector || null,
-          priceSelector: priceSelector || null,
+          priceSelector: null,
           descriptionSelector: descriptionSelector || null,
           brandSelector: brandSelector || null,
           imagesSelector: imagesSelector || null,
@@ -5073,7 +5055,9 @@ route.post('/onboarding/settings/profile-generations/:id/revisions', async (c) =
   try {
     const pageUrl = generation.sourceUrl;
     const promptFeedback = parsed.data.feedback;
-    const currentSelectors = revision.selectors;
+    const currentSelectors = Object.fromEntries(
+      Object.entries(revision.selectors).filter(([field]) => !/(?:price|cost|sale)/i.test(field)),
+    );
 
     // Fetch the source page HTML.
     const response = await fetch(pageUrl, {
@@ -5099,7 +5083,7 @@ PAGE DOM (minimized):
 ${minimized.slice(0, 150_000)}
 
 Return ONLY a valid JSON object with exactly these keys:
-{ "titleSelector": string|null, "priceSelector": string|null, "descriptionSelector": string|null, "brandSelector": string|null, "imagesSelector": string|null }`;
+{ "titleSelector": string|null, "descriptionSelector": string|null, "brandSelector": string|null, "imagesSelector": string|null }`;
 
       const llmResult = await callLlmForTask('profile_revision', userPrompt, systemPrompt, { allowFallback: false });
 
@@ -5112,8 +5096,8 @@ Return ONLY a valid JSON object with exactly these keys:
 
         const parsedSelectors = JSON.parse(cleaned);
         if (parsedSelectors && typeof parsedSelectors === 'object' && !Array.isArray(parsedSelectors)) {
-          const selectorFields = ['titleSelector', 'priceSelector', 'descriptionSelector', 'brandSelector', 'imagesSelector'];
-          const sanitized: Record<string, unknown> = {};
+          const selectorFields = ['titleSelector', 'descriptionSelector', 'brandSelector', 'imagesSelector'];
+          const sanitized: Record<string, unknown> = { priceSelector: null };
           for (const key of selectorFields) {
             const val = (parsedSelectors as Record<string, unknown>)[key];
             sanitized[key] = typeof val === 'string' && val.trim() ? val.trim() : null;

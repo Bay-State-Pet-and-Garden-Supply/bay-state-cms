@@ -71,7 +71,6 @@ function passingRunner(): PolicyWorkerRunner {
         title: exp.name,
         brand: 'BetterBone',
         description: 'Deterministic pilot contract extraction.',
-        price: '$12.99',
         primaryImage: 'https://shop.example.com/images/alpha.jpg',
         additionalImages: [],
         customFields: {

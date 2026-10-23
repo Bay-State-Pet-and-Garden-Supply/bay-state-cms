@@ -1,5 +1,6 @@
 > [!NOTE] Superseded by Onboarding Hardening Plan M6 — see `docs/plans/onboarding-hardening-plan.md`.
 > **Historical / partially implemented:** Variant extraction architecture here is superseded. Hash-stability assertions now live in characterization tests `src/tests/unit/variant-resolution-schema.test.ts`, `src/tests/unit/curation-cohort-repo.test.ts`, `src/tests/unit/onboarding-variant-resolution-repo.test.ts`, and `src/tests/integration/onboarding-betterbone-variant-flow.test.ts`. See also `src/db/repositories/curation-cohort-repo.ts:computeExtractionHash` and `src/shared/schemas/variant-resolution.ts:computeIdentityMatrixHash`.
+> [!NOTE] ADR 0043 supersedes all price-related requirements in this plan. Variant matching uses identity evidence only; never extract or apply a page price.
 
 ## Problem
 
@@ -8,7 +9,7 @@ During Discovery and Official URL selection, the domain sitemap is indexed succe
 ### Real-World Failure Pattern
 1. **Base URL Sharing**: Multiple variant items in an onboarding batch (e.g. `BetterBone Hard Beef SM`, `BetterBone Hard Beef LG`, `BetterBone Hard Beef MINI`) all match and bind to the identical base page URL.
 2. **Default Variant Extraction**: When the page extractor runs against the base URL, it extracts whatever variant the storefront displays by default on initial page load (or the first variant in the markup/JSON).
-3. **Payload Mismatch**: The resulting extraction data contains the title, hero image, dimensions, specifications, and pricing of the default variant rather than the item's actual size/flavor variant.
+3. **Payload Mismatch**: The resulting extraction data contains the title, hero image, dimensions, and specifications of the default variant rather than the item's actual size/flavor variant.
 4. **Cohort Drift**: Sibling items in the same cohort extract identical default attributes, requiring manual overrides or falling back to raw register names.
 
 ---
@@ -26,7 +27,7 @@ During Discovery and Official URL selection, the domain sitemap is indexed succe
    - While structured data (`JSON-LD`, Shopify `window.__st` / `window.ShopifyAnalytics.meta.product.variants`, or `<script id="product-json">`) often contains the full variant matrix with UPC/barcode, SKU, and variant image associations, the extraction pipeline does not parse this matrix to select the variant matching the onboarding item.
 
 3. **Profile Builder (`src/client/components/profile-builder/`)**:
-   - The visual Profile Builder records selectors for title, description, price, and media, but lacks visual variant selector modeling (e.g., identifying option buttons, variant swatches, or variant JSON schemas).
+- The visual Profile Builder records selectors for title, description, and media, but lacks visual variant selector modeling (e.g., identifying option buttons, variant swatches, or variant JSON schemas).
 
 4. **Operator Workflow / Attention Queue**:
    - When automatic variant selection is ambiguous, the operator is only offered "Verify page" or "Choose official URL", with no interactive "Select Variant" interface to pick the exact variant from the page.
@@ -37,12 +38,12 @@ During Discovery and Official URL selection, the domain sitemap is indexed succe
 
 ### 1. Structured Variant Extraction & Matching (Platform & JSON-LD Layer)
 - **Parse Embedded Variant Matrices**: Before or alongside DOM CSS evaluation, parse structured data on the page:
-  - **JSON-LD**: Extract `@type: "ProductGroup"` or `Product` schemas with `hasVariant` / `offers` arrays containing `gtin12`/`upc`, `sku`, `name`, `image`, `weight`, `offers.price`, and `additionalProperty` (Option combinations).
+  - **JSON-LD**: Extract `@type: "ProductGroup"` or `Product` schemas with `hasVariant` / `offers` arrays containing `gtin12`/`upc`, `sku`, `name`, `image`, `weight`, and `additionalProperty` (Option combinations). Page prices are excluded by ADR 0043.
   - **E-Commerce Platform Feeds**: Detect common platform patterns (Shopify `/products/<handle>.json` / `meta.product.variants`, WooCommerce `data-product_variations`, BigCommerce `bcData`, Magento swatch config).
 - **Item-to-Variant Resolution**:
   - Exact match on **UPC / Barcode** or **Manufacturer Part Number / SKU**.
   - Secondary match on **Variant Attribute Dimensions** (e.g. Size: "Small", Flavor: "Beef", Density: "Hard") against the variant option map (`options: ["Small", "Beef"]`).
-- **Targeted Payload Composition**: Reconstruct the extraction payload specifically for the matched variant (variant title, variant-specific image URL, variant weight, variant price, variant SKU).
+- **Targeted Payload Composition**: Reconstruct the extraction payload specifically for the matched variant (variant title, variant-specific image URL, variant weight, variant SKU).
 
 ### 2. Variant-Aware URL Deep-Linking in Discovery
 - During Discovery candidate search, when an official page has known variants (from sitemaps, structured data, or product JSON feeds), score and generate variant deep links (e.g., `https://brand.com/products/handle?variant=4123456789`).
@@ -56,7 +57,7 @@ During Discovery and Official URL selection, the domain sitemap is indexed succe
 ### 4. Operator "Choose Variant" Modal in Attention Queue & Review Workspace
 - When an official URL contains multiple variants and automated resolution cannot reach high confidence:
   - Surface a `choose_variant` attention action in the Needs Attention queue.
-  - Present a modal listing all detected variants on the page (Option Name, SKU, UPC/Barcode, Price, Image thumbnail).
+-  Present a modal listing all detected variants on the page (Option Name, SKU, UPC/Barcode, Image thumbnail). The onboarding price is shown unchanged and cannot be selected from the page.
   - 1-click operator selection immediately binds the chosen variant ID/data to the item and extracts without requiring manual profile re-authoring.
 
 ---

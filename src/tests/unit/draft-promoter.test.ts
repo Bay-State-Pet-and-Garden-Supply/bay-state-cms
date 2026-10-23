@@ -494,7 +494,7 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
     expect(draftProduct.core.price).toBe('24.99'); // Should be spreadsheet price, not extracted price!
   });
 
-  it('should clean price strings by removing dollar signs and commas', async () => {
+  it('carries the onboarding price unchanged into the draft', async () => {
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo C',
@@ -556,14 +556,12 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
 
     const csItems = listChangeSetItems(promoteRes.changeSetId!);
     const draftProduct = JSON.parse(csItems[0].draftJson);
-    expect(draftProduct.core.price).toBe('19999.95'); // cleaned price
+    expect(draftProduct.core.price).toBe('$19,999.95');
   });
 
-  it('falls back to the admitted official extraction price when the spreadsheet price is empty', async () => {
-    // Price fallback is live production behavior for official-path items
-    // (draft-promoter rawPrice: spreadsheet first, then extractionData.price;
-    // distributor is the only excluded source). The admitted official
-    // extraction preserves the staged price, unlike manual transcription.
+  it('fails promotion with missing_price when the spreadsheet price is empty — extraction price is never a fallback', async () => {
+    // The onboarding price is immutable and is the sole price authority.
+    // Missing input blocks promotion even if historic extraction data has a price.
     const batch = createBatch({
       workspaceId: wsId,
       name: 'Onboard Promo D',
@@ -638,20 +636,13 @@ const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id
       [`decision-${proposalId}`, proposalId, `decision-token-${proposalId}`, now],
     );
     seedCanonicalAuthority(db, item.upc, runId);
-    // Official admission preserves the staged extraction price; assert the
-    // precondition holds immediately before promotion.
-    seedOfficialEvidenceAuthority(wsId, db, item.upc, runId, 'https://dogco.com/treat');
-    const prePayload = JSON.parse((db.query('SELECT extraction_data_json FROM onboarding_items WHERE id = ?').get(item.id) as { extraction_data_json: string }).extraction_data_json) as { price?: unknown };
-    expect(prePayload.price).toBe('$12.50');
+    seedOfficialEvidenceAuthority(wsId, db, item.upc, runId, 'https://example.test/777777777777');
 
     seedApproved(item.id, batch.id);
     const promoteRes = await promoteItems(wsId, tempWorkspaceDir, batch.id, [item.id]);
-    expect(promoteRes.failures).toHaveLength(0);
-    expect(promoteRes.count).toBe(1);
-
-    const csItems = listChangeSetItems(promoteRes.changeSetId!);
-    const draftProduct = JSON.parse(csItems[0].draftJson);
-    expect(draftProduct.core.price).toBe('12.50'); // fallback to cleaned extracted price
+    expect(promoteRes.count).toBe(0);
+    expect(promoteRes.failures).toHaveLength(1);
+    expect(promoteRes.failures[0].error).toContain('Price');
   });
 
   it('should mark items as failed on missing mandatory fields and return failures list', async () => {

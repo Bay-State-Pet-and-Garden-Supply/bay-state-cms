@@ -41,6 +41,14 @@ function omitEmptyValues(rec: Record<string, string>): Record<string, string> {
   }
   return result;
 }
+/**
+ * Legacy or custom price-like selectors are never used for page extraction.
+ */
+function omitPriceLikeSelectors(selectors: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(selectors).filter(([key]) => !/(?:price|cost|sale)/i.test(key)),
+  );
+}
 
 // ─── Create empty draft ───────────────────────────────────────────────────────
 
@@ -86,8 +94,8 @@ export function profileToDraft(profile: ExtractorProfile): ProfileDraft {
     brandSelector: profile.brandSelector,
     descriptionSelector: profile.descriptionSelector,
     imagesSelector: profile.imagesSelector,
-    priceSelector: profile.priceSelector,
-    customSelectors: profile.customSelectors ?? {},
+    priceSelector: null,
+    customSelectors: omitPriceLikeSelectors(profile.customSelectors ?? {}),
     sitemapProductUrlPattern: profile.sitemapProductUrlPattern,
     shopifyJSONPath: profile.shopifyJSONPath ?? false,
     variantSelectionStrategy: profile.variantSelectionStrategy,
@@ -112,7 +120,7 @@ function draftCoreSelectorFields(draft: ProfileDraft) {
     brandSelector: emptyToNull(draft.brandSelector),
     descriptionSelector: emptyToNull(draft.descriptionSelector),
     imagesSelector: emptyToNull(draft.imagesSelector),
-    priceSelector: emptyToNull(draft.priceSelector),
+    priceSelector: null,
     sitemapProductUrlPattern: emptyToNull(draft.sitemapProductUrlPattern),
     shopifyJSONPath: draft.shopifyJSONPath,
     variantSelectionStrategy: draft.variantSelectionStrategy,
@@ -133,8 +141,8 @@ export function draftToSavePayload(draft: ProfileDraft): SaveExtractorProfilePay
     domain: draft.domain,
     runtime: draft.runtime,
     ...draftCoreSelectorFields(draft),
-    customSelectors: Object.keys(omitEmptyValues(draft.customSelectors)).length > 0
-      ? omitEmptyValues(draft.customSelectors)
+    customSelectors: Object.keys(omitEmptyValues(omitPriceLikeSelectors(draft.customSelectors))).length > 0
+      ? omitEmptyValues(omitPriceLikeSelectors(draft.customSelectors))
       : undefined,
   };
 }
@@ -166,8 +174,8 @@ export function draftToValidatePayload(
         brandSelector: draft.brandSelector,
         descriptionSelector: draft.descriptionSelector,
         imagesSelector: draft.imagesSelector,
-        priceSelector: draft.priceSelector,
-        ...draft.customSelectors,
+        priceSelector: null,
+        ...omitPriceLikeSelectors(draft.customSelectors),
       },
       titleOptionalSelectors: draft.titleOptionalSelectors,
       imageRules: {} as Record<string, unknown>,
@@ -220,8 +228,7 @@ export function draftToVersionPayload(
     domain: draft.domain,
     selectors: {
       ...draftCoreSelectorFields(draft),
-      customSelectors: omitEmptyValues(draft.customSelectors),
-      customSelectorMetadata: draft.customSelectorMetadata ?? {},
+      customSelectors: omitEmptyValues(omitPriceLikeSelectors(draft.customSelectors)),
     },
     runtime: draft.runtime,
     validationSummary: {
@@ -244,9 +251,9 @@ export function draftToTestPayload(draft: ProfileDraft): TestExtractorProfileReq
     brandSelector: draft.brandSelector,
     descriptionSelector: draft.descriptionSelector,
     imagesSelector: draft.imagesSelector,
-    priceSelector: draft.priceSelector,
+    priceSelector: null,
     shopifyJSONPath: draft.shopifyJSONPath,
-    customSelectors: draft.customSelectors,
+    customSelectors: omitPriceLikeSelectors(draft.customSelectors),
   };
 }
 
@@ -262,9 +269,9 @@ export function draftToSelectorMap(draft: ProfileDraft): Record<string, string |
     brandSelector: draft.brandSelector,
     descriptionSelector: draft.descriptionSelector,
     imagesSelector: draft.imagesSelector,
-    priceSelector: draft.priceSelector,
+    priceSelector: null,
     ...Object.fromEntries(
-      Object.entries(draft.customSelectors).map(([k, v]) => [k, v || null]),
+      Object.entries(omitPriceLikeSelectors(draft.customSelectors)).map(([k, v]) => [k, v || null]),
     ),
   };
 }

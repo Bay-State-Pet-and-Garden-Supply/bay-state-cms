@@ -1892,13 +1892,14 @@ export const ProfileGenerationFieldDecisionSchema = z.object({
 });
 export type ProfileGenerationFieldDecision = z.infer<typeof ProfileGenerationFieldDecisionSchema>;
 
-/** Structured feedback supplied by the store manager when a revision
- *  is not correct. Designed to be UI-friendly: the operator should not
- *  have to write CSS. The AI revises the revision from this
- *  feedback. */
+/** Feedback for a saved page rule that does not work. The system uses this
+ * feedback to update the rule. */
 export const StructuredFeedbackTextSchema = z.object({
   kind: z.literal('text'),
-  field: SelectorFieldOrString,
+  field: SelectorFieldOrString.refine(
+    (field) => !/price|cost|sale/i.test(field),
+    { message: 'Prices are set during onboarding and cannot be collected from product pages.' },
+  ),
   /** Whether the operator thinks the currently-extracted value is correct. */
   currentValueCorrect: z.boolean().optional(),
   /** The expected/correct value, when not correct. */
@@ -1916,19 +1917,10 @@ export const StructuredFeedbackImageSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const StructuredFeedbackPriceSchema = z.object({
-  kind: z.literal('price'),
-  /** Whether to ignore the price field for this domain. */
-  ignoreForDomain: z.boolean().optional(),
-  /** Expected price string. */
-  expectedValue: z.string().optional(),
-  notes: z.string().optional(),
-});
 
 export const StructuredFeedbackSchema = z.union([
   StructuredFeedbackTextSchema,
   StructuredFeedbackImageSchema,
-  StructuredFeedbackPriceSchema,
 ]);
 export type StructuredFeedback = z.infer<typeof StructuredFeedbackSchema>;
 

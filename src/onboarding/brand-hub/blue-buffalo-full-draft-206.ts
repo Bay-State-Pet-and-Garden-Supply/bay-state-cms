@@ -77,20 +77,10 @@ export const LLM_COST_206 =
 
 /**
  * Validated selector set v1. Structured-data selectors first
- * (`meta[property="og:title"]`, `meta[property="og:description"]`), one
- * stable CSS selector where the worker-resolvable structured layer has no
- * equivalent (`.Hero--product img` — exactly the 2 hero product shots per
- * page, no carousel noise). `brandSelector` and `priceSelector` are null
- * by design (per-field reject with rationale, see FIELD_DECISIONS_206):
- * no worker-resolvable brand surface exists (no `og:site_name`, no
- * `product:brand` meta, no JSON-LD, and the hidden microdata brand sits
- * outside any Product itemscope so the worker's microdata fallback never
- * fires), and no static price surface exists (zero `$` amounts in static
- * HTML on all 6 pages; purchase flows through the pearcommerce JS widget
- * only). The draft remains usable without them: the worker leaves brand
- * null (non-fatal; brand is supplied by brand assignment) and covers price
- * from `expected.price` with spreadsheet-import provenance whenever the
- * item carries it.
+ * (`meta[property="og:title"]`, `meta[property="og:description"]`), plus a
+ * stable gallery selector. Brand has no worker-readable source on these
+ * pages. Product-page prices are never read or stored; the onboarding price
+ * is carried to the draft unchanged.
  */
 export interface BlueBuffaloDraftSelectors206 {
   titleSelector: string;
@@ -442,8 +432,8 @@ export const FIELD_DECISIONS_206: readonly BlueBuffaloFieldRow206[] = [
     decision: 'reject',
     selector: null,
     evidence:
-      'No static price surface exists: zero dollar amounts in static HTML on all 6 pages; purchase flows through the pearcommerce JS retailer widget only. Accepted (not drafted): the worker covers price from expected.price with spreadsheet-import provenance whenever the item carries it.',
-    carriedBy: 'spreadsheet import via expected.price',
+      'Third-party pages are never used for price. The onboarding input carries through unchanged; page amounts are not collected or stored.',
+    carriedBy: 'onboarding input copied unchanged to the draft',
   },
   {
     field: 'variants',

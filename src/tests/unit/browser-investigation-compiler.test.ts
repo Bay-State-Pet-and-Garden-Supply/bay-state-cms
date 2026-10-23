@@ -140,45 +140,23 @@ describe('browser investigation policy compiler (T2)', () => {
     expect(proposal.identity.productIdentity[0]).toBe('gtin_exact');
   });
 
-  it('compiles adapter-first with one validated selector exception', () => {
+  it('ignores third-party price recommendations when compiling policy fields', () => {
     const result = shopifyResult({
-      fieldRecommendations: withFieldOverride('price', {
-        sources: ['shopify_product_json', 'selector'],
-        selector: '.price__regular',
-        structureId: 'shopify-default',
-      }),
-    });
-    const proposal = expectProposal(compileInvestigationResult(result, CTX));
-    const price = proposal.fields.find((f) => f.field === 'price');
-    expect(price?.sources).toContain('selector');
-    expect(price?.selector).toBe('.price__regular');
-    // Untouched fields carry no selector data.
-    const title = proposal.fields.find((f) => f.field === 'title');
-    expect(title?.selector).toBeUndefined();
-  });
-
-  it('compiles a supported selector-only result', () => {
-    const result = shopifyResult({
-      platform: 'generic',
-      structures: [
+      fieldRecommendations: [
+        ...POLICY_FIELDS.map((field) => shopifyField(field)),
         {
-          id: 'generic-default',
-          sampleUrls: ['https://shop.example.com/products/alpha'],
-          platformSource: 'selector',
+          field: 'price',
+          sources: ['selector'],
+          selector: '.third-party-price',
+          structureId: 'shopify-default',
         },
-      ],
-      fieldRecommendations: POLICY_FIELDS.map((field) => ({
-        field,
-        sources: ['selector'],
-        selector: `.product-${field}`,
-        structureId: 'generic-default',
-      })),
+      ] as unknown as InvestigationResult['fieldRecommendations'],
     });
     const outcome = compileInvestigationResult(result, CTX);
     expect(outcome.status).toBe('proposal');
-    expect(isAppliableOutcome(outcome)).toBe(true);
     if (outcome.status !== 'proposal') return;
-    expect(outcome.proposal.fields.every((f) => f.sources[0] === 'selector')).toBe(true);
+    expect(outcome.proposal.fields.some((field) => (field.field as string) === 'price')).toBe(false);
+    expect(JSON.stringify(outcome.proposal)).not.toContain('.third-party-price');
   });
 
   it('rejects executable-looking selectors instead of persisting them', () => {

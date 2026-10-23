@@ -225,6 +225,7 @@ function validateSample(input: SampleValidationInput): ValidationSampleResult {
 
   // ── Process each selector ───────────────────────────────────────────────
   for (const [fieldName, selector] of Object.entries(selectors)) {
+    if (/(?:price|cost|sale)/i.test(fieldName)) continue;
     if (!selector) {
       fieldResults[fieldName] = {
         status: 'fail',
@@ -286,17 +287,6 @@ function validateSample(input: SampleValidationInput): ValidationSampleResult {
         }
       }
 
-      // ── Price field: check numeric content ────────────────────────────
-      const isPrice =
-        fieldName === 'priceSelector' ||
-        fieldName === 'price';
-
-      if (isPrice) {
-        const hasNumericPrice = /\d+\.?\d*/.test(extracted);
-        if (!hasNumericPrice) {
-          warnings.push('Extracted price does not contain numeric value');
-        }
-      }
 
       // ── Default text field ──────────────────────────────────────────
       const truncatedValue =

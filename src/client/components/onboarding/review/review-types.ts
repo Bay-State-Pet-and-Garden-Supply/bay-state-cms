@@ -26,8 +26,6 @@ export interface ReviewDraft {
   curatedWeight: string;
   curatedDescription: string;
   searchKeywords: string;
-  /** V2 only — official-page items (distributor rows never send this key). */
-  price?: string;
   /** V2 only — official-page items; integer-as-string (distributor rows readonly). */
   quantity?: string;
 }

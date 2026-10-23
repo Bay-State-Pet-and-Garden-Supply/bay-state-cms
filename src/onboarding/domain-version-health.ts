@@ -199,7 +199,7 @@ function executableContent(profile: ExtractorProfile) {
   return {
     titleSelector: profile.titleSelector,
     titleOptionalSelectors: profile.titleOptionalSelectors,
-    priceSelector: profile.priceSelector,
+    priceSelector: null,
     descriptionSelector: profile.descriptionSelector,
     brandSelector: profile.brandSelector,
     imagesSelector: profile.imagesSelector,

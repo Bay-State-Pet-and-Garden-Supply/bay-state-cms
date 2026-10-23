@@ -26,9 +26,9 @@ interface ManagerInboxProps {
 }
 
 const SEVERITY_STYLE: Record<StoreManagerSeverity, { color: string; background: string; label: string }> = {
-  critical: { color: '#8b1e2d', background: '#fdeaea', label: 'Critical' },
-  warning: { color: '#8a6116', background: '#fdf3dd', label: 'Warning' },
-  info: { color: '#2f5d3a', background: '#e9f4ec', label: 'Info' },
+  critical: { color: '#8b1e2d', background: '#fdeaea', label: 'Urgent' },
+  warning: { color: '#8a6116', background: '#fdf3dd', label: 'Please review' },
+  info: { color: '#2f5d3a', background: '#e9f4ec', label: 'Note' },
 };
 
 /**
@@ -119,7 +119,7 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
     <div
       role={isInline ? 'region' : 'dialog'}
       aria-modal={isInline ? undefined : true}
-      aria-label="Manager Inbox"
+      aria-label="Needs attention"
       onClick={(e) => e.stopPropagation()}
       style={{
         width: '100%',
@@ -137,28 +137,27 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, fontFamily: fonts.display, color: colors.ledgerCharcoal }}>
-            Manager Inbox {unread > 0 ? <span style={{ color: colors.signetBurgundy }}>({unread} new)</span> : null}
+            Needs attention {unread > 0 ? <span style={{ color: colors.signetBurgundy }}>({unread} new)</span> : null}
           </div>
           <div style={{ fontSize: 11, color: colors.mulchBrown, marginTop: 2 }}>
-            {summary.total} findings · {summary.critical} critical · {summary.warning} warning · {summary.info} info ·{' '}
-            {summary.open} open
-            {eventStatus === 'live' ? ' · live' : eventStatus === 'reconnecting' ? ' · reconnecting' : ''}
+            {summary.total} {summary.total === 1 ? 'item' : 'items'} · {summary.critical} urgent · {summary.warning} to review · {summary.info} notes · {summary.open} {summary.open === 1 ? 'item still needs' : 'items still need'} attention
+            {eventStatus === 'live' ? ' · Updates are current' : eventStatus === 'reconnecting' ? ' · Refreshing updates' : ''}
           </div>
         </div>
         {isInline ? null : (
-          <button type="button" onClick={onClose} aria-label="Close Manager Inbox" className="btn btn-outline" style={{ fontSize: 12, padding: '4px 12px' }}>
+          <button type="button" onClick={onClose} aria-label="Close needs attention" className="btn btn-outline" style={{ fontSize: 12, padding: '4px 12px' }}>
             ✕ Close
           </button>
         )}
       </div>
 
-      {error ? <div style={{ fontSize: 12, color: colors.signetBurgundy, marginBottom: 8 }}>{error}</div> : null}
+      {error ? <div style={{ fontSize: 12, color: colors.signetBurgundy, marginBottom: 8 }}>We couldn't load the latest updates. Please try again.</div> : null}
       {loading && sorted.length === 0 ? (
-        <div style={{ fontSize: 12, color: colors.mulchBrown, padding: 12 }}>Reconciling inbox…</div>
+        <div style={{ fontSize: 12, color: colors.mulchBrown, padding: 12 }}>Checking for updates…</div>
       ) : null}
 
       {!loading && sorted.length === 0 ? (
-        <div style={{ fontSize: 12, color: colors.mulchBrown, padding: 12 }}>No open findings. Deterministic collectors found nothing to triage.</div>
+        <div style={{ fontSize: 12, color: colors.mulchBrown, padding: 12 }}>Nothing needs your attention right now.</div>
       ) : null}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -170,7 +169,7 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
           return (
             <article
               key={item.id}
-              aria-label={`${sev.label} catalog finding: ${item.title}`}
+              aria-label={`${sev.label} item needing attention: ${item.title}`}
               onClick={() => void openItem(item)}
               style={{
                 border: `1px solid ${colors.cardBorder}`,
@@ -193,26 +192,19 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
                 <span style={{ fontSize: 11, color: colors.mulchBrown }}>{formatInboxAge(item.lastSeenAt)}</span>
               </div>
               <div style={{ fontSize: 12, color: colors.mulchBrown, marginBottom: 6 }}>
-                {item.summary} · <span style={{ color: colors.ledgerCharcoal, fontWeight: 600 }}>{item.count}</span>
-                {item.scope.kind !== 'catalog' && item.scope.kind !== 'sku_set'
-                  ? ` · scope ${item.scope.kind}`
-                  : ''}
-                {' · '}
+                {item.summary} ·{' '}
                 <span style={{ fontWeight: 600, color: stale ? colors.signetBurgundy : colors.uniformGreen }}>
-                  {stale ? 'stale' : lifecycleLabel(item.lifecycle)}
+                  {stale ? 'May be out of date' : lifecycleLabel(item.lifecycle)}
                 </span>
               </div>
               {detail ? (
                 <div style={{ fontSize: 11, color: detail.isCurrent ? colors.uniformGreen : colors.signetBurgundy, marginBottom: 6 }}>
                   {detail.isCurrent
-                    ? `Current source confirmed (${detail.currentCount ?? item.count}).`
-                    : 'This finding is out of date — re-open from the source before acting.'}
+                    ? 'Checked just now. This still needs attention.'
+                    : 'This may have changed. Open the original item again before deciding.'}
                 </div>
               ) : null}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                {prefill ? (
-                  <code style={{ fontSize: 11, color: colors.mulchBrown, background: colors.feedBagCream, padding: '2px 6px', borderRadius: 4 }}>{prefill}</code>
-                ) : null}
                 <div style={{ flex: 1 }} />
                 {prefill && onAskManager ? (
                   <button
@@ -224,7 +216,7 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
                     }}
                     style={{ fontSize: 11, padding: '3px 10px', background: colors.seedlingGreen }}
                   >
-                    Ask Manager ➔
+                    Ask for help ➔
                   </button>
                 ) : null}
                 {item.lifecycle === 'open' ? (
@@ -235,7 +227,7 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
                     onClick={(e) => { e.stopPropagation(); void act(item, 'acknowledge'); }}
                     style={{ fontSize: 11, padding: '3px 10px' }}
                   >
-                    Acknowledge
+                    Mark as seen
                   </button>
                 ) : null}
                 {item.lifecycle === 'open' || item.lifecycle === 'acknowledged' ? (
@@ -246,7 +238,7 @@ export function ManagerInbox({ open, onClose, notifications = [], eventStatus = 
                     onClick={(e) => { e.stopPropagation(); void act(item, 'resolve'); }}
                     style={{ fontSize: 11, padding: '3px 10px' }}
                   >
-                    Resolve
+                    Mark handled
                   </button>
                 ) : null}
               </div>

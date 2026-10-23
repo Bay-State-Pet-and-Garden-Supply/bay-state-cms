@@ -326,7 +326,6 @@ sitemapRoutes.post('/onboarding/sitemaps/:domain/test-lookup', async (c) => {
     name?: string;
     sku?: string;
     brandHint?: string;
-    price?: number;
   };
 
   const candidates = await findLocalBrandCandidates(domain, {
@@ -334,7 +333,6 @@ sitemapRoutes.post('/onboarding/sitemaps/:domain/test-lookup', async (c) => {
     name: body.name,
     sku: body.sku,
     brandHint: body.brandHint,
-    price: body.price,
   });
 
   const response: SitemapTestLookupResponse = {

@@ -169,8 +169,7 @@ describe('Manager Inbox collectors + service (Issue 3)', () => {
     const curation = candidates.filter((c) => c.kind === 'curation_stalled');
     expect(curation).toHaveLength(1); // one batch lens
     expect(curation[0].count).toBe(2); // only the two STALE items; UPC-3 excluded
-    expect(curation[0].summary).toContain('failed');
-    expect(curation[0].summary).toContain('in_progress');
+    expect(curation[0].summary).not.toMatch(/failed|in_progress|Curation/i);
   });
 
   it('never invents an Onboarding Batch lifecycle status (items are the authority)', () => {

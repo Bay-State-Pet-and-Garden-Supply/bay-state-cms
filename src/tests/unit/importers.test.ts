@@ -68,6 +68,8 @@ describe('Open Data Importers ($0 Cost Barcode Lookup)', () => {
                   Features: [
                     { Feature: { Name: { Value: 'Life Stage' } }, Value: 'Adult' },
                     { Feature: { Name: { Value: 'Flavour' } }, Value: 'Chicken' },
+                    { Feature: { Name: { Value: 'Price' } }, Value: '$19.99' },
+                    { Feature: { Name: { Value: 'MAP' } }, Value: '$17.99' },
                   ],
                 },
               ],

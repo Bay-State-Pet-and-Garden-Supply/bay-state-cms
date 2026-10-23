@@ -120,8 +120,8 @@ export function evaluateNotificationRules(
         if (current >= threshold && prevCount < threshold) {
           const item = findActiveInboxItemByDedupeKey(workspaceId, 'proposals_awaiting_review:catalog:v1');
           emitted.push(
-            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `crossed:${current}`), 'warning', 'Proposal backlog',
-              `Proposal backlog exceeded: ${current} proposal(s) awaiting review (threshold ${threshold}).`, item?.id ?? null),
+            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `crossed:${current}`), 'warning', 'Suggested changes need review',
+              `${current} suggested changes are waiting for your review.`, item?.id ?? null),
           );
         }
         break;
@@ -133,8 +133,8 @@ export function evaluateNotificationRules(
         if (current > prevCount) {
           const item = findActiveInboxItemByDedupeKey(workspaceId, 'high_severity_catalog_issues:catalog:v1');
           emitted.push(
-            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `count:${current}`), 'critical', 'Critical catalog issues increased',
-              `Critical catalog issues increased from ${prevCount} to ${current}.`, item?.id ?? null),
+            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `count:${current}`), 'critical', 'More product details need attention',
+              `The number of product details needing attention increased from ${prevCount} to ${current}.`, item?.id ?? null),
           );
         }
         break;
@@ -148,8 +148,8 @@ export function evaluateNotificationRules(
         const item = findActiveInboxItemByDedupeKey(workspaceId, 'failed_sync_jobs:sync:v1');
         for (const jobId of fresh) {
           emitted.push(
-            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `job:${jobId}`), 'critical', 'Sync failure',
-              `Sync job ${jobId.slice(0, 8)} failed. Check sync history for details.`, item?.id ?? null),
+            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `job:${jobId}`), 'critical', 'A store update did not finish',
+              'A store update did not finish. Open Store Updates to see what to do next.', item?.id ?? null),
           );
         }
         break;
@@ -160,8 +160,8 @@ export function evaluateNotificationRules(
         next.count = current;
         if (current > prevCount) {
           emitted.push(
-            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `count:${current}`), 'warning', 'Image integrity dropped',
-              `Image repairs recommended increased from ${prevCount} to ${current} across change sets.`, null),
+            ...emit(rule.kind, rule, transitionFingerprint(rule.id, `count:${current}`), 'warning', 'Product pictures need attention',
+              'More product pictures need attention. Open Catalog Review to see which products are affected.', null),
           );
         }
         break;

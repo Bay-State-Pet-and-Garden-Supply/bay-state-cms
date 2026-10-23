@@ -52,6 +52,21 @@ describe('corpus schema', () => {
       expect(parsed.parserVersion).toBe('2.0');
       expect(parsed.pageKind).toBe('unknown');
     });
+    it('discards price supplied by third-party evidence', () => {
+      const parsed = ScrapedProductEvidenceSchema.parse({
+        ...VALID_RECORD,
+        price: '$29.99',
+        specifications: {
+          Price: '$29.99',
+          'Sale Price': '$19.99',
+          Weight: '5 lb',
+        },
+      });
+
+      expect(parsed).not.toHaveProperty('price');
+      expect(parsed.specifications).toEqual({ Weight: '5 lb' });
+    });
+
 
     it('defaults provenance fields for legacy records', () => {
       const legacy = { ...VALID_RECORD };

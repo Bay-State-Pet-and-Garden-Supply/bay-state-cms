@@ -45,10 +45,8 @@
 //   the generation-seeding hint (thebetterbone.com precedent), never as a
 //   production extraction path — production profile extraction is
 //   selector-only plus additive ladder fallbacks.
-// - Price has no selector surface by design (accepted gap, see
-//   FIELD_DECISIONS_207): the worker covers price additively from JSON-LD
-//   offers or meta where present and from `expected.price` with
-//   spreadsheet-import provenance whenever the item carries it.
+// Price has no selector surface. Product-page prices are never collected;
+// the unchanged onboarding input is the draft price.
 //
 // This module moves no items, writes no profiles, performs no network I/O,
 // and touches no DB rows (dependency-free pure data + pure helpers, like
@@ -385,7 +383,7 @@ export const SHOPIFY_207_SAMPLES: readonly ShopifyValidationSample207[] = [
     contentHash: 'cec716aff5a596ba5af2c0710d47d49eab5af6ea585c52c1aa954996accdfb54',
     jsEvidence: { title: 'Chewy Salmon & Sweet Potato Bites 3-Pack (4oz)', vendor: 'SnifSnax', variants: 1, barcodes: ['850003301648'], images: 2 },
     rationale:
-      'Full pass: single-variant page, 1+1 images via .product-media img (platform reports 2). Price covered additively from JSON-LD (provenance json-ld; no priceSelector by design). Counts as SnifSnax confirmation 1 of 3.',
+      'Full pass: single-variant page, 1+1 images via .product-media img (platform reports 2). No page prices are collected; the store price is entered when the product is added. Counts as SnifSnax confirmation 1 of 3.',
   },
   {
     url: 'https://snifsnax.com/products/salmon-skins',
@@ -782,7 +780,7 @@ export const FIELD_GAPS_207: readonly ShopifyFieldGap207[] = [
     field: 'price',
     status: 'accepted_gap',
     evidence:
-      'No priceSelector by design on any profile. The worker covers price additively where a surface exists (ladder JSON-LD offers on Nutrisource/Open Farm, json-ld on SnifSnax, product meta on Jolly/Horsemen\'s Pride) and from expected.price with spreadsheet-import provenance whenever the item carries it. A draft could not do better — Shopify price surfaces are per-theme JS-rendered variants, not static selectors.',
+      'The system never collects or uses prices from product pages. The exact onboarding price remains the only price and is carried to the draft unchanged.',
     draftNeeded: false,
   },
   {

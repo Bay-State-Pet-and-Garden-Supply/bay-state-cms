@@ -134,7 +134,7 @@ describe('Drift 4b (#257): new-product, unavailable-assignment, reconcile lifecy
     try { fs.unlinkSync(testDbPath); } catch { /* ok */ }
   });
 
-  it('distinguishes new remote products and imports via an explicit confirmed workflow', () => {
+  it('requires new products to enter through onboarding', () => {
     clearState();
     const newSku = `NEW-257-${Date.now()}`;
     const newXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -144,65 +144,44 @@ describe('Drift 4b (#257): new-product, unavailable-assignment, reconcile lifecy
     const res = detect(newXml);
     const drift = (res.drifts[0] ?? listDrift(workspaceId, 'open').find((d) => d.sku === newSku))!;
     expect(drift).toBeTruthy();
-    const parsed = parseDriftDiff(drift);
-    expect(parsed.hasLocalProduct).toBe(false);
+    expect(parseDriftDiff(drift).hasLocalProduct).toBe(false);
 
     const hunks = expandDriftToHunks(drift);
     expect(hunks.length).toBeGreaterThan(0);
     expect(hunks.every((h) => h.productKind === 'new')).toBe(true);
     expect(hunks.every((h) => h.heldReason === 'new_product')).toBe(true);
-
-    // Per-hunk accept stays held with a pointer to the import workflow.
     expect(() =>
       resolveSingleHunk(workspaceId, workspacePath, {
         driftId: drift.id,
         field: hunks[0].field,
         decision: 'accept',
       }),
-    ).toThrow(/import-new/);
+    ).toThrow(/onboarding/);
 
-    // Confirmation is required: no silent import.
-    expect(() =>
-      importNewRemoteProduct(workspaceId, workspacePath, { driftId: drift.id }),
-    ).toThrow(/confirmed/);
-
-    const imported = importNewRemoteProduct(workspaceId, workspacePath, {
+    expect(() => importNewRemoteProduct(workspaceId, workspacePath, { driftId: drift.id }))
+      .toThrow(/onboarding/);
+    expect(() => importNewRemoteProduct(workspaceId, workspacePath, {
       driftId: drift.id,
       confirmed: true,
       expectedRemoteHash: drift.remoteHash,
       actor: workspaceId,
-    });
-    expect(imported.sku).toBe(newSku);
-    expect(imported.productKind).toBe('new');
-    expect(typeof imported.commitHash).toBe('string');
+    })).toThrow(/onboarding/);
+    expect(() => createReconcileChangeSet(workspaceId, workspacePath, { driftId: drift.id, actor: workspaceId }))
+      .toThrow(/onboarding/);
+    expect(fs.existsSync(path.join(workspacePath, skuToProductFilePath(newSku)))).toBe(false);
+    expect(findDriftById(drift.id)!.status).toBe('open');
 
-    // File + terminal state.
-    expect(fs.existsSync(path.join(workspacePath, skuToProductFilePath(newSku)))).toBe(true);
-    expect(findDriftById(drift.id)!.status).toBe('accepted_remote');
-
-    // Audit carries decision, actor, time, and catalog reference.
-    const db = getDb();
-    const audits = db.query(
-      `SELECT * FROM audit_log WHERE workspace_id = ? AND entity_id = ? AND action = 'drift_new_product_imported' ORDER BY created_at DESC LIMIT 1`,
-    ).all(workspaceId, drift.id) as Array<Record<string, unknown>>;
-    expect(audits.length).toBe(1);
-    const details = JSON.parse(String(audits[0].details_json)) as Record<string, unknown>;
-    expect(details['decision']).toBe('accepted');
-    expect(details['actor']).toBe(workspaceId);
-    expect(typeof details['at']).toBe('string');
-    expect(typeof details['catalogRef']).toBe('string');
-
-    // Changed products are still the hunk path, not the import path.
     detect(BASE_XML.replace('19.99', '24.99'));
     const changed = listDrift(workspaceId, 'open').find((d) => d.sku === 'WIDGET-257')!;
-    const changedHunks = expandDriftToHunks(changed);
-    expect(changedHunks[0].productKind).toBe('changed');
-    expect(changedHunks[0].heldReason).toBeNull();
-    expect(() =>
-      importNewRemoteProduct(workspaceId, workspacePath, { driftId: changed.id, confirmed: true }),
-    ).toThrow(/already exists locally/);
-
-    // Cleanup: reject the changed hunk + ack cleanup, keep the imported file.
+    expect(() => importNewRemoteProduct(workspaceId, workspacePath, {
+      driftId: changed.id,
+      confirmed: true,
+    })).toThrow(/onboarding/);
+    expect(() => resolveSingleHunk(workspaceId, workspacePath, {
+      driftId: changed.id,
+      field: 'core.price',
+      decision: 'accept',
+    })).toThrow(/Unsupported drift field/);
     resolveSingleHunk(workspaceId, workspacePath, {
       driftId: changed.id,
       field: 'core.price',
@@ -353,7 +332,7 @@ describe('Drift 4b (#257): new-product, unavailable-assignment, reconcile lifecy
     detect(BASE_XML);
   });
 
-  it('reconciles selected fields without blocking unrelated outstanding fields', () => {
+  it('reconciles supported fields without making price selectable', () => {
     clearState();
     const twoField = BASE_XML.replace('19.99', '24.99').replace(
       '<QuantityOnHand>10</QuantityOnHand>',
@@ -362,60 +341,107 @@ describe('Drift 4b (#257): new-product, unavailable-assignment, reconcile lifecy
     detect(twoField);
     const drift = listDrift(workspaceId, 'open').find((d) => d.sku === 'WIDGET-257')!;
     expect(parseDriftDiff(drift).hunks.length).toBe(2);
-
-    const created = createReconcileChangeSet(workspaceId, workspacePath, {
+    expect(() => createReconcileChangeSet(workspaceId, workspacePath, {
       driftId: drift.id,
       fields: ['core.price'],
       actor: workspaceId,
+    })).toThrow(/Unsupported drift field/);
+    expect(findDriftById(drift.id)!.status).toBe('open');
+
+    const created = createReconcileChangeSet(workspaceId, workspacePath, {
+      driftId: drift.id,
+      fields: ['core.quantityOnHand'],
+      actor: workspaceId,
     });
-    expect(created.fields).toEqual(['core.price']);
+    expect(created.fields).toEqual(['core.quantityOnHand']);
     expect(created.productKind).toBe('changed');
     const linked = findDriftById(drift.id)!;
     expect(linked.status).toBe('in_reconcile');
-
-    // The reconciled set covers price only.
     const reconciled = getReconciledFieldsForDrift(linked);
-    expect(reconciled?.has('core.price')).toBe(true);
-    expect(reconciled?.has('core.quantityOnHand')).toBe(false);
+    expect(reconciled?.has('core.quantityOnHand')).toBe(true);
+    expect(reconciled?.has('core.price')).toBe(false);
 
-    // Price holds; quantity stays resolvable on the same product.
     const hunks = expandDriftToHunks(linked);
     const priceHunk = hunks.find((h) => h.field === 'core.price')!;
     const qtyHunk = hunks.find((h) => h.field === 'core.quantityOnHand')!;
-    expect(priceHunk.heldReason).toBe('in_reconcile');
-    expect(qtyHunk.heldReason).toBeNull();
+    expect(priceHunk.heldReason).toBeNull();
+    expect(qtyHunk.heldReason).toBe('in_reconcile');
 
-    const qtyRes = resolveSingleHunk(workspaceId, workspacePath, {
-      driftId: linked.id,
-      field: 'core.quantityOnHand',
+    reopenReconcileDrift(workspaceId, drift.id, workspaceId);
+    expect(findDriftById(drift.id)!.status).toBe('open');
+    expect(() => resolveSingleHunk(workspaceId, workspacePath, {
+      driftId: drift.id,
+      field: 'core.price',
       decision: 'accept',
+    })).toThrow(/Unsupported drift field/);
+    resolveSingleHunk(workspaceId, workspacePath, {
+      driftId: drift.id,
+      field: 'core.price',
+      decision: 'reject',
     });
-    expect(qtyRes.decision).toBe('accepted');
-    const afterQty = readProductFile(workspacePath, 'WIDGET-257')!;
-    expect(afterQty.core.inventory.quantityOnHand).toBe(42);
-    // Price was not dragged along.
-    expect(afterQty.core.price).toBe('19.99');
+    resolveSingleHunk(workspaceId, workspacePath, {
+      driftId: drift.id,
+      field: 'core.quantityOnHand',
+      decision: 'reject',
+    });
+    expect(readProductFile(workspacePath, 'WIDGET-257')!.core.price).toBe('19.99');
+    expect(readProductFile(workspacePath, 'WIDGET-257')!.core.inventory.quantityOnHand).toBe(10);
+    detect(BASE_XML);
+  });
 
-    // Price is still outstanding and linked.
-    const still = findDriftById(drift.id)!;
-    expect(still.status).toBe('in_reconcile');
-    expect(parseDriftDiff(still).hunks.map((h) => h.field)).toEqual(['core.price']);
+  it('keeps reconcile links across rechecks and settles supported fields on approval', () => {
+    clearState();
+    const firstRemote = BASE_XML.replace(
+      '<QuantityOnHand>10</QuantityOnHand>',
+      '<QuantityOnHand>42</QuantityOnHand>',
+    );
+    detect(firstRemote);
+    const drift = listDrift(workspaceId, 'open').find((d) => d.sku === 'WIDGET-257')!;
+    const created = createReconcileChangeSet(workspaceId, workspacePath, { driftId: drift.id, actor: workspaceId });
+    const csId = created.changeSetId;
+    expect(findChangeSetById(csId)?.status).toBe('draft');
 
-    // Explicit reopen restores resolvability with content preserved.
-    const reopened = reopenReconcileDrift(workspaceId, drift.id, workspaceId);
-    expect(reopened.sku).toBe('WIDGET-257');
-    const open = findDriftById(drift.id)!;
-    expect(open.status).toBe('open');
-    expect(open.reconcileChangeSetId).toBeNull();
-    expect(parseDriftDiff(open).hunks.map((h) => h.field)).toEqual(['core.price']);
+    const noop = detect(firstRemote);
+    expect(noop.driftCount).toBe(0);
+    const same = findDriftById(drift.id)!;
+    expect(same.status).toBe('in_reconcile');
+    expect(same.reconcileChangeSetId).toBe(csId);
 
-    // Restore baseline for later tests.
-    const restored = readProductFile(workspacePath, 'WIDGET-257')!;
-    restored.core.inventory.quantityOnHand = 10;
-    writeProductFile(workspacePath, restored);
-    commitAll('Restore quantity after selective reconcile test');
+    const newerRemote = firstRemote.replace(
+      '<QuantityOnHand>42</QuantityOnHand>',
+      '<QuantityOnHand>55</QuantityOnHand>',
+    );
+    const newer = detect(newerRemote);
+    expect(newer.driftCount).toBe(1);
+    expect(newer.drifts[0].id).toBe(drift.id);
+    const moved = findDriftById(drift.id)!;
+    expect(moved.status).toBe('in_reconcile');
+    expect(moved.reconcileChangeSetId).toBe(csId);
+    expect(moved.remoteHash).not.toBe(same.remoteHash);
+
+    const approved = approveChangeSet(csId, workspacePath);
+    expect(approved.success).toBe(true);
+    const settled = findDriftById(drift.id)!;
+    expect(settled.status).toBe('open');
+    expect(settled.reconcileChangeSetId).toBeNull();
+    expect(parseDriftDiff(settled).hunks.map((h) => h.field)).toEqual(['core.quantityOnHand']);
+
+    const db = getDb();
+    const approvalAudits = db.query(
+      `SELECT * FROM audit_log WHERE workspace_id = ? AND entity_id = ? AND action = 'drift_reconcile_approved' ORDER BY created_at DESC LIMIT 1`,
+    ).all(workspaceId, drift.id) as Array<Record<string, unknown>>;
+    expect(approvalAudits.length).toBe(1);
+
+    const prod = readProductFile(workspacePath, 'WIDGET-257')!;
+    expect(prod.core.price).toBe('19.99');
+    prod.core.inventory.quantityOnHand = 10;
+    writeProductFile(workspacePath, prod);
+    commitAll('Restore quantity after reconcile approval test');
     try {
       resolveDrift(drift.id, 'resolved');
+    } catch { /* ok */ }
+    try {
+      getDb().run('DELETE FROM drift_hunk_ack WHERE workspace_id = ?', [workspaceId]);
     } catch { /* ok */ }
     detect(BASE_XML);
   });

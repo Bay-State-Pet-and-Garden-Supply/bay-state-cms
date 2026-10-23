@@ -248,6 +248,7 @@ describe('drift/failure entry pre-attaches the frozen last-healthy baseline', ()
             sampleUrl: REP_A,
             cells: [
               { field: 'title', provenance: 'shopify_product_json', success: true, failureReason: null },
+              { field: 'description', provenance: 'selector', success: false, failureReason: 'field_missing:description' },
               { field: 'price', provenance: 'selector', success: false, failureReason: 'field_missing:price' },
             ],
           },
@@ -263,13 +264,13 @@ describe('drift/failure entry pre-attaches the frozen last-healthy baseline', ()
       {
         sampleId: 's1',
         sampleUrl: REP_A,
-        affectedFields: ['price'],
-        failureCodes: ['field_missing:price'],
+        affectedFields: ['description'],
+        failureCodes: ['field_missing:description'],
         provenance: ['selector'],
       },
     ]);
-    expect(ctx.failureCodes).toEqual(['field_missing:price']);
-    expect(ctx.affectedFields).toEqual(['price']);
+    expect(ctx.failureCodes).toEqual(['field_missing:description']);
+    expect(ctx.affectedFields).toEqual(['description']);
   });
 
   it('marks unavailable explicitly when no active version exists', () => {
@@ -318,11 +319,11 @@ describe('all five failure signals block through the shared health evaluator', (
       ...investigationBase(),
       requiredResults: [
         { field: 'title', success: true },
-        { field: 'price', success: false },
+        { field: 'description', success: false },
       ],
     });
     expect(r.allowed).toBe(false);
-    expect(r.blockReason).toContain('price');
+    expect(r.blockReason).toContain('description');
   });
 
   it('wrong-product blocks', () => {

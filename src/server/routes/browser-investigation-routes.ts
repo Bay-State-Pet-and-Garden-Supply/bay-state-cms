@@ -506,7 +506,6 @@ const ValidateBodySchema = z.object({
         expected: z.object({
           name: z.string().min(1).max(512),
           brandHint: z.string().max(256).nullable().optional(),
-          price: z.string().max(64).nullable().optional(),
           gtin: z.string().max(32).nullable().optional(),
           sku: z.string().max(512).nullable().optional(),
           platformVariantId: z.string().max(256).nullable().optional(),
@@ -543,7 +542,6 @@ browserInvestigationRoutes.post('/domains/:domain/investigations/:id/validate', 
           expected: {
             name: s.expected.name,
             brandHint: s.expected.brandHint ?? null,
-            price: s.expected.price ?? null,
             gtin: s.expected.gtin ?? null,
             sku: s.expected.sku ?? null,
             platformVariantId: s.expected.platformVariantId ?? null,

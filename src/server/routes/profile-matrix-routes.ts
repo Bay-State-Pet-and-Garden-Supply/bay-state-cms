@@ -75,7 +75,6 @@ profileMatrixRoutes.post('/domains/:domain/profile/test-matrix', async (c) => {
         extractedProduct: data ? {
           title: data.title ?? null,
           brand: data.brand ?? null,
-          price: data.price ?? null,
           description: data.description ?? null,
           images: allImages,
           customFields: data.customFields ?? {},

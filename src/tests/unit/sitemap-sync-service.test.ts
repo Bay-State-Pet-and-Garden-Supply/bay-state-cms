@@ -44,7 +44,7 @@ describe('Sitemap & Catalog Sync Service', () => {
             {
               id: 2001,
               title: 'Small / Bacon',
-              price: '14.99',
+              compare_at_price: '24.99',
               sku: 'WOOF-SM-BAC',
               barcode: '850067859598',
               option1: 'Small',
@@ -90,6 +90,12 @@ describe('Sitemap & Catalog Sync Service', () => {
     const largeHit = lookupByUpc('mywoof.com', '850067859604');
     expect(largeHit).not.toBeNull();
     expect(largeHit?.url).toBe('https://mywoof.com/products/poomergency-chew-bone?variant=2002');
+
+    const indexedPrices = getDb().query(
+      'SELECT price FROM brand_url_index WHERE domain = ? AND url LIKE ?',
+    ).all('mywoof.com', '%variant=%') as Array<{ price: number | null }>;
+    expect(indexedPrices).toHaveLength(2);
+    expect(indexedPrices.map((row) => row.price)).toEqual([null, null]);
   });
 
   it('should prewarm brand domain by fetching sitemap and catalog variants', async () => {

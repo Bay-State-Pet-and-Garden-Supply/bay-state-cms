@@ -95,11 +95,11 @@ export function lifecycleLabel(lifecycle: StoreManagerInboxLifecycle): string {
     case 'open':
       return 'New';
     case 'acknowledged':
-      return 'Acknowledged';
+      return 'Seen';
     case 'resolved':
-      return 'Resolved';
+      return 'Handled';
     case 'superseded':
-      return 'Superseded';
+      return 'No longer current';
   }
 }
 

@@ -43,7 +43,6 @@ const MAX_ADDITIONAL_IMAGES = 16;
 export interface LadderEnrichmentExpected {
   name?: string;
   brandHint?: string | null;
-  price?: string | null;
   /** Requested product GTIN/UPC — enables real exact-match identity classification. */
   gtin?: string;
 }
@@ -93,7 +92,7 @@ export async function applyLadderEnrichment(options: LadderEnrichmentOptions): P
   let observedSku: string | null = null;
 
   /** Fill a field ONLY when its current value is empty; record provenance. */
-  const fill = (field: 'title' | 'brand' | 'description' | 'price', value: unknown, provenanceKey: string): void => {
+  const fill = (field: 'title' | 'brand' | 'description', value: unknown, provenanceKey: string): void => {
     if (value === null || value === undefined) return;
     const text = typeof value === 'string' ? value.trim() : String(value);
     if (!text) return;
@@ -104,7 +103,6 @@ export async function applyLadderEnrichment(options: LadderEnrichmentOptions): P
     fills.push(field);
   };
 
-  /** Absolute-ize and append images not already present, capped. */
   const appendImages = (candidates: Array<string | { src?: unknown; url?: unknown }>, sourcePath: string): void => {
     const existing = new Set(
       [data.primaryImage, ...data.additionalImages]
@@ -144,8 +142,7 @@ export async function applyLadderEnrichment(options: LadderEnrichmentOptions): P
     const firstBrand = signals.jsonLdProducts.find((p) => p.brand)?.brand ?? null;
     fill('brand', firstBrand, 'ladder-json-ld');
     fill('description', signals.metaDescription, 'ladder-meta');
-    const firstPrice = signals.jsonLdProducts.flatMap((p) => p.offers).find((o) => o.price)?.price ?? null;
-    fill('price', firstPrice, 'ladder-json-ld');
+    // Input Price Authority (ADR 0043): page prices are never extracted.
   } catch {
     layersUsed.push('structured_data_failed');
   }
@@ -199,7 +196,7 @@ export async function applyLadderEnrichment(options: LadderEnrichmentOptions): P
         layersUsed.push('platform_woocommerce');
         fill('title', wc.product.name, 'ladder-woocommerce');
         fill('description', wc.product.description, 'ladder-woocommerce');
-        fill('price', wc.product.price, 'ladder-woocommerce');
+        // Input Price Authority (ADR 0043): page prices are never extracted.
         if (wc.product.sku) observedSku = wc.product.sku;
         appendImages(wc.product.images, 'ladder-woocommerce');
       }
@@ -215,12 +212,9 @@ export async function applyLadderEnrichment(options: LadderEnrichmentOptions): P
             layersUsed.push('platform_shopify');
             fill('title', productJson.title, 'ladder-shopify');
             fill('brand', productJson.vendor ?? undefined, 'ladder-shopify');
-            const first = productJson.variants[0];
-            if (first?.price) {
-              const priceNumber = Number(first.price);
-              fill('price', Number.isFinite(priceNumber) ? (priceNumber / 100).toFixed(2) : first.price, 'ladder-shopify');
-            }
-            if (first?.barcode) gtins.push({ value: first.barcode.replace(/\D/g, '') });
+            // Input Price Authority (ADR 0043): page prices are never extracted.
+            const firstBarcode = productJson.variants[0]?.barcode;
+            if (firstBarcode) gtins.push({ value: firstBarcode.replace(/\D/g, '') });
             platformVariantCount = productJson.variants.length;
             appendImages(productJson.images.map((img) => img.src), 'ladder-shopify');
           } catch {

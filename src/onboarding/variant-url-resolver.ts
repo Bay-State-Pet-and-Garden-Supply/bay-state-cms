@@ -45,7 +45,6 @@ export interface VariantResolutionContext {
   rawName: string;
   expectedName: string;
   brandHint: string | null;
-  price?: number | null;
 }
 
 export interface ShopifyVariantCandidate {
@@ -56,7 +55,6 @@ export interface ShopifyVariantCandidate {
   option3?: string | null;
   sku?: string | null;
   barcode?: string | null;
-  price?: number | null;
   image?: string | null;
   url: string;
 }
@@ -164,17 +162,8 @@ export function scoreShopifyVariant(
     matchedSignals.push(`sku-contains:${v.sku}`);
   }
 
-  // 5. Price sanity check
-  if (context.price !== undefined && context.price !== null && v.price !== null && v.price !== undefined) {
-    const diff = Math.abs(v.price - context.price);
-    if (diff < 0.01) {
-      score += 15;
-      matchedSignals.push('price-exact');
-    } else if (diff < 1.0) {
-      score += 5;
-      matchedSignals.push('price-close');
-    }
-  }
+  // (Input Price Authority, ADR 0043: no price scoring — matching uses
+  // identity evidence only.)
 
   return { score, matchedSignals };
 }
@@ -203,18 +192,6 @@ export function resolveVariantsFromHtml(
 
   // Normalize variants
   const candidates: ShopifyVariantCandidate[] = productJson.variants.map((v: any) => {
-    let dollarPrice: number | null = null;
-    if (v.price !== undefined && v.price !== null) {
-      const priceStr = String(v.price);
-      if (priceStr.includes('.')) {
-        dollarPrice = parseFloat(priceStr);
-      } else {
-        const cents = parseInt(priceStr, 10);
-        if (!isNaN(cents)) {
-          dollarPrice = cents / 100;
-        }
-      }
-    }
 
     let imageUrl: string | null = null;
     if (v.featured_image) {
@@ -231,7 +208,6 @@ export function resolveVariantsFromHtml(
       option3: v.option3 || null,
       sku: v.sku || null,
       barcode: v.barcode || null,
-      price: dollarPrice,
       image: imageUrl,
       url: buildVariantUrl(baseUrl, String(v.id)),
     };
@@ -249,7 +225,6 @@ export function resolveVariantsFromHtml(
       sku: c.sku || null,
       brand: context.brandHint || productJson.vendor || null,
       variantTokens: [c.option1, c.option2, c.option3].filter(Boolean) as string[],
-      price: c.price,
     }));
     import('../db/repositories/brand-url-index-repo')
       .then(mod => mod.indexVariantUrls(domain, variantInputs))
@@ -356,11 +331,10 @@ export async function resolveVariantsForCandidates(options: {
   expectedName: string;
   brandHint: string | null;
   brandDomains: string[];
-  price?: number | null;
   fetchFn?: NetworkFetch;
   variantTokens?: string[];
 }): Promise<ResolveVariantsResult> {
-  const { candidates, upc, rawName, expectedName, brandHint, brandDomains, price, fetchFn, variantTokens: explicitTokens } = options;
+  const { candidates, upc, rawName, expectedName, brandHint, brandDomains, fetchFn, variantTokens: explicitTokens } = options;
   const mode = getEffectiveVariantResolutionMode();
   if (mode === 'off') return { candidates, resolution: { status: 'off', selectedKey: null, candidatesCount: 0, overflow: false, warnings: [], identityHash: null } };
   // Already deep-linked candidates: retain without re-fetch when metadata sufficient
@@ -505,7 +479,7 @@ export async function resolveVariantsForCandidates(options: {
         const html = new TextDecoder().decode(buf);
         const matrix = parseVariantMatrix(html, cand.url);
         if (!matrix || matrix.candidates.length === 0) return;
-        const decision = matchVariantMatrix(matrix, { gtin: upc || null, sku: null, mpn: null, name: rawName || expectedName, brandHint: brandHint ?? null, price: price != null ? String(price) : null, variantTokens });
+        const decision = matchVariantMatrix(matrix, { gtin: upc || null, sku: null, mpn: null, name: rawName || expectedName, brandHint: brandHint ?? null, variantTokens });
         resolvedMap.set(cand.url, { matrix, decision, html });
       } catch (err) {
         console.warn(`[variant-url-resolver] Error resolving variants for ${cand.url}:`, err);

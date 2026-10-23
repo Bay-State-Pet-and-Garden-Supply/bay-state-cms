@@ -7,7 +7,7 @@ import { runMigrations } from '../../db/migrations';
 import { insertWorkspace } from '../../db/repositories/workspace-repo';
 import { createBatch } from '../../db/repositories/onboarding-batch-repo';
 import { findItemById, insertItems } from '../../db/repositories/onboarding-item-repo';
-import { insertSources } from '../../db/repositories/onboarding-source-repo';
+import { insertSources, stampSourcesWithDiscoveryRun } from '../../db/repositories/onboarding-source-repo';
 import { listOfficialPageDecisions, recordOfficialPageDecision } from '../../db/repositories/official-page-decision-repo';
 import { OnboardingWorker } from '../../onboarding/job-queue';
 import { ExtractionDataSchema } from '../../shared/schemas/onboarding';
@@ -15,6 +15,7 @@ import { createAndActivateVersion } from '../../db/repositories/profile-version-
 import { runMatrix, resetTestMatrixForTest } from '../../onboarding/profile-test-matrix';
 import { setRepresentativeSuite } from '../../db/repositories/representative-suite-repo';
 import { createWaiver } from '../../db/repositories/waiver-repo';
+import { advanceDiscoveryItemToExtraction } from '../../onboarding/auto-advance';
 
 const url = 'https://wild.example/products/better-bone-medium-venison-12oz';
 let extractPayload: unknown = null;
@@ -58,7 +59,8 @@ describe('extraction identity revalidation', () => {
   function seedConfirmedItem(variantKey: string | null = null) {
     const [item] = insertItems(batchId, [{ upc: '017800010009', name: 'WILD BETTER BONE MD VNSN 12 OZ', brandHint: 'Wild', rowNumber: 1 }], 'find_product_page');
     const [source] = insertSources(item.id, [{ url, domain: 'wild.example', confidence: 0.95, sourceMethod: 'sitemap_upc' }]);
-    recordOfficialPageDecision({ workspaceId, itemId: item.id, sourceId: source.id, evidenceKind: 'automatic_name', pageTitle: 'Wild Better Bone Medium Venison 12oz', variantKey, signals: {}, sourceRunId: null });
+    stampSourcesWithDiscoveryRun(item.id, 'discovery-run-test');
+    recordOfficialPageDecision({ workspaceId, itemId: item.id, sourceId: source.id, evidenceKind: 'automatic_name', pageTitle: 'Wild Better Bone Medium Venison 12oz', variantKey, signals: {}, sourceRunId: 'discovery-run-test' });
     getDb().query("UPDATE onboarding_items SET stage = 'collect_details', stage_status = 'pending' WHERE id = ?").run(item.id);
     return findItemById(item.id)!;
   }
@@ -136,5 +138,14 @@ describe('extraction identity revalidation', () => {
     await runExtractionOnce();
     expect(findItemById(item.id)?.stageStatus).toBe('needs_input');
     expect(getDb().query('SELECT COUNT(*) AS count FROM onboarding_extractions WHERE item_id = ?').get(item.id)).toMatchObject({ count: 0 });
+  });
+  test('a URL without a matching durable decision and discovery run cannot advance', () => {
+    const [item] = insertItems(batchId, [{ upc: '017800010009', name: 'WILD BETTER BONE MD VNSN 12 OZ', brandHint: 'Wild', rowNumber: 1 }], 'find_product_page');
+    getDb().query("UPDATE onboarding_items SET source_url = ?, stage_status = 'completed' WHERE id = ?").run(url, item.id);
+    expect(advanceDiscoveryItemToExtraction(item.id)).toEqual({
+      advanced: false,
+      reason: 'official_decision_binding_missing',
+    });
+    expect(findItemById(item.id)?.stage).toBe('find_product_page');
   });
 });

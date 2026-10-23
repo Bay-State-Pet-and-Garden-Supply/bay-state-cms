@@ -290,7 +290,6 @@ export function deriveDefaultGroundTruth(
   let brand = urlMetadata?.brand?.trim() || '';
   let sku: string | null = urlMetadata?.sku?.trim() || null;
   let gtin: string | null = urlMetadata?.upc?.trim() || null;
-  let price: string | null = null;
   let primaryImage: string | null = null;
   const admissibleImages: string[] = [];
 
@@ -314,8 +313,6 @@ export function deriveDefaultGroundTruth(
                 if (item.sku && !sku) sku = String(item.sku).trim();
                 const g = item.gtin || item.gtin12 || item.gtin13 || item.gtin8 || item.gtin14;
                 if (g && !gtin) gtin = String(g).trim();
-                const p = item.offers?.price ?? item.offers?.lowPrice;
-                if (p !== undefined && !price) price = String(p).trim();
                 if (item.image) {
                   const imgUrl = typeof item.image === 'string' ? item.image : Array.isArray(item.image) ? item.image[0] : item.image?.url;
                   if (imgUrl && !primaryImage) {
@@ -354,7 +351,6 @@ export function deriveDefaultGroundTruth(
     fields: {
       title: { available: true, expectedValue: title },
       brand: { available: !!brand, expectedValue: brand || null },
-      price: { available: !!price, expectedValue: price || null },
       sku: { available: !!sku, expectedValue: sku || null },
       gtin: { available: !!gtin, expectedValue: gtin || null },
       description: { available: true },

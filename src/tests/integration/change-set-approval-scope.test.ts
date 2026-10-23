@@ -10,6 +10,7 @@ import { runMigrations } from '../../db/migrations';
 import { createChangeSet, listChangeSetItems, upsertChangeSetItem } from '../../db/repositories/change-set-repo';
 import { approveChangeSet } from '../../server/services/change-set-service';
 import { deterministicStringify, hashJson } from '../../git/deterministic-json';
+import { validateChangeSet } from '../../validation/change-set-validation';
 
 const BASE_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <ShopSiteProducts version="15.0"><Products>
@@ -47,7 +48,7 @@ describe('approval scope and atomicity (P2 #22)', () => {
     const git = new GitClient(workspacePath);
     const decoded = ShopSiteProductCodec.decode(BASE_XML, { workspaceId });
     const product = decoded.products[0];
-    product.core.price = '21.99';
+    product.core.name = 'Approval Widget updated';
 
     const cs = createChangeSet({ workspaceId, title: 'scoped approval', baseCommit: 'test' });
     upsertChangeSetItem({
@@ -72,6 +73,56 @@ describe('approval scope and atomicity (P2 #22)', () => {
     expect(listChangeSetItems(cs.id).length).toBe(1);
     // The staged unrelated file is still staged, not committed away.
     expect(git.status()).toContain('unrelated-config.json');
+  });
+  it('blocks a price change and leaves the approved price untouched', () => {
+    const { workspacePath, workspaceId } = setup();
+    const git = new GitClient(workspacePath);
+    const approvedHead = git.getHeadHash();
+    const base = ShopSiteProductCodec.decode(BASE_XML, { workspaceId }).products[0];
+    const changed = structuredClone(base);
+    changed.core.price = '21.99';
+
+    const cs = createChangeSet({ workspaceId, title: 'price change', baseCommit: approvedHead });
+    upsertChangeSetItem({
+      changeSetId: cs.id,
+      sku: changed.sku,
+      operation: 'update',
+      draftJson: deterministicStringify(changed),
+      baseJson: deterministicStringify(base),
+      draftHash: hashJson(changed),
+    });
+
+    const validation = validateChangeSet(cs.id);
+    expect(validation.canApprove).toBe(false);
+    expect(validation.items.flatMap((item) => item.results.map((result) => result.code)))
+      .toContain('ONBOARDING_PRICE_IMMUTABLE');
+    const result = approveChangeSet(cs.id, workspacePath);
+    expect(result.success).toBe(false);
+    expect(git.getHeadHash()).toBe(approvedHead);
+    const approved = JSON.parse(git.readFileAtHead('products/APPR-001.json')!) as { core: { price: string } };
+    expect(approved.core.price).toBe('19.99');
+  });
+  it('blocks sale prices on newly created products', () => {
+    const { workspacePath, workspaceId } = setup();
+    const base = ShopSiteProductCodec.decode(BASE_XML, { workspaceId }).products[0];
+    const created = structuredClone(base);
+    created.sku = 'APPR-002';
+    created.core.salePrice = '9.99';
+
+    const cs = createChangeSet({ workspaceId, title: 'sale price on new product', baseCommit: new GitClient(workspacePath).getHeadHash() });
+    upsertChangeSetItem({
+      changeSetId: cs.id,
+      sku: created.sku,
+      operation: 'create',
+      draftJson: deterministicStringify(created),
+      baseJson: null,
+      draftHash: hashJson(created),
+    });
+
+    const validation = validateChangeSet(cs.id);
+    expect(validation.canApprove).toBe(false);
+    expect(validation.items.flatMap((item) => item.results.map((result) => result.code)))
+      .toContain('ONBOARDING_PRICE_IMMUTABLE');
   });
 
   it('records HEAD without a new commit when targets are identical', () => {

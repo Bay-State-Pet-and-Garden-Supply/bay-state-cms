@@ -55,7 +55,6 @@ describe('profile audit manifest builder', () => {
           identity: { brand: 'TestBrand', productName: 'Item 1' },
           fields: {
             title: { available: true, expectedValue: 'Item 1' },
-            price: { available: false },
           },
           images: {
             primaryImage: null,
@@ -72,6 +71,7 @@ describe('profile audit manifest builder', () => {
     expect(s1).toBeDefined();
     expect(s1?.artifactRef).toContain('snapshot-1001-aaaa/page.html');
     expect(s1?.hasSupplementalArtifact).toBe(true);
+    expect(s1?.groundTruth.fields).not.toHaveProperty('price');
     expect(s1?.supplementalArtifactRefs).toHaveLength(2);
     expect(s1?.inventoryStatus).toBe('confirmed');
 

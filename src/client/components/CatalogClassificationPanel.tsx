@@ -49,6 +49,51 @@ const sectionTitle: React.CSSProperties = {
   marginBottom: 4,
 };
 
+function displayTargetLabel(targetId: string | null): string | null {
+  if (!targetId) return null;
+  if (/^ProductField\d+$/i.test(targetId)) return 'Product detail';
+  return targetId.replace(/[_-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function suggestionLabel(type: string): string {
+  switch (type) {
+    case 'primary_product_type': return 'Product type';
+    case 'product_classification': return 'Category and product type';
+    case 'category_page': return 'Store category';
+    case 'field_assignment': return 'Product detail';
+    case 'configuration_gap': return 'Product setup';
+    case 'reviewable_abstention': return 'No suggestion';
+    default: return 'Product detail';
+  }
+}
+
+function displaySuggestionValue(value: unknown): string {
+  if (value == null) return 'Not provided';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) return value.map(displaySuggestionValue).join(', ');
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => `${displayTargetLabel(key) ?? 'Detail'}: ${displaySuggestionValue(entry)}`)
+      .join(' · ');
+  }
+  return 'Not provided';
+}
+
+function runStatusLabel(status: string): string {
+  switch (status) {
+    case 'completed': return 'Suggestions ready for review';
+    case 'completed_with_abstentions': return 'Some suggestions are ready for review';
+    case 'failed': return 'Could not prepare suggestions';
+    case 'running':
+    case 'pending':
+      return 'Preparing suggestions';
+    default:
+      return 'Suggestions need attention';
+  }
+}
+
 interface Props {
   sku: string;
   onDraftCreated: () => void;
@@ -84,8 +129,8 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
     try {
       const result = await getCatalogClassification(sku);
       setDetail(result);
-    } catch (err: any) {
-      setError(err.message);
+    } catch {
+      setError('Could not load product suggestions. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -101,10 +146,10 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
     setMessage('');
     try {
       await runCatalogClassification(sku);
-      setMessage('Classification run completed.');
+      setMessage('Product suggestions are ready for review.');
       await loadClassification();
-    } catch (err: any) {
-      setError(err.message);
+    } catch {
+      setError('Could not prepare product suggestions. Please try again.');
     } finally {
       setRunning(false);
     }
@@ -118,13 +163,9 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
     try {
       const result = await applyCatalogClassification(sku, detail.run.id);
       setChangeSetId(result.changeSetId);
-      setMessage(`Created update draft in change set ${result.changeSetId.slice(0, 8)}. ${result.appliedFields.length} field(s), ${result.appliedPages.length} page(s) applied${(result.removedPages?.length ?? 0) > 0 ? `, ${result.removedPages.length} page(s) removed` : ''}.`);
-      if (result.skipped.length > 0) {
-        setMessage(prev => prev + ` ${result.skipped.length} skipped.`);
-      }
       onDraftCreated();
-    } catch (err: any) {
-      setError(err.message);
+    } catch {
+      setError('Could not save these suggestions. Please try again.');
     } finally {
       setApplying(false);
     }
@@ -140,32 +181,23 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
 
   return (
     <div style={sectionStyle}>
-      <h3 style={sectionTitle}>🧠 Classification</h3>
+      <h3 style={sectionTitle}>Product category and details</h3>
       <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-        Run classification to propose one Category + Product Type pair and its applicable Classification Attributes. Category Page assignments are separate proposals. Brand may inform classification but is never a classification output.
+        Review these suggested product details. Nothing changes until you approve them.
       </p>
 
       {/* Run status — conservative while readiness is unknown: buttons stay
           disabled and a loading note is shown until a real report arrives. */}
       {!readiness && (
         <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#64748b' }}>
-          Checking classification configuration…
+          Getting product suggestions ready...
         </div>
       )}
       {readiness && !readiness.isReady && (
         <div style={{ marginBottom: 16, padding: 12, background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, fontSize: 13 }}>
-          <div style={{ color: '#9a3412', fontWeight: 600 }}>⚠ Classification configuration is not ready</div>
-          <div style={{ color: '#7c2d12', marginTop: 4 }}>{readiness.summary.join(' ')}</div>
-          {readiness.findingCodes.length > 0 && (
-            <div style={{ color: '#7c2d12', marginTop: 4 }}>
-              Findings: {readiness.findingCodes.join(', ')}
-            </div>
-          )}
-          {readiness.capabilities.page.reason && (
-            <div style={{ color: '#7c2d12', marginTop: 2 }}>Category Pages: {readiness.capabilities.page.reason}</div>
-          )}
+          <div style={{ color: '#9a3412', fontWeight: 600 }}>Product suggestions need setup before they can run.</div>
           <a href="/?view=onboarding&settingsTab=curation" style={{ color: '#9a3412', fontWeight: 600, marginTop: 6, display: 'inline-block' }}>
-            Open Curation Targets settings →
+            Open product suggestion setup →
           </a>
         </div>
       )}
@@ -173,21 +205,24 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
       {/* Run status */}
       {run && (
         <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', borderRadius: 8, fontSize: 13 }}>
-          <div><strong>Status:</strong> {run.status}</div>
-          {run.completedAt && <div><strong>Completed:</strong> {new Date(run.completedAt).toLocaleString()}</div>}
-          {run.errorMessage && <div style={{ color: '#dc2626' }}><strong>Error:</strong> {run.errorMessage}</div>}
+          <div><strong>Status:</strong> {runStatusLabel(run.status)}</div>
+          {run.completedAt && <div><strong>Prepared:</strong> {new Date(run.completedAt).toLocaleString()}</div>}
+          {run.status === 'failed' && <div style={{ color: '#dc2626' }}>Please try again or ask for help.</div>}
           {detail?.sourceDrift && (
-            <div style={{ color: '#d97706', marginTop: 4 }}>⚠ Product has changed since classification was run.</div>
+            <div style={{ color: '#d97706', marginTop: 4 }}>Product details have changed since these suggestions were prepared.</div>
           )}
           {detail?.configDrift && (
-            <div style={{ color: '#d97706', marginTop: 4 }}>⚠ Classification config has changed since run.</div>
+            <div style={{ color: '#d97706', marginTop: 4 }}>Product setup has changed since these suggestions were prepared.</div>
           )}
         </div>
       )}
-      {detail?.run && detail.classificationReadiness && (
-        <CanonicalClassificationReadiness result={detail.classificationReadiness} />
+      {detail?.run && (
+        <details style={{ marginBottom: 16 }}>
+          <summary style={{ cursor: 'pointer', color: '#475569', fontSize: 13 }}>More setup details</summary>
+          {detail.classificationReadiness && <CanonicalClassificationReadiness result={detail.classificationReadiness} />}
+          <ClassificationDraftProjectionCard preview={detail.draftProjection} />
+        </details>
       )}
-      {detail?.run && <ClassificationDraftProjectionCard preview={detail.draftProjection} />}
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -195,9 +230,9 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
           style={primaryButton}
           onClick={handleRun}
           disabled={running || readiness === null || shouldBlockRun(readiness)}
-          title={readiness === null ? 'Checking classification configuration…' : (shouldBlockRun(readiness) ? 'Classification configuration is not ready to run' : undefined)}
+          title={readiness === null ? 'Getting product suggestions ready...' : (shouldBlockRun(readiness) ? 'Product suggestions need setup first' : undefined)}
         >
-          {running ? 'Running...' : hasActiveRun ? 'Rerun' : 'Run Classification'}
+          {running ? 'Preparing suggestions...' : hasActiveRun ? 'Prepare new suggestions' : 'Suggest product details'}
         </button>
       </div>
 
@@ -206,14 +241,14 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
       {message && <div style={{ color: '#16a34a', padding: '8px 12px', background: '#f0fdf4', borderRadius: 4, margin: '8px 0', fontSize: 13 }}>{message}</div>}
       {changeSetId && (
         <div style={{ color: '#2563eb', padding: '8px 12px', background: '#eff6ff', borderRadius: 4, margin: '8px 0', fontSize: 13 }}>
-          Update draft created in change set <strong>{changeSetId.slice(0, 8)}</strong>. Use the Change Set page to review and approve.
+          Suggestions saved for review. They will not update your store until you approve them.
         </div>
       )}
 
       {/* Proposals */}
       {canDecide && (pendingProposals.length > 0 || (detail?.proposals || []).some(p => p.proposalType === 'reviewable_abstention')) && (
         <div style={{ marginTop: 16 }}>
-          <h4 style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 8 }}>Proposals ({pendingProposals.length})</h4>
+          <h4 style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 8 }}>Suggested changes ({pendingProposals.length})</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingProposals.map(p => (
               <div
@@ -227,35 +262,17 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <strong style={{ color: '#0f172a' }}>{p.proposalType.replace(/_/g, ' ')}</strong>
-                  <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {(p.hasRevisedValue && (p as { revisedValue?: unknown }).revisedValue === null) && (
-                      <span title="Reviewed removal: accepting clears this value (the before value is shown below)" style={{ padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>
-                        Removal
-                      </span>
-                    )}
-                    <span style={{
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: p.confidence > 0.7 ? '#dcfce7' : p.confidence > 0.4 ? '#fef9c3' : '#fee2e2',
-                      color: p.confidence > 0.7 ? '#166534' : p.confidence > 0.4 ? '#92400e' : '#991b1b',
-                    }}>
-                      {Math.round(p.confidence * 100)}%
-                    </span>
-                  </span>
+                  <strong style={{ color: '#0f172a' }}>{suggestionLabel(p.proposalType)}</strong>
                 </div>
-                <div style={{ color: '#334155', marginBottom: 4 }}>
-                  <strong>Target:</strong> {(p.hasRevisedTargetId ? p.revisedTargetId : p.targetId) || '-'}
-                </div>
-                <div style={{ color: '#475569', fontSize: 12, marginBottom: 8, fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                {p.proposalType === 'field_assignment' && (
+                  <div style={{ color: '#334155', marginBottom: 4 }}>
+                    <strong>Product detail:</strong> {displayTargetLabel(p.hasRevisedTargetId ? p.revisedTargetId ?? null : p.targetId) ?? 'Product detail'}
+                  </div>
+                )}
+                <div style={{ color: '#475569', fontSize: 13, marginBottom: 8, wordBreak: 'break-word' }}>
                   {(p.hasRevisedValue && (p as { revisedValue?: unknown }).revisedValue === null)
-                    ? (<><strong>Before:</strong> {typeof p.proposedValue === 'object' ? JSON.stringify(p.proposedValue) : String(p.proposedValue ?? '-')} <strong>→ After:</strong> (cleared)</>)
-                    : (<><strong>Value:</strong> {(() => {
-                      const value = p.hasRevisedValue ? p.revisedValue : p.proposedValue;
-                      return typeof value === 'object' ? JSON.stringify(value) : String(value ?? '-');
-                    })()}</>)}
+                    ? <><strong>Current detail:</strong> {displaySuggestionValue(p.proposedValue)}. This suggestion removes it.</>
+                    : <><strong>Suggested value:</strong> {displaySuggestionValue(p.hasRevisedValue ? p.revisedValue : p.proposedValue)}</>}
                 </div>
                 {(() => {
                   const liveDecision = (detail?.decisions || []).find(
@@ -279,38 +296,27 @@ export function CatalogClassificationPanel({ sku, onDraftCreated }: Props) {
                 onClick={handleApply}
                 disabled={applying || detail?.sourceDrift || detail?.configDrift}
               >
-                {applying ? 'Applying...' : 'Create Update Draft'}
+                {applying ? 'Saving suggestions...' : 'Save suggestions for review'}
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Abstentions (informational — these stages had nothing to propose) */}
-      {canDecide && (detail?.proposals || []).filter(p => p.proposalType === 'reviewable_abstention').length > 0 && (
+      {canDecide && (detail?.proposals || []).some(p => p.proposalType === 'reviewable_abstention') && (
         <div style={{ marginTop: 16, padding: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
-          <strong>Stage Abstentions</strong> — these stages could not produce proposals:
-          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-            {(detail?.proposals || []).filter(p => p.proposalType === 'reviewable_abstention').map(p => (
-              <li key={p.id}>
-                <strong>{String(p.targetId || 'unknown').replace(/_/g, ' ')}</strong>
-                {p.proposedValue && typeof p.proposedValue === 'object' && (p.proposedValue as any).reason
-                  ? ` — ${(p.proposedValue as any).reason}`
-                  : ''}
-              </li>
-            ))}
-          </ul>
+          Some product details could not be suggested. You can fill them in above.
         </div>
       )}
 
       {/* No run state */}
       {!run && !loading && (
         <div style={{ color: '#64748b', fontSize: 13, fontStyle: 'italic' }}>
-          No classification run yet. Click "Run Classification" to start.
+          No suggestions yet. Choose “Suggest product details” to begin.
         </div>
       )}
 
-      {loading && <div style={{ color: '#64748b', fontSize: 13 }}>Loading...</div>}
+      {loading && <div style={{ color: '#64748b', fontSize: 13 }}>Getting product suggestions...</div>}
     </div>
   );
 }

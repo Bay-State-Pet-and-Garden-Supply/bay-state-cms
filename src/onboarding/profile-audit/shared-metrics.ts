@@ -56,7 +56,7 @@ export const CONFIG_DISPLAY_NAMES: Record<ReplayConfiguration, string> = {
 };
 
 /** Fields where a hybrid-vs-baseline regression blocks promotion. */
-export const CRITICAL_FIELDS = ['title', 'brand', 'price'];
+export const CRITICAL_FIELDS = ['title', 'brand'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Uncertainty helpers (fix #9: deduped from gate-arithmetic/operator-review)

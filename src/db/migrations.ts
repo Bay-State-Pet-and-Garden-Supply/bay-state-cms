@@ -222,6 +222,21 @@ export function runMigrations(): void {
     console.log('[Migrations] Discovery-runs indexes complete.');
   }
 
+  // Nullable assessment storage preserves legacy runs as unknown rather than
+  // implying that old discovery traces had complete coverage.
+  const discoveryAssessmentColumns = db
+    .query('PRAGMA table_info(onboarding_discovery_runs)')
+    .all() as Array<{ name: string }>;
+  if (!discoveryAssessmentColumns.some(col => col.name === 'assessment_json')) {
+    db.exec('ALTER TABLE onboarding_discovery_runs ADD COLUMN assessment_json TEXT NULL;');
+  }
+  if (!discoveryAssessmentColumns.some(col => col.name === 'assessment_revision')) {
+    db.exec('ALTER TABLE onboarding_discovery_runs ADD COLUMN assessment_revision INTEGER NOT NULL DEFAULT 0;');
+  }
+  if (!discoveryAssessmentColumns.some(col => col.name === 'assessment_updated_at')) {
+    db.exec('ALTER TABLE onboarding_discovery_runs ADD COLUMN assessment_updated_at TEXT NULL;');
+  }
+
   // ── Discovery model-call audit (issue #364) ──
   // Durable start/terminal provenance for the `sitemap_selection` protected
   // TypeSafe dispatch, bound to `onboarding_discovery_runs(id)`. The shared

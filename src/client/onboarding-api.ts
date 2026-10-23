@@ -528,7 +528,7 @@ export interface SemanticValidationPayload {
 }
 
 export interface VariantResolutionClientView {
-  id: string; status: string; candidates: Array<{ variantKey: string; title: string; sku?: string | null; gtin?: string | null; price?: string | null; available: boolean; image?: string | null; options?: Array<{axis:string;value:string}>; deepLink: string }>; identityMatrixHash: string; platform: string; selectedVariantKey?: string | null; decisionOrigin?: string | null;
+  id: string; status: string; candidates: Array<{ variantKey: string; title: string; sku?: string | null; gtin?: string | null; available: boolean; image?: string | null; options?: Array<{axis:string;value:string}>; deepLink: string }>; identityMatrixHash: string; platform: string; selectedVariantKey?: string | null; decisionOrigin?: string | null;
 }
 export interface ItemDetailResponse {
   item: OnboardingItem;

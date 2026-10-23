@@ -370,8 +370,7 @@ export function OutputFirstWorkspace({
               {inspection.fields.title?.value || 'Untitled Product'}
             </div>
             <div style={{ fontSize: 12, color: colors.mulchBrown }}>
-              Brand: <strong>{inspection.fields.brand?.value || 'None'}</strong> | Price:{' '}
-              <strong>{inspection.fields.price?.value ? `$${inspection.fields.price.value}` : 'None'}</strong> | SKU:{' '}
+              Brand: <strong>{inspection.fields.brand?.value || 'None'}</strong> | SKU:{' '}
               <strong>{inspection.fields.sku?.value || 'None'}</strong> | GTIN:{' '}
               <strong>{inspection.fields.gtin?.value || 'None'}</strong>
             </div>
@@ -396,11 +395,13 @@ export function OutputFirstWorkspace({
                 color: colors.ledgerCharcoal,
               }}
             >
-              Extracted Fields &amp; Provenance Sources
+              Product details we found
             </h4>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-              {Object.entries(inspection.fields).map(([field, item]: [string, { value: string | null; source: string; status: 'extracted' | 'missing' | 'conflicted'; conflict?: any }]) => {
+              {Object.entries(inspection.fields)
+                .filter(([field]) => !/(?:price|cost|sale)/i.test(field))
+                .map(([field, item]: [string, { value: string | null; source: string; status: 'extracted' | 'missing' | 'conflicted'; conflict?: any }]) => {
                 const isMissing = item.status === 'missing';
                 const isConflicted = item.status === 'conflicted';
                 return (

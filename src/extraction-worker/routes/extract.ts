@@ -170,7 +170,6 @@ async function resolveVariantGate(
     mpn: null,
     name: expected?.name ?? '',
     brandHint: expected?.brandHint ?? null,
-    price: expected?.price ?? null,
     variantTokens: undefined,
   };
   const sel = (request as any).variantSelection as { resolutionId: string; identityMatrixHash: string; variantKey: string } | undefined;
@@ -396,32 +395,41 @@ function resolveUrl(src: string, baseUrl: string): string | null {
 
 // ─── JSON-LD extraction (Cheerio) ─────────────────────────────────────────────
 
-/**
- * Extract the first JSON-LD Product block from <script type="application/ld+json"> tags.
- */
+/** Remove price-like values from untrusted page data before it is retained. */
+function removePagePriceFields(value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) removePagePriceFields(item);
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (/(?:price|cost|sale)/i.test(key)) delete record[key];
+    else removePagePriceFields(record[key]);
+  }
+}
+
 function extractJsonLdFromCheerio($: cheerio.CheerioAPI): Record<string, unknown> | null {
   const scripts: string[] = [];
   $('script[type="application/ld+json"]').each((_, el) => {
     scripts.push($(el).text() || '');
   });
+  const safeProduct = (value: unknown): Record<string, unknown> | null => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const product = value as Record<string, unknown>;
+    if (product['@type'] !== 'Product') return null;
+    const fields = ['name', 'brand', 'description', 'image', 'weight', 'sku', 'gtin', 'gtin8', 'gtin12', 'gtin13', 'gtin14', 'mpn', 'productID'];
+    const safeProduct = Object.fromEntries(fields.filter((key) => key in product).map((key) => [key, product[key]]));
+    removePagePriceFields(safeProduct);
+    return safeProduct;
+  };
 
   for (const script of scripts) {
     try {
       const data = JSON.parse(script);
-      // Handle @graph arrays
-      if (data['@graph']) {
-        const product = (data['@graph'] as Record<string, unknown>[]).find(
-          (item: Record<string, unknown>) => item['@type'] === 'Product',
-        );
-        if (product) return product;
-      }
-      // Direct Product type
-      if (data['@type'] === 'Product') return data;
-      // Array of items
-      if (Array.isArray(data)) {
-        const product = data.find(
-          (item: Record<string, unknown>) => item['@type'] === 'Product',
-        );
+      const candidates = Array.isArray(data) ? data : data['@graph'] ?? [data];
+      for (const candidate of candidates) {
+        const product = safeProduct(candidate);
         if (product) return product;
       }
     } catch {
@@ -439,7 +447,7 @@ function extractMetaTagsFromCheerio($: cheerio.CheerioAPI): Record<string, strin
     const property =
       $(el).attr('property') ?? $(el).attr('name') ?? '';
     const content = $(el).attr('content') ?? '';
-    if (property && content) {
+    if (property && content && !/price|cost|sale/i.test(property)) {
       tags[property] = content;
     }
   });
@@ -461,14 +469,13 @@ function extractMicrodataFromCheerio($: cheerio.CheerioAPI): Record<string, stri
 
   scope.find('[itemprop]').each((_, el) => {
     const name = $(el).attr('itemprop') ?? '';
+    if (!name || /price|cost|sale/i.test(name)) return;
     const value =
       $(el).attr('content') ??
       $(el).attr('src') ??
       $(el).text().trim() ??
       '';
-    if (name && value) {
-      data[name] = value;
-    }
+    if (value) data[name] = value;
   });
   return data;
 }
@@ -522,11 +529,6 @@ function evaluateSelectorCheerio(
     if (!jsonLd) return null;
     if (prop === 'Product.name' || prop === 'name') return (jsonLd.name as string)?.trim() || null;
     if (prop === 'Product.description' || prop === 'description') return (jsonLd.description as string)?.trim() || null;
-    if (prop === 'Product.offers.price' || prop === 'offers.price' || prop === 'price') {
-      const offers = jsonLd.offers as any;
-      const price = offers?.price ?? (Array.isArray(offers) ? offers[0]?.price : null) ?? jsonLd.price;
-      return price != null ? String(price).trim() : null;
-    }
     if (prop === 'Product.brand' || prop === 'brand') {
       const b = jsonLd.brand as any;
       const name = typeof b === 'string' ? b : b?.name;
@@ -635,12 +637,24 @@ function makePlaywrightJsonLdExtractor(): string {
   return `
     (() => {
       const results = [];
+      const stripPagePrices = (value) => {
+        if (!value || typeof value !== 'object') return;
+        if (Array.isArray(value)) {
+          for (const item of value) stripPagePrices(item);
+          return;
+        }
+        for (const key of Object.keys(value)) {
+          if (/(?:price|cost|sale)/i.test(key)) delete value[key];
+          else stripPagePrices(value[key]);
+        }
+      };
       const scripts = document.querySelectorAll('script[type="application/ld+json"]');
       for (const script of scripts) {
         try {
           const raw = (script.textContent || '').trim();
           if (!raw) continue;
           const data = JSON.parse(raw);
+          stripPagePrices(data);
           if (Array.isArray(data)) {
             for (const item of data) {
               if (item && typeof item === 'object') results.push(item);
@@ -665,7 +679,7 @@ function makePlaywrightMetaExtractor(): string {
       for (const meta of metas) {
         const property = meta.getAttribute('property') || meta.getAttribute('name') || '';
         const content = meta.getAttribute('content') || '';
-        if (property && content) tags[property] = content;
+        if (property && content && !/(?:price|cost|sale)/i.test(property)) tags[property] = content;
       }
       const titleEl = document.querySelector('title');
       if (titleEl && titleEl.textContent) {
@@ -673,21 +687,6 @@ function makePlaywrightMetaExtractor(): string {
       }
       return tags;
     })()
-  `;
-}
-
-// ─── Helper: extract embedded product data from Playwright ───────────────────
-
-function makePlaywrightEmbeddedExtractor(): string {
-  return `
-    () => {
-      const results = [];
-      const w = window;
-      if (w.productJSON && typeof w.productJSON === 'object') results.push(w.productJSON);
-      if (w.ShopifyAnalytics && typeof w.ShopifyAnalytics === 'object') results.push(w.ShopifyAnalytics);
-      if (w.__INITIAL_STATE__ && typeof w.__INITIAL_STATE__ === 'object') results.push(w.__INITIAL_STATE__);
-      return results;
-    }
   `;
 }
 
@@ -719,7 +718,7 @@ export function buildFieldProvenanceDetails(
   const details: Record<string, FieldProvenanceDetail> = {};
   for (const [field, declared] of Object.entries(provenance)) {
     const origin = origins[field];
-    if (!origin) continue;
+    if (!origin || /(?:price|cost|sale)/i.test(field)) continue;
     details[field] = {
       method: declared === 'profile-selector' ? 'profile_selector' : declared === 'json-ld' ? 'json_ld' : declared,
       sourcePath: origin,
@@ -831,15 +830,6 @@ export async function profileNetworkGuard(
   }
 }
 
-interface ExtractedFields {
-  title: string | null;
-  brand: string | null;
-  description: string | null;
-  price: string | null;
-  primaryImage: string | null;
-  additionalImages: string[];
-  provenance: Record<string, string>;
-}
 
 /**
  * Run deterministic extraction via HTTP fetch + Cheerio DOM parsing.
@@ -941,7 +931,6 @@ export async function doStaticExtract(
   const titleSelector = selectors['titleSelector'] || selectors['title'] || null;
   const brandSelector = selectors['brandSelector'] || selectors['brand'] || null;
   const descriptionSelector = selectors['descriptionSelector'] || selectors['description'] || null;
-  const priceSelector = selectors['priceSelector'] || selectors['price'] || null;
   const imagesSelector = selectors['imagesSelector'] || selectors['images'] || selectors['imageSelector'] || selectors['image'] || null;
 
   // Title: selector required — if empty, extraction fails
@@ -1045,36 +1034,6 @@ export async function doStaticExtract(
     }
   }
 
-  // Price from selector or expected price (expected.price overrides)
-  let price: string | null = null;
-  let priceProvenance = '';
-  let priceOrigin: string | null = null;
-  if (expected?.price) {
-    price = expected.price;
-    priceProvenance = 'spreadsheet-import';
-    priceOrigin = 'expected:price';
-  } else if (priceSelector) {
-    price = evaluateSelectorCheerio($, priceSelector, jsonLd, metaTags);
-    if (price) {
-      priceProvenance = priceSelector.startsWith('jsonld:') ? 'json-ld' : priceSelector.startsWith('meta[') ? 'meta' : 'profile-selector';
-      priceOrigin = priceSelector;
-      // Clean to numeric representation
-      const match = price.match(/\$?(\d+\.?\d*)/);
-      if (match) {
-        price = match[0];
-      }
-    }
-  }
-  if (!price) {
-    const jsonLdOffers = jsonLd?.offers as Record<string, unknown> | undefined;
-    const priceFromJsonLd =
-      jsonLdOffers?.price as string | undefined;
-    price = priceFromJsonLd || metaTags['product:price:amount'] || null;
-    if (price) {
-      priceProvenance = priceFromJsonLd ? 'json-ld' : 'meta';
-      priceOrigin = priceFromJsonLd ? 'json-ld:Product.offers.price' : 'meta:product:price:amount';
-    }
-  }
 
   // Images
   let primaryImage: string | null = null;
@@ -1133,7 +1092,6 @@ export async function doStaticExtract(
   if (title) { provenance.title = titleProvenance; origins.title = titleOrigin; }
   if (brand) { provenance.brand = brandProvenance; origins.brand = brandOrigin; }
   if (description) { provenance.description = descriptionProvenance; origins.description = descriptionOrigin; }
-  if (price) { provenance.price = priceProvenance; origins.price = priceOrigin; }
   if (primaryImage) { provenance.primaryImage = imageProvenance; origins.primaryImage = imageOrigin; }
   if (additionalImages.length > 0) { provenance.additionalImages = imageProvenance; origins.additionalImages = imageOrigin; }
   if (sourceUrl) provenance.sourceUrl = 'request';
@@ -1143,7 +1101,7 @@ export async function doStaticExtract(
   const customFields: Record<string, string> = {};
   if (profile.customSelectors) {
     for (const [fieldName, selector] of Object.entries(profile.customSelectors)) {
-      if (!selector) continue;
+      if (!selector || /price|cost|sale/i.test(fieldName) || /price|cost|sale/i.test(selector)) continue;
       try {
         const val = $(selector).first().text().trim();
         if (val) {
@@ -1163,7 +1121,6 @@ export async function doStaticExtract(
     title,
     brand,
     description,
-    price,
     primaryImage,
     additionalImages,
     provenance,
@@ -1182,7 +1139,7 @@ export async function doStaticExtract(
       html,
       url: finalUrl,
       data,
-      expected: { name: expected.name, brandHint: expected.brandHint ?? null, price: expected.price ?? null, gtin: expected.upc },
+      expected: { name: expected.name, brandHint: expected.brandHint ?? null, gtin: expected.upc },
     });
   } catch (enrichErr) {
     warnings.push(`Ladder enrichment failed (non-blocking): ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`);
@@ -1455,7 +1412,6 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
       const titleSelector = selectors['titleSelector'] || selectors['title'] || null;
       const brandSelector = selectors['brandSelector'] || selectors['brand'] || null;
       const descriptionSelector = selectors['descriptionSelector'] || selectors['description'] || null;
-      const priceSelector = selectors['priceSelector'] || selectors['price'] || null;
       const imagesSelector = selectors['imagesSelector'] || selectors['images'] || selectors['imageSelector'] || selectors['image'] || null;
 
       const evalText = async (sel: string | null | undefined): Promise<string> => {
@@ -1468,11 +1424,6 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
           if (!jsonLd) return '';
           if (prop === 'Product.name' || prop === 'name') return (jsonLd.name as string)?.trim() || '';
           if (prop === 'Product.description' || prop === 'description') return (jsonLd.description as string)?.trim() || '';
-          if (prop === 'Product.offers.price' || prop === 'offers.price' || prop === 'price') {
-            const offers = jsonLd.offers as any;
-            const price = offers?.price ?? (Array.isArray(offers) ? offers[0]?.price : null) ?? jsonLd.price;
-            return price != null ? String(price).trim() : '';
-          }
           if (prop === 'Product.brand' || prop === 'brand') {
             const b = jsonLd.brand as any;
             const name = typeof b === 'string' ? b : b?.name;
@@ -1588,31 +1539,6 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
         }
       }
 
-      // ── Price ─────────────────────────────────────────────────────────
-      let price: string | null = null;
-      let priceProvenance = '';
-      let priceOrigin: string | null = null;
-      if (expected?.price) {
-        price = expected.price;
-        priceProvenance = 'spreadsheet-import';
-        priceOrigin = 'expected:price';
-      } else if (priceSelector) {
-        price = (await evalText(priceSelector)) || null;
-        if (price) {
-          priceProvenance = priceSelector.startsWith('jsonld:') ? 'json-ld' : priceSelector.startsWith('meta[') ? 'meta' : 'profile-selector';
-          priceOrigin = priceSelector;
-          const m = price.match(/\$?(\d+\.?\d*)/);
-          if (m) price = m[0];
-        }
-      }
-      if (!price) {
-        const offers = jsonLd?.offers as Record<string, unknown> | undefined;
-        price = (offers?.price as string) || metaTags['product:price:amount'] || null;
-        if (price) {
-          priceProvenance = offers?.price ? 'json-ld' : 'meta';
-          priceOrigin = offers?.price ? 'json-ld:Product.offers.price' : 'meta:product:price:amount';
-        }
-      }
 
       // ── Images from selector ────────────────────────────────────────
       let primaryImage: string | null = null;
@@ -1734,7 +1660,7 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
       const origins: Record<string, string | null> = {};
       if (profile.customSelectors) {
         for (const [fieldName, selector] of Object.entries(profile.customSelectors)) {
-          if (!selector) continue;
+          if (!selector || /price|cost|sale/i.test(fieldName) || /price|cost|sale/i.test(selector)) continue;
           const val = await evalText(selector);
           if (val) {
             customFields[fieldName] = val;
@@ -1748,7 +1674,6 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
       if (title) { provenance.title = titleProvenance[0] || 'json-ld'; origins.title = titleOrigin; }
       if (brand) { provenance.brand = brandProvenance; origins.brand = brandOrigin; }
       if (description) { provenance.description = descriptionProvenance; origins.description = descriptionOrigin; }
-      if (price) { provenance.price = priceProvenance; origins.price = priceOrigin; }
       if (primaryImage) { provenance.primaryImage = imageProvenance; origins.primaryImage = imageOrigin; }
       if (additionalImages.length > 0) { provenance.additionalImages = imageProvenance; origins.additionalImages = imageOrigin; }
       if (sourceUrl) provenance.sourceUrl = 'request';
@@ -1767,7 +1692,6 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
         title: title ?? null,
         brand: brand ?? null,
         description: description ?? null,
-        price: price ?? null,
         primaryImage: primaryImage ?? null,
         additionalImages,
         provenance,
@@ -1819,7 +1743,6 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
       title,
       brand: extracted.brand,
       description: extracted.description,
-      price: extracted.price,
       primaryImage: extracted.primaryImage,
       additionalImages: extracted.additionalImages,
       provenance: extracted.provenance,
@@ -1844,7 +1767,7 @@ export async function doRenderedExtract(request: ExtractRequest, deps: ProfileTr
       // request URL if the runner did not report one).
       url: extracted.renderedFinalUrl || sourceUrl,
       data,
-      expected: { name: expected.name, brandHint: request.expected?.brandHint ?? null, price: request.expected?.price ?? null, gtin: request.expected?.upc },
+      expected: { name: expected.name, brandHint: request.expected?.brandHint ?? null, gtin: request.expected?.upc },
     });
   } catch (enrichErr) {
     warnings.push(`Ladder enrichment failed (non-blocking): ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`);
@@ -1860,7 +1783,6 @@ function buildExtractionData(
     title: string;
     brand: string | null;
     description: string | null;
-    price: string | null;
     primaryImage: string | null;
     additionalImages: string[];
     provenance: Record<string, string>;
@@ -1868,10 +1790,10 @@ function buildExtractionData(
   sourceUrl: string,
   expectedName: string | undefined,
 ): ExtractionData {
-  const { title, brand, description, price, primaryImage, additionalImages, provenance } = fields;
+  const { title, brand, description, primaryImage, additionalImages, provenance } = fields;
 
-  // Confidence: fraction of required fields that were extracted
-  const requiredFields = [title, brand, description, price, primaryImage];
+  // Confidence: fraction of required fields that were extracted.
+  const requiredFields = [title, brand, description, primaryImage];
   const extractedCount = requiredFields.filter(Boolean).length;
   const confidence = requiredFields.length > 0 ? extractedCount / requiredFields.length : 0;
 
@@ -1905,7 +1827,7 @@ function buildExtractionData(
     bulletPoints: [],
     primaryImage,
     additionalImages,
-    price,
+    price: null,
     weight: null,
     dimensions: null,
     seoFileName,
@@ -1941,7 +1863,7 @@ function buildFailedResult(
     bulletPoints: [],
     primaryImage: null,
     additionalImages: [],
-    price: expected?.price || null,
+    price: null,
     weight: null,
     dimensions: null,
     seoFileName: null,

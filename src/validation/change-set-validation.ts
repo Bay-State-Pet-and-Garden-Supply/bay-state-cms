@@ -9,7 +9,7 @@ import { hasBlockingDriftForSkuExcludingChangeSet } from '../db/repositories/dri
 import { getDb } from '../db/connection';
 import { comparisonHashForProduct } from '../shopsite/catalog-comparison';
 import { extractSubproductSkus, extractSubproductSkuOccurrences, hashNativeReferences } from '../shopsite/product-codec';
-import { findCurationDataJsonById } from '../db/repositories/onboarding-item-repo';
+import { findCurationDataJsonById, findItemById } from '../db/repositories/onboarding-item-repo';
 import { draftListingEvidenceHashes, draftVariantFactsFor, currentSourceAuthority } from '../classification/listing-evidence-currentness';
 import { evaluateListingEvidenceGate } from '../classification/listing-evidence-gate';
 import { getRun } from '../db/repositories/classification-run-repo';
@@ -62,6 +62,90 @@ function readApprovedFileAtCommit(workspacePath: string, commitHash: string, sku
     return null;
   }
 }
+function onboardingPriceAuthorityIssue(
+  item: ChangeSetItemRow,
+  product: Product,
+  workspaceId: string,
+): { code: string; message: string } | null {
+  const baselines: Product[] = [];
+  if (item.baseJson) {
+    try {
+      const baseline = JSON.parse(item.baseJson) as Product;
+      if (!baseline?.core) throw new Error('Missing product core');
+      baselines.push(baseline);
+    } catch {
+      return {
+        code: 'ONBOARDING_PRICE_AUTHORITY_MISSING',
+        message: 'We could not confirm the original price. Keep the amount entered when the product was added.',
+      };
+    }
+  }
+
+  const workspacePath = findWorkspacePathById(workspaceId);
+  if (workspacePath) {
+    try {
+      const approved = readProductFile(workspacePath, item.sku);
+      if (approved) baselines.push(approved);
+    } catch {
+      // A recorded base remains authoritative if a file cannot be read.
+    }
+  }
+
+  if (item.operation !== 'create' && baselines.length === 0) {
+    return {
+      code: 'ONBOARDING_PRICE_AUTHORITY_MISSING',
+      message: 'We could not confirm the original price. Keep the amount entered when the product was added.',
+    };
+  }
+  if (baselines.some((baseline) =>
+    product.core?.price !== baseline.core?.price ||
+    product.core?.salePrice !== baseline.core?.salePrice
+  )) {
+    return {
+      code: 'ONBOARDING_PRICE_IMMUTABLE',
+      message: 'The price was entered during onboarding and must remain exactly the same.',
+    };
+  }
+  if (item.operation === 'create' && product.core?.salePrice != null) {
+    return {
+      code: 'ONBOARDING_PRICE_IMMUTABLE',
+      message: 'A new product can only use the price entered when it was added; a separate sale price cannot be set.',
+    };
+  }
+
+  let binding: { itemId: string; runId: string } | null;
+  try {
+    binding = onboardingDraftBinding(workspaceId, item);
+  } catch {
+    return {
+      code: 'ONBOARDING_PRICE_AUTHORITY_MISSING',
+      message: 'We could not confirm the original price. Add this product through Add Products so it uses the amount you entered.',
+    };
+  }
+  if (item.operation === 'create' && !binding) {
+    return {
+      code: 'ONBOARDING_PRICE_AUTHORITY_MISSING',
+      message: 'New products must be added through Add Products so their price comes from your entry.',
+    };
+  }
+  if (binding) {
+    const onboardingItem = findItemById(binding.itemId);
+    if (!onboardingItem) {
+      return {
+        code: 'ONBOARDING_PRICE_AUTHORITY_MISSING',
+        message: 'We could not confirm the original price. Add this product through Add Products so it uses the amount you entered.',
+      };
+    }
+    if (product.core?.price !== onboardingItem.price) {
+      return {
+        code: 'ONBOARDING_PRICE_IMMUTABLE',
+        message: 'The product price must match the amount entered when the product was added.',
+      };
+    }
+  }
+  return null;
+}
+
 
 export interface ChangeSetValidationResult {
   total: number;
@@ -148,6 +232,17 @@ export function validateChangeSet(changeSetId: string, options?: ValidationOptio
     }
 
     const results = validateProduct(product, context, effectiveOptions);
+    const priceIssue = onboardingPriceAuthorityIssue(item, product, changeSet?.workspaceId ?? '');
+    if (priceIssue) {
+      results.push(addValidationResult({
+        scopeType: 'change_set',
+        scopeId: changeSetId,
+        severity: 'blocker',
+        code: priceIssue.code,
+        message: priceIssue.message,
+        fieldPath: 'core.price',
+      }));
+    }
     const blockers = results.filter(r => r.severity === 'blocker').length;
     const warnings = results.filter(r => r.severity === 'warning').length;
     const infos = results.filter(r => r.severity === 'info').length;

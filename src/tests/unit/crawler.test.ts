@@ -38,6 +38,7 @@ describe('Training Corpus Crawler Parsers', () => {
             <table class="specs-table">
               <tr><th>Food Form</th><td>Dry Food</td></tr>
               <tr><th>Lifestage</th><td>Adult</td></tr>
+              <tr><th>Price</th><td>$19.99</td></tr>
             </table>
           </body>
         </html>
@@ -93,6 +94,7 @@ describe('Training Corpus Crawler Parsers', () => {
               <table>
                 <tr><td>Animal Type</td><td>Chicken</td></tr>
                 <tr><td>Weight</td><td>50 lb</td></tr>
+                <tr><td>Price</td><td>$19.99</td></tr>
               </table>
             </div>
           </body>
@@ -127,6 +129,7 @@ describe('Training Corpus Crawler Parsers', () => {
             <table class="attributes">
               <tr><th>Sunlight</th><td>Full Sun</td></tr>
               <tr><th>Plant Habit</th><td>Indeterminate</td></tr>
+              <tr><th>Sale Price</th><td>$17.99</td></tr>
             </table>
           </body>
         </html>
@@ -159,6 +162,10 @@ describe('Training Corpus Crawler Parsers', () => {
               <li>Lawn Care</li>
               <li>Fertilizer</li>
             </ul>
+            <table class="specs">
+              <tr><th>Price</th><td>$19.99</td></tr>
+              <tr><th>Weight</th><td>14 lb</td></tr>
+            </table>
           </body>
         </html>
       `;
@@ -170,6 +177,7 @@ describe('Training Corpus Crawler Parsers', () => {
       expect(evidence?.title).toBe('Scotts Turf Builder Weed and Feed Lawn Fertilizer 14.29 lb');
       expect(evidence?.brand).toBe('Scotts');
       expect(evidence?.rawBreadcrumb).toEqual(['Lawn and Garden', 'Lawn Care', 'Fertilizer']);
+      expect(evidence?.specifications).toEqual({ Weight: '14 lb' });
     });
   });
 

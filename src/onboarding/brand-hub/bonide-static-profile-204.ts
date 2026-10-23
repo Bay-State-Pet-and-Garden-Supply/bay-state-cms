@@ -297,7 +297,7 @@ export const FIELD_GAPS_204: readonly BonideFieldGap204[] = [
     field: 'price',
     status: 'accepted_gap',
     evidence:
-      'Static HTML carries only the JS variation template {{{ data.variation.price_html }}}; no JSON-LD offers and no product:price meta exist, so no static selector can carry price. Accepted (not drafted): the worker covers price from expected.price with spreadsheet-import provenance whenever the item carries it. A draft could not do better — there is no static price surface to select.',
+      'The product page may contain price amounts, but this system does not collect or use them. The onboarding price remains unchanged in the draft.',
     draftNeeded: false,
   },
   {

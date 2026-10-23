@@ -48,20 +48,18 @@ function candidate(over: Partial<NormalizedVariantCandidate> = {}): NormalizedVa
 }
 
 describe('selected-variant-materializer (M4)', () => {
-  it('distinct BetterBone siblings get distinct title/GTIN/SKU/price/primaryImage', () => {
+  it('keeps the onboarding price when selected third-party variant prices disagree', () => {
     const base = baseData();
-    const sm = candidate({ variantKey: 'shopify:4123456001:Small', title: 'BetterBone Small', identifiers: [{ kind: 'gtin', value: '810001234501', normalizedValue: '810001234501', sourcePath: 'shopify.variants[0].gtin' } as any, { kind: 'sku', value: 'BB-SM-001', normalizedValue: 'bb-sm-001', sourcePath: 'shopify.variants[0].sku' } as any, { kind: 'platform_id', value: '4123456001', normalizedValue: '4123456001', sourcePath: 'shopify.variants[0].platform_id' } as any], options: [{ axis: 'size', value: 'Small', normalizedAxis: 'size', normalizedValue: 'small', sourcePath: 'shopify.variants[0].options' } as any], price: '9.99', images: [{ url: 'https://example.com/sm.jpg', role: 'primary', sourcePath: 'shopify.variants[0].image' }] });
-    const lg = candidate({ variantKey: 'shopify:4123456002:Large', title: 'BetterBone Large', identifiers: [{ kind: 'gtin', value: '810001234502', normalizedValue: '810001234502', sourcePath: 'shopify.variants[1].gtin' } as any, { kind: 'sku', value: 'BB-LG-001', normalizedValue: 'bb-lg-001', sourcePath: 'shopify.variants[1].sku' } as any, { kind: 'platform_id', value: '4123456002', normalizedValue: '4123456002', sourcePath: 'shopify.variants[1].platform_id' } as any], options: [{ axis: 'size', value: 'Large', normalizedAxis: 'size', normalizedValue: 'large', sourcePath: 'shopify.variants[1].options' } as any], price: '14.99', images: [{ url: 'https://example.com/lg.jpg', role: 'primary', sourcePath: 'shopify.variants[1].image' }] });
-    const mini = candidate({ variantKey: 'shopify:4123456003:Mini', title: 'BetterBone Mini', identifiers: [{ kind: 'gtin', value: '810001234503', normalizedValue: '810001234503', sourcePath: 'shopify.variants[2].gtin' } as any, { kind: 'sku', value: 'BB-MINI-001', normalizedValue: 'bb-mini-001', sourcePath: 'shopify.variants[2].sku' } as any, { kind: 'platform_id', value: '4123456003', normalizedValue: '4123456003', sourcePath: 'shopify.variants[2].platform_id' } as any], options: [{ axis: 'size', value: 'Mini', normalizedAxis: 'size', normalizedValue: 'mini', sourcePath: 'shopify.variants[2].options' } as any], price: '7.99', images: [{ url: 'https://example.com/mini.jpg', role: 'primary', sourcePath: 'shopify.variants[2].image' }] });
-    const outSm = materializeSelectedVariant({ base: baseData(), selected: sm, receipt: { variantKey: sm.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
-    const outLg = materializeSelectedVariant({ base: baseData(), selected: lg, receipt: { variantKey: lg.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
-    const outMini = materializeSelectedVariant({ base: baseData(), selected: mini, receipt: { variantKey: mini.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
+    const sm = candidate({ variantKey: 'shopify:4123456001:Small', title: 'BetterBone Small', identifiers: [{ kind: 'gtin', value: '810001234501', normalizedValue: '810001234501', sourcePath: 'shopify.variants[0].gtin' } as any, { kind: 'sku', value: 'BB-SM-001', normalizedValue: 'bb-sm-001', sourcePath: 'shopify.variants[0].sku' } as any, { kind: 'platform_id', value: '4123456001', normalizedValue: '4123456001', sourcePath: 'shopify.variants[0].platform_id' } as any], options: [{ axis: 'size', value: 'Small', normalizedAxis: 'size', normalizedValue: 'small', sourcePath: 'shopify.variants[0].options' } as any], price: '111.11', images: [{ url: 'https://example.com/sm.jpg', role: 'primary', sourcePath: 'shopify.variants[0].image' }] });
+    const lg = candidate({ variantKey: 'shopify:4123456002:Large', title: 'BetterBone Large', identifiers: [{ kind: 'gtin', value: '810001234502', normalizedValue: '810001234502', sourcePath: 'shopify.variants[1].gtin' } as any, { kind: 'sku', value: 'BB-LG-001', normalizedValue: 'bb-lg-001', sourcePath: 'shopify.variants[1].sku' } as any, { kind: 'platform_id', value: '4123456002', normalizedValue: '4123456002', sourcePath: 'shopify.variants[1].platform_id' } as any], options: [{ axis: 'size', value: 'Large', normalizedAxis: 'size', normalizedValue: 'large', sourcePath: 'shopify.variants[1].options' } as any], price: '222.22', images: [{ url: 'https://example.com/lg.jpg', role: 'primary', sourcePath: 'shopify.variants[1].image' }] });
+    const mini = candidate({ variantKey: 'shopify:4123456003:Mini', title: 'BetterBone Mini', identifiers: [{ kind: 'gtin', value: '810001234503', normalizedValue: '810001234503', sourcePath: 'shopify.variants[2].gtin' } as any, { kind: 'sku', value: 'BB-MINI-001', normalizedValue: 'bb-mini-001', sourcePath: 'shopify.variants[2].sku' } as any, { kind: 'platform_id', value: '4123456003', normalizedValue: '4123456003', sourcePath: 'shopify.variants[2].platform_id' } as any], options: [{ axis: 'size', value: 'Mini', normalizedAxis: 'size', normalizedValue: 'mini', sourcePath: 'shopify.variants[2].options' } as any], price: '333.33', images: [{ url: 'https://example.com/mini.jpg', role: 'primary', sourcePath: 'shopify.variants[2].image' }] });
+    const outSm = materializeSelectedVariant({ base, selected: sm, receipt: { variantKey: sm.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
+    const outLg = materializeSelectedVariant({ base: { ...baseData(), price: '29.99' }, selected: lg, receipt: { variantKey: lg.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
+    const outMini = materializeSelectedVariant({ base: { ...baseData(), price: '14.99' }, selected: mini, receipt: { variantKey: mini.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
     expect(outSm.title).toBe('BetterBone Small');
     expect(outLg.title).toBe('BetterBone Large');
     expect(outMini.title).toBe('BetterBone Mini');
-    expect(outSm.price).toBe('9.99');
-    expect(outLg.price).toBe('14.99');
-    expect(outMini.price).toBe('7.99');
+    expect([outSm.price, outLg.price, outMini.price]).toEqual(['9.99', '29.99', '14.99']);
     expect(outSm.primaryImage).toBe('https://example.com/sm.jpg');
     expect(outLg.primaryImage).toBe('https://example.com/lg.jpg');
     expect(outMini.primaryImage).toBe('https://example.com/mini.jpg');
@@ -108,6 +106,6 @@ describe('selected-variant-materializer (M4)', () => {
     const out = materializeSelectedVariant({ base, selected: cand, receipt: { variantKey: cand.variantKey, identityMatrixHash: 'a'.repeat(64), parserVersion: 1 } });
     expect((out as any).weight).toBe('150g');
     expect((out as any).dimensions).toBe('10x5');
-    expect(out.price).toBe('12.34');
+    expect(out.price).toBe('9.99');
   });
 });

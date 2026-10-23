@@ -145,14 +145,37 @@ function collectProductJsonCandidates(html: string): ProductJsonCandidate[] {
 }
 
 /**
+ * Remove price-like fields from third-party platform data before it leaves
+ * this parser. Variant matching needs identifiers, options, availability,
+ * and images; product prices always come from the onboarding input.
+ */
+function removePriceLikeFields(value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    for (const item of value) removePriceLikeFields(item);
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (/(?:price|cost|sale)/i.test(key)) {
+      delete record[key];
+    } else {
+      removePriceLikeFields(record[key]);
+    }
+  }
+}
+
+/**
  * Return the best Shopify product object embedded in the HTML, or null
  * if none can be parsed. Prefers objects whose variants carry
  * `featured_image` / `featured_media` / `image` over a bare
- * `window.productJSON` whose variants are just id/title/price.
+ * `window.productJSON` whose variants are just id/title.
  */
 export function extractProductJsonFromHtml(html: string): Record<string, any> | null {
   const candidates = collectProductJsonCandidates(html);
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => b.quality - a.quality);
-  return candidates[0].obj;
+  const product = candidates[0].obj;
+  removePriceLikeFields(product);
+  return product;
 }

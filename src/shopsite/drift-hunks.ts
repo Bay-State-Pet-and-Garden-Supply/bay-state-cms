@@ -145,14 +145,6 @@ export function applySingleFieldHunk(baseline: Product, remote: Product, field: 
     next.core.name = remote.core.name;
     return next;
   }
-  if (field === 'core.price') {
-    next.core.price = remote.core.price;
-    return next;
-  }
-  if (field === 'core.salePrice') {
-    next.core.salePrice = remote.core.salePrice;
-    return next;
-  }
   if (field === 'core.description') {
     next.core.description = remote.core.description;
     return next;
@@ -296,7 +288,7 @@ export function applySingleFieldHunk(baseline: Product, remote: Product, field: 
 
 /** All comparison fields this slice can accept per hunk. */
 export function isSupportedHunkField(field: string): boolean {
-  if (field === 'sku') return false;
+  if (field === 'sku' || field === 'core.price' || field === 'core.salePrice') return false;
   if (field === 'status') return true;
   if (field.startsWith('core.') || field.startsWith('custom.') || field.startsWith('seo.')) return true;
   if (field.startsWith('preserved.')) return true;

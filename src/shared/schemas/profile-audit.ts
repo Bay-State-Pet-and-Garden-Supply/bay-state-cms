@@ -268,7 +268,6 @@ export const AuditScoredRowSchema = z.object({
     title: z.string().nullable().optional(),
     brand: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
-    price: z.string().nullable().optional(),
     primaryImage: z.string().nullable().optional(),
     additionalImages: z.array(z.string()).optional(),
     sku: z.string().nullable().optional(),

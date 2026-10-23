@@ -51,9 +51,8 @@ import type { GeneratedSelectorProfile } from './profile-generator';
  * The set of selector field keys that can be approved or rejected.
  *
  * This replaces the legacy SELECTOR_KEYS with the canonical field
- * catalog from src/shared/profile-fields.ts. It includes both
- * dedicated-column fields (titleSelector, priceSelector, etc.) and
- * custom-selector fields (ingredientsSelector, flavorSelector, etc.).
+ * catalog from src/shared/profile-fields.ts. Price selectors are excluded;
+ * legacy DB columns remain available only for backward compatibility.
  */
 export const SELECTOR_KEYS: readonly string[] = PROMOTABLE_PROFILE_KEYS;
 
@@ -107,7 +106,7 @@ function pickString(value: unknown): string | null {
 
 /**
  * Dedicated DB column keys that have first-class storage in extractor_profiles.
- * All other standard fields are stored in custom_selectors_json.
+ * Price is kept here only so legacy revisions are not mistaken for custom fields.
  */
 const DEDICATED_COLUMN_KEYS = [
   'titleSelector',

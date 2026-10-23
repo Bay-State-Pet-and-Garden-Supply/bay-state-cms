@@ -242,7 +242,6 @@ describe('sitemap selection → verifier → confirmation workflow (issue #364)'
       upc: '017800010009',
       expectedName: 'ACME Widget 12 OZ',
       brandHint: 'Acme',
-      price: null,
       officialDomains: ['acme.example'],
     };
     const pageFetch = (async () =>
@@ -341,7 +340,6 @@ describe('sitemap selection → verifier → confirmation workflow (issue #364)'
         upc: '017800010009',
         expectedName: 'ACME Widget 12 OZ',
         brandHint: 'Acme',
-        price: null,
         officialDomains: ['acme.example'],
       },
       (async () =>
@@ -554,5 +552,94 @@ describe('sitemap selection → verifier → confirmation workflow (issue #364)'
       expectedUpdatedAt: fresh.updatedAt,
       expectedDiscoveryRunId: 'dr_distributor_probe',
     })).rejects.toMatchObject({ code: 'source_not_selectable' });
+  });
+  test('no-GTIN exact name and variant confirms automatically without model work', async () => {
+    const [item] = insertItems(batchId, [{
+      name: 'ACME Turbo Widget 12 OZ', upc: '017800010009', brandHint: 'Acme', rowNumber: 7, stage: 'discovery',
+    }]);
+    const fresh = findItemById(item.id);
+    if (!fresh) throw new Error('item missing');
+    const runId = createDiscoveryRun(item.id, { trigger: 'automatic', upc: item.upc, name: item.name });
+    const [source] = insertSources(item.id, [{
+      url: 'https://acme.example/products/widget-12oz', confidence: 0.9, domain: 'acme.example',
+      sourceMethod: 'sitemap_name', discoveryRunId: runId,
+    }]);
+    stubFetch(() => new Response('<html><head><title>Document title differs</title></head><body><h1>ACME Turbo Widget 12 OZ</h1></body></html>', { status: 200 }));
+    const decision = await confirmOfficialPageCandidate({
+      item: { ...fresh, stage: 'find_product_page' as never }, source, workspaceId,
+      attestedProductAndVariant: false, expectedUpdatedAt: fresh.updatedAt, expectedDiscoveryRunId: runId,
+    });
+    expect(decision.evidenceKind).toBe('automatic_name');
+    expect(decision.sourceRunId).toBe(runId);
+    expect(listSourcesByItem(item.id).find(row => row.id === source.id)?.isSelected).toBe(true);
+    expect(getDiscoveryModelCallsByRun(runId)).toHaveLength(0);
+  });
+
+  test('refuses contradictory GTIN, wrong variant, variant conflict, listing, and off-domain sources', async () => {
+    const cases = [
+      { name: 'contradictory GTIN', heading: 'ACME Turbo Widget 12 OZ', body: '<script type="application/ld+json">{"@type":"Product","name":"ACME Turbo Widget 12 OZ","gtin12":"017800010016"}</script>', url: 'https://acme.example/products/widget-12oz', code: 'identity_conflict' },
+      { name: 'wrong variant', heading: 'ACME Turbo Widget 24 OZ', body: '', url: 'https://acme.example/products/widget-24oz', code: 'identity_conflict' },
+      { name: 'heading/variant conflict', heading: 'ACME Turbo Widget 12 OZ', body: '<script>window.productJSON = {\"variants\":[{\"id\":1,\"title\":\"24 OZ\"}]};</script>', url: 'https://acme.example/products/widget-12oz', code: 'identity_conflict' },
+      { name: 'listing page', heading: 'All products', body: '', url: 'https://acme.example/collections/all', code: 'wrong_page' },
+      { name: 'retailer page', heading: 'ACME Turbo Widget 12 OZ', body: '', url: 'https://retailer.example/products/widget-12oz', code: 'strategy_source_not_approved' },
+    ] as const;
+    for (const [index, scenario] of cases.entries()) {
+      const [item] = insertItems(batchId, [{
+        name: 'ACME Turbo Widget 12 OZ', upc: '017800010009', brandHint: 'Acme', rowNumber: 10 + index, stage: 'discovery',
+      }]);
+      const fresh = findItemById(item.id);
+      if (!fresh) throw new Error('item missing');
+      const runId = `dr_refuse_${index}`;
+      const [source] = insertSources(item.id, [{
+        url: scenario.url, confidence: 0.9,
+        domain: new URL(scenario.url).hostname, sourceMethod: 'sitemap_name', discoveryRunId: runId,
+      }]);
+      stubFetch(() => new Response(`<html><head><title>${scenario.heading}</title>${scenario.body}</head><body><h1>${scenario.heading}</h1></body></html>`, { status: 200 }));
+      await expect(confirmOfficialPageCandidate({
+        item: { ...fresh, stage: 'find_product_page' as never }, source, workspaceId,
+        attestedProductAndVariant: false, expectedUpdatedAt: fresh.updatedAt, expectedDiscoveryRunId: runId,
+      })).rejects.toMatchObject({ code: scenario.code });
+      expect(listOfficialPageDecisions(item.id)).toHaveLength(0);
+    }
+  });
+
+  test('stale run binding leaves newer item state untouched', async () => {
+    const [item] = insertItems(batchId, [{
+      name: 'ACME Turbo Widget 12 OZ', upc: '017800010009', brandHint: 'Acme', rowNumber: 20, stage: 'discovery',
+    }]);
+    const fresh = findItemById(item.id);
+    if (!fresh) throw new Error('item missing');
+    const [source] = insertSources(item.id, [{
+      url: 'https://acme.example/products/widget-12oz', confidence: 0.9, domain: 'acme.example',
+      sourceMethod: 'sitemap_name', discoveryRunId: 'dr_stale_actual',
+    }]);
+    stubFetch(() => new Response('<html><body><h1>ACME Turbo Widget 12 OZ</h1></body></html>', { status: 200 }));
+    await expect(confirmOfficialPageCandidate({
+      item: { ...fresh, stage: 'find_product_page' as never }, source, workspaceId,
+      attestedProductAndVariant: false, expectedUpdatedAt: fresh.updatedAt, expectedDiscoveryRunId: 'dr_stale_expected',
+    })).rejects.toMatchObject({ code: 'stale_item' });
+    expect(findItemById(item.id)?.sourceUrl).toBeNull();
+    expect(listOfficialPageDecisions(item.id)).toHaveLength(0);
+    expect(listSourcesByItem(item.id).find(row => row.id === source.id)?.isSelected).toBe(false);
+  });
+
+  test('manual attestation still confirms a needs-operator name match', async () => {
+    const [item] = insertItems(batchId, [{
+      name: 'ACME Turbo Widget 12 OZ', upc: '017800010009', brandHint: 'Acme', rowNumber: 21, stage: 'discovery',
+    }]);
+    const fresh = findItemById(item.id);
+    if (!fresh) throw new Error('item missing');
+    const runId = 'dr_manual_attested';
+    const [source] = insertSources(item.id, [{
+      url: 'https://acme.example/products/widget-12oz', confidence: 0.9, domain: 'acme.example',
+      sourceMethod: 'sitemap_name', discoveryRunId: runId,
+    }]);
+    stubFetch(() => new Response('<html><body><h1>ACME Turbo Widget</h1></body></html>', { status: 200 }));
+    const decision = await confirmOfficialPageCandidate({
+      item: { ...fresh, stage: 'find_product_page' as never }, source, workspaceId,
+      attestedProductAndVariant: true, expectedUpdatedAt: fresh.updatedAt, expectedDiscoveryRunId: runId,
+    });
+    expect(decision.evidenceKind).toBe('operator_name');
+    expect(decision.sourceRunId).toBe(runId);
   });
 });

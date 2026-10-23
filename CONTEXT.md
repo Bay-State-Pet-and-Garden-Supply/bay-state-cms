@@ -54,9 +54,13 @@ _Avoid_: Listing generator, identity resolver, source-discovery engine
 A supplied product identity fact that is optional context for classification, never a classifier-owned assignment or removal.
 _Avoid_: Classification Attribute, inferred classifier output
 
+**Input Price Authority**:
+The spreadsheet or manual onboarding price is the single price authority. It is carried verbatim from input to draft and never replaced, supplemented, or validated by third-party or page-extracted prices.
+_Avoid_: Page-extracted price, fallback pricing, price matching
+
 **Protected Product Data**:
-Product information outside classifier ownership, including Brand, other identity information, listing content, pricing, inventory, and operational status.
-_Avoid_: Arbitrary classification target, generic field enrichment
+ Product information outside classifier ownership, including Brand, other identity information, listing content, pricing, inventory, and operational status.
+ _Avoid_: Arbitrary classification target, generic field enrichment
 
 **Grooming**:
 The Product Type for pet skin and coat care, including medicated shampoos, lotions, and anti-itch sprays. Products explicitly intended for flea or tick control belong to Flea & Tick Treatment.
@@ -937,7 +941,7 @@ _Avoid_: Table view, item list, batch detail view
 - **Profile Health** belongs to the matched **Domain Extractor Profile**, not to the whole domain.
 - **Profile Health** is determined from confirmed same-domain product samples within the **Profile Scope**.
 - A healthy **Domain Extractor Profile** includes reviewed title, description, and image extraction coverage.
-- Price extraction is not required for **Profile Health** when the imported product provides the trusted price.
+- Page prices are never extracted. Profile Health covers reviewed title, description, and image extraction; the immutable onboarding price remains authoritative.
 - A **Domain Extractor Profile** for variant-bearing product pages requires reviewed evidence that the correct variant can be distinguished before it is healthy.
 - Image extraction coverage requires reviewed image previews before **Profile Health** can allow automated **Extraction**.
 - **Fail-Closed Extraction** may stop an item in **Extraction** without producing trusted product evidence.
@@ -1127,6 +1131,11 @@ This dated snapshot records historical implementation and does not override the 
 ## Store Manager Operating Model (epic #46)
 
 The operator-facing onboarding model adopted by ADR 0016. Automation owns progression; the Store Manager owns exceptions, final verification, and release decisions. The six internal Pipeline Stages remain the execution/diagnostics truth; this section governs how they are presented and operated.
+
+**Plain Language Rule**:
+Assume Store Managers have no technical background. Explain what is happening, what needs their attention, and what happens next in familiar words. Do not require them to understand AI, Git, syncing, or internal processing. Use the human-facing terms below; keep technical detail in separate diagnostics or setup surfaces.
+_Avoid_: Machine-stage names, unexplained technical terms, instructions that assume prior software knowledge
+
 
 **Batch Workspace**:
 The primary Store Manager view of one Onboarding Batch, bringing together pipeline context, required human attention, preparation evidence, final review, and release decisions. Pipeline Stage and Operator Work-State describe different aspects of the same products rather than separate onboarding workflows.

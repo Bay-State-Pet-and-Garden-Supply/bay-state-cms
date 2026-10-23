@@ -72,10 +72,8 @@ export const NYLABONE_205_RUNTIME = 'static' as const;
  * reject with rationale, see FIELD_DECISIONS_205): no worker-resolvable
  * brand surface exists (no `og:site_name`, no `product:brand` meta, and the
  * JSON-LD `Brand.Name` key is capitalized-unreadable to the worker), and no
- * static price surface exists. The draft remains usable without them: the
- * worker leaves brand null (non-fatal; brand is supplied by brand
- * assignment) and covers price from `expected.price` with
- * spreadsheet-import provenance whenever the item carries it.
+ * static price surface exists, but product-page prices are never read or
+ * stored. The onboarding price is carried to the draft unchanged.
  */
 export interface NylaboneDraftSelectors205 {
   titleSelector: string;
@@ -439,8 +437,8 @@ export const FIELD_DECISIONS_205: readonly NylaboneFieldRow205[] = [
     decision: 'reject',
     selector: null,
     evidence:
-      'No static price surface exists: no price meta, no price classes, no JSON-LD offers on any validated page. Accepted (not drafted): the worker covers price from expected.price with spreadsheet-import provenance whenever the item carries it.',
-    carriedBy: 'spreadsheet import via expected.price',
+      'Third-party pages are never used for price. The onboarding input carries through unchanged; page amounts are not collected or stored.',
+    carriedBy: 'onboarding input copied unchanged to the draft',
   },
   {
     field: 'variants',

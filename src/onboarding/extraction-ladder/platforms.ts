@@ -79,7 +79,6 @@ export interface StructuredSignals {
     gtin: string | null;
     brand: string | null;
     size: string | null;
-    offers: Array<{ price?: string | null; availability?: string | null }>;
     images: string[];
   }>;
   metaTitle: string | null;
@@ -122,7 +121,6 @@ interface JsonLdProduct {
   size?: unknown;
   brand?: unknown;
   image?: unknown;
-  offers?: unknown;
 }
 
 /** Recursively collect Product-typed JSON-LD objects (bounded depth). */
@@ -192,20 +190,6 @@ export function parseStructuredSignals(html: string): StructuredSignals {
             jsonLdString(product, 'upc'),
           brand: jsonLdString(product, 'brand'),
           size: jsonLdString(product, 'size'),
-          offers: (() => {
-            const offers = product.offers;
-            if (!offers) return [];
-            const list = Array.isArray(offers) ? offers : [offers];
-            return list
-              .filter((offer): offer is Record<string, unknown> => !!offer && typeof offer === 'object')
-              .map((offer) => ({
-                price: typeof offer.price === 'string' || typeof offer.price === 'number' ? String(offer.price) : null,
-                availability:
-                  typeof offer.availability === 'string' ? offer.availability : typeof offer.availability === 'object'
-                    ? String((offer.availability as { name?: unknown })?.name ?? '')
-                    : null,
-              }));
-          })(),
           images: jsonLdImages(product.image),
         });
       }
@@ -243,7 +227,6 @@ export interface ShopifyProductJson {
     /** Variant GTIN/barcode when the platform exposes one. */
     barcode?: string | null;
     available: boolean | null;
-    price: string | null;
     option1: string | null;
     option2: string | null;
     option3: string | null;
@@ -283,7 +266,26 @@ export async function fetchShopifyProductJson(url: string, signal: AbortSignal, 
     throw new Error('Shopify product JSON missing expected fields');
   }
   return {
-    ...parsed as ShopifyProductJson,
+    id: parsed.id ?? '',
+    title: parsed.title,
+    vendor: parsed.vendor ?? null,
+    product_type: parsed.product_type ?? null,
+    handle: parsed.handle ?? '',
+    variants: parsed.variants.map((variant) => ({
+      id: variant.id ?? '',
+      title: variant.title ?? '',
+      sku: variant.sku ?? null,
+      barcode: variant.barcode ?? null,
+      available: variant.available ?? null,
+      option1: variant.option1 ?? null,
+      option2: variant.option2 ?? null,
+      option3: variant.option3 ?? null,
+    })),
+    images: (parsed.images ?? []).map((image) => ({
+      src: image.src,
+      variant_ids: image.variant_ids ?? [],
+    })),
+    options: parsed.options ?? null,
     sourceContentHash: fetched.contentHash,
     sourcePath: 'Shopify product JSON payload',
     sourceUrl: fetched.finalUrl,
@@ -297,7 +299,6 @@ export function parseWooCommerceStoreApi(
   product: {
     name: string | null;
     sku: string | null;
-    price: string | null;
     description: string | null;
     images: string[];
     attributes: Array<{ name: string; value: string }>;
@@ -344,10 +345,6 @@ export function parseWooCommerceStoreApi(
           product: {
             name: product.name as string,
             sku: typeof product.sku === 'string' ? product.sku : null,
-            price: (() => {
-              const prices = product.prices as { price?: unknown } | undefined;
-              return typeof prices?.price === 'string' ? prices.price : typeof product.price === 'string' ? product.price : null;
-            })(),
             description: typeof product.description === 'string' ? product.description : null,
             images,
             attributes,

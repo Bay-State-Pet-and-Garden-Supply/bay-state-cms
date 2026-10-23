@@ -21,7 +21,7 @@ import { proposeDriftRepair } from '../../onboarding/browser-investigation/drift
 
 const DOMAIN = 'shop.example.com';
 
-function shopifyResultWith(selectorForPrice?: string) {
+function shopifyResultWith(selectorForTitle?: string) {
   return {
     version: INVESTIGATION_RESULT_VERSION,
     summary: 'Drift fixture. Untrusted proposal evidence only.',
@@ -43,7 +43,7 @@ function shopifyResultWith(selectorForPrice?: string) {
       field,
       sources: ['shopify_product_json'],
       structureId: 'shopify-default',
-      ...(field === 'price' && selectorForPrice ? { sources: ['shopify_product_json', 'selector'], selector: selectorForPrice } : {}),
+      ...(field === 'title' && selectorForTitle ? { sources: ['shopify_product_json', 'selector'], selector: selectorForTitle } : {}),
     })),
     identityRequirements: {
       productIdentity: ['gtin_exact'],
@@ -53,8 +53,8 @@ function shopifyResultWith(selectorForPrice?: string) {
   } as const;
 }
 
-function compileProposal(selectorForPrice?: string) {
-  const result = shopifyResultWith(selectorForPrice);
+function compileProposal(selectorForTitle?: string) {
+  const result = shopifyResultWith(selectorForTitle);
   const outcome = compileInvestigationResult(result as never, {
     domain: DOMAIN,
     investigationId: 'binv_drift_1',
@@ -84,8 +84,8 @@ describe('drift repair smallest-change proposal (T6)', () => {
     const repair = proposeDriftRepair({
       baselinePolicy: baseline,
       outcome,
-      affectedFields: ['price'],
-      failureCodes: ['field_missing:price'],
+      affectedFields: ['title'],
+      failureCodes: ['field_missing:title'],
     });
     expect(repair.status).toBe('no_change');
     expect(repair.changedFields).toEqual([]);
@@ -93,22 +93,22 @@ describe('drift repair smallest-change proposal (T6)', () => {
     expect(repair.requiresValidation).toBe(true);
     expect(repair.automaticRerun).toBe(false);
     expect(repair.automaticPromotion).toBe(false);
-    expect(repair.affectedFields).toEqual(['price']);
-    expect(repair.failureCodes).toEqual(['field_missing:price']);
+    expect(repair.affectedFields).toEqual(['title']);
+    expect(repair.failureCodes).toEqual(['field_missing:title']);
   });
 
-  it('one changed selector yields minimal_change touching only that field', () => {
+  it('one changed non-price selector yields minimal_change touching only that field', () => {
     const before = compileProposal();
-    const after = compileProposal('.price--sale');
+    const after = compileProposal('.product-title');
     const repair = proposeDriftRepair({
       baselinePolicy: baselinePolicyOf(before.proposal),
       outcome: after,
-      affectedFields: ['price'],
+      affectedFields: ['title'],
       failureCodes: ['selector_rejected'],
     });
     expect(repair.status).toBe('minimal_change');
-    expect(repair.changedFields.map((c) => c.field)).toEqual(['price']);
-    expect(repair.unchangedFields).not.toContain('price');
+    expect(repair.changedFields.map((c) => c.field)).toEqual(['title']);
+    expect(repair.unchangedFields).not.toContain('title');
     expect(repair.unchangedFields.length).toBe(before.proposal.fields.length - 1);
     expect(repair.baselinePolicyHash).not.toBe(repair.proposalPolicyHash);
     expect(repair.blockers).toContain('validation:not_run');

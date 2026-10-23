@@ -55,7 +55,6 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
         fields: {
           title: { available: true, expectedValue: 'Organic Dog Shampoo 16oz' },
           brand: { available: true, expectedValue: 'Earthbath' },
-          price: { available: true, expectedValue: '14.99' },
           sku: { available: true, expectedValue: 'EB-DOG-16' },
           gtin: { available: false, notes: 'Not displayed on PDP' },
           variant_flavor: { available: false, inapplicable: true, notes: 'Not applicable for single-variant shampoo' },
@@ -100,15 +99,6 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
           available: true,
           extractedValue: 'Earthbath',
           expectedValue: 'Earthbath',
-          provenance: 'custom-selector',
-          status: 'correct',
-          correct: true,
-        },
-        price: {
-          field: 'price',
-          available: true,
-          extractedValue: '14.99',
-          expectedValue: '14.99',
           provenance: 'custom-selector',
           status: 'correct',
           correct: true,
@@ -251,15 +241,6 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
           status: 'correct',
           correct: true,
         },
-        price: {
-          field: 'price',
-          available: true,
-          extractedValue: '14.99',
-          expectedValue: '14.99',
-          provenance: 'custom-selector',
-          status: 'correct',
-          correct: true,
-        },
         sku: {
           field: 'sku',
           available: true,
@@ -337,7 +318,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       const fieldNames = evidence.fields.map(f => f.field);
       expect(fieldNames).toContain('title');
       expect(fieldNames).toContain('brand');
-      expect(fieldNames).toContain('price');
+      expect(fieldNames).not.toContain('price');
       expect(fieldNames).toContain('sku');
       expect(fieldNames).toContain('gtin');
 
@@ -393,17 +374,17 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
 
     it('explains conflicted field when selector and structured sources disagree', () => {
       const conflict: HybridConflict = {
-        field: 'price',
-        selectorValue: '14.99',
-        structuredValue: '19.99',
+        field: 'brand',
+        selectorValue: 'Earthbath',
+        structuredValue: 'Earthbath Grooming',
         selectorSource: 'custom-selector',
         structuredSource: 'json-ld',
         resolution: 'flagged_conflict',
-        disagreementReason: 'Selector: 14.99 vs Structured: 19.99',
+        disagreementReason: 'Selector: Earthbath vs Structured: Earthbath Grooming',
       };
-      const exp = explainMissingField('price', { available: true, status: 'conflict', conflictDetails: 'Selector: 14.99 vs Structured: 19.99' }, { available: true }, conflict);
+      const exp = explainMissingField('brand', { available: true, status: 'conflict', conflictDetails: 'Selector: Earthbath vs Structured: Earthbath Grooming' }, { available: true }, conflict);
       expect(exp.reason).toBe('conflicted');
-      expect(exp.explanation).toContain('Selector: 14.99 vs Structured: 19.99');
+      expect(exp.explanation).toContain('Selector: Earthbath vs Structured: Earthbath Grooming');
     });
 
     it('explains failed field when field is available on page but extraction captured nothing', () => {
@@ -420,7 +401,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
           title: 'Organic Dog Shampoo 16oz',
           brand: 'Earthbath',
           description: null,
-          price: null, // failed
+          price: '14.99', // ignored third-party page price
           primaryImage: null,
           additionalImages: [],
           bulletPoints: [],
@@ -435,9 +416,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
 
       const scored = scoreExtraction(outcome, sample);
 
-      // Available price missed -> failed
-      expect(scored.fieldScores.price.missingReason).toBe('failed');
-      expect(scored.fieldScores.price.missingExplanation).toContain('failed');
+      expect(scored.fieldScores).not.toHaveProperty('price');
 
       // Unavailable GTIN -> absent
       expect(scored.fieldScores.gtin.missingReason).toBe('absent');
@@ -474,7 +453,6 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
           title: 'Organic Dog Shampoo 16oz',
           brand: 'Earthbath',
           description: 'Soothing shampoo',
-          price: '14.99',
           primaryImage: 'https://example.com/images/hero-1200.jpg',
           additionalImages: ['https://example.com/images/back-label.jpg'],
           bulletPoints: [],
@@ -580,7 +558,7 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
       expect(s.sampleCount).toBe(3);
       expect(s.scope).toBe('standard_pdp');
 
-      // Baseline missed SKU on all samples, but critical fields (title, brand, price) were present, so baseline served
+      // Baseline missed SKU on all samples, but critical fields (title or brand) were present, so baseline served
       expect(s.baselineServedRate).toBeGreaterThanOrEqual(0);
       expect(s.servedRate).toBe(1.0); // Hybrid served 100%
       expect(s.servedRateDelta).toBeGreaterThanOrEqual(0);
@@ -778,7 +756,6 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
           title: 'Organic Dog Shampoo 16oz',
           brand: 'Earthbath',
           description: null,
-          price: '14.99',
           primaryImage: 'https://example.com/hero.jpg',
           additionalImages: [],
           bulletPoints: [],
@@ -972,7 +949,6 @@ describe('Profile Audit Gate T4: Operator Review Surface (Issue #177)', () => {
           title: 'Sample Product',
           brand: 'Brand',
           description: 'Description',
-          price: '19.99',
           primaryImage: 'https://example.com/images/primary-hero.jpg',
           additionalImages: ['https://example.com/images/shared-gallery.jpg'],
           bulletPoints: [],

@@ -31,23 +31,23 @@ export function SyncJobsView() {
   const getStatusBadge = (s: string) => {
     switch (s.toLowerCase()) {
       case 'succeeded':
-        return <span className="badge badge-primary" style={{ backgroundColor: colors.seedlingGreen }}>SUCCEEDED</span>;
+        return <span className="badge badge-primary" style={{ backgroundColor: colors.seedlingGreen }}>Complete</span>;
       case 'failed':
-        return <span className="badge badge-featured">FAILED</span>;
+        return <span className="badge badge-featured">Needs attention</span>;
       case 'running':
-        return <span className="badge badge-sale">RUNNING</span>;
+        return <span className="badge badge-sale">In progress</span>;
       default:
-        return <span className="badge badge-preorder">{s.toUpperCase()}</span>;
+        return <span className="badge badge-preorder">{s}</span>;
     }
   };
 
   const kindLabel = (k: string): string => {
     const labels: Record<string, string> = {
-      push_publish: 'Push & Publish to ShopSite',
-      upload_only: 'XML Upload',
-      pull_drift: 'Drift Check Verification',
-      full_reconcile: 'Full Catalog Reconcile',
-      bootstrap: 'Initial Catalog Bootstrap',
+      push_publish: 'Store update',
+      upload_only: 'Catalog file sent',
+      pull_drift: 'Check for store changes',
+      full_reconcile: 'Match catalog with store',
+      bootstrap: 'Initial catalog import',
     };
     return labels[k] ?? k;
   };
@@ -55,8 +55,8 @@ export function SyncJobsView() {
   return (
     <div style={{ padding: 24, maxWidth: 1380, margin: '0 auto', fontFamily: fonts.body }}>
       <ViewHeader
-        title="Remote Sync Jobs"
-        description="Audit history and live execution logs for ShopSite CGI synchronization operations."
+        title="Store Updates"
+        description="See when product changes were sent to your store and whether they worked."
       />
 
       {error && (
@@ -71,7 +71,7 @@ export function SyncJobsView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {jobs.length === 0 && (
               <div style={{ ...themeStyles.card, padding: 32, textAlign: 'center', color: colors.mulchBrown, fontSize: 13 }}>
-                No sync jobs recorded yet.
+                No store updates yet.
               </div>
             )}
             {jobs.map(job => {
@@ -95,10 +95,10 @@ export function SyncJobsView() {
                     <strong style={{ fontSize: 14, color: colors.ledgerCharcoal }}>{kindLabel(job.kind)}</strong>
                     {getStatusBadge(job.status)}
                   </div>
-                  <div style={{ fontSize: 11, color: colors.mulchBrown, fontFamily: fonts.mono, display: 'flex', gap: 12 }}>
+                  <div style={{ fontSize: 12, color: colors.mulchBrown, display: 'flex', gap: 8 }}>
                     <span>Started: {job.startedAt?.slice(0, 19).replace('T', ' ') ?? '—'}</span>
                     <span>·</span>
-                    <span>{job.productCount} product(s)</span>
+                    <span>{job.productCount} products</span>
                   </div>
                 </div>
               );
@@ -115,9 +115,6 @@ export function SyncJobsView() {
                   <h2 style={{ fontFamily: fonts.display, fontSize: 18, fontWeight: 700, color: colors.ledgerCharcoal, margin: '0 0 4px 0' }}>
                     {kindLabel(selectedJob.job.kind)}
                   </h2>
-                  <div style={{ fontSize: 12, color: colors.mulchBrown, fontFamily: fonts.mono }}>
-                    Job ID: {selectedJob.job.id}
-                  </div>
                 </div>
                 {getStatusBadge(selectedJob.job.status)}
               </div>
@@ -136,26 +133,26 @@ export function SyncJobsView() {
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: colors.mulchBrown, textTransform: 'uppercase' }}>Products Processed</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: colors.mulchBrown, textTransform: 'uppercase' }}>Products updated</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: colors.ledgerCharcoal, fontFamily: fonts.mono, marginTop: 2 }}>
-                    {selectedJob.job.productCount} SKU(s)
+                    {selectedJob.job.productCount} products
                   </div>
                 </div>
               </div>
 
               {selectedJob.job.errorSummary && (
                 <div style={{ padding: '12px 14px', backgroundColor: '#fee2e2', border: `1px solid ${colors.signetBurgundy}`, borderRadius: rounded.md, color: colors.signetBurgundy, fontSize: 13, marginBottom: 20, fontWeight: 600 }}>
-                  Error Summary: {selectedJob.job.errorSummary}
+                  What needs attention: {selectedJob.job.errorSummary}
                 </div>
               )}
 
               <h3 style={{ fontFamily: fonts.display, fontSize: 15, fontWeight: 700, color: colors.ledgerCharcoal, margin: '0 0 12px 0' }}>
-                Job Execution Logs & Events
+                What happened
               </h3>
 
               {selectedJob.events.length === 0 ? (
                 <div style={{ padding: 24, textAlign: 'center', color: colors.mulchBrown, fontSize: 13 }}>
-                  No execution log events recorded for this job.
+                  No update details are available.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto', paddingRight: 8 }}>
@@ -184,10 +181,10 @@ export function SyncJobsView() {
                         padding: '2px 6px',
                         borderRadius: rounded.xs,
                         flexShrink: 0,
-                        backgroundColor: evt.level === 'error' ? '#fee2e2' : evt.level === 'warning' ? colors.cornerCalloutGold : colors.seedlingGreen,
-                        color: evt.level === 'error' ? colors.signetBurgundy : evt.level === 'warning' ? colors.ledgerCharcoal : '#ffffff',
+                        backgroundColor: evt.level === 'error' ? '#fee2e2' : evt.level === 'warning' ? colors.cornerCalloutGold : evt.level === 'info' ? colors.seedlingGreen : colors.cardBorder,
+                        color: evt.level === 'error' ? colors.signetBurgundy : evt.level === 'warning' || evt.level === 'info' ? colors.ledgerCharcoal : colors.mulchBrown,
                       }}>
-                        {evt.level}
+                        {evt.level === 'error' ? 'Needs attention' : evt.level === 'warning' ? 'Please review' : evt.level === 'info' ? 'Update' : evt.level}
                       </span>
                       <span style={{ flex: 1, color: colors.ledgerCharcoal, lineHeight: 1.4, wordBreak: 'break-word' }}>
                         {evt.message}
@@ -199,7 +196,7 @@ export function SyncJobsView() {
             </div>
           ) : (
             <div style={{ ...themeStyles.card, padding: 48, textAlign: 'center', color: colors.mulchBrown, fontSize: 14 }}>
-              Select a sync job from the list on the left to inspect detailed execution logs.
+              Select a store update to see what happened.
             </div>
           )}
         </div>

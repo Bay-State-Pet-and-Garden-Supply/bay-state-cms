@@ -357,7 +357,6 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
           sku: 'KONG-SM',
           brand: 'KONG',
           variantTokens: ['Small', 'Red'],
-          price: 9.99,
         },
         {
           url: 'https://kongcompany.com/products/classic-red?variant=1002',
@@ -367,7 +366,6 @@ describe('Brand URL Index & Sitemap Telemetry Repositories', () => {
           sku: 'KONG-MD',
           brand: 'KONG',
           variantTokens: ['Medium', 'Red'],
-          price: 12.99,
         },
       ];
 

@@ -997,13 +997,13 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
   // Generate proposals action
   const handleGenerateProposals = async (useAi = false) => {
     setGeneratingProposals(true);
-    setAiScanStatus(useAi ? 'AI Assistant analyzing catalog taxonomy and duplicates...' : 'Scanning for casing and separator errors...');
+    setAiScanStatus(useAi ? 'Checking product details...' : 'Looking for formatting issues...');
     setError(null);
     setSuccessMessage(null);
     try {
       const res = await generateStoreManagerProposals(selectedField, useAi);
       if (res.success) {
-        setSuccessMessage(`Successfully generated ${res.proposals.length} cleanup proposals for field ${selectedField}!`);
+        setSuccessMessage(`${res.proposals.length} suggestions are ready. Review them before adding any changes.`);
         // Navigate to proposals tab
         setActiveTab('proposals');
       }
@@ -1023,7 +1023,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
     try {
       const res = await applyStoreManagerProposal(id);
       if (res.success) {
-        setSuccessMessage(`Successfully applied proposal changes into Change Set! Staged inside active Change Set ID: ${res.changeSetId}.`);
+        setSuccessMessage('The changes are ready for your review.');
         // reload proposals
         await loadProposals();
         // reload health report
@@ -1043,7 +1043,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
     try {
       const res = await dismissStoreManagerProposal(id);
       if (res.success) {
-        setSuccessMessage('Proposal dismissed successfully.');
+        setSuccessMessage('Suggestion removed.');
         await loadProposals();
       }
     } catch (err) {
@@ -1129,8 +1129,8 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
 
       {/* Header */}
       <ViewHeader
-        title="Store Manager AI Assistant"
-        description="Audit catalog parameters, sanitize registered ProductFields safely, and stage batch cleanups into active Change Sets."
+        title="Catalog Review"
+        description="Check your product information for missing details, repeated values, and inconsistent formatting. Review suggested changes before adding them."
         actions={
           <>
             {activeTab === 'overview' && (
@@ -1144,7 +1144,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
                   </svg>
-                  Configure Rules
+                  Review settings
                 </button>
                 <button className="btn-primary" onClick={handleRunScan} disabled={scanning || savingSettings}>
                   {scanning ? (
@@ -1157,7 +1157,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
                       </svg>
-                      Scan Catalog
+                      Check catalog
                     </>
                   )}
                 </button>
@@ -1168,7 +1168,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
                 </svg>
-                Refresh Report
+                Refresh details
               </button>
             )}
             {activeTab === 'proposals' && (
@@ -1176,7 +1176,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
                 </svg>
-                Refresh Fixes
+                Refresh suggestions
               </button>
             )}
             {activeTab === 'assistant' && (
@@ -1184,7 +1184,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
                 </svg>
-                Regenerate Report
+                Refresh notes
               </button>
             )}
           </>
@@ -1194,16 +1194,16 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
       {/* Tabs */}
       <nav className="store-manager-tabs">
         <button className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
-          Overview & Health
+          Catalog status
         </button>
         <button className={`tab-btn ${activeTab === 'cleanup' ? 'active' : ''}`} onClick={() => setActiveTab('cleanup')}>
-          ProductField Cleanup
+          Product Details
         </button>
         <button className={`tab-btn ${activeTab === 'proposals' ? 'active' : ''}`} onClick={() => setActiveTab('proposals')}>
-          Proposed Changes {proposals.filter(p => p.status === 'proposed').length > 0 && `(${proposals.filter(p => p.status === 'proposed').length})`}
+          Suggested Changes {proposals.filter(p => p.status === 'proposed').length > 0 && `(${proposals.filter(p => p.status === 'proposed').length})`}
         </button>
         <button className={`tab-btn ${activeTab === 'assistant' ? 'active' : ''}`} onClick={() => setActiveTab('assistant')}>
-          Assistant Notes
+          Review Notes
         </button>
       </nav>
 
@@ -1287,7 +1287,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 {healthScore}%
               </div>
               <div className="kpi-subtext">
-                {healthScore === 100 ? 'Catalog is fully compliant' : `${healthyProducts} of ${totalProducts} SKUs healthy`}
+                {healthScore === 100 ? 'All products meet your review rules' : `${healthyProducts} of ${totalProducts} products meet your rules`}
               </div>
               <div className="kpi-score-ring">
                 <svg width="50" height="50" viewBox="0 0 36 36">
@@ -1306,13 +1306,13 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
             <div className="health-kpi-card">
               <div className="kpi-label">Total Products</div>
               <div className="kpi-value">{totalProducts}</div>
-              <div className="kpi-subtext">Active Store Catalog SKUs</div>
+              <div className="kpi-subtext">Products in your catalog</div>
             </div>
 
             <div className="health-kpi-card" style={totalErrors > 0 ? { borderLeft: '4px solid #ef4444' } : {}}>
               <div className="kpi-label">Blockers</div>
               <div className="kpi-value" style={{ color: totalErrors > 0 ? '#ef4444' : '#111827' }}>{totalErrors}</div>
-              <div className="kpi-subtext">Must fix before sync/publish</div>
+              <div className="kpi-subtext">Must be corrected before store updates</div>
             </div>
 
             <div className="health-kpi-card" style={totalWarnings > 0 ? { borderLeft: '4px solid #f59e0b' } : {}}>
@@ -1332,7 +1332,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search issues by SKU or title..."
+                placeholder="Search products by name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -1340,13 +1340,13 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
 
             <div className="filter-tabs">
               <button className={`filter-btn ${filterType === 'all' ? 'active' : ''}`} onClick={() => setFilterType('all')}>
-                All Issues ({productSkus.length})
+                Products to review ({productSkus.length})
               </button>
               <button className={`filter-btn ${filterType === 'blockers' ? 'active' : ''}`} onClick={() => setFilterType('blockers')}>
-                Blockers Only
+                Needs fixing
               </button>
               <button className={`filter-btn ${filterType === 'warnings' ? 'active' : ''}`} onClick={() => setFilterType('warnings')}>
-                Warnings Only
+                Suggestions to review
               </button>
             </div>
           </section>
@@ -1365,15 +1365,15 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                     <div className="product-card-header" onClick={(e) => toggleProduct(prod.sku, e)}>
                       <div className="product-title-area">
                         {blockersCount > 0 ? (
-                          <span className="product-badge-blocker">{blockersCount} Blockers</span>
+                          <span className="product-badge-blocker">{blockersCount} to fix</span>
                         ) : warningsCount > 0 ? (
-                          <span className="product-badge-warning">{warningsCount} Warnings</span>
+                          <span className="product-badge-warning">{warningsCount} to review</span>
                         ) : (
-                          <span className="product-badge-info">{infosCount} Infos</span>
+                          <span className="product-badge-info">{infosCount} notes</span>
                         )}
                         <div className="product-meta">
                           <h3>{prod.title}</h3>
-                          <span>SKU: {prod.sku}</span>
+                          <span>Product code: {prod.sku}</span>
                         </div>
                       </div>
 
@@ -1386,7 +1386,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                             <path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
-                          Edit Product
+                          Review product
                         </button>
                         <svg className={`chevron-icon ${isOpen ? 'open' : ''}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -1453,7 +1453,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
           {/* Controls */}
           <section className="cleanup-controls-bar">
             <div className="field-select-group">
-              <label className="field-select-label">Select Audit Field:</label>
+              <label className="field-select-label">Choose product detail:</label>
               <select
                 className="field-select"
                 value={selectedField}
@@ -1462,7 +1462,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
               >
                 {customFields.map(f => (
                   <option key={f.xmlField} value={f.xmlField}>
-                    {f.label} ({f.xmlField})
+                    {f.label}
                   </option>
                 ))}
               </select>
@@ -1474,7 +1474,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 onClick={() => handleGenerateProposals(false)} 
                 disabled={loadingAudit || generatingProposals}
               >
-                Find Normalization Fixes
+                Find formatting fixes
               </button>
               <button 
                 className="btn-primary" 
@@ -1482,7 +1482,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 disabled={loadingAudit || generatingProposals}
                 style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' }}
               >
-                🤖 AI Audit & Refactor
+                Get suggestions
               </button>
             </div>
           </section>
@@ -1490,41 +1490,41 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
           {loadingAudit ? (
             <div className="tab-loader">
               <div className="spinner-ring" />
-              <p style={{ marginTop: 12, color: '#6b7280', fontWeight: 500 }}>Generating field audit report...</p>
+              <p style={{ marginTop: 12, color: '#6b7280', fontWeight: 500 }}>Checking product details...</p>
             </div>
           ) : auditReport ? (
             <>
               {/* Field Statistics */}
               <div className="audit-kpi-grid">
                 <div className="audit-kpi-card">
-                  <div className="kpi-label">Audited Field</div>
+                  <div className="kpi-label">Product detail</div>
                   <div className="kpi-value" style={{ fontSize: '20px', fontWeight: 800, color: '#4f46e5' }}>
                     {auditReport.label}
                   </div>
-                  <div className="kpi-subtext">{auditReport.field}</div>
+                  <div className="kpi-subtext">Product detail values</div>
                 </div>
                 
                 <div className="audit-kpi-card">
-                  <div className="kpi-label">Unique Values</div>
+                  <div className="kpi-label">Different values</div>
                   <div className="kpi-value">{auditReport.uniqueValueCount}</div>
-                  <div className="kpi-subtext">Count of distinct tags/names</div>
+                  <div className="kpi-subtext">Number of different values</div>
                 </div>
 
                 <div className="audit-kpi-card">
-                  <div className="kpi-label">Missing Rate</div>
+                  <div className="kpi-label">Products missing this detail</div>
                   <div className="kpi-value" style={{ color: auditReport.emptyRate > 0.3 ? '#f59e0b' : '#111827' }}>
                     {Math.round(auditReport.emptyRate * 100)}%
                   </div>
-                  <div className="kpi-subtext">{auditReport.emptyCount} of {auditReport.totalActiveProducts} products empty</div>
+                  <div className="kpi-subtext">{auditReport.emptyCount} of {auditReport.totalActiveProducts} products have no value</div>
                 </div>
               </div>
 
               {/* Casing Normalization Report */}
               <div className="cleanup-section-card">
                 <h3>
-                  Casing Duplicate Groups
+                  Different capitalization
                   <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>
-                    {auditReport.casingDuplicates.length} issues found
+                    {auditReport.casingDuplicates.length} groups
                   </span>
                 </h3>
                 {auditReport.casingDuplicates.length > 0 ? (
@@ -1610,11 +1610,11 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
 
               {/* Separators */}
               <div className="cleanup-section-card">
-                <h3>Separator Analysis</h3>
+                <h3>Punctuation</h3>
                 {auditReport.separatorInconsistencies.inconsistent ? (
                   <div>
                     <div style={{ color: '#b45309', background: '#fffbeb', border: '1px solid #fef3c7', padding: '10px 14px', borderRadius: 8, fontSize: 13, display: 'inline-block', marginBottom: 12, fontWeight: 600 }}>
-                      ⚠️ Separator Inconsistency Detected! Multiple separator symbols are used across product fields.
+                      ⚠️ Inconsistent punctuation: this product detail uses more than one separator.
                     </div>
                     <table className="cleanup-table" style={{ maxWidth: 400 }}>
                       <thead>
@@ -1635,7 +1635,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                   </div>
                 ) : (
                   <p style={{ margin: 0, fontSize: 13.5, color: '#6b7280' }}>
-                    Separators are consistent. Dominant separator: {auditReport.separatorInconsistencies.counts.find(s => s.count > 0)?.separator || 'None used'}
+                    Punctuation is consistent. Most-used separator: {auditReport.separatorInconsistencies.counts.find(s => s.count > 0)?.separator || 'None used'}
                   </p>
                 )}
               </div>
@@ -1692,7 +1692,7 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
           {loadingProposals ? (
             <div className="tab-loader">
               <div className="spinner-ring" />
-              <p style={{ marginTop: 12, color: '#6b7280' }}>Loading staged proposals...</p>
+              <p style={{ marginTop: 12, color: '#6b7280' }}>Loading suggestions...</p>
             </div>
           ) : proposals.length > 0 ? (
             <div className="proposal-grid">
@@ -1700,11 +1700,11 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                 <div key={prop.id} className="proposal-card" style={prop.status !== 'proposed' ? { opacity: 0.6 } : {}}>
                   <div className="proposal-info">
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <span className="proposal-field-badge">{prop.field}</span>
+                      <span className="proposal-field-badge">{customFields.find(field => field.xmlField === prop.field)?.label ?? 'Product detail'}</span>
                       {prop.source === 'ai' ? (
-                        <span className="proposal-source-badge-ai">🤖 AI Suggestion</span>
+                        <span className="proposal-source-badge-ai">Suggested</span>
                       ) : (
-                        <span className="proposal-source-badge-det">⚙️ Deterministic</span>
+                        <span className="proposal-source-badge-det">Automatic</span>
                       )}
                       <span style={{
                         fontSize: 11,
@@ -1728,11 +1728,11 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                     </div>
 
                     <div className="proposal-meta-details">
-                      <span>Reason: <span className="proposal-reason">{prop.reason}</span></span>
+                      <span>Why: <span className="proposal-reason">{prop.reason}</span></span>
                       <span>•</span>
-                      <span>Confidence: <strong>{Math.round(prop.confidence * 100)}%</strong></span>
+                      <span>Match quality: <strong>{Math.round(prop.confidence * 100)}%</strong></span>
                       <span>•</span>
-                      <span>Affected Products: <strong>{prop.affectedSkus.length} SKUs</strong></span>
+                      <span>Affected products: <strong>{prop.affectedSkus.length}</strong></span>
                     </div>
                   </div>
 
@@ -1753,12 +1753,12 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
                           onClick={() => handleApplyProposal(prop.id)}
                           disabled={applyingProposalId !== null}
                         >
-                          {applyingProposalId === prop.id ? 'Applying...' : 'Stage Fix'}
+                          {applyingProposalId === prop.id ? 'Adding...' : 'Add to review'}
                         </button>
                       </>
                     )}
                     {prop.status === 'applied' && prop.changeSetId && (
-                      <span style={{ fontSize: 12, color: '#059669', fontWeight: 600 }}>Staged in CS: {prop.changeSetId.slice(0, 8)}</span>
+                      <span style={{ fontSize: 12, color: '#059669', fontWeight: 600 }}>Ready for review</span>
                     )}
                   </div>
                 </div>
@@ -1766,8 +1766,8 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
             </div>
           ) : (
             <div className="empty-state">
-              <h3>No Staged Proposals Found</h3>
-              <p>Go to the **ProductField Cleanup** tab, pick a field, and click **"Find Normalization Fixes"** or **"AI Audit"** to generate proposed fixes.</p>
+              <h3>No suggested changes yet</h3>
+              <p>Open Product Details, choose a detail, and select Find formatting fixes or Get suggestions.</p>
             </div>
           )}
         </>
@@ -1779,27 +1779,27 @@ export function CatalogHealth({ onSelectProduct }: CatalogHealthProps) {
           {loadingAssistant ? (
             <div className="tab-loader">
               <div className="spinner-ring" />
-              <p style={{ marginTop: 12, color: '#6b7280' }}>Store Manager Assistant is compiling cleanup report...</p>
+              <p style={{ marginTop: 12, color: '#6b7280' }}>Preparing your catalog review notes...</p>
             </div>
           ) : assistantReport ? (
             <div className="assistant-report-body">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 12, borderBottom: '2px solid #e5e7eb' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: '#6d28d9' }}>
-                  🤖 Store Manager AI Assistant Report
+                  Catalog review notes
                 </span>
                 <span style={{ fontSize: 12, color: '#9ca3af', fontWeight: 500 }}>
-                  Active Workspace Status
+                  Catalog status
                 </span>
               </div>
               <div style={{ padding: '16px 20px', background: '#f5f3ff', borderLeft: '4px solid #8b5cf6', borderRadius: 8, marginBottom: 24, fontSize: 14, color: '#5b21b6', fontWeight: 600 }}>
-                💡 Key Insights: {assistantReport.summary}
+                💡 Summary: {assistantReport.summary}
               </div>
               <div>
                 {renderMarkdown(assistantReport.reportMarkdown)}
               </div>
             </div>
           ) : (
-            <p className="empty-state">No report notes generated. Click regenerate to run analysis.</p>
+            <p className="empty-state">No notes yet. Select Refresh notes to prepare a summary.</p>
           )}
         </>
       )}

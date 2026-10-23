@@ -3,10 +3,10 @@
 // A profile carrying `extractionPolicy` (platform `shopify`, per-field
 // source order) executes the Shopify `.js` endpoint through the EXISTING
 // normalized variant-identity matcher — no second matcher — and binds
-// variant-specific fields (SKU, barcode/GTIN, options, variant image,
-// price, availability) plus parent and variant IDs. Conflicting or absent
-// identifiers fail closed; legacy profiles without policy keep current
-// semantics exactly.
+// variant-specific fields (SKU, barcode/GTIN, options, and variant image)
+// plus parent and variant IDs. Page prices are never extracted. Conflicting
+// or absent identifiers fail closed; legacy profiles without policy keep
+// current semantics exactly.
 //
 // Worker-level assertions via `doStaticExtract` with injected transport
 // (vitest, no DB, no network).
@@ -28,7 +28,6 @@ const POLICY = {
     { field: 'title', sources: ['shopify_product_json'] },
     { field: 'brand', sources: ['shopify_product_json'] },
     { field: 'description', sources: ['shopify_product_json'] },
-    { field: 'price', sources: ['shopify_product_json'] },
     { field: 'images', sources: ['shopify_product_json'] },
     { field: 'sku', sources: ['shopify_product_json'] },
     { field: 'gtin', sources: ['shopify_product_json'] },
@@ -135,12 +134,13 @@ function singleVariantJs(): string {
   });
 }
 
-/** Variant-bound merchandising truth from the SELECTED endpoint variant (111). */
+/** Variant-bound identity and merchandising fields from selected variant 111. */
 function expectVariantBoundFields(result: any): void {
   const data = result.data;
   expect(data.title).toContain('BetterBone');
   expect((data.fieldProvenance as Record<string, string>).title).toBe('shopify_product_json');
-  expect(data.price).toContain('19.99');
+  expect(data.price).toBeNull();
+  expect((data.fieldProvenance as Record<string, string>).price).toBeUndefined();
   expect(data.primaryImage).toContain('small.jpg');
   expect(data.primaryImage).not.toContain('large.jpg');
   expect((data as any).customFields?.sku).toBe('BB-SM-001');

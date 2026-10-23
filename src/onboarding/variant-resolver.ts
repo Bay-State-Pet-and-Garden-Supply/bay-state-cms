@@ -767,7 +767,6 @@ export function parseShopifyMatrix(htmlOrJson: string, parentUrl: string): Varia
     if (v.option1) opts.push({ axis: payload.options?.[0]?.name ?? 'option1', value: String(v.option1) });
     if (v.option2) opts.push({ axis: payload.options?.[1]?.name ?? 'option2', value: String(v.option2) });
     if (v.option3) opts.push({ axis: payload.options?.[2]?.name ?? 'option3', value: String(v.option3) });
-    const price = v.price != null ? String(v.price) : null;
     const weight = v.weight != null ? String(v.weight) : null;
     const imgUrl = v.featured_image?.src ?? v.featured_image ?? v.image?.src ?? imageByVariant.get(String(v.id)) ?? null;
     const deepLink = `${parentUrl.split('?')[0].split('#')[0]}?variant=${v.id}`;
@@ -778,7 +777,7 @@ export function parseShopifyMatrix(htmlOrJson: string, parentUrl: string): Varia
       identifiers: makeIdentifiers({ platformId: v.id != null ? String(v.id) : null, sku: v.sku ?? null, barcode: v.barcode ?? v.gtin ?? v.gtin12 ?? v.gtin13 ?? null, sourcePath: `shopify.variants[${idx}]` }),
       options: makeOptions(opts, `shopify.variants[${idx}].options`),
       available: v.available !== false,
-      price: price ? (String(price).includes('.') ? price : String(parseInt(price,10)/100)) : null,
+      price: null,
       currency: null,
       weight,
       dimensions: null,
@@ -823,8 +822,6 @@ export function parseJsonLdMatrix(html: string, parentUrl: string): VariantMatri
         const offer: any = Array.isArray(offersRaw) ? offersRaw[0] : offersRaw;
         const url = v.url ?? offer?.url ?? null;
         const title = v.name ?? '';
-        const price = offer?.price != null ? String(offer.price) : null;
-        const currency = offer?.priceCurrency ?? null;
         const weight = v.weight?.value != null ? String(v.weight.value) : null;
         const image = typeof v.image === 'string' ? v.image : Array.isArray(v.image) ? v.image[0] : v.image?.url ?? null;
         const deepLink = url ? String(url) : `${parentUrl}?variant=jsonld-${idxBase}`;
@@ -835,8 +832,8 @@ export function parseJsonLdMatrix(html: string, parentUrl: string): VariantMatri
           identifiers: makeIdentifiers({ gtin, sku, mpn, platformId: sku ?? gtin ?? null, sourcePath: `jsonld.hasVariant[${idxBase}]` }),
           options: makeOptions(opts, `jsonld.hasVariant[${idxBase}].additionalProperty`),
           available: (offer?.availability ?? '').toString().toLowerCase().includes('outofstock') ? false : true,
-          price,
-          currency,
+          price: null,
+          currency: null,
           weight,
           dimensions: null,
           images: makeImages(image ? [{ url: image, role: 'primary' }] : [], `jsonld.hasVariant[${idxBase}].image`),
@@ -872,7 +869,6 @@ export function parseWooMatrix(html: string, parentUrl: string): VariantMatrix |
       axis: k.replace(/^attribute_pa_/, '').replace(/^attribute_/, ''),
       value: String(val),
     }));
-    const price = v.display_price != null ? String(v.display_price) : v.price != null ? String(v.price) : null;
     const weight = v.weight != null ? String(v.weight) : null;
     const img = v.image?.src ?? v.image?.url ?? null;
     const deepLink = v.variation_id ? `${parentUrl.split('?')[0].split('#')[0]}?variation_id=${v.variation_id}` : parentUrl;
@@ -883,7 +879,7 @@ export function parseWooMatrix(html: string, parentUrl: string): VariantMatrix |
       identifiers: makeIdentifiers({ platformId: v.variation_id != null ? String(v.variation_id) : null, sku: v.sku ?? null, sourcePath: `woocommerce.variations[${idx}]` }),
       options: makeOptions(opts, `woocommerce.variations[${idx}].attributes`),
       available: v.is_in_stock !== false,
-      price,
+      price: null,
       currency: null,
       weight,
       dimensions: v.dimensions ? JSON.stringify(v.dimensions) : null,
@@ -919,7 +915,7 @@ export function parseBigCommerceMatrix(html: string, parentUrl: string): Variant
       identifiers: makeIdentifiers({ platformId: String(v.id), sku: v.sku ?? null, sourcePath: `bigcommerce.variants[${idx}]` }),
       options: makeOptions(opts, `bigcommerce.variants[${idx}].options`),
       available: true,
-      price: v.price != null ? String(v.price) : null,
+      price: null,
       currency: null,
       weight: null,
       dimensions: null,
@@ -1277,13 +1273,9 @@ function scoreCandidate(c: NormalizedVariantCandidate, tokens: string[], input: 
     if (candVals.has(nt)) s += 60;
     else if (candTitleTokens.has(nt)) s += 30;
   }
-  // price proximity bonus small
-  if (input.price) {
-    const p = parseFloat(String(input.price));
-    const cp = c.price ? parseFloat(c.price) : NaN;
-    if (!isNaN(p) && !isNaN(cp) && Math.abs(p-cp) < 0.01) s += 10;
-    else if (!isNaN(p) && !isNaN(cp) && Math.abs(p-cp) < 1) s += 2;
-  }
+  // Input Price Authority (ADR 0043): no price scoring — matching uses
+  // identity evidence only. Page prices are never extracted, so there is
+  // nothing to compare against the input price here.
   // availability penalty
   if (!c.available) s -= 20;
   return Math.max(0, s);

@@ -435,7 +435,7 @@ export function buildPromotabilityReasons(
     promotabilityVerdict = 'PROMOTABLE';
     isPromotable = true;
     promotabilityReasons.push('✓ Zero observed identity errors (100% correct identity match)');
-    promotabilityReasons.push('✓ Zero critical-field regressions on title, brand, or price');
+    promotabilityReasons.push('✓ Zero critical-field regressions on title or brand');
     promotabilityReasons.push(
       `✓ Improved image precision (${(hybridPrecisionMean * 100).toFixed(1)}% vs ${(baselineMeanImagePrecision * 100).toFixed(1)}% baseline)`,
     );

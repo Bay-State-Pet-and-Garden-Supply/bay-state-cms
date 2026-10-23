@@ -184,7 +184,7 @@ export function saveDiscoveryAssessment(
   guard: DiscoveryAssessmentGuard,
   input: unknown,
 ): boolean {
-  const assessmentJson = JSON.stringify(assessment);
+  const assessmentJson = JSON.stringify(input);
   if (assessmentJson === undefined) throw new Error('Discovery assessment is not JSON serializable');
   const db = getDb();
   const bindings: Array<string | number> = [

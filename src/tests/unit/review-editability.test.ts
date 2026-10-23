@@ -18,37 +18,32 @@ const baseDraft = (): ReviewDraft => ({
 });
 
 describe('fieldEditability // e10s02 matrix', () => {
-  it('official_page: price and quantity editable, curated fields editable', () => {
+  it('leaves ordinary listing fields editable while quantity follows source rules', () => {
     for (const field of [
       'curatedTitle',
       'brandHint',
       'curatedWeight',
       'curatedDescription',
       'searchKeywords',
-      'price',
       'quantity',
     ] as const) {
       expect(fieldEditability('official_page', field)).toBe('editable');
     }
-  });
-
-  it('distributor_record: price EDITABLE (adjudication — item.price is the only promotion price authority), quantity readonly, curated fields editable', () => {
-    for (const field of ['curatedTitle', 'brandHint', 'curatedWeight', 'curatedDescription', 'searchKeywords', 'price'] as const) {
+    for (const field of ['curatedTitle', 'brandHint', 'curatedWeight', 'curatedDescription', 'searchKeywords'] as const) {
       expect(fieldEditability('distributor_record', field)).toBe('editable');
     }
     expect(fieldEditability('distributor_record', 'quantity')).toBe('readonly');
   });
 
   it('treats null/unknown source type as official-page semantics', () => {
-    expect(fieldEditability(null, 'price')).toBe('editable');
     expect(fieldEditability(undefined, 'quantity')).toBe('editable');
   });
 });
 
 describe('buildListingUpdatePayload // e10s02 save contract', () => {
-  it('official_page: includes trimmed-or-null curation keys plus price/quantity', () => {
+  it('preserves existing curation payload and never includes a price update', () => {
     const payload = buildListingUpdatePayload(
-      { ...baseDraft(), price: ' $24.99 ', quantity: ' 12 ' },
+      { ...baseDraft(), quantity: ' 12 ' },
       'official_page',
     );
     expect(payload.curation_data).toEqual({
@@ -58,19 +53,16 @@ describe('buildListingUpdatePayload // e10s02 save contract', () => {
       searchKeywords: null,
     });
     expect(payload.brandHint).toBe('Atlas');
-    expect(payload.price).toBe('$24.99'.trim());
     expect(payload.quantity).toBe(12);
+    expect('price' in payload).toBe(false);
   });
 
-  it('distributor_record: sends the price key but NEVER a quantity key', () => {
+  it('distributor_record never sends price or quantity updates', () => {
     const payload = buildListingUpdatePayload(
-      { ...baseDraft(), price: '19.99', quantity: '6' },
+      { ...baseDraft(), quantity: '6' },
       'distributor_record',
     );
-    // Adjudication: price must be fixable at review time for distributor
-    // rows too (missing_price blocks; item.price is the promoter's only
-    // distributor price source).
-    expect(payload.price).toBe('19.99');
+    expect('price' in payload).toBe(false);
     expect('quantity' in payload).toBe(false);
   });
 
@@ -83,12 +75,8 @@ describe('buildListingUpdatePayload // e10s02 save contract', () => {
     const payload = buildListingUpdatePayload({ ...baseDraft(), quantity: '' }, 'official_page');
     expect(payload.quantity).toBeNull();
   });
-
-  it('empty price clears to null (explicit clear allowed for official items)', () => {
-    const payload = buildListingUpdatePayload({ ...baseDraft(), price: '' }, 'official_page');
-    expect(payload.price).toBeNull();
-  });
 });
+
 
 describe('listing facts / passthrough tolerance // e10s02', () => {
   it('renders only known scalar listing-fact keys with non-empty values', () => {
@@ -137,8 +125,5 @@ describe('listing facts / passthrough tolerance // e10s02', () => {
       'distributorCategory',
     ]);
   });
-
-  it('keeps distributor price editable so the missing_price blocker is fixable', () => {
-    expect(fieldEditability('distributor_record', 'price')).toBe('editable');
-  });
 });
+

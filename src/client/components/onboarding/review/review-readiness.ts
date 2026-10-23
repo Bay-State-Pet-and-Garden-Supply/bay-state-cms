@@ -131,19 +131,13 @@ export function deriveReadiness(
   if (!effectiveName) blockers.push('missing_name');
   else if (!curatedTitle) warnings.push('name_from_fallback_source');
 
-  // Parity with resolveEffectivePromotedPrice: RAW falsy chain first
-  // (whitespace-only item.price is truthy and cleans to empty ⇒ blocker,
-  // never silently falls through to extraction), currency symbols stripped
-  // only at the verdict.
-  const rawPrice =
-    detail?.item.price || (distributor ? null : extraction?.price) || null;
+  // Input Price Authority (ADR 0043): item.price is the immutable price
+  // entered when the product was added. A whitespace-only value remains
+  // invalid after normalization; never substitute a page-extracted price.
+  const rawPrice = detail?.item.price || null;
   const price =
     typeof rawPrice === 'string' ? rawPrice.replace(/[$\s,]/g, '').trim() || null : null;
   if (!price) {
-    // Parity with evaluateReviewCompleteness adjudication: item.price is the
-    // ONLY promotion price authority for distributor rows too, so an empty
-    // item price blocks for every source type (fixable via the editable
-    // price input).
     blockers.push('missing_price');
   }
 
@@ -288,7 +282,7 @@ export function parseBlockersFromRejection(err: unknown, itemId?: string): strin
 
 const BLOCKER_TEXT: Record<ReviewCompletenessBlockerCode, string> = {
   missing_name: 'Name is empty',
-  missing_price: 'Price is empty',
+  missing_price: 'Price is missing. It must be entered when the product is added; it cannot be added here.',
   missing_brand: 'Brand is missing',
   missing_primary_image: 'No primary image',
   missing_pages: 'No verified Catalog Page assignment',
@@ -413,13 +407,10 @@ export function effectiveGateValues(
   const acceptedPageProposals = (curation?.classificationProposals ?? []).filter(
     (p) => p.proposalType === 'category_page' && p.status === 'accepted',
   ).length;
-  // Price parity with resolveEffectivePromotedPrice / deriveReadiness:
-  // item.price first, extraction price for official sources only.
-  const distributorSource = detail?.item.sourceType === 'distributor_record';
-  const extraction = detail?.extraction ?? detail?.item.extractionData ?? null;
-  const price =
-    trimOrNull(detail?.item.price) ??
-    (distributorSource ? null : trimOrNull(extraction?.price));
+  // Price parity with resolveEffectivePromotedPrice / deriveReadiness
+  // (ADR 0043 Input Price Authority): item.price ONLY, never a
+  // page-extracted fallback for any source type.
+  const price = trimOrNull(detail?.item.price) ?? null;
   return {
     name: resolveEffectiveName(detail),
     price,

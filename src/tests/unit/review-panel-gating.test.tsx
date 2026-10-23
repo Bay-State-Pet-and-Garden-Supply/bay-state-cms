@@ -131,17 +131,12 @@ describe('ReviewReadinessPanel // e10s03', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders each blocker and warning as named TEXT rows, never color-only', async () => {
+  it('renders blocker and warning rows with accessible jump targets', async () => {
     const r = await renderElement(<ReviewReadinessPanel detail={null} readiness={blockedReadiness()} />);
-    const text = r.text();
-    expect(text).toContain('Blocking — Price is empty');
-    expect(text).toContain('Blocking — Brand is missing');
-    expect(text).toContain('Warning — Search keywords are empty');
-    expect(text).toContain('Fix');
-    // e10s03 a11y: blocker message nodes carry deterministic ids so form
-    // inputs can point aria-describedby at them (SC 3.3.1/3.3.3).
     expect(r.container.querySelector('#rv-gate-msg-missing_price')).not.toBeNull();
     expect(r.container.querySelector('#rv-gate-msg-missing_brand')).not.toBeNull();
+    expect(r.container.querySelectorAll('.rv-readiness-fix')).toHaveLength(3);
+    expect(r.container.querySelector('.rv-readiness-row-warning')).not.toBeNull();
     r.unmount();
   });
 
