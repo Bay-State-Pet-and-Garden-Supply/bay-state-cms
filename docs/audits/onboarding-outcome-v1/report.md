@@ -168,3 +168,13 @@ T5 asks whether the DEV-0015 operator gold (`confirm_variant ?variant=4286428505
 - The variant path (`selectVariantService`, `src/onboarding/variant-selection-service.ts:16-159`) operates on a variant-resolution matrix (`ambiguous`/`no_match`/etc.), not on raw contradiction evidence. There is no existing test proving a `reject_conflict` + contradiction page flows through variant-select → confirm → extraction with the gold variant key bound.
 
 Conclusion: under current policy the operator-held outcome for DEV-0015 is a **held verdict, not a proven manual journey**. The gold names the right variant, but no offline evidence shows `?variant=42864285057220` surviving confirm + extraction revalidation today — confirm would refuse at `:129-137` before any variant key binds. This does not invalidate the operator-held policy; it bounds the claim: "diagnosis complete, parked correctly" is proven, "operator can complete it manually" is not. Proving the journey requires a disposable-workspace exercise with a controlled mywoof-shaped artifact through variant-select → confirm → extraction, or an explicit finding that selected-variant contradiction stays held by design. T5 stays open pending that exercise; DEV-0015 closure (T1) does not depend on it.
+
+## T7 — Offline regression gate (2026-10-23, green on touched paths)
+
+`bun run typecheck`: 10 errors with changes vs 8 baseline — both sets are pre-existing other-slice files (`storefront-family-routes quantity`, `product-page-verification-201 offers`, `item-acquisition-serper-search spread`, `drift-canonical-backfill readProductFile`); none in `job-queue.ts`, `comparison-report.ts`, `comparison-capture.ts`. Worktree carries other-slice modifications (159 files) unrelated to this slice; own files committed clean at `bd740123`.
+
+Focused suites green: `discovery-run-trace` 8/8 (incl. 2 new T2 tests) + `brand-authority-gate` (17/17 combined, 98 expects); `onboarding-outcome-report` 11/11 (incl. 2 new T3 tests) + `comparison-arm` barrier tests; `sitemap-selection-workflow` + `page-verifier` + `official-page-identity` 34/34. No full-suite run claimed.
+
+Freeze: candidate head `bd740123`; public smoke pin still references older `4c3a5aa4` — stale, refresh pending before any qualification claim.
+
+T8 status: BLOCKED. T4 wiring (coordinator + scope + snapshot into `runBoundedWorker`) not implemented; TypeSafe hard-refused by transport; Serper priced-but-unbounded. The $3.30 / 2,499-credit position is recorded but unusable until enforcement lands. No paid dispatch occurred in this session.
