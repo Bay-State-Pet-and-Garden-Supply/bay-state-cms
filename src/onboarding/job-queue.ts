@@ -315,9 +315,9 @@ export class OnboardingWorker {
     extractProductData?: typeof extractProductData;
   } | null;
   /** Qualification embedding seam: supplies the paid-effect scope + contracts for acquisition (default null → contract-free, which now fails closed). */
-  private qualificationPaidEffect: (() => RunItemEvidenceAcquisitionInput['paidEffect']) | null = null;
+  private qualificationPaidEffect: ((itemId: string) => RunItemEvidenceAcquisitionInput['paidEffect']) | null = null;
   /** Embedding seam setter: qualification runner installs scope + contracts; tests may inject fakes. */
-  setQualificationPaidEffect(supplier: (() => RunItemEvidenceAcquisitionInput['paidEffect']) | null): void {
+  setQualificationPaidEffect(supplier: ((itemId: string) => RunItemEvidenceAcquisitionInput['paidEffect']) | null): void {
     this.qualificationPaidEffect = supplier;
   }
 
@@ -1904,7 +1904,7 @@ export class OnboardingWorker {
           intent: 'identity_bootstrap',
           assertHeld,
           modelPolicy: run.modelPolicy ?? undefined,
-          paidEffect: this.qualificationPaidEffect?.() ?? undefined,
+          paidEffect: this.qualificationPaidEffect?.(item.id) ?? undefined,
         }),
       );
       assertHeld();

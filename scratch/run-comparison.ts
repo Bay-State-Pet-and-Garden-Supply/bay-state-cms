@@ -149,26 +149,30 @@ async function main(): Promise<void> {
     byArm.get(arm)!.credentialFd = readFd;
   }
   let sharedBudgetCoordinator: import('../src/ai/paid-effect-budget').PaidEffectBudgetCoordinator | undefined;
-  const barrier = await runArmBarrier<NonNullable<ArmPreflightResult['prepared']>, ArmResult>(
-    arms,
-    async arm => {
-      const result = await preflightComparisonArm(byArm.get(arm)!, population);
-      return { prepared: result.prepared, denial: result.denial };
-    },
-    async (arm, prepared) => {
-      const freeze = await readQualificationFreeze(freezePath);
-      const paidEffect = buildRunPaidEffect(byArm.get(arm)!, prepared, {
-        runId, capUsd: options.cap, authorizationUsdMicros: freeze.authorizationUsdMicros,
-        billingReferences: freeze.billingReferences,
-      }, sharedBudgetCoordinator);
-      sharedBudgetCoordinator = paidEffect.coordinator;
-      return releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap, paidEffect });
-    },
-    options.cap > 0 && options.mode === 'comparison',
-  );
-  sharedBudgetCoordinator?.close(`run ${runId} complete`);
-  for (const fd of credentialFdByArm.values()) try { closeSync(fd); } catch { /* already closed */ }
-  rmSync(credDir, { recursive: true, force: true });
+  let barrier: Awaited<ReturnType<typeof runArmBarrier<NonNullable<ArmPreflightResult['prepared']>, ArmResult>>>;
+  try {
+    barrier = await runArmBarrier<NonNullable<ArmPreflightResult['prepared']>, ArmResult>(
+      arms,
+      async arm => {
+        const result = await preflightComparisonArm(byArm.get(arm)!, population);
+        return { prepared: result.prepared, denial: result.denial };
+      },
+      async (arm, prepared) => {
+        const freeze = await readQualificationFreeze(freezePath);
+        const paidEffect = buildRunPaidEffect(byArm.get(arm)!, prepared, {
+          runId, capUsd: options.cap, authorizationUsdMicros: freeze.authorizationUsdMicros,
+          billingReferences: freeze.billingReferences,
+        }, sharedBudgetCoordinator);
+        sharedBudgetCoordinator = paidEffect.coordinator;
+        return releaseComparisonArm(byArm.get(arm)!, prepared, { runId, capUsd: options.cap, paidEffect });
+      },
+      options.cap > 0 && options.mode === 'comparison',
+    );
+  } finally {
+    sharedBudgetCoordinator?.close(`run ${runId} complete`);
+    for (const fd of credentialFdByArm.values()) try { closeSync(fd); } catch { /* already closed */ }
+    rmSync(credDir, { recursive: true, force: true });
+  }
   const outputs: string[] = [];
   const results = barrier.results.length
     ? barrier.results.map(({ result }) => result)

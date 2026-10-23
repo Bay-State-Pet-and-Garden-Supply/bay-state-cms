@@ -148,6 +148,7 @@ export function buildRunPaidEffect(
   // here; a future freeze cut records the pilot id explicitly.
   const serperContract = budget.billingReferences.find(ref => ref.provider === 'serper_search' &&
     (ref.contractId === 'serper-pilot-2499-credits' || ref.contractId === 'serper-subscription'));
+  if (!serperContract) throw new Error('Frozen qualification authorization does not include a Serper billing contract; paid release denied.');
   const ledgerDb = coordinator ? undefined : new Database(options.budgetDbPath);
   const authorization = pilotBudgetAuthorization({ runId: budget.runId, arms: ['baseline', 'candidate'] });
   const boundedAuthorization = { ...authorization, approvedCeilingMicros: Math.min(authorization.approvedCeilingMicros, cap) };
@@ -167,8 +168,10 @@ async function runBoundedWorker(options: ArmBootstrapOptions, runtime: Qualifica
   const deadline = Date.now() + runtime.run.limits.maxRuntimeMs;
   const worker = new OnboardingWorker(runtime.run.workspaceId, runtime.workspacePath);
   if (paidEffect) {
-    worker.setQualificationPaidEffect(() => ({
-      scope: paidEffect.scope,
+    // Per-item scope narrowing: each acquisition reserves against this item alone,
+    // so the ledger attributes Serper/browser spend to the row that caused it.
+    worker.setQualificationPaidEffect((itemId: string) => ({
+      scope: { ...paidEffect.scope, beneficiaries: [{ kind: 'item' as const, id: itemId }] },
       client: paidEffect.client,
       serperSearchContract: paidEffect.serperSearchContract,
       browserSessionContract: paidEffect.serperSearchContract,
