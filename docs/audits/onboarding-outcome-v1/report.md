@@ -199,3 +199,11 @@ Recommendation adopted: wire operator-gold brand hints for the four mappable row
 | DEV-0002 gold SM | same | matches gold `discontinued_unlisted` |
 
 Spend all four: encumbered 0, 0 paid effects. Runs park on sitemap-local evidence before any Serper/browser dispatch — ledgers prove $0 / 0 credits. Session total unchanged: **$0 and ~1 Serper credit** (the key-check POST only).
+
+## T8 live paid proof (2026-10-23, Serper reserves + settles under the ledger)
+
+First real paid dispatch through the T4 wiring: a coordinator-backed `searchSerperWeb` POST for `850068229253 DR MARTY FD SENSITIVITY SELECT 6OZ` (`count: 5`) returned 5 results (3,415 bytes) in ~1.5s, including the official `drmartypets.com/product/natures-blend-sensitivity-select` page plus retailer/distributor clues correctly left for the authority filter. Reservation settled to effect count 1 with `encumbered 0 / known 0 / unknown 0 / available 3,000,000` — the zero-dollar Serper contract reserves the request unit and settles without a dollar charge, exactly as designed.
+
+Cost: **1 Serper credit** (`credits: 1` per POST per the key-check probe). No TypeSafe call — the item-acquisition model-price refusal still gates all TypeSafe paths, so the $3.30 allowance is untouched. Probe script removed after proof; no production data written.
+
+Pipeline note: the runner itself never reaches this dispatch for sitemap-miss rows — Discovery parks `needs_input_no_candidates` before acquisition runs (Serper fires only in `collect_details` after a confirmed source). So the paid receipt above proves the adapter + ledger path, not an end-to-end paid row. Wiring a Serper-backed Discovery fallback would be new product scope, not a bug fix.

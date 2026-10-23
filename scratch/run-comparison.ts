@@ -122,7 +122,7 @@ async function main(): Promise<void> {
   // (DEV-0039, DEV-0027, DEV-0041) enter with no hint: wrong-brand and no-domain negatives.
   const ATTESTED_BRAND_HINTS: Record<string, string> = {
     'DEV-0015': 'WOOF', 'DEV-0014': 'WOOF', 'DEV-0019': 'BENEBONE',
-    'DEV-0001': 'KONG', 'DEV-0002': 'KONG',
+    'DEV-0001': 'KONG', 'DEV-0002': 'KONG', 'DEV-0005': 'DR MARTY',
   };
   const seenUpcs = new Set<string>();
   const population = selectedRows.flatMap(row => {
