@@ -734,19 +734,16 @@ export function extractVerificationSignals(
   const urlLower = url.toLowerCase();
   const hasProductIndicator =
     /\/(products?|p|item|details?|dp|gp|buy)\//i.test(urlLower);
-  // Markup signals must come from the rendered <body>, not embedded JSON-LD /
-  // script payloads that merely reference collections, blogs, or search facets.
-  const bodyHtml = (html.match(/<body[\s\S]*<\/body\s*>/i) ?? [html])[0]!;
-  const isListingOrSearchPage =
-    /category-listing|collection-page|search-results-page|\/collections\/|\/search\?/i.test(bodyHtml) ||
-    /<body[^>]*class=["'][^"']*(?:collection|search)[^"']*["']/i.test(html) ||
-    (/\/(collections?|category|categories|product-category|brands?|tags?|search|shop-all|all-products)\//i.test(
-      urlLower,
-    ) && !hasProductIndicator);
-  const isBlogOrCmsPage =
-    /blog-post-article|\/blogs\//i.test(bodyHtml) ||
-    (/\/(blogs?|articles?|pages|about|contact|faq)\//i.test(urlLower) &&
-    !hasProductIndicator);
+  // Page-kind is a URL-route judgment, not a markup keyword search: Shopify
+  // chrome links every product page to collections and blogs, so body
+  // substring hits are not type evidence. A product-detail URL that is not
+  // itself a listing/blog route is a product page; structured variant and
+  // purchasability signals corroborate but never override the route.
+  const isListingRoute = /\/(collections?|category|categories|product-category|brands?|tags?|search|shop-all|all-products)(\/|$|\?)/i.test(urlLower) ||
+    /category-listing|collection-page|search-results-page/i.test(urlLower);
+  const isBlogRoute = /\/(blogs?|articles?)(\/|$|\?)/i.test(urlLower);
+  const isListingOrSearchPage = isListingRoute && !hasProductIndicator;
+  const isBlogOrCmsPage = isBlogRoute && !hasProductIndicator;
   const isProductDetailPage = hasProductIndicator && !isListingOrSearchPage && !isBlogOrCmsPage;
 
   // ── Domain official ───────────────────────────────────────────────────
