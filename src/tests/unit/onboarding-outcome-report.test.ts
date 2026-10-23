@@ -104,4 +104,35 @@ describe('projectComparisonRows', () => {
       { itemId: 'a', amountMicros: 4 }, { itemId: 'b', amountMicros: 3 }, { itemId: 'c', amountMicros: 3 },
     ]);
   });
+
+  it('projects DEV-0015 matcher and contradiction blocks without authority failure', () => {
+    const reason = 'needs_review: no candidate passed verification | verification: [verified] proof=exact_variant_gtin | gates: https://mywoof.com/products/pupsicle [exact_variant_gtin] BLOCKED:matcher:reject_conflict(product_line_mismatch),contradiction(variant=sm conflicts with register xl)';
+    const result = projectComparisonRows(
+      [{ row_id: 'DEV-0015', upc: '860012493753', register_name: 'WOOF PUPSICLE LAVENDER XL', price: 1 }],
+      [{ id: 'i1', upc: '860012493753', stage: 'discovery', stageStatus: 'completed', status: 'needs_review', errorMessage: reason }],
+      [],
+    );
+    expect(result.rows[0]?.disposition).toBe('blocked');
+    expect(result.rows[0]?.gate_blocks).toContain('BLOCKED_SOURCE_REVIEW');
+    expect(result.rows[0]?.gate_blocks).toContain('BLOCKED_IDENTITY_MATCHER');
+    expect(result.rows[0]?.gate_blocks).toContain('BLOCKED_IDENTITY_CONTRADICTION');
+    expect(result.rows[0]?.gate_blocks).not.toContain('BLOCKED_IDENTITY_AUTHORITY');
+    expect(result.rows[0]?.gate_blocks).not.toContain('BLOCKED_DOMAIN_SETUP');
+  });
+
+  it('projects genuine authority failure and leaves missing gates as review-only', () => {
+    const authReason = 'needs_review: no candidate passed verification | authority: auto-accept requires the mapped official domain | gates: https://other.example/p [exact_structured_gtin] BLOCKED:no_authority,matcher:reject_conflict(x)';
+    const authResult = projectComparisonRows(
+      [{ row_id: 'r-auth', upc: 'a1', register_name: 'A', price: 1 }],
+      [{ id: 'i1', upc: 'a1', stage: 'discovery', stageStatus: 'completed', status: 'needs_review', errorMessage: authReason }],
+      [],
+    );
+    expect(authResult.rows[0]?.gate_blocks).toContain('BLOCKED_IDENTITY_AUTHORITY');
+    const noGates = projectComparisonRows(
+      [{ row_id: 'r-plain', upc: 'a2', register_name: 'A2', price: 1 }],
+      [{ id: 'i2', upc: 'a2', stage: 'discovery', stageStatus: 'completed', status: 'needs_review', errorMessage: 'needs_review: parked' }],
+      [],
+    );
+    expect(noGates.rows[0]?.gate_blocks).toEqual(['BLOCKED_SOURCE_REVIEW']);
+  });
 });

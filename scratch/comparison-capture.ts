@@ -27,7 +27,7 @@ export type ComparisonCaptureBundle = {
   original_rows: unknown[];
   items: Array<ComparisonItem & { row_number: number | null; batch_id: string; workspace_id: string; raw: OnboardingItem }>;
   sources: ComparisonSource[];
-  discovery_runs: unknown[];
+  discovery_runs: Array<{ id: string; item_id: string; outcome: string | null; outcome_message: string | null }>;
   discovery_assessments: unknown[];
   discovery_attempts: unknown[];
   classification_runs: unknown[];

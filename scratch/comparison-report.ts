@@ -131,6 +131,21 @@ export function allocateSharedCost(amountMicros: number, itemIds: string[]): Cos
   return ids.map((itemId, index) => ({ itemId, amountMicros: base + (index < remainder ? 1 : 0) }));
 }
 
+/** Projects gate diagnostics from a parked run reason into report gate blocks.
+ * Absent or truncated gate info yields unknown, never pass. */
+export function projectGateBlocks(reason: string | null): string[] {
+  if (reason === null) return ['BLOCKED_SOURCE_REVIEW'];
+  const blocks = ['BLOCKED_SOURCE_REVIEW'];
+  const gatesIdx = reason.indexOf('| gates:');
+  if (gatesIdx === -1) return blocks;
+  const gatesSection = reason.slice(gatesIdx);
+  if (/no_authority/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_AUTHORITY');
+  if (/incomplete_coverage/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_COVERAGE');
+  if (/matcher:(?!unique_name_variant_match)|BLOCKED:.*matcher:/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_MATCHER');
+  if (/contradiction\(/.test(gatesSection)) blocks.push('BLOCKED_IDENTITY_CONTRADICTION');
+  return blocks;
+}
+
 /** Projects observations onto every original input row; absence is never success or zero cost. */
 export function projectComparisonRows(
   inputs: ComparisonInput[],
@@ -197,7 +212,7 @@ export function projectComparisonRows(
       else if (stop === 'policy_or_budget_denied' || stop === 'needs_input' || stop === 'source_resolution') {
         disposition = 'blocked';
         gateBlocks = noDomainSetup ? ['BLOCKED_DOMAIN_SETUP'] :
-          stop === 'source_resolution' || item.status === 'needs_review' ? ['BLOCKED_SOURCE_REVIEW'] :
+          stop === 'source_resolution' || item.status === 'needs_review' ? projectGateBlocks(observedReason) :
             stop === 'policy_or_budget_denied' ? ['BLOCKED_POLICY_OR_BUDGET'] : ['BLOCKED_SOURCE_OR_INPUT'];
       } else if (stop === 'review_ready_for_operator') disposition = 'pipeline_pending';
       else if (stop === 'pipeline_pending') disposition = 'pipeline_pending';
