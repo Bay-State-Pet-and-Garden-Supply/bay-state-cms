@@ -1575,6 +1575,30 @@ export class OnboardingWorker {
         const verifiedStrong = verificationResults
           .filter(vr => vr.hasStrongProof && !isAmbiguous(vr.candidate));
 
+        // ADR 0040 name-first path: conservative unique name/variant matches confirm
+        // without GTIN when coverage is complete, authority holds, the page is a
+        // product detail page, and no axis contradicts. GTIN corroborates or
+        // contradicts; absence is ordinary.
+        const verifiedName = verificationResults
+          .filter(vr => !vr.hasStrongProof && !isAmbiguous(vr.candidate) &&
+            passesAuthorityGate(activeBrandHint, officialDomains, vr.candidate.domain) &&
+            vr.observedIdentity.coverageComplete &&
+            vr.observedIdentity.pageKind === 'product' &&
+            matchOfficialPageIdentity({
+              registerName: item.name,
+              registerUpc: item.upc,
+              brandHint: activeBrandHint,
+              pageName: vr.observedIdentity.pageName ?? '',
+              pageBrand: vr.observedIdentity.pageBrand,
+              pageKind: vr.observedIdentity.pageKind,
+              variants: vr.observedIdentity.variants,
+              observedGtins: vr.observedIdentity.observedGtins,
+            }).outcome === 'unique_name_variant_match' &&
+            findContradictoryProductAxes(item.name, [
+              { field: 'heading', value: vr.observedIdentity.pageName ?? '' },
+              ...vr.observedIdentity.variants.map((variant) => ({ field: 'variant', value: variant.label })),
+            ]).length === 0);
+
         // ADR 0017 commitment 2 — authority gate: auto-accept is allowed only
         // when the chosen candidate's domain is a mapped official brand domain
         // (strict isOfficialDomainMatch against the pre-run snapshot). A
@@ -1591,9 +1615,13 @@ export class OnboardingWorker {
           process.env.BAYSTATE_CMS_OFFICIAL_AUTO_SELECT_DISABLED === '1' ||
           process.env.BAYSTATE_CMS_OFFICIAL_AUTO_SELECT_DISABLED?.toLowerCase() === 'true';
 
+        // Accept a candidate confirmed by EITHER GTIN-strong proof OR a unique
+        // conservative name/variant match. verifiedName entries already passed
+        // authority, coverage, product-kind, matcher, and contradiction gates.
+        const verifiedNameSelected = verifiedName.length === 1 ? verifiedName[0] ?? null : null;
         const autoSelectedResult = isOfficialAutoSelectDisabled
           ? null
-          : verifiedStrong.find((v) => hasAuthority(v.candidate) && v.observedIdentity.coverageComplete &&
+          : verifiedNameSelected ?? verifiedStrong.find((v) => hasAuthority(v.candidate) && v.observedIdentity.coverageComplete &&
             matchOfficialPageIdentity({
               registerName: item.name,
               registerUpc: item.upc,

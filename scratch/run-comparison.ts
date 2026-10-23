@@ -25,10 +25,11 @@ import { projectComparisonRows, type ComparisonInput } from './comparison-report
 import { closeDb, initDb } from '../src/db/connection';
 import { readQualificationFreeze } from './comparison-runtime';
 
+const CREDENTIAL_ENV_KEYS = ['SERPER_API_KEY', 'TYPESAFE_API_KEY'] as const;
+
 type Options = { split: 'development' | 'holdout'; arm: 'baseline' | 'candidate' | 'both'; mode: 'comparison' | 'mechanism-check'; cap: number; manifest: string; freeze?: string; privateRoot?: string; workspace?: string; rowIds?: string[] };
 type Arm = 'baseline' | 'candidate';
 const usage = 'Usage: bun scratch/run-comparison.ts --split development|holdout --arm baseline|candidate|both --mode comparison|mechanism-check --max-spend-usd USD [--manifest path] --freeze path --private-root path --workspace path [--row-id DEV-0001 ...]';
-
 
 function parseArgs(argv: string[]): Options {
   const values: Record<string, string> = {};
@@ -113,14 +114,34 @@ async function main(): Promise<void> {
       dbPath: path.join(armDir, 'db', 'evaluation.sqlite'),
     });
   }
+  // Operator-attested brand hints for the predeclared pilot (source-reviewed 2026-10-22).
+  // NOT inferred: dev rows carry no brand field, and first-token guessing misattributes
+  // (e.g. DEV-0039 "PURE" is actually NutriSource). Unlisted rows enter with no hint.
+  const ATTESTED_BRAND_HINTS: Record<string, string> = { 'DEV-0015': 'WOOF' };
   const seenUpcs = new Set<string>();
   const population = selectedRows.flatMap(row => {
     if (!hasOnlyAllowedInput(row) || typeof row.upc !== 'string' ||
       (typeof row.disposition === 'string' && ['invalid', 'duplicate', 'skipped_existing'].includes(row.disposition)) ||
       seenUpcs.has(row.upc)) return [];
     seenUpcs.add(row.upc);
-    return [{ upc: row.upc, register_name: row.register_name as string, price: row.price as number }];
+    return [{ upc: row.upc, register_name: row.register_name as string, price: row.price as number, brandHint: typeof row.row_id === 'string' ? ATTESTED_BRAND_HINTS[row.row_id] ?? null : null }];
   });
+  // Credential files: one 0600 temp file per arm under the private run dir,
+  // carrying ONLY declared env keys. Never logged, never committed, removed after release.
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const credDir = mkdtempSync(path.join(tmpdir(), 'qual-creds-'));
+  try { require('node:fs').chmodSync(credDir, 0o700); } catch { /* best effort */ }
+  const credentialFdByArm = new Map<Arm, number>();
+  const { openSync, writeSync, closeSync } = await import('node:fs');
+  for (const arm of arms) {
+    const supplied: Record<string, string> = {};
+    for (const key of CREDENTIAL_ENV_KEYS) if (process.env[key]) supplied[key] = process.env[key]!;
+    const credPath = path.join(credDir, `${arm}.json`);
+    writeFileSync(credPath, JSON.stringify(supplied), { mode: 0o600 });
+    const readFd = openSync(credPath, 'r');
+    byArm.get(arm)!.credentialFd = readFd;
+  }
   const barrier = await runArmBarrier<NonNullable<ArmPreflightResult['prepared']>, ArmResult>(
     arms,
     async arm => {
@@ -130,6 +151,9 @@ async function main(): Promise<void> {
     (arm, prepared) => releaseComparisonArm(byArm.get(arm)!, prepared),
     options.cap > 0 && options.mode === 'comparison',
   );
+  for (const fd of credentialFdByArm.values()) try { closeSync(fd); } catch { /* already closed */ }
+  rmSync(credDir, { recursive: true, force: true });
+  const outputs: string[] = [];
   const results = barrier.results.length
     ? barrier.results.map(({ result }) => result)
     : barrier.preflight.map(({ arm, prepared, denial }) => ({
@@ -138,7 +162,6 @@ async function main(): Promise<void> {
       state: prepared ? { phase: 'held', batchId: prepared.batchId, itemIds: prepared.itemIds, executionState: 'paused' } : null,
       denial: denial ?? 'Release is disabled for zero-spend mechanism checks.',
     }));
-  const outputs: string[] = [];
   const freeze = await readQualificationFreeze(freezePath);
   const reportRows: Record<string, unknown>[] = [];
   for (const report of results) {

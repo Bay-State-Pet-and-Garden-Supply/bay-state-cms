@@ -15,7 +15,7 @@ import type { OnboardingItem } from '../src/shared/schemas/onboarding';
 export type ArmStop = 'preflight_denied' | 'review_ready' | 'needs_input' | 'denied' | 'failed' | 'deadline' | 'no-progress';
 export interface ArmResult { arm: 'baseline' | 'candidate'; stop: ArmStop; imported: number; polls: number; state: unknown; denial?: string }
 export interface ArmBootstrapOptions { arm: 'baseline' | 'candidate'; freezePath: string; privateRoot: string; workspacePath: string; destinationRoot: string; dbPath: string; credentialFd?: number }
-export interface PopulationRow { upc: string; register_name: string; price: number }
+export interface PopulationRow { upc: string; register_name: string; price: number; brandHint?: string | null }
 export interface PreparedArm { arm: ArmBootstrapOptions['arm']; imported: number; batchId: string; itemIds: string[]; workspacePath: string }
 export interface ArmPreflightResult { arm: ArmBootstrapOptions['arm']; prepared?: PreparedArm; imported: number; denial?: string }
 
@@ -49,6 +49,7 @@ export async function preflightComparisonArm(options: ArmBootstrapOptions, rows:
     importQualificationRuntimeRecords(db, validation.run.runtimeRecords, validation.run.workspaceId);
     const items: InsertItemData[] = rows.map((row, index) => ({
       upc: row.upc, name: row.register_name, price: String(row.price), rowNumber: index + 1,
+      brandHint: row.brandHint ?? null,
       isHeld: true, stageStatus: 'pending',
     }));
     const batch = createBatch({
@@ -56,7 +57,10 @@ export async function preflightComparisonArm(options: ArmBootstrapOptions, rows:
       totalItems: items.length, executionState: 'paused',
       columnMappingJson: JSON.stringify({ upc: 'upc', name: 'register_name', price: 'price' }),
     });
-    const inserted = insertItems(batch.id, items, deriveSourcingEntryStage(getSourcingFlags()), SOURCING_ENTRY_POLICY_VERSION);
+    // Pilot enters directly at Discovery: the sourcing leg is default-on but the worker's
+    // auto-stage list never claims route_sources items, stranding them. Sourcing routing
+    // is a separate product decision, not part of this Discovery/confirmation pilot.
+    const inserted = insertItems(batch.id, items, 'find_product_page', SOURCING_ENTRY_POLICY_VERSION);
     holdBatchItems(batch.id, inserted.map(item => item.id), 'Qualification preflight: awaiting both-arm release.');
     const persisted = listItemsByBatch(batch.id);
     if (persisted.length !== rows.length || persisted.some(item => !item.isHeld || item.stageStatus !== 'pending')) throw new Error('Held population reconciliation failed');
@@ -73,7 +77,7 @@ export async function releaseComparisonArm(options: ArmBootstrapOptions, prepare
   let bindings: Record<string, string> = {};
   let initialized = false;
   try {
-    const freezeResolved = options.freezePath;
+    const freezeResolved = options.freezePath.startsWith('/') ? options.freezePath : path.join(options.privateRoot, options.freezePath);
     const db: Database = initDb(options.dbPath);
     initialized = true;
     runMigrations();
