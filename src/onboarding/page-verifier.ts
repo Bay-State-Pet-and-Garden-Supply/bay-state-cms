@@ -279,7 +279,8 @@ export async function verifyTopCandidates(
   fetchFn: NetworkFetch = fetch,
   options?: { signal?: AbortSignal; timeoutMs?: number },
 ): Promise<VerificationResult[]> {
-  const toVerify = candidates.slice(0, maxCandidates);
+  // R2: assess every bounded emitted candidate; ranking orders, never filters.
+  const toVerify = candidates.slice(0, Math.max(maxCandidates, candidates.length));
   if (toVerify.length === 0) return [];
 
   const settled = await Promise.allSettled(
