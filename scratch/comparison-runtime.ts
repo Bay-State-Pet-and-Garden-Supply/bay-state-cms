@@ -124,9 +124,6 @@ export async function materializeQualificationRuntime(
       await rm(target, { force: true });
       await copyFile(source, target, fsConstants.COPYFILE_EXCL);
     }
-    const stagedWorkspace = resolve(stage, workspaceRelative);
-    assertContained(stage, stagedWorkspace);
-    await mkdir(dirname(stagedWorkspace), { recursive: true });
     if ((await lstat(destination).catch(() => null)) !== null) throw new Error('Disposable destination already exists');
     await rename(stage, destination);
     return await validateQualificationRuntime(freezePath, privateRoot, resolve(destination, workspaceRelative), db);
