@@ -148,7 +148,7 @@
  "identity": {
   "workspaceId": "5d0e7adf-9e7f-4e23-a59e-267cfd775d0b",
   "catalogCommit": "7a9d49e1eef8d9561ef0cd90813d8d80a1058590",
-  "configRelease": "bay-state-v11",
+  "configRelease": "bay-state-v10",
   "activationEvidenceId": "catalog-evidence.json",
   "routingHash": "78105ce016c04587838e9a795d6328b35f76eab33aa0543b889ee5eadfe657ce",
   "sharingHash": "2d110e4d91f753f9ce61f2e707da167c5ed6440d512548a20534655adf0cd3d3",
