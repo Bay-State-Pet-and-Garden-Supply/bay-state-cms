@@ -11,11 +11,11 @@
  },
  "candidate": {
   "branch_at_protocol_publication": "feat/typesafe-onboarding-expansion",
-  "observed_head_not_comparison_freeze": "5a592098f54df17ac4c9ca9c793e57a89d7374c9",
-  "comparison_freeze_sha": "5a592098f54df17ac4c9ca9c793e57a89d7374c9",
-  "freeze_rule": "Record candidate SHA after development fixes at comparison freeze; never treat observed publication HEAD as the eventual candidate pin.",
+  "observed_head_not_comparison_freeze": "d33f8323c2da575f4b24d7d205808d5c3981465a",
+  "comparison_freeze_sha": "fdc84271024c7b08bea6113e75becd6ee7c5af6dd61ac96e0158c9f6915046de",
+  "freeze_rule": "comparison_freeze_sha pins the runtime freeze FILE hash; candidate code rev is recorded in freeze_note and observed_head. Never treat the observed HEAD as the freeze.",
   "freeze_file": ".baystate-cms/qualification/onboarding-outcome-v1/freeze-r8-smoke1.json",
-  "freeze_note": "Re-pinned 2026-10-23: worktree backlog landed as-is per operator direction + reviewer-fix commits through 4207b5f3 (fail-closed contracts, shared budget coordinator, per-item scopes, structured denials). Candidate rev 5a592098; baseline 91b52e9b. Freeze file content unchanged (r8-smoke1); file hash fdc84271 covers runtime inputs only, not candidate code.",
+  "freeze_note": "Re-pinned 2026-10-23: file hash fdc84271 covers r8-smoke1 runtime inputs (candidate code rev d33f8323 at pin time: worktree backlog landed as-is + reviewer fixes through 4207b5f3). Baseline 91b52e9b. Live Serper-only; TypeSafe refused.",
   "comparison_design": "candidate-schema mechanism proof (option A): baseline arm executes candidate migration chain as disclosed overlay; no incumbent-efficacy claim. Baseline-vs-candidate improvement comparison remains BLOCKED_COMPARABILITY pending schema reconciliation."
  },
  "runtime_observation": {
