@@ -1,124 +1,126 @@
 {
-  "schema_version": 1,
-  "protocol": "onboarding-outcome-v1",
-  "status": "BLOCKED",
-  "owner": "solo operator",
-  "baseline": {
-    "ref": "origin/main",
-    "sha": "91b52e9b489a7435d0a96e095da46952edac4cd7",
-    "merge_base_with_candidate_observation": "91b52e9b489a7435d0a96e095da46952edac4cd7",
-    "reason": "At protocol publication origin/main and git merge-base origin/main HEAD resolve to the same commit, so origin/main is the pre-expansion incumbent; pin merge-base instead if origin/main advanced after branching before freeze."
+ "schema_version": 1,
+ "protocol": "onboarding-outcome-v1",
+ "status": "BLOCKED",
+ "owner": "solo operator",
+ "baseline": {
+  "ref": "origin/main",
+  "sha": "91b52e9b489a7435d0a96e095da46952edac4cd7",
+  "merge_base_with_candidate_observation": "91b52e9b489a7435d0a96e095da46952edac4cd7",
+  "reason": "At protocol publication origin/main and git merge-base origin/main HEAD resolve to the same commit, so origin/main is the pre-expansion incumbent; pin merge-base instead if origin/main advanced after branching before freeze."
+ },
+ "candidate": {
+  "branch_at_protocol_publication": "feat/typesafe-onboarding-expansion",
+  "observed_head_not_comparison_freeze": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a",
+  "comparison_freeze_sha": "6598af1f1e64527d5df04694c651ae71dfa1c800b91f6b3e25930f10327f861a",
+  "freeze_rule": "Record candidate SHA after development fixes at comparison freeze; never treat observed publication HEAD as the eventual candidate pin.",
+  "freeze_file": ".baystate-cms/qualification/onboarding-outcome-v1/freeze-r8-smoke1.json",
+  "freeze_note": "R8 1-row smoke (DEV-0015), candidate rev 4c3a5aa4, baseline 91b52e9b. Live Serper-only; TypeSafe refused."
+ },
+ "runtime_observation": {
+  "bun_version": "1.4.2",
+  "git_rev_parse_HEAD": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a"
+ },
+ "population": {
+  "real_import_required": true,
+  "proposed_distinct_skus": 600,
+  "proposed_split": {
+   "development": 300,
+   "sealed_holdout": 300
   },
-  "candidate": {
-    "branch_at_protocol_publication": "feat/typesafe-onboarding-expansion",
-    "observed_head_not_comparison_freeze": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a",
-    "comparison_freeze_sha": null,
-    "freeze_rule": "Record candidate SHA after development fixes at comparison freeze; never treat observed publication HEAD as the eventual candidate pin."
+  "proposal_pending_fit": true,
+  "private_payload_paths": [
+   ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json",
+   ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"
+  ],
+  "split_payload_paths": {
+   "development": [
+    ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json"
+   ],
+   "holdout": [
+    ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"
+   ]
   },
-  "runtime_observation": {
-    "bun_version": "1.4.2",
-    "git_rev_parse_HEAD": "c66a5bcb0adbdd7e7a89e194875a80bb26c1720a"
+  "sha256_commitments": {
+   ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json": "47df1ba1e8e5bbb4e028a222c4ae4d9564b8eb1cab755df4717d29974312f022",
+   ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json": "8669d2b6d4cdcdaaa2fb69cb87deae36868de010ba31da02057288ff6974b50d",
+   ".baystate-cms/qualification/onboarding-outcome-v1/originals/NEWFORNICK0090626.xlsx": "51ecf497353b539960af642e78787352a5b77d1b351b2438f169f6913b77381e",
+   ".baystate-cms/qualification/onboarding-outcome-v1/originals/NEWFORNICK081226.csv": "29c012420cb4c6579a68ff3a967345a2197a5acb3d9f04f465591c05d9a7ec4c",
+   ".baystate-cms/qualification/onboarding-outcome-v1/originals/New Products 061126.xls": "ac5f1462eaf4762fb6203f3ed538edfd7bfb59c74a33d0dd489c3b9e15df49bd",
+   ".baystate-cms/qualification/onboarding-outcome-v1/originals/New for Nick 101426.xls": "1b0a5bfe772396c39611d5fd0bcc44590a88a23b604825734e0a12b4b071f92b"
   },
-  "population": {
-    "real_import_required": true,
-    "proposed_distinct_skus": 600,
-    "proposed_split": {
-      "development": 300,
-      "sealed_holdout": 300
-    },
-    "proposal_pending_fit": true,
-    "private_payload_paths": [
-      ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json",
-      ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"
-    ],
-    "split_payload_paths": {
-      "development": [
-        ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json"
-      ],
-      "holdout": [
-        ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json"
-      ]
-    },
-    "sha256_commitments": {
-      ".baystate-cms/qualification/onboarding-outcome-v1/inputs/development-input.json": "47df1ba1e8e5bbb4e028a222c4ae4d9564b8eb1cab755df4717d29974312f022",
-      ".baystate-cms/qualification/onboarding-outcome-v1/inputs/holdout-input.json": "8669d2b6d4cdcdaaa2fb69cb87deae36868de010ba31da02057288ff6974b50d",
-      ".baystate-cms/qualification/onboarding-outcome-v1/originals/NEWFORNICK0090626.xlsx": "51ecf497353b539960af642e78787352a5b77d1b351b2438f169f6913b77381e",
-      ".baystate-cms/qualification/onboarding-outcome-v1/originals/NEWFORNICK081226.csv": "29c012420cb4c6579a68ff3a967345a2197a5acb3d9f04f465591c05d9a7ec4c",
-      ".baystate-cms/qualification/onboarding-outcome-v1/originals/New Products 061126.xls": "ac5f1462eaf4762fb6203f3ed538edfd7bfb59c74a33d0dd489c3b9e15df49bd",
-      ".baystate-cms/qualification/onboarding-outcome-v1/originals/New for Nick 101426.xls": "1b0a5bfe772396c39611d5fd0bcc44590a88a23b604825734e0a12b4b071f92b"
-    },
-    "strata": [
-      "ordinary_control",
-      "unknown_brand",
-      "profile_unavailable",
-      "source_unavailable",
-      "abbreviated_name",
-      "near_neighbor_model_flavor",
-      "unit_case_pack",
-      "no_fit",
-      "ambiguous_variant",
-      "missing_safety_evidence",
-      "missing_rights_evidence",
-      "actual_catalog_join"
-    ],
-    "provenance_requirements": "Private original actual POS/register/supplier export, untouched UPC/Register Name/Price derivation, catalog commit, source artifacts with locators/date/hash; see protocol.md.",
-    "actual_imports": {
-      "distinct_skus": 332,
-      "original_rows": 337,
-      "dev_rows": 169,
-      "dev_distinct": 166,
-      "holdout_rows": 168,
-      "holdout_distinct": 166,
-      "components_total": 285,
-      "components_dev": 143,
-      "components_holdout": 142,
-      "primary_strata_dev": {
-        "near_neighbor_model_flavor": 44,
-        "ordinary_control": 25,
-        "unit_case_pack": 93,
-        "abbreviated_name": 7
-      },
-      "primary_strata_holdout": {
-        "near_neighbor_model_flavor": 46,
-        "ordinary_control": 19,
-        "unit_case_pack": 94,
-        "abbreviated_name": 9
-      },
-      "shortfall_vs_proposed_600": 268,
-      "shortfall_note": "BLOCKED: 600-SKU target not met from real exports on hand; per-stratum support insufficient for stratum-level verdicts. Aggregate metrics proceed with support warnings (see summary.json). No fixtures substituted.",
-      "source_files": [
-        "New for Nick 101426.xls (72 data rows)",
-        "NEWFORNICK0090626.xlsx (131 data rows)",
-        "New Products 061126.xls (100 data rows)",
-        "NEWFORNICK081226.csv (33 data rows + UPC column)"
-      ],
-      "derivation": "UPC = #SKU column when present else SKU_NO digits; Register Name = DESCRIPTION1 + DESCRIPTION2 joined (source spelling preserved); Price = LIST_PRICE; Quantity/dates retained as provenance only, not evaluated inputs.",
-      "provenance": "Private originals under .baystate-cms/qualification/onboarding-outcome-v1/originals/ with SHA-256 above; three-column evaluated inputs under inputs/ (development readable, holdout sealed read-only)."
-    }
-  },
-  "freeze": {
-    "input_hashes": null,
-    "rules": null,
-    "budgets": null,
-    "model_policies": null,
-    "catalog_commit": null,
-    "environment": null,
-    "holdout_labels_available_to_fit": false
-  },
-  "blockers": [
-    "BLOCKED_BUDGET_OR_MODEL_POLICY",
-    "BLOCKED_CANDIDATE_FREEZE",
-    "BLOCKED_COMPARABILITY",
-    "BLOCKED_EQUAL_INPUTS",
-    "BLOCKED_EXISTING_CAPABILITY_RECEIPT",
-    "BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE",
-    "BLOCKED_INSUFFICIENT_SUPPORT",
-    "BLOCKED_LABELS_OR_REVIEW",
-    "BLOCKED_METRIC_CAPTURE",
-    "BLOCKED_NATIVE_OR_CATALOG_EVIDENCE",
-    "BLOCKED_POPULATION_SUPPORT",
-    "BLOCKED_PREREQUISITE",
-    "BLOCKED_STORE_AUTHORIZATION_OR_CANARY",
-    "BLOCKED_UNKNOWN_COST"
-  ]
+  "strata": [
+   "ordinary_control",
+   "unknown_brand",
+   "profile_unavailable",
+   "source_unavailable",
+   "abbreviated_name",
+   "near_neighbor_model_flavor",
+   "unit_case_pack",
+   "no_fit",
+   "ambiguous_variant",
+   "missing_safety_evidence",
+   "missing_rights_evidence",
+   "actual_catalog_join"
+  ],
+  "provenance_requirements": "Private original actual POS/register/supplier export, untouched UPC/Register Name/Price derivation, catalog commit, source artifacts with locators/date/hash; see protocol.md.",
+  "actual_imports": {
+   "distinct_skus": 332,
+   "original_rows": 337,
+   "dev_rows": 169,
+   "dev_distinct": 166,
+   "holdout_rows": 168,
+   "holdout_distinct": 166,
+   "components_total": 285,
+   "components_dev": 143,
+   "components_holdout": 142,
+   "primary_strata_dev": {
+    "near_neighbor_model_flavor": 44,
+    "ordinary_control": 25,
+    "unit_case_pack": 93,
+    "abbreviated_name": 7
+   },
+   "primary_strata_holdout": {
+    "near_neighbor_model_flavor": 46,
+    "ordinary_control": 19,
+    "unit_case_pack": 94,
+    "abbreviated_name": 9
+   },
+   "shortfall_vs_proposed_600": 268,
+   "shortfall_note": "BLOCKED: 600-SKU target not met from real exports on hand; per-stratum support insufficient for stratum-level verdicts. Aggregate metrics proceed with support warnings (see summary.json). No fixtures substituted.",
+   "source_files": [
+    "New for Nick 101426.xls (72 data rows)",
+    "NEWFORNICK0090626.xlsx (131 data rows)",
+    "New Products 061126.xls (100 data rows)",
+    "NEWFORNICK081226.csv (33 data rows + UPC column)"
+   ],
+   "derivation": "UPC = #SKU column when present else SKU_NO digits; Register Name = DESCRIPTION1 + DESCRIPTION2 joined (source spelling preserved); Price = LIST_PRICE; Quantity/dates retained as provenance only, not evaluated inputs.",
+   "provenance": "Private originals under .baystate-cms/qualification/onboarding-outcome-v1/originals/ with SHA-256 above; three-column evaluated inputs under inputs/ (development readable, holdout sealed read-only)."
+  }
+ },
+ "freeze": {
+  "input_hashes": null,
+  "rules": null,
+  "budgets": null,
+  "model_policies": null,
+  "catalog_commit": null,
+  "environment": null,
+  "holdout_labels_available_to_fit": false
+ },
+ "blockers": [
+  "BLOCKED_BUDGET_OR_MODEL_POLICY",
+  "BLOCKED_CANDIDATE_FREEZE",
+  "BLOCKED_COMPARABILITY",
+  "BLOCKED_EQUAL_INPUTS",
+  "BLOCKED_EXISTING_CAPABILITY_RECEIPT",
+  "BLOCKED_HOLDOUT_SEAL_OR_LEAKAGE",
+  "BLOCKED_INSUFFICIENT_SUPPORT",
+  "BLOCKED_LABELS_OR_REVIEW",
+  "BLOCKED_METRIC_CAPTURE",
+  "BLOCKED_NATIVE_OR_CATALOG_EVIDENCE",
+  "BLOCKED_POPULATION_SUPPORT",
+  "BLOCKED_PREREQUISITE",
+  "BLOCKED_STORE_AUTHORIZATION_OR_CANARY",
+  "BLOCKED_UNKNOWN_COST"
+ ]
 }
