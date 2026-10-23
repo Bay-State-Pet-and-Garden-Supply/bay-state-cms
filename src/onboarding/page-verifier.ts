@@ -733,14 +733,17 @@ export function extractVerificationSignals(
   const urlLower = url.toLowerCase();
   const hasProductIndicator =
     /\/(products?|p|item|details?|dp|gp|buy)\//i.test(urlLower);
+  // Markup signals must come from the rendered <body>, not embedded JSON-LD /
+  // script payloads that merely reference collections, blogs, or search facets.
+  const bodyHtml = (html.match(/<body[\s\S]*<\/body\s*>/i) ?? [html])[0]!;
   const isListingOrSearchPage =
-    /category-listing|collection-page|search-results-page|\/collections\/|\/search\?/i.test(html) ||
+    /category-listing|collection-page|search-results-page|\/collections\/|\/search\?/i.test(bodyHtml) ||
     /<body[^>]*class=["'][^"']*(?:collection|search)[^"']*["']/i.test(html) ||
     (/\/(collections?|category|categories|product-category|brands?|tags?|search|shop-all|all-products)\//i.test(
       urlLower,
     ) && !hasProductIndicator);
   const isBlogOrCmsPage =
-    /blog-post-article|\/blogs\//i.test(html) ||
+    /blog-post-article|\/blogs\//i.test(bodyHtml) ||
     (/\/(blogs?|articles?|pages|about|contact|faq)\//i.test(urlLower) &&
     !hasProductIndicator);
   const isProductDetailPage = hasProductIndicator && !isListingOrSearchPage && !isBlogOrCmsPage;
