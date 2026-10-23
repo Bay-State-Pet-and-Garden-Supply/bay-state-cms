@@ -48,7 +48,7 @@ export async function validateQualificationRuntime(freezePath: string, privateRo
   const root = await realpath(privateRoot);
   const workspace = await realpath(workspacePath);
   assertContained(root, workspace);
-  const freezeFile = await realpath(freezePath);
+  const freezeFile = await realpath(freezePath.startsWith('/') ? freezePath : resolve(root, freezePath));
   assertContained(root, freezeFile);
   const run = await readQualificationFreeze(freezeFile);
   for (const artifact of run.artifacts) {

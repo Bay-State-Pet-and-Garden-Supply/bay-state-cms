@@ -37,15 +37,15 @@ async function credentials(fd: number | undefined, run: QualificationRuntimeVali
 export async function preflightComparisonArm(options: ArmBootstrapOptions, rows: readonly PopulationRow[]): Promise<ArmPreflightResult> {
   let initialized = false;
   try {
-    const run = await readQualificationFreeze(options.freezePath);
+    const resolveRooted = (value: string): string => value.startsWith('/') ? value : path.join(options.privateRoot, value);
+    const run = await readQualificationFreeze(resolveRooted(options.freezePath));
     if (!run.authorizedArms.includes(options.arm)) throw new Error(`Arm not authorized: ${options.arm}`);
     if (rows.length === 0) throw new Error('Selected split population is empty');
     if (rows.length > run.limits.maxItems) throw new Error('Population exceeds frozen item limit');
-    const validation = await materializeQualificationRuntime(options.freezePath, options.privateRoot, options.workspacePath, options.destinationRoot);
+    const validation = await materializeQualificationRuntime(resolveRooted(options.freezePath), options.privateRoot, resolveRooted(options.workspacePath), path.resolve(options.destinationRoot));
     const db: Database = initDb(options.dbPath);
     initialized = true;
     runMigrations();
-    importQualificationRuntimeRecords(db, validation.run.runtimeRecords, validation.run.workspaceId);
     const items: InsertItemData[] = rows.map((row, index) => ({
       upc: row.upc, name: row.register_name, price: String(row.price), rowNumber: index + 1,
       isHeld: true, stageStatus: 'pending',
@@ -72,7 +72,8 @@ export async function releaseComparisonArm(options: ArmBootstrapOptions, prepare
   let bindings: Record<string, string> = {};
   let initialized = false;
   try {
-    const validation = await validateQualificationRuntime(options.freezePath, options.privateRoot, prepared.workspacePath);
+    const freezeResolved = options.freezePath;
+    const validation = await validateQualificationRuntime(freezeResolved, options.privateRoot, prepared.workspacePath);
     if (!validation.run.authorizedArms.includes(options.arm) || prepared.arm !== options.arm || !prepared.batchId) throw new Error('Arm release does not match a successful preflight');
     if (prepared.imported !== prepared.itemIds.length) throw new Error('Prepared population is inconsistent');
     bindings = await credentials(options.credentialFd, validation);

@@ -25,15 +25,22 @@ import { projectComparisonRows, type ComparisonInput } from './comparison-report
 import { closeDb, initDb } from '../src/db/connection';
 import { readQualificationFreeze } from './comparison-runtime';
 
-type Options = { split: 'development' | 'holdout'; arm: 'baseline' | 'candidate' | 'both'; mode: 'comparison' | 'mechanism-check'; cap: number; manifest: string; freeze?: string; privateRoot?: string; workspace?: string };
+type Options = { split: 'development' | 'holdout'; arm: 'baseline' | 'candidate' | 'both'; mode: 'comparison' | 'mechanism-check'; cap: number; manifest: string; freeze?: string; privateRoot?: string; workspace?: string; rowIds?: string[] };
 type Arm = 'baseline' | 'candidate';
-const usage = 'Usage: bun scratch/run-comparison.ts --split development|holdout --arm baseline|candidate|both --mode comparison|mechanism-check --max-spend-usd USD [--manifest path] --freeze path --private-root path --workspace path';
+const usage = 'Usage: bun scratch/run-comparison.ts --split development|holdout --arm baseline|candidate|both --mode comparison|mechanism-check --max-spend-usd USD [--manifest path] --freeze path --private-root path --workspace path [--row-id DEV-0001 ...]';
 
 
 function parseArgs(argv: string[]): Options {
   const values: Record<string, string> = {};
+  const rowIds: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i]!;
+    if (key === '--row-id') {
+      const value = argv[++i];
+      if (!value || value.startsWith('--')) throw new Error(`${usage}\nMissing value for ${key}`);
+      rowIds.push(value);
+      continue;
+    }
     if (!['--split', '--arm', '--mode', '--max-spend-usd', '--manifest', '--freeze', '--private-root', '--workspace'].includes(key) || Object.hasOwn(values, key)) throw new Error(`${usage}\nInvalid or repeated option: ${key}`);
     const value = argv[++i];
     if (!value || value.startsWith('--')) throw new Error(`${usage}\nMissing value for ${key}`);
@@ -51,6 +58,7 @@ function parseArgs(argv: string[]): Options {
     split: split as Options['split'], arm: arm as Options['arm'], mode: mode as Options['mode'], cap,
     manifest: values['--manifest'] ?? DEFAULT_MANIFEST, freeze: values['--freeze'],
     privateRoot: values['--private-root'], workspace: values['--workspace'],
+    rowIds: rowIds.length ? [...new Set(rowIds)] : undefined,
   };
 }
 
@@ -87,8 +95,8 @@ async function main(): Promise<void> {
   verifyHashes(manifest, options.split);
   const sourceRows = loadRows(manifest, options.split);
   if (sourceRows.some(row => Object.keys(row).some(key => /gold|label|truth|expected/i.test(key)))) throw new Error('Source payload contains gold/label-like fields.');
-  const selectedRows = options.mode === 'mechanism-check' ? sourceRows.slice(0, 3) : sourceRows;
-  if (options.mode === 'mechanism-check' && selectedRows.length !== 3) throw new Error(`Mechanism check requires three rows; found ${selectedRows.length}.`);
+  const selectedRows = options.mode === 'mechanism-check' ? sourceRows.slice(0, 3) : options.rowIds ? sourceRows.filter(row => typeof row.row_id === 'string' && options.rowIds!.includes(row.row_id)) : sourceRows;
+  if (options.rowIds && selectedRows.length !== options.rowIds.length) throw new Error(`Row filter matched ${selectedRows.length} of ${options.rowIds.length} requested rows.`);
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}`;
   const arms: Arm[] = options.arm === 'both' ? ['baseline', 'candidate'] : [options.arm];
   const privateRoot = rootPath(options.privateRoot ?? PRIVATE_ROOT);
